@@ -13,7 +13,7 @@ Available languages: English and [Deutsch](README.de.md)
 - ⚡ **Multi-level caching** with cluster-wide invalidation
 - 🔌 **Custom MongoDB wire-protocol driver** tuned for Morphium
 - 🧪 **In-memory driver** for fast tests (no MongoDB required)
-- 🌱 **PoppyDB** — MongoDB-compatible in-memory server: replica sets, auth/TLS, messaging backend
+- 🌱 **[PoppyDB](https://sboesebeck.github.io/morphium/poppydb/)** — MongoDB-compatible in-memory server: replica sets, auth/TLS, messaging backend
 - 🎯 **JMS API (experimental)** for standards-based messaging
 - 🚀 **Java 21+** — modern language baseline (pattern matching, sealed types)
 
@@ -215,7 +215,8 @@ try (Morphium morphium = new Morphium(cfg)) {          // cfg points at localhos
 }
 ```
 
-📖 **Deep dives:** [PoppyDB guide](docs/poppydb.md) ·
+📖 **Deep dives:** [Online documentation](https://sboesebeck.github.io/morphium/poppydb/) ·
+[PoppyDB guide](docs/poppydb.md) ·
 [Production deployment playbook](docs/howtos/poppydb-deployment.md) ·
 [Migrating from MongoDB](docs/howtos/migration-mongodb-to-poppydb.md)
 

@@ -14,7 +14,7 @@ Morphium ist eine umfassende Datenschicht-Lösung für MongoDB mit:
 - ⚡ **Multi-Level Caching** mit automatischer Cluster-Synchronisation
 - 🔌 **Eigener MongoDB Wire-Protocol-Treiber** für direkte Kommunikation
 - 🧪 **In-Memory-Treiber** für schnelle Tests (deutlich weniger Latenz, kein MongoDB nötig)
-- 🌱 **PoppyDB** — MongoDB-kompatibler In-Memory-Server: Replica Sets, Auth/TLS, Messaging-Backend
+- 🌱 **[PoppyDB](https://sboesebeck.github.io/morphium/poppydb/)** — MongoDB-kompatibler In-Memory-Server: Replica Sets, Auth/TLS, Messaging-Backend
 - 🎯 **JMS API (experimentell)** für standardbasiertes Messaging
 - 🚀 **Java 21+** — moderne Sprachbasis (Pattern Matching, Sealed Types)
 
@@ -201,7 +201,8 @@ try (Morphium morphium = new Morphium(cfg)) {          // cfg zeigt auf localhos
 }
 ```
 
-📖 **Vertiefung:** [PoppyDB-Guide](docs/poppydb.md) ·
+📖 **Vertiefung:** [Online-Doku](https://sboesebeck.github.io/morphium/poppydb/) ·
+[PoppyDB-Guide](docs/poppydb.md) ·
 [Production-Deployment-Playbook](docs/howtos/poppydb-deployment.md) ·
 [Migration von MongoDB](docs/howtos/migration-mongodb-to-poppydb.md)
 
