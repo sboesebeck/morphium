@@ -1379,10 +1379,18 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
             cmd.setColl(dmColl).setDb(morphium.getDatabase());
             cmd.addUpdate(idq.toQueryObject(), Doc.of("$addToSet", Doc.of(processedByFieldName, id)),
                           null, false, false, null, null, null);
-            cmd.execute();
+            Map<String, Object> ret = cmd.execute();
             cmd.releaseConnection();
             cmd = null;
+
+            // legacy null-field shape surfaces as a write error on mongod (#291)
+            if (ret.get("writeErrors") != null) {
+                LegacyProcessedByRepair.repairNullField(morphium, dmColl, queryId, processedByFieldName, id);
+            }
         } catch (MorphiumDriverException e) {
+            if (LegacyProcessedByRepair.repairNullField(morphium, dmColl, queryId, processedByFieldName, id)) {
+                return;
+            }
             log.error("Error persisting processed_by mark for DM message " + msg.getMsgId(), e);
         } finally {
             if (cmd != null) {
@@ -2541,6 +2549,13 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
                 try {
                     if (morphium.reread(msg, getCollectionName()) != null) {
                         if (!msg.getProcessedBy().contains(id)) {
+                            // Legacy/foreign document with an explicit processed_by: null - the
+                            // $addToSet was rejected by mongod as a write error (#291).
+                            if (LegacyProcessedByRepair.repairNullField(morphium, getCollectionName(),
+                                    queryId, processedByFieldName, id)) {
+                                msg.getProcessedBy().add(id);
+                                return true;
+                            }
                             log.warn(id + ": Could not update processed_by in msg " + msg.getMsgId());
                             log.warn(id + ": " + Utils.toJsonString(ret));
                             log.warn(id + ": msg: " + msg.toString());
@@ -2561,6 +2576,13 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
                 return true;
             }
         } catch (MorphiumDriverException e) {
+            // The InMemoryDriver surfaces the $addToSet-on-null rejection as an exception
+            // rather than a write error - same legacy-document case, same repair (#291).
+            if (LegacyProcessedByRepair.repairNullField(morphium, getCollectionName(),
+                    queryId, processedByFieldName, id)) {
+                msg.getProcessedBy().add(id);
+                return true;
+            }
             log.error("Error updating processed by - this might lead to duplicate execution!", e);
             return false;
         } finally {
@@ -2597,10 +2619,19 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
             cmd.setColl(getCollectionName()).setDb(morphium.getDatabase());
             cmd.addUpdate(idq.toQueryObject(), Doc.of("$addToSet", Doc.of(processedByFieldName, id)),
                           null, false, false, null, null, null);
-            cmd.execute();
+            Map<String, Object> ret = cmd.execute();
             cmd.releaseConnection();
             cmd = null;
+
+            // nModified=0 with a write error present means the legacy null-field shape (#291),
+            // not the benign already-marked/already-deleted cases this method tolerates.
+            if (ret.get("writeErrors") != null) {
+                LegacyProcessedByRepair.repairNullField(morphium, getCollectionName(), queryId, processedByFieldName, id);
+            }
         } catch (MorphiumDriverException e) {
+            if (LegacyProcessedByRepair.repairNullField(morphium, getCollectionName(), queryId, processedByFieldName, id)) {
+                return;
+            }
             log.error("Error persisting processed_by mark for answer " + msg.getMsgId(), e);
         } finally {
             if (cmd != null) {

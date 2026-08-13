@@ -1197,10 +1197,18 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                           null, false, false, null, null, null);
             if (!running.get())
                 return; // this happens during tests mainly
-            cmd.execute();
+            Map<String, Object> ret = cmd.execute();
             cmd.releaseConnection();
             cmd = null;
+
+            // legacy null-field shape surfaces as a write error on mongod (#291)
+            if (ret.get("writeErrors") != null) {
+                LegacyProcessedByRepair.repairNullField(morphium, collName, queryId, processedByFieldName, id);
+            }
         } catch (MorphiumDriverException e) {
+            if (LegacyProcessedByRepair.repairNullField(morphium, collName, queryId, processedByFieldName, id)) {
+                return;
+            }
             log.error("Error persisting processed_by mark for answer " + msg.getMsgId(), e);
         } finally {
             if (cmd != null) {
@@ -1255,6 +1263,12 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     return;
                 }
                 if (!msg.getProcessedBy().contains(id)) {
+                    // Legacy/foreign document with an explicit processed_by: null - the
+                    // $addToSet was rejected by mongod as a write error (#291).
+                    if (LegacyProcessedByRepair.repairNullField(morphium, collName, queryId, processedByFieldName, id)) {
+                        msg.getProcessedBy().add(id);
+                        return;
+                    }
                     log.warn("{}: Could not update processed_by in msg {}", id, msg.getMsgId());
                 }
                 return;
@@ -1262,6 +1276,12 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
             msg.getProcessedBy().add(id);
         } catch (MorphiumDriverException e) {
+            // The InMemoryDriver surfaces the $addToSet-on-null rejection as an exception
+            // rather than a write error - same legacy-document case, same repair (#291).
+            if (LegacyProcessedByRepair.repairNullField(morphium, collName, queryId, processedByFieldName, id)) {
+                msg.getProcessedBy().add(id);
+                return;
+            }
             log.error("Error updating processed by - this might lead to duplicate execution!", e);
         } finally {
             if (cmd != null) {

@@ -46,14 +46,27 @@ public class MessageRejectedException extends RuntimeException {
                         cmd.setColl(msg.getCollectionName()).setDb(msg.getMorphium().getDatabase());
                         String processedByFieldName = msg.getMorphium().getARHelper().getMongoFieldName(Msg.class, Msg.Fields.processedBy.name());
                         cmd.addUpdate(Doc.of("_id", m.getMsgId()), Doc.of("$addToSet", Doc.of(processedByFieldName, msg.getSenderId())), null, false, false, null, null, null);
-                        cmd.execute();
+                        var ret = cmd.execute();
+
+                        // legacy/foreign document with an explicit processed_by: null (#291)
+                        if (ret.get("writeErrors") != null) {
+                            LegacyProcessedByRepair.repairNullField(msg.getMorphium(), msg.getCollectionName(),
+                                m.getMsgId(), processedByFieldName, msg.getSenderId());
+                        }
                         //not exclusive message is marked as processed by me
                     } else {
                         //releasing lock when exclusive - should not be checked until processing is removed
                         var ret = msg.getMorphium().createQueryFor(MsgLock.class, msg.getLockCollectionName(m)).f("_id").eq(m.getMsgId()).delete();
                     }
                 } catch (MorphiumDriverException e) {
-                    LoggerFactory.getLogger(msg.getClass()).error("Error unlocking message", e);
+                    // the InMemoryDriver surfaces the $addToSet-on-null rejection as an exception (#291)
+                    if (!m.isExclusive() && LegacyProcessedByRepair.repairNullField(msg.getMorphium(), msg.getCollectionName(),
+                            m.getMsgId(), msg.getMorphium().getARHelper().getMongoFieldName(Msg.class, Msg.Fields.processedBy.name()),
+                            msg.getSenderId())) {
+                        LoggerFactory.getLogger(msg.getClass()).debug(msg.getSenderId() + ": repaired legacy processed_by on rejected message");
+                    } else {
+                        LoggerFactory.getLogger(msg.getClass()).error("Error unlocking message", e);
+                    }
                 } finally {
                     if (cmd != null) {
                         cmd.releaseConnection();

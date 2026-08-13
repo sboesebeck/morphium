@@ -7623,6 +7623,51 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     /**
+     * True when {@code path} resolves to a key/index that EXISTS but holds an explicit
+     * {@code null} - as opposed to not existing at all, which is what a plain
+     * {@link #getByPathArrayAware} {@code == null} cannot distinguish. The array-mutation
+     * operators need the distinction for mongod parity (#291): a missing field gets the array
+     * created, an explicitly-null field is a non-array value and must be rejected.
+     */
+    @SuppressWarnings("rawtypes")
+    private boolean isExplicitNullAtPath(Map<String, Object> doc, String path) {
+        String[] parts = path.split("\\.");
+        Object cur = doc;
+
+        for (int i = 0; i < parts.length - 1; i++) {
+            String p = parts[i];
+
+            if (cur instanceof Map) {
+                cur = ((Map) cur).get(p);
+            } else if (cur instanceof List && isArrayIndex(p)) {
+                List l = (List) cur;
+                int idx = Integer.parseInt(p);
+                cur = idx < l.size() ? l.get(idx) : null;
+            } else {
+                return false;
+            }
+
+            if (cur == null) {
+                return false;
+            }
+        }
+
+        String last = parts[parts.length - 1];
+
+        if (cur instanceof Map) {
+            return ((Map) cur).containsKey(last) && ((Map) cur).get(last) == null;
+        }
+
+        if (cur instanceof List && isArrayIndex(last)) {
+            List l = (List) cur;
+            int idx = Integer.parseInt(last);
+            return idx < l.size() && l.get(idx) == null;
+        }
+
+        return false;
+    }
+
+    /**
      * Path write that descends into arrays via numeric segments (padding with nulls like
      * MongoDB) and creates intermediate documents where the path does not exist yet.
      */
@@ -8650,10 +8695,19 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                 List v;
                                 boolean created = false;
 
+                                // mongod parity (#291): a MISSING field gets the array created, but a
+                                // field explicitly stored as null is a non-array value and must fail
+                                // ("Cannot apply $addToSet to non-array field ... has non-array type
+                                // null"). Legacy/foreign writers produce such documents; treating them
+                                // like missing hid exactly the failure mode messaging trips over.
                                 if (field.contains(".")) {
                                     Object existing = getByPathArrayAware(obj, field);
 
                                     if (existing == null) {
+                                        if (isExplicitNullAtPath(obj, field)) {
+                                            throw new MorphiumDriverException("Cannot apply " + operand
+                                                            + " to non-array field '" + field + "' - field has non-array type null");
+                                        }
                                         v = new ArrayList<>();
                                         setByPathArrayAware(obj, field, v);
                                         created = true;
@@ -8667,6 +8721,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                     Object existing = obj.get(field);
 
                                     if (existing == null) {
+                                        if (obj.containsKey(field)) {
+                                            throw new MorphiumDriverException("Cannot apply " + operand
+                                                            + " to non-array field '" + field + "' - field has non-array type null");
+                                        }
                                         v = new ArrayList<>();
                                         obj.put(field, v);
                                         created = true;

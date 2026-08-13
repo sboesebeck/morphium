@@ -43,7 +43,19 @@ analysis). The deduplication behavior is unchanged, only the log level.
 
 ### Fixed
 
-#### InMemoryDriver: index-store publish can no longer race a concurrent invalidate (#290)
+#### Messaging: legacy documents with processed_by: null are deliverable again (#291)
+A stored message whose `processed_by` is an explicit `null` made the pre-exec marking fail on
+mongod ("Cannot apply $addToSet to non-array field … has non-array type null") — and since
+6.3.x requires exclusive messages to be marked *before* the listener runs, that turned into a
+hard non-delivery: no listener call, no answer, `sendAndAwait` timeout. Morphium senders can't
+produce such documents (Msg's `@PreStore` initializes the field), but foreign writers mapping
+the same collection without that guard, raw-driver writers and restored dumps can — observed in
+production against a consumer upgraded from 6.2.4, where the same failed write had merely been
+log noise after processing. All marking sites in all three implementations (plus the rejection
+handler) now fall back to an atomic repair: `{processed_by: null}` → `{$set: [own id]}`,
+guarded so an existing array is never clobbered. The InMemoryDriver previously masked the whole
+class by treating explicit null like a missing field for `$addToSet`/`$push` (creating the
+array); it now rejects it exactly like mongod, so the scenario is testable in-memory.
 `getIndexStore()` is reachable without the collection lock (explain and slow-query logging), so
 its from-scratch build could race any write that invalidates the store — most visibly
 `createUser`: the build snapshots the documents, the write lands and invalidates, and the build
