@@ -23,9 +23,14 @@ COUNTER_RE = re.compile(
 
 
 def parse_logdir(logdir):
-    classes = methods = failed = skipped = 0
+    try:
+        names = sorted(os.listdir(logdir))
+    except (FileNotFoundError, NotADirectoryError) as e:
+        print("error: no parsable class logs in %s" % logdir, file=sys.stderr)
+        sys.exit(2)
+    classes = methods = method_failed = class_broken = skipped = 0
     duration = 0.0
-    for name in sorted(os.listdir(logdir)):
+    for name in names:
         if not name.endswith(".log") or name == "failed.txt":
             continue
         path = os.path.join(logdir, name)
@@ -37,18 +42,18 @@ def parse_logdir(logdir):
                     last = m
         classes += 1
         if last is None:
-            failed += 1  # no summary line at all: build/setup failure of the class
+            class_broken += 1  # no summary line at all: build/setup failure of the class
             continue
         run, fails, errs, skip, elapsed, _fqcn = last.groups()
         methods += int(run)
-        failed += int(fails) + int(errs)
+        method_failed += int(fails) + int(errs)
         skipped += int(skip)
         duration += float(elapsed.replace(",", ""))
     if classes == 0:
         return None
     return {"classes": classes, "methods": methods,
-            "passed": methods - failed - skipped, "skipped": skipped,
-            "broken": failed, "duration_s": int(duration)}
+            "passed": methods - method_failed - skipped, "skipped": skipped,
+            "broken": method_failed + class_broken, "duration_s": int(duration)}
 
 
 def parse_coverage(pairs):
@@ -118,7 +123,7 @@ def selftest():
         with open(os.path.join(td, "de.caluga.test.Broken.log"), "w") as fh:
             fh.write("compile error, no summary line\n")
         stats = parse_logdir(td)
-        assert stats == {"classes": 2, "methods": 9, "passed": 7, "skipped": 1,
+        assert stats == {"classes": 2, "methods": 9, "passed": 8, "skipped": 1,
                          "broken": 1, "duration_s": 90}, stats
         covf = os.path.join(td, "cov.xml")
         with open(covf, "w") as fh:
