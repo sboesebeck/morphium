@@ -208,6 +208,12 @@ public class CacheSyncTest extends MultiDriverTestBase {
 
 
         morphium.clearCollection(IdCachedObject.class);
+        // The clear is asynchronous for this cached entity - without waiting for it to become
+        // visible it races the 100 stores below and wipes some of them, so the ==100 wait at the
+        // end of this block can never come true (seen on all four CI server phases 2026-08-13;
+        // the pre-hardening sleep never asserted the count and silently tolerated the loss).
+        TestUtils.waitForConditionToBecomeTrue(15000, "collection not cleared",
+                () -> morphium.createQueryFor(IdCachedObject.class).countAll() == 0);
         MorphiumMessaging idMsg1 = morphium.createMessaging();
         idMsg1.setPause(100).setMultithreadded(true);
         idMsg1.start();
