@@ -17,16 +17,24 @@ done
 
 RECORD=$(cat)
 # filename fields straight from the record so file and content cannot diverge
-eval "$(printf '%s' "$RECORD" | python3 -c '
-import json,sys
-r=json.load(sys.stdin)
-ts=r["timestamp"].replace(":","-")
-scope="full" if r["scope"]["complete"] else "partial"
-phases="-".join(sorted(r["phases"]))
-print("TS=%s COMMIT8=%s RUNNER=%s SCOPE=%s_%s" %
-      (ts, r["commit"][:8], r["runner"].split(".")[0], scope, phases))
-')"
-FILE="${TS}_${COMMIT8}_${RUNNER}_${SCOPE}.json"
+FILE=$(printf '%s' "$RECORD" | python3 -c '
+import json, re, sys
+try:
+    r = json.load(sys.stdin)
+    ts = r["timestamp"].replace(":", "-")
+    commit8 = r["commit"][:8]
+    runner = re.sub(r"[^A-Za-z0-9_-]", "", r["runner"].split(".")[0]) or "unknown"
+    scope = "full" if r["scope"]["complete"] else "partial"
+    phases = "-".join(sorted(r["phases"]))
+    for field in (ts, commit8, phases):
+        if not re.fullmatch(r"[A-Za-z0-9._-]+", field):
+            raise ValueError("unsafe field content: %r" % field)
+    print("%s_%s_%s_%s-%s.json" % (ts, commit8, runner, scope, phases))
+except Exception as e:
+    print("error: invalid record: %s" % e, file=sys.stderr)
+    sys.exit(1)
+') || { echo "error: refusing to publish invalid record" >&2; exit 1; }
+case "$FILE" in *[!A-Za-z0-9._-]*|"") echo "error: unsafe filename: $FILE" >&2; exit 1 ;; esac
 
 WORKDIR=$(mktemp -d "${TMPDIR:-/tmp}/morphium-testresults.XXXXXX")
 trap 'rm -rf "$WORKDIR"' EXIT
