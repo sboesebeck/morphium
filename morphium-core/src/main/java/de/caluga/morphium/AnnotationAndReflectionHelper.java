@@ -45,6 +45,15 @@ public class AnnotationAndReflectionHelper {
     private static volatile ConcurrentHashMap<String, String> classNameByType;
     private static volatile Map<String, String> preRegisteredTypeIds;
     private Map<String, Field> fieldCache;
+    /**
+     * typeId (or FQCN) -> resolved Class. {@link #getClassForTypeId(String)} is called for
+     * every embedded object carrying a {@code class_name} attribute during deserialization,
+     * so the {@code Class.forName()} lookup must not run per call. Deliberately an instance
+     * (not static) cache: helper instances are tied to one Morphium instance/classloader,
+     * so hot-reload scenarios (Quarkus dev mode) get a fresh cache with the new helper.
+     * Only successful lookups are cached — a ClassNotFoundException still propagates per call.
+     */
+    private final Map<String, Class<?>> typeIdClassCache = new ConcurrentHashMap<>();
     private Map<String, List<String>> fieldAnnotationListCache;
     private Map<Class<?>, Map < Class<? extends Annotation >, Method >> lifeCycleMethods;
     private Map < Class<?>, Boolean > hasAdditionalData;
@@ -180,11 +189,16 @@ public class AnnotationAndReflectionHelper {
     }
 
     public Class getClassForTypeId(String typeId) throws ClassNotFoundException {
-        if (classNameByType.containsKey(typeId)) {
-            return classForName(classNameByType.get(typeId));
+        Class<?> cached = typeIdClassCache.get(typeId);
+
+        if (cached != null) {
+            return cached;
         }
 
-        return classForName(typeId);
+        String className = classNameByType.get(typeId);
+        Class<?> cls = classForName(className != null ? className : typeId);
+        typeIdClassCache.put(typeId, cls);
+        return cls;
     }
 
     public <T extends Annotation> boolean isAnnotationPresentInHierarchy(final Class<?> aClass, final Class <? extends T > annotationClass) {

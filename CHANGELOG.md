@@ -35,6 +35,22 @@ Individual fixes, each observable on its own:
 
 ### Changed
 
+#### Object mapper: type-id class resolution and no-arg-constructor lookup cached
+An in-JVM mapping benchmark (POJO with a `List<List<Map<String,Customer>>>` payload, no
+network) showed `ObjectMapperImpl` roundtrips at ~100µs/op — 3.3x slower than the official
+driver's `PojoCodecProvider`. Profiling (JFR, 1ms sampling) put the single biggest avoidable
+cost in `AnnotationAndReflectionHelper.getClassForTypeId()`, which ran
+`Class.forName()` on every call — once per embedded object carrying a `class_name`
+attribute, i.e. dozens of times per deserialized document. That lookup is now cached per
+helper instance (typeId → Class, successful lookups only, so hot-reload scenarios get a
+fresh cache with a fresh helper). In addition, `deserialize()` now caches the resolved
+no-arg constructor per class (with a sentinel for classes without one, so the
+exception-based probe runs once instead of per call — measured at ~0.4µs per miss), and the
+hot `customMappers` checks use a single `get()` instead of `containsKey()`+`get()`.
+Deserialization of the benchmark payload drops from ~57µs to ~38µs (−34%), full roundtrip
+from ~100µs to ~76µs; the remaining gap to `PojoCodecProvider` (~2.5x) is structural —
+per-value map lookups against per-class precompiled codecs. Behavior is unchanged.
+
 #### Test suite: timing-sensitive sleep+assert patterns replaced with condition waits (#292)
 A `BulkInsertTest` flake on the CI matrix (count asserted immediately after `storeList`) turned
 out to be one instance of a suite-wide pattern: `Thread.sleep` followed by an assertion on DB or

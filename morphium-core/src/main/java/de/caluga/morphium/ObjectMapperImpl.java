@@ -87,6 +87,20 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         }
     }
 
+    /**
+     * Per-class cache for the no-arg constructor used in {@link #deserialize(Class, Map)}.
+     * Values are either the resolved {@link Constructor} (with {@code setAccessible(true)}
+     * already applied) or the {@link #NO_NOARG_CONSTRUCTOR} sentinel for classes without an
+     * accessible no-arg constructor — so the exception-based probe runs only once per class
+     * instead of on every deserialization (throw/catch in a hot path is expensive).
+     * {@code null} values cannot be used as the marker: {@code ConcurrentHashMap} treats a
+     * null mapping as absent and would re-run the probe every call.
+     * Deliberately an instance (not static) cache — a static {@code Map<Class, ...>} would
+     * hold strong references to entity classes and pin their classloader across redeploys.
+     */
+    private final ConcurrentHashMap < Class<?>, Object > noArgConstructorCache = new ConcurrentHashMap<>();
+    private static final Object NO_NOARG_CONSTRUCTOR = new Object();
+
     private final Map < Class<?>, NameProvider > nameProviders;
     private final JSONParser jsonParser = new JSONParser();
 
@@ -360,9 +374,10 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
         try {
         Class<?> cls = annotationHelper.getRealClass(o.getClass());
+        MorphiumTypeMapper customMapper = customMappers.get(cls);
 
-        if (customMappers.containsKey(cls)) {
-            Object ret = customMappers.get(cls).marshall(o);
+        if (customMapper != null) {
+            Object ret = customMapper.marshall(o);
 
             if (ret instanceof Map) {
                 String typeIdForClass = null;
@@ -972,8 +987,10 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
         Class cls = theClass;
 
-        if (customMappers.containsKey(cls)) {
-            return (T) customMappers.get(cls).unmarshall(objectMap);
+        MorphiumTypeMapper classMapper = customMappers.get(cls);
+
+        if (classMapper != null) {
+            return (T) classMapper.unmarshall(objectMap);
         }
 
         try {
@@ -1022,12 +1039,27 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             }
 
             Object ret = null;
+            Object cachedCons = noArgConstructorCache.get(cls);
 
-            try {
-                Constructor<?> cons = cls.getDeclaredConstructor();
-                cons.setAccessible(true);
-                ret = cons.newInstance();
-            } catch (Exception ignored) {
+            if (cachedCons == null) {
+                // resolve once per class: no-arg constructor (made accessible) or sentinel
+                try {
+                    Constructor<?> cons = cls.getDeclaredConstructor();
+                    cons.setAccessible(true);
+                    cachedCons = cons;
+                } catch (Exception e) {
+                    cachedCons = NO_NOARG_CONSTRUCTOR;
+                }
+
+                noArgConstructorCache.putIfAbsent(cls, cachedCons);
+            }
+
+            if (cachedCons instanceof Constructor) {
+                try {
+                    ret = ((Constructor<?>) cachedCons).newInstance();
+                } catch (Exception ignored) {
+                    // constructor exists but threw — fall through to Unsafe, as before
+                }
             }
 
             if (ret == null) {
@@ -1062,8 +1094,10 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     continue;
                 }
 
-                if (customMappers.containsKey(fldType)) {
-                    fld.set(ret, customMappers.get(fldType).unmarshall(valueFromDb));
+                MorphiumTypeMapper fieldMapper = customMappers.get(fldType);
+
+                if (fieldMapper != null) {
+                    fld.set(ret, fieldMapper.unmarshall(valueFromDb));
                     continue;
                 }
 
