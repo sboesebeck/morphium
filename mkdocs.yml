@@ -13,18 +13,20 @@ use_directory_urls: true
 
 theme:
   name: material
+  logo: assets/brand/morphium-mark-header.svg
+  favicon: assets/brand/morphium-mark.svg
   palette:
     # Light mode
     - scheme: default
-      primary: indigo
-      accent: indigo
+      primary: deep purple
+      accent: deep purple
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     # Dark mode
     - scheme: slate
-      primary: indigo
-      accent: indigo
+      primary: deep purple
+      accent: deep purple
       toggle:
         icon: material/brightness-4
         name: Switch to light mode

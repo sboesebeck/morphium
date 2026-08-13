@@ -1,5 +1,9 @@
 # Morphium v6 Documentation
 
+<p align="center">
+  <img src="assets/brand/morphium-logo.svg" alt="Morphium" width="640">
+</p>
+
 Morphium is a Java 21+ Object Document Mapper (ODM) and MongoDB‑backed messaging system. It includes a custom MongoDB wire‑protocol driver, distributed caching, and a topic‑based message queue.
 
 ---

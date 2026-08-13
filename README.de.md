@@ -1,5 +1,9 @@
 # Morphium
 
+<p align="center">
+  <img src="branding/morphium-logo.svg" alt="Morphium" width="640">
+</p>
+
 **Feature-reiches MongoDB ODM und Messaging-Framework für Java 21+**
 
 Verfügbare Sprachen: [English](README.md) | Deutsch
@@ -78,6 +82,10 @@ Kafkas Synchron-Modus (~8–10K msg/s) ist das realistische Ziel künftiger
 Server-Parallelisierung — nicht 100K+, die kein System ohne Batching erreicht._
 
 ## 🌱 PoppyDB — MongoDB-kompatibler In-Memory-Server
+
+<p align="center">
+  <img src="branding/poppydb-logo.svg" alt="PoppyDB" width="560">
+</p>
 
 PoppyDB ist Morphiums Schwesterprodukt: ein In-Memory-Server, der das MongoDB Wire Protocol
 spricht. Jeder Client kann sich verbinden — `mongosh`, Compass, PyMongo, die offiziellen

@@ -1,5 +1,9 @@
 # Morphium
 
+<p align="center">
+  <img src="branding/morphium-logo.svg" alt="Morphium" width="640">
+</p>
+
 **Feature-rich MongoDB ODM and messaging framework for Java 21+**
 
 Available languages: English and [Deutsch](README.de.md)
@@ -95,6 +99,10 @@ the realistic ceiling for future server-side concurrency work — not 100K+, whi
 reaches without batching._
 
 ## 🌱 PoppyDB — MongoDB-Compatible In-Memory Server
+
+<p align="center">
+  <img src="branding/poppydb-logo.svg" alt="PoppyDB" width="560">
+</p>
 
 PoppyDB is Morphium's sibling product: an in-memory server that speaks the MongoDB wire
 protocol. Any client connects — `mongosh`, Compass, PyMongo, the official drivers, and of
