@@ -35,6 +35,18 @@ Individual fixes, each observable on its own:
 
 ### Changed
 
+#### Test suite: timing-sensitive sleep+assert patterns replaced with condition waits (#292)
+A `BulkInsertTest` flake on the CI matrix (count asserted immediately after `storeList`) turned
+out to be one instance of a suite-wide pattern: `Thread.sleep` followed by an assertion on DB or
+messaging state. The nine files with the highest density — BulkInsertTest, MorphiumTest,
+MapListTest, DataTypeTests, QueryUpdateOperatorsTest, UpdateTest, CacheSyncTest and the two
+(class-level disabled) ncmessaging suites — now use bounded
+`TestUtils.waitForConditionToBecomeTrue` waits instead; unbounded poll loops got bounds too.
+Sleeps that are load-bearing (negative "must-NOT-arrive" windows, exactly-once settle windows,
+TTL waits, pause-semantics and throughput measurements) were deliberately kept. No production
+code affected; the remaining files and the migration of bare `assert` statements to JUnit
+assertions are tracked in #292.
+
 #### Messaging: "CHANGESTREAM DUPLICATE CAUGHT" dropped from WARN to DEBUG
 The guard fires whenever the change stream and the fallback poll both find the same message,
 which at a 10s fallback interval is simply normal operation — production logs showed ~135 lines
