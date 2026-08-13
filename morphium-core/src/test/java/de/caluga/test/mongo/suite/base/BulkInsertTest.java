@@ -47,9 +47,8 @@ public class BulkInsertTest extends MultiDriverTestBase {
                 lst.add(u);
             }
             morphium.storeList(lst);
-            Thread.sleep(1000);
-            long l = TestUtils.countUC(morphium);
-            assert (l == 4212) : "Count wrong: " + l;
+            TestUtils.waitForConditionToBecomeTrue(5000, "Count wrong",
+                    () -> TestUtils.countUC(morphium) == 4212);
 
             for (UncachedObject u : lst) {
                 u.setCounter(u.getCounter() + 1000);
@@ -103,7 +102,7 @@ public class BulkInsertTest extends MultiDriverTestBase {
             log.info("storing objects one by one took " + dur + " ms");
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
-            assert (q.countAll() == 100) : "Assert not all stored yet????";
+            TestUtils.waitForConditionToBecomeTrue(5000, "Not all stored yet", () -> q.countAll() == 100);
 
         }
     }
@@ -139,8 +138,8 @@ public class BulkInsertTest extends MultiDriverTestBase {
             TestUtils.waitForWrites(morphium, log);
             long dur = System.currentTimeMillis() - start;
             log.info("storing objects one by one async took " + dur + " ms");
-            Thread.sleep(500);
-            assertEquals(100, TestUtils.countUC(morphium), "Write wrong!");
+            TestUtils.waitForConditionToBecomeTrue(5000, "Write wrong!",
+                    () -> TestUtils.countUC(morphium) == 100);
             assertTrue (asyncSuccess, "Async call failed");
             assertTrue (asyncCall, "Async callback not called");
 
@@ -161,7 +160,7 @@ public class BulkInsertTest extends MultiDriverTestBase {
             log.info("storing objects one by one took " + dur + " ms");
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
-            assertEquals (1000, q.countAll(), "Not all stored yet????");
+            TestUtils.waitForConditionToBecomeTrue(5000, "Not all stored yet", () -> q.countAll() == 1000);
             log.info("Test finished!");
         }
     }
@@ -180,11 +179,9 @@ public class BulkInsertTest extends MultiDriverTestBase {
             }
             morphium.storeList(prs);
 
-            Thread.sleep(1000);
             assertNotNull(prs.get(0).getId());
-            ;
-            long cnt = morphium.createQueryFor(Person.class).countAll();
-            assert (cnt == 100);
+            TestUtils.waitForConditionToBecomeTrue(5000, "Not all persons stored",
+                    () -> morphium.createQueryFor(Person.class).countAll() == 100);
         }
     }
 }
