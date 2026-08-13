@@ -461,6 +461,33 @@ public class BufferedWriterTest extends MultiDriverTestBase {
         assertTrue((m.createQueryFor(SimpleObject.class).countAll() == 100));
     }
 
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testWriteBufferRemoveByQuery(Morphium morphium) throws Exception  {
+        for (int i = 0; i < 100; i++) {
+            SimpleObject o = new SimpleObject();
+            o.setMyId("id_" + i);
+            o.setCount(i);
+            o.setValue("v" + i);
+            morphium.store(o);
+        }
+
+        TestUtils.waitForWrites(morphium, log);
+        TestUtils.waitForConditionToBecomeTrue(10000, "objects not stored",
+            () -> morphium.createQueryFor(SimpleObject.class).countAll() == 100);
+
+        // remove-by-query on a write-buffered entity has to delete ALL matches, not just one
+        morphium.remove(morphium.createQueryFor(SimpleObject.class).f(SimpleObject.Fields.count).lt(50));
+        TestUtils.waitForWrites(morphium, log);
+        TestUtils.waitForConditionToBecomeTrue(10000, "buffered remove did not delete all matches",
+            () -> morphium.createQueryFor(SimpleObject.class).countAll() == 50);
+
+        morphium.clearCollection(SimpleObject.class);
+        TestUtils.waitForWrites(morphium, log);
+        TestUtils.waitForConditionToBecomeTrue(10000, "clearCollection did not empty the collection",
+            () -> morphium.createQueryFor(SimpleObject.class).countAll() == 0);
+    }
+
     @WriteBuffer(size = 100, timeout = 1000)
     @Entity
     public static class SimpleObject {

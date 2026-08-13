@@ -906,7 +906,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             morphium.firePreRemoveEvent(q);
             DeleteBulkRequest r = ctx.addDeleteBulkRequest();
             r.setQuery(Doc.of(q.toQueryObject()));
-            //                    ctx.addRequest(r);
+            r.setMultiple(multiple);
             morphium.firePostRemoveEvent(q);
         }, c, AsyncOperationType.REMOVE);
         return null;

@@ -71,6 +71,21 @@ analysis). The deduplication behavior is unchanged, only the log level.
 
 ### Fixed
 
+#### Write buffer: remove-by-query deleted only a single document
+`BufferedMorphiumWriterImpl.remove(Query, multiple, callback)` accepted the `multiple` flag but
+never passed it on to the queued `DeleteBulkRequest`, whose default is `multiple = false`. All
+drivers translate that faithfully into `delete ... limit: 1` — so for any `@WriteBuffer` entity,
+`morphium.remove(query)` and `clearCollection()` silently deleted exactly one matching document
+and left the rest in place. The bug had been masked for years because the InMemoryDriver bypasses
+the buffered writer entirely (`getWriterForClass`), so no in-memory test could see it, and the
+one test that exercised the path against real servers (`CacheSyncTest.idCacheTest`) tolerated
+lost objects until the #292 sleep→condition hardening turned its settle sleep into a hard count
+assertion — which then failed on all four CI server phases and exposed the root cause. The flag
+is now propagated; a regression test (`BufferedWriterTest.testWriteBufferRemoveByQuery`) covers
+partial and full remove-by-query on a write-buffered entity. The dead skeleton
+`driver/wire/BulkContext` (every driver call commented out, no remaining references) was removed
+in the same change.
+
 #### Messaging: legacy documents with processed_by: null are deliverable again (#291)
 A stored message whose `processed_by` is an explicit `null` made the pre-exec marking fail on
 mongod ("Cannot apply $addToSet to non-array field … has non-array type null") — and since
