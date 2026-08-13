@@ -308,8 +308,8 @@ public class DataTypeTests extends MultiDriverTestBase {
             morphium.store(stored);
             TestUtils.waitForConditionToBecomeTrue(5000, "Binary data update not visible",
                     () -> {
-                        var r = Arrays.equals(newData, morphium.createQueryFor(BinaryDataEntity.class).get();
-                        return r != null && r.binaryData);
+                        var r = morphium.createQueryFor(BinaryDataEntity.class).get();
+                        return r != null && Arrays.equals(newData, r.binaryData);
                     });
             BinaryDataEntity updated = morphium.createQueryFor(BinaryDataEntity.class).get();
 

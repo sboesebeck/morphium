@@ -319,8 +319,8 @@ public class QueryUpdateOperatorsTest extends MultiDriverTestBase {
             q.set(longListPath(morphium), 100L, false, false);
             TestUtils.waitForConditionToBecomeTrue(5000, "arrayFilters $set not applied",
                 () -> {
-                    var r = List.of(85L, 100L, 100L).equals(lcQuery(morphium).get();
-                    return r != null && r.getLongList());
+                    var r = lcQuery(morphium).get();
+                    return r != null && List.of(85L, 100L, 100L).equals(r.getLongList());
                 });
         }
     }
@@ -335,8 +335,8 @@ public class QueryUpdateOperatorsTest extends MultiDriverTestBase {
             q.inc(longListPath(morphium), 5, false, false);
             TestUtils.waitForConditionToBecomeTrue(5000, "arrayFilters $inc not applied",
                 () -> {
-                    var r = List.of(85L, 97L, 95L).equals(lcQuery(morphium).get();
-                    return r != null && r.getLongList());
+                    var r = lcQuery(morphium).get();
+                    return r != null && List.of(85L, 97L, 95L).equals(r.getLongList());
                 });
         }
     }
