@@ -570,7 +570,7 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
                     // First check if already in progress (most important for preventing duplicates)
                     if (idsInProgress.contains(messageId)) {
                         traceDecision(messageId, msg.get("in_answer_to"), "cs-event: already in idsInProgress, skipped");
-                        log.warn("CHANGESTREAM DUPLICATE CAUGHT: message {} already in idsInProgress", messageId);
+                        log.debug("CHANGESTREAM DUPLICATE CAUGHT: message {} already in idsInProgress", messageId);
                         return running;
                     }
 
@@ -603,7 +603,7 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
                         log.debug("CSE: {}: Queued message {} for processing, queue size={}", id, messageId, processing.size());
                     } else {
                         traceDecision(messageId, msg.get("in_answer_to"), "cs-event: already in processing queue, skipped");
-                        log.warn("CHANGESTREAM DUPLICATE CAUGHT: Message {} already in processing queue", messageId);
+                        log.debug("CHANGESTREAM DUPLICATE CAUGHT: Message {} already in processing queue", messageId);
                     }
                 }
             } else {

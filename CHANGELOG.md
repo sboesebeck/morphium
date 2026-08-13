@@ -33,6 +33,14 @@ Individual fixes, each observable on its own:
 - A message that fails to decode now gets an error reply instead of being silently skipped,
   which left clients hanging until their timeout.
 
+### Changed
+
+#### Messaging: "CHANGESTREAM DUPLICATE CAUGHT" dropped from WARN to DEBUG
+The guard fires whenever the change stream and the fallback poll both find the same message,
+which at a 10s fallback interval is simply normal operation — production logs showed ~135 lines
+a day of it, burying the handful of warnings that actually matter (found during the #285
+analysis). The deduplication behavior is unchanged, only the log level.
+
 ### Fixed
 
 #### InMemoryDriver: index-store publish can no longer race a concurrent invalidate (#290)
