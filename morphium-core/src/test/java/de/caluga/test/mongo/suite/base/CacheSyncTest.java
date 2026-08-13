@@ -65,10 +65,8 @@ public class CacheSyncTest extends MultiDriverTestBase {
         assert (cnt == 0) : "Already a message?!?! " + cnt;
 
         cs.sendClearMessage(CachedObject.class, "test");
-        Thread.sleep(2000);
         TestUtils.waitForWrites(morphium, log);
-        cnt = q.countAll();
-        assert (cnt == 1) : "there should be one msg, there are " + cnt;
+        TestUtils.waitForConditionToBecomeTrue(10000, "there should be one msg", () -> q.countAll() == 1);
         msg.terminate();
         cs.detach();
         while (cs.isAttached()) {
@@ -145,10 +143,8 @@ public class CacheSyncTest extends MultiDriverTestBase {
         System.out.println("Stats " + morphium.getStatistics().toString());
         assertNotNull(morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()), "Cache entries not set?");
         cs1.sendClearAllMessage("test");
-        Thread.sleep(5500);
-        if ((morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) != 0)) {
-            throw new AssertionError("Cache entries set? Entries: " + morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()));
-        }
+        TestUtils.waitForConditionToBecomeTrue(10000, "Cache entries still set",
+                () -> morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) == 0);
         msg1.terminate();
         msg2.terminate();
         cs1.detach();
@@ -190,7 +186,7 @@ public class CacheSyncTest extends MultiDriverTestBase {
             morphium.store(o);
         }
         TestUtils.waitForWrites(morphium, log);
-        Thread.sleep(5000);
+        TestUtils.waitForConditionToBecomeTrue(30000, "objects not stored yet", () -> morphium.createQueryFor(IdCachedObject.class).countAll() == 100);
         var qu = morphium.createQueryFor(IdCachedObject.class);
         var e = qu.q().sort(IdCachedObject.Fields.counter).get();
         log.info("First: " + e.getCounter());
@@ -228,7 +224,7 @@ public class CacheSyncTest extends MultiDriverTestBase {
         dur = System.currentTimeMillis() - start;
         log.info("Storing with synchronizer: " + dur + " ms");
 
-        Thread.sleep(15000);
+        TestUtils.waitForConditionToBecomeTrue(30000, "objects not stored with synchronizer", () -> morphium.createQueryFor(IdCachedObject.class).countAll() == 100);
         start = System.currentTimeMillis();
         int notFoundCounter = 0;
         for (int i = 0; i < 100; i++) {
@@ -344,15 +340,14 @@ public class CacheSyncTest extends MultiDriverTestBase {
             morphium.store(new CachedObject());
             TestUtils.waitForWrites(morphium, log);
             try {
-                Thread.sleep(4500);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+                TestUtils.waitForConditionToBecomeTrue(10000, "cache sync listeners not all triggered",
+                        () -> preSendClear && postSendClear && preClear && postclear);
+            } finally {
+                cs1.detach();
+                cs2.detach();
+                msg1.terminate();
+                msg2.terminate();
             }
-
-            cs1.detach();
-            cs2.detach();
-            msg1.terminate();
-            msg2.terminate();
 
         }).start();
 
@@ -360,11 +355,10 @@ public class CacheSyncTest extends MultiDriverTestBase {
             log.info("still attached - waiting");
             Thread.sleep(500);
         }
-        Thread.sleep(5000);
-        assert (preClear);
-        assert (postclear);
-        assert (preSendClear);
-        assert (postSendClear);
+        assertTrue(preClear);
+        assertTrue(postclear);
+        assertTrue(preSendClear);
+        assertTrue(postSendClear);
 
     }
 
@@ -531,9 +525,9 @@ public class CacheSyncTest extends MultiDriverTestBase {
     private void checkForClearedCache(Morphium m1, Morphium m2) throws Exception  {
         printstats(m1, "X-Entries for:.*");
         assert (m1.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") == 0);
-        Thread.sleep(2000);
+        TestUtils.waitForConditionToBecomeTrue(10000, "m2 cache was not cleared",
+                () -> m2.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") == 0);
         printstats(m1, "X-Entries for:.*");
-        assertEquals(0, (double) m2.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject"));
     }
 
     private void fillCache(Morphium m1, Morphium m2) {
@@ -632,8 +626,8 @@ public class CacheSyncTest extends MultiDriverTestBase {
         m1.store(o);
         log.info("done.");
 
-        Thread.sleep(3000);
-        log.info("sleep finished " + postclear);
+        TestUtils.waitForConditionToBecomeTrue(10000, "clear listeners not triggered",
+                () -> preClear && postclear);
         assertFalse(preSendClear);
         assertFalse(postSendClear);
         assertTrue (postclear);

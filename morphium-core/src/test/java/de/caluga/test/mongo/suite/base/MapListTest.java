@@ -59,10 +59,11 @@ public class MapListTest extends MultiDriverTestBase {
         listMap.put("zweihundert", lst);
         o.setMapListValue(listMap);
         morphium.store(o);
-        Thread.sleep(100);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Object not found after store",
+                () -> morphium.findById(MapListObject.class, o.getId()) != null);
         MapListObject ml = morphium.findById(MapListObject.class, o.getId());
-        assert(ml.getMapListValue().get("eins-fuenf-drei").size() == 3);
-        assert(ml.getMapListValue().get("zweihundert").size() == 4);
+        assertTrue(ml.getMapListValue().get("eins-fuenf-drei").size() == 3);
+        assertTrue(ml.getMapListValue().get("zweihundert").size() == 4);
     }
 
     @ParameterizedTest
@@ -108,16 +109,17 @@ public class MapListTest extends MultiDriverTestBase {
         map1.put("2nd", objLst);
         o.setMap1(map1);
         morphium.store(o);
-        Thread.sleep(100);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Object not found after store",
+                () -> morphium.findById(CMapListObject.class, o.getId()) != null);
         CMapListObject ml = morphium.findById(CMapListObject.class, o.getId());
         assertNotNull(ml, "Not Found?!?!?!?");
-        assert(ml.getMapListValue().get("eins-fuenf-drei").size() == 3);
-        assert(ml.getMapListValue().get("zweihundert").size() == 4);
+        assertTrue(ml.getMapListValue().get("eins-fuenf-drei").size() == 3);
+        assertTrue(ml.getMapListValue().get("zweihundert").size() == 4);
         assertNotNull(ml.getMapListValue().get("zweihundert").get(0));
         ;
         assertNotNull(ml.getMap1().get("2nd").get(0).getTest());
         ;
-        assert(ml.getMap2().get("test").getTest().equals("val"));
+        assertTrue(ml.getMap2().get("test").getTest().equals("val"));
     }
 
     @ParameterizedTest
@@ -137,11 +139,12 @@ public class MapListTest extends MultiDriverTestBase {
         lst.add(strMap);
         o.setMap7(lst);
         morphium.store(o);
-        Thread.sleep(100);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Object not found after store",
+                () -> morphium.findById(CMapListObject.class, o.getId()) != null);
         CMapListObject ml = morphium.findById(CMapListObject.class, o.getId());
         assertNotNull(ml, "Not Found?!?!?!?");
-        assert(ml.getMap7().get(0).get("tst1").equals("bla"));
-        assert(ml.getMap7().get(1).get("tst2-2").equals("blub"));
+        assertTrue(ml.getMap7().get(0).get("tst1").equals("bla"));
+        assertTrue(ml.getMap7().get(1).get("tst2-2").equals("blub"));
     }
 
     @ParameterizedTest
@@ -161,10 +164,11 @@ public class MapListTest extends MultiDriverTestBase {
         m.put("m2", lst);
         o.setMap3(m);
         morphium.store(o);
-        Thread.sleep(100);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Object not found after store",
+                () -> morphium.findById(CMapListObject.class, o.getId()) != null);
         CMapListObject ml = morphium.findById(CMapListObject.class, o.getId());
-        assert(ml.getMap3().get("m1").get(1).equals("fasel"));
-        assert(ml.getMap3().get("m2").get(2).equals("grin"));
+        assertTrue(ml.getMap3().get("m1").get(1).equals("fasel"));
+        assertTrue(ml.getMap3().get("m2").get(2).equals("grin"));
     }
 
     @ParameterizedTest
@@ -184,14 +188,14 @@ public class MapListTest extends MultiDriverTestBase {
         m.put("m2", lst);
         o.setMap4(m);
         morphium.store(o);
-        Thread.sleep(100);
         Query<CMapListObject> q = morphium.createQueryFor(CMapListObject.class).f("id").eq(o.getId());
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Object not found after store", () -> q.get() != null);
         CMapListObject ml = q.get();
-        assert(ml.getMap4().get("m1").get(1).getTest().equals("fasel"));
-        assert(ml.getMap4().get("m1").get(1).getValue() == 42);
-        assert(ml.getMap4().get("m2").get(2).getTest().equals("grin"));
-        assert(ml.getMap4().get("m2").get(2).getValue() == 7331);
+        assertTrue(ml.getMap4().get("m1").get(1).getTest().equals("fasel"));
+        assertTrue(ml.getMap4().get("m1").get(1).getValue() == 42);
+        assertTrue(ml.getMap4().get("m2").get(2).getTest().equals("grin"));
+        assertTrue(ml.getMap4().get("m2").get(2).getValue() == 7331);
     }
 
     @ParameterizedTest
@@ -213,10 +217,11 @@ public class MapListTest extends MultiDriverTestBase {
         m.put("translate", mVal);
         o.setMap5(m);
         morphium.store(o);
-        Thread.sleep(100);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Object not found after store",
+                () -> morphium.findById(CMapListObject.class, o.getId()) != null);
         CMapListObject ml = morphium.findById(CMapListObject.class, o.getId());
-        assert(ml.getMap5().get("test").get("bla").equals("fasel"));
-        assert(ml.getMap5().get("translate").get("foo").equals("bla"));
+        assertTrue(ml.getMap5().get("test").get("bla").equals("fasel"));
+        assertTrue(ml.getMap5().get("translate").get("foo").equals("bla"));
     }
 
     @ParameterizedTest
@@ -238,10 +243,11 @@ public class MapListTest extends MultiDriverTestBase {
         m.put("translate", mVal);
         o.setMap5a(m);
         morphium.store(o);
-        Thread.sleep(100);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Object not found after store",
+                () -> morphium.findById(CMapListObject.class, o.getId()) != null);
         CMapListObject ml = morphium.findById(CMapListObject.class, o.getId());
-        assert(ml.getMap5a().get("test").get("bla").getTest().equals("fasel"));
-        assert(ml.getMap5a().get("translate").get("foo").getTest().equals("bla"));
+        assertTrue(ml.getMap5a().get("test").get("bla").getTest().equals("fasel"));
+        assertTrue(ml.getMap5a().get("translate").get("foo").getTest().equals("bla"));
     }
 
     @ParameterizedTest
@@ -279,9 +285,10 @@ public class MapListTest extends MultiDriverTestBase {
         lst.add(l2);
         o.setMap7a(lst);
         morphium.store(o);
-        Thread.sleep(100);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Object not found after store",
+                () -> morphium.findById(CMapListObject.class, o.getId()) != null);
         CMapListObject ml = morphium.findById(CMapListObject.class, o.getId());
-        assert(ml.getMap7a().get(1).get(0).get("k15").equals("v1"));
+        assertTrue(ml.getMap7a().get(1).get(0).get("k15").equals("v1"));
     }
 
     @ParameterizedTest
@@ -320,10 +327,11 @@ public class MapListTest extends MultiDriverTestBase {
         map.put("list1", lst);
         o.setMap6a(map);
         morphium.store(o);
-        Thread.sleep(100);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Object not found after store",
+                () -> morphium.findById(CMapListObject.class, o.getId()) != null);
         CMapListObject ml = morphium.findById(CMapListObject.class, o.getId());
         //Map->List->Map->EmbObj
-        assert(ml.getMap6a().get("list1").get(0).get("map1-v2").getTest().equals("test2"));
+        assertTrue(ml.getMap6a().get("list1").get(0).get("map1-v2").getTest().equals("test2"));
     }
 
     @ParameterizedTest
@@ -332,7 +340,9 @@ public class MapListTest extends MultiDriverTestBase {
         MapListObject o = new MapListObject();
         o.setMapValue(UtilsMap.of("Testvalue", (Object) UtilsMap.of("$lte", "@123")));
         morphium.save(o);
-        Thread.sleep(100);
+        MapListObject saved = o;
+        TestUtils.waitForConditionToBecomeTrue(5000, "Object not found after save",
+                () -> morphium.reread(saved) != null);
         o = morphium.reread(o);
         assertTrue(o.getMapValue().containsKey("Testvalue"));
     }
