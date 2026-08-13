@@ -1,7 +1,8 @@
 # PoppyDB: Standalone MongoDB-Compatible Server
 
-<img class="logo-light" src="assets/brand/poppydb-logo.svg" alt="PoppyDB" width="480">
-<img class="logo-dark" src="assets/brand/poppydb-logo-dark.svg" alt="PoppyDB" width="480">
+<p align="center">
+  <a href="poppydb/"><img class="logo-light" src="assets/brand/poppydb-logo.svg" alt="PoppyDB" width="480"><img class="logo-dark" src="assets/brand/poppydb-logo-dark.svg" alt="PoppyDB" width="480"></a>
+</p>
 
 PoppyDB is a standalone MongoDB wire protocol-compatible server built on the InMemoryDriver. Introduced in its mature form with **Morphium 6.1**, it allows any MongoDB client (Java, Python, Node.js, Go, etc.) to connect and interact with an in-memory database as a true **drop-in replacement** for MongoDB during development and testing.
 
