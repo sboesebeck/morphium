@@ -31,23 +31,56 @@ User user = collection.find(eq("username", "alice")).first();
 
 **Problems:**
 - **Complex configuration** — Codec Registry setup is non-trivial
-- **Limited control** — Little influence over mapping behavior
+- **Limited control** — no first-class support for lifecycle hooks, lazy `@Reference` loading,
+  field-level encryption, or custom name providers; you get whatever the codec conventions expose
+  and no more
 - **Conflicts with other mappers** — The driver "wants" to map itself, which can lead to **double mapping** when integrating with other frameworks
-- **No caching integration** — You have to build caching yourself
+- **No caching integration — and that's a real gap, not a minor one** — the driver gives you no
+  hook into the write path, no distributed invalidation mechanism, and no deterministic cache-key
+  generation for queries. Replicating what Morphium gives you for free (`@Cache` per entity,
+  `MessagingCacheSynchronizer`/`WatchingCacheSynchronizer` for cluster-wide invalidation, a
+  query-result cache keyed by criteria+sort+projection+paging — see the
+  [caching docs](./developer-guide.md#cache-synchronization)) means building, yourself: a wrapper
+  around every store/update/delete to know when to invalidate, a way to propagate that across a
+  cluster (a message queue you now also have to operate, or your own change-stream consumer with
+  fan-out), and a stable cache-key scheme per query shape. Most teams never build this properly —
+  they either accept "always hit the DB", or bolt on Redis as a second system where cache
+  consistency can now break independently of the database.
 
 ### Why Morphium Has Its Own Driver (since v5.0)
 
-The official driver's built-in mapping conflicted with Morphium's mapping:
-- Double mapping (performance loss)
-- Unexpected type conversions
-- Hard-to-debug errors
+Running the official driver's built-in POJO mapping *underneath* Morphium's own ODM mapping meant
+mapping every document twice, with two independently-opinionated mappers fighting over the same
+object graph:
+- Double mapping (real work done twice, not just a "the codec itself is slow" issue)
+- Unexpected type conversions where the two mappers disagreed
+- Hard-to-debug errors from that disagreement
 
-**The solution:** A custom wire-protocol driver, **tailored exactly to Morphium's needs**.
+Note: this is an *integration* problem, not a claim that the official driver's own mapper is slow
+in isolation — it isn't, and older claims here about generics support/mapping speed being weak
+points of the official driver no longer hold and shouldn't be used as arguments.
+
+**The solution:** A custom wire-protocol driver, **tailored exactly to Morphium's needs**, avoiding
+the double-mapping problem entirely since there's only one mapper in the picture.
 
 **Benefits of the custom driver:**
-- **Lightweight** — Only what Morphium needs, no overhead
-- **Full control** — Mapping, retry, failover by our rules
-- **InMemory Driver possible** — The lean driver made a complete in-memory implementation practical
+- **Failover, on our terms** — the official driver's failover behavior caused real production
+  issues; owning the wire protocol means Morphium controls retry/reconnect/failover semantics
+  directly instead of working around someone else's.
+- **No double mapping** — a single object-mapping layer, tightly integrated with Morphium's
+  lifecycle callbacks, `@Reference` lazy loading, `@Encrypted` fields, and custom type mappers,
+  instead of two mappers fighting over the same document.
+- **InMemoryDriver** — owning the driver abstraction (`MorphiumDriver`) made a pure-Java,
+  no-network in-memory implementation practical; most of the test suite runs against it, no
+  MongoDB or Testcontainers required.
+- **PoppyDB** — a self-contained, wire-protocol-compatible alternative server exists only because
+  Morphium isn't tied to the official driver's internals or assumptions.
+- **One abstraction, three interchangeable backends** — the same `MorphiumDriver` interface runs
+  against real MongoDB, PoppyDB, and the InMemoryDriver, which wouldn't be possible wrapping a
+  driver designed around exactly one server implementation.
+- **Wire-level control** — e.g. BSON's 16MB message limit is enforced end-to-end with a custom
+  batch splitter; messaging (a MongoDB-collection-based pub/sub) is built directly on top of the
+  same driver layer instead of bolted onto a black-box client.
 
 ---
 
