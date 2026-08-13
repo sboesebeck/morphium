@@ -46,6 +46,15 @@ Sleeps that are load-bearing (negative "must-NOT-arrive" windows, exactly-once s
 TTL waits, pause-semantics and throughput measurements) were deliberately kept. No production
 code affected; the remaining sleep+assert files are tracked in #292.
 
+#### Test suite: retired the ncmessaging (polling-only) test package (#292)
+The `ncmessaging` suites were aging copies of the regular messaging tests with
+`setUseChangeStream(false)` hard-coded — mostly class-level `@Disabled` and drifting. The
+polling-only mode itself stays fully supported (it is what morphium auto-selects on standalone
+MongoDB, where change streams don't exist) and remains tested: the MongoDB-Single CI phase runs
+the entire messaging test set in exactly that mode. The one scenario without a counterpart —
+request/reply round trips forced to polling on a replica set — moved to
+`AnsweringTests.waitForAnswerPollingOnlyTest`.
+
 #### Test suite: all bare `assert` statements migrated to JUnit assertions (#292)
 1114 bare Java `assert` statements across 97 test files only ever ran because surefire enables
 `-ea` by default — as `assertTrue(...)` they are independent of JVM flags and produce proper

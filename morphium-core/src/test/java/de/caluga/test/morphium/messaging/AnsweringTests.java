@@ -364,5 +364,38 @@ public class AnsweringTests extends MultiDriverTestBase {
         }
     }
 
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void waitForAnswerPollingOnlyTest(Morphium morphium) throws Exception {
+        // Survivor of the retired ncmessaging suite (#292): request/reply round trips in pure
+        // polling mode - the mode every standalone-MongoDB installation runs in automatically
+        // (no change streams without a replica set). The mongodb_single CI phase exercises it
+        // implicitly for the whole messaging test set; this keeps one explicit round-trip test
+        // on replica-set instances too.
+        try (morphium) {
+            MorphiumMessaging m1 = morphium.createMessaging().setPause(10).setMultithreadded(false).setWindowSize(10);
+            MorphiumMessaging m2 = morphium.createMessaging().setPause(10).setMultithreadded(false).setWindowSize(10);
+            m1.setSenderId("m1");
+            m2.setSenderId("m2");
+            m2.addListenerForTopic("question", (msg, m) -> m.createAnswerMsg());
+            m1.setUseChangeStream(false).start();
+            m2.setUseChangeStream(false).start();
+            assertTrue(m1.waitForReady(30, TimeUnit.SECONDS), "m1 not ready");
+            assertTrue(m2.waitForReady(30, TimeUnit.SECONDS), "m2 not ready");
+
+            try {
+                for (int i = 0; i < 100; i++) {
+                    Msg question = new Msg("question", "question" + i, "a value " + i);
+                    question.setPriority(5);
+                    Msg answer = m1.sendAndAwaitFirstAnswer(question, 15000);
+                    assertNotNull(answer, "no answer for question " + i);
+                    assertEquals(question.getMsgId(), answer.getInAnswerTo());
+                }
+            } finally {
+                m1.terminate();
+                m2.terminate();
+            }
+        }
+    }
 
 }
