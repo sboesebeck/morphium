@@ -8,6 +8,28 @@ Morphium is a Java 21+ Object Document Mapper (ODM) and MongoDB‑backed messagi
 
 ---
 
+<p align="center">
+  <img src="assets/brand/poppydb-logo.svg" alt="PoppyDB" width="480">
+</p>
+
+## PoppyDB — MongoDB‑compatible Server
+
+PoppyDB is the project's second product: a standalone, self‑contained server that speaks the
+MongoDB wire protocol — any MongoDB client (Java, Python, Node.js, Go, `mongosh`, ...) can
+connect to it. Perfect for CI/CD pipelines, integration testing, and lightweight deployments.
+
+- **Replica Sets** with Raft‑based failover
+- Opt‑in **Authentication (SCRAM)** and **TLS**
+- **Persistence** via snapshots
+
+```bash
+java -jar poppydb-<version>-cli.jar --port 27017
+```
+
+→ [Overview](./poppydb.md) · [Production Deployment Playbook](./howtos/poppydb-deployment.md) · [Migrating from MongoDB](./howtos/migration-mongodb-to-poppydb.md)
+
+---
+
 ## 🚀 New Here? Start Here!
 
 **Learning path for beginners:**
@@ -30,11 +52,7 @@ Morphium includes a complete in-memory MongoDB-compatible implementation for tes
 - **[Developer Testing Guide](./developer-testing-guide.md)** - How to run and write tests, MultiDriverTestBase, runtests.sh
 - **[Test Runner](./test-runner.md)** - Quick reference for the `runtests.sh` script
 - **[InMemory Driver](./howtos/inmemory-driver.md)** - Embedded in-memory driver for unit tests (no MongoDB installation required!)
-- **[PoppyDB](./poppydb.md)** - Standalone MongoDB-compatible server that speaks the wire protocol (formerly MorphiumServer)
-  - Perfect for CI/CD pipelines, integration testing, and microservices development
-  - Any MongoDB client (Java, Python, Node.js, Go, etc.) can connect to it
-  - Supports **Replica Sets** with Raft failover, **opt-in Authentication (SCRAM) & TLS**, and **Persistence (Snapshots)**
-  - Run with: `java -jar poppydb/target/poppydb-<version>-cli.jar --port 27017`
+- **[PoppyDB](./poppydb.md)** - Standalone MongoDB-compatible server that speaks the wire protocol — see the [PoppyDB section](#poppydb-mongodbcompatible-server) above
 
 ## Production Deployment
 - **[Production Deployment Guide](./production-deployment-guide.md)** - Complete guide for deploying Morphium in production environments
