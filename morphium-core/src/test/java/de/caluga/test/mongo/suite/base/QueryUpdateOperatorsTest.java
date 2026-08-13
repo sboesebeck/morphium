@@ -318,7 +318,10 @@ public class QueryUpdateOperatorsTest extends MultiDriverTestBase {
                 .setArrayFilters(de.caluga.morphium.driver.Doc.of("elem", de.caluga.morphium.driver.Doc.of("$gte", 90)));
             q.set(longListPath(morphium), 100L, false, false);
             TestUtils.waitForConditionToBecomeTrue(5000, "arrayFilters $set not applied",
-                () -> List.of(85L, 100L, 100L).equals(lcQuery(morphium).get().getLongList()));
+                () -> {
+                    var r = List.of(85L, 100L, 100L).equals(lcQuery(morphium).get();
+                    return r != null && r.getLongList());
+                });
         }
     }
 
@@ -331,7 +334,10 @@ public class QueryUpdateOperatorsTest extends MultiDriverTestBase {
                 .setArrayFilters(de.caluga.morphium.driver.Doc.of("elem", de.caluga.morphium.driver.Doc.of("$gte", 90)));
             q.inc(longListPath(morphium), 5, false, false);
             TestUtils.waitForConditionToBecomeTrue(5000, "arrayFilters $inc not applied",
-                () -> List.of(85L, 97L, 95L).equals(lcQuery(morphium).get().getLongList()));
+                () -> {
+                    var r = List.of(85L, 97L, 95L).equals(lcQuery(morphium).get();
+                    return r != null && r.getLongList());
+                });
         }
     }
 

@@ -59,11 +59,17 @@ public class UpdateTest extends MultiDriverTestBase {
             morphium.inc(q, toInc, false, true, null);
             final Query<UncachedMultipleCounter> finalQ = q; // Capture for lambda
             TestUtils.waitForConditionToBecomeTrue(3000, "Counter increment to 15 not completed",
-                () -> finalQ.get().getCounter() == 15);
+                () -> {
+                    var r = finalQ.get();
+                    return r != null && r.getCounter() == 15;
+                });
             assertTrue((q.get().getCounter2() == 3));
             morphium.inc(q, toInc, false, true, null);
             TestUtils.waitForConditionToBecomeTrue(1000, "Counter increment to 25 not completed",
-                () -> finalQ.get().getCounter() == 25);
+                () -> {
+                    var r = finalQ.get();
+                    return r != null && r.getCounter() == 25;
+                });
             assertTrue((q.get().getCounter2() == 3.5));
         }
     }
@@ -123,7 +129,10 @@ public class UpdateTest extends MultiDriverTestBase {
             morphium.dec(uc, "counter", 1);
             var uc1 = uc;
             TestUtils.waitForConditionToBecomeTrue(5000, "Counter is not correct",
-                () -> morphium.reread(uc1).getCounter() == 4);
+                () -> {
+                    UncachedObject r = morphium.reread(uc1);
+                    return r != null && r.getCounter() == 4;
+                });
             // inc without object - single update, no upsert
             q = morphium.createQueryFor(UncachedObject.class);
             q = q.f("counter").gte(40).f("counter").lte(55).sort("counter");
@@ -182,7 +191,10 @@ public class UpdateTest extends MultiDriverTestBase {
     private void checkValue(Morphium morphium, UncachedObject uc, String value) throws Exception {
         assertTrue((uc.getStrValue().equals(value)), () -> String.valueOf("Value wrong: " + uc.getStrValue() + " but should be " + value));
         TestUtils.waitForConditionToBecomeTrue(5000, "Value after reread wrong",
-            () -> value.equals(morphium.reread(uc).getStrValue()));
+            () -> {
+                UncachedObject r = morphium.reread(uc);
+                return r != null && value.equals(r.getStrValue());
+            });
     }
 
     @ParameterizedTest
@@ -241,7 +253,10 @@ public class UpdateTest extends MultiDriverTestBase {
             morphium.addAllToSet(lc, "long_list", Arrays.asList(12345L, 12345L, 123L, 42L), true);
             var lc1 = lc;
             TestUtils.waitForConditionToBecomeTrue(5000, "addAllToSet not applied",
-                () -> lc1.get().getLongList().size() == 4);
+                () -> {
+                    var r = lc1.get();
+                    return r != null && r.getLongList().size() == 4;
+                });
             ListContainer cont = lc.get();
             assertTrue(cont.getLongList().contains(12345L));
             assertEquals(cont.getLongList().size(), 4);
@@ -270,7 +285,10 @@ public class UpdateTest extends MultiDriverTestBase {
             morphium.addToSet(lc, "long_list", 12345L);
             var lc1 = lc;
             TestUtils.waitForConditionToBecomeTrue(5000, "addToSet not applied",
-                () -> lc1.get().getLongList().size() == 2);
+                () -> {
+                    var r = lc1.get();
+                    return r != null && r.getLongList().size() == 2;
+                });
             ListContainer cont = lc.get();
             assertTrue(cont.getLongList().contains(12345L));
             assertEquals(cont.getLongList().size(), 2);
@@ -298,7 +316,10 @@ public class UpdateTest extends MultiDriverTestBase {
             morphium.push(lc, "long_list", 12345L);
             var lc1 = lc;
             TestUtils.waitForConditionToBecomeTrue(5000, "No push?",
-                () -> lc1.get().getLongList().contains(12345L));
+                () -> {
+                    var r = lc1.get();
+                    return r != null && r.getLongList().contains(12345L);
+                });
         }
     }
 
@@ -348,7 +369,10 @@ public class UpdateTest extends MultiDriverTestBase {
             q.unset( "strValue");
             var q1 = q;
             TestUtils.waitForConditionToBecomeTrue(5000, "strValue not unset",
-                () -> q1.get().getStrValue() == null);
+                () -> {
+                    var r = q1.get();
+                    return r != null && r.getStrValue() == null;
+                });
             q = morphium.createQueryFor(UncachedObject.class).f("counter").gt(90);
             q.unset(false, "str_value");
             var q2 = q;
@@ -413,7 +437,10 @@ public class UpdateTest extends MultiDriverTestBase {
             TestUtils.waitForWrites(morphium, log);
             var lc1 = lc;
             TestUtils.waitForConditionToBecomeTrue(5000, "pushAll not applied",
-                () -> lc1.get().getEmbeddedObjectList() != null && lc1.get().getEmbeddedObjectList().size() == 3);
+                () -> {
+                    ListContainer r = lc1.get();
+                    return r != null && r.getEmbeddedObjectList() != null && r.getEmbeddedObjectList().size() == 3;
+                });
             ListContainer lc2 = lc.get();
             assertNotNull(lc2.getEmbeddedObjectList());
             ;
@@ -499,12 +526,20 @@ public class UpdateTest extends MultiDriverTestBase {
                                  false,
                                  null);
             assertTrue((uc.theString.equals("it is set")));
+            // reread may transiently return null on a replica set - an exception inside the
+            // condition is a hard failure for waitForConditionToBecomeTrue, so guard it
             TestUtils.waitForConditionToBecomeTrue(5000, "THE_STRING not updated",
-                () -> "it is set".equals(morphium.reread(uc).theString));
+                () -> {
+                    UncachedSubClass r = morphium.reread(uc);
+                    return r != null && "it is set".equals(r.theString);
+                });
             uc.setTheString("another value");
             morphium.updateUsingFields(uc, "theString");
             TestUtils.waitForConditionToBecomeTrue(5000, "theString not updated",
-                () -> "another value".equals(morphium.reread(uc).theString));
+                () -> {
+                    UncachedSubClass r = morphium.reread(uc);
+                    return r != null && "another value".equals(r.theString);
+                });
 
             for (UncachedSubClass u : morphium.createQueryFor(UncachedSubClass.class).asList()) {
                 log.info(Utils.toJsonString(u));

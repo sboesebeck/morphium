@@ -59,7 +59,10 @@ public class DataTypeTests extends MultiDriverTestBase {
             stored.addLong(4L);
             morphium.store(stored);
             TestUtils.waitForConditionToBecomeTrue(5000, "Added long not visible",
-                    () -> morphium.createQueryFor(ListContainer.class).get().getLongList().size() == 4);
+                    () -> {
+                        var r = morphium.createQueryFor(ListContainer.class).get();
+                        return r != null && r.getLongList().size() == 4;
+                    });
             ListContainer updated = morphium.createQueryFor(ListContainer.class).get();
             assertTrue(updated.getLongList().contains(4L));
 
@@ -67,7 +70,10 @@ public class DataTypeTests extends MultiDriverTestBase {
             updated.getLongList().remove(Long.valueOf(1L));
             morphium.store(updated);
             TestUtils.waitForConditionToBecomeTrue(5000, "Removed long still visible",
-                    () -> morphium.createQueryFor(ListContainer.class).get().getLongList().size() == 3);
+                    () -> {
+                        var r = morphium.createQueryFor(ListContainer.class).get();
+                        return r != null && r.getLongList().size() == 3;
+                    });
             ListContainer removed = morphium.createQueryFor(ListContainer.class).get();
             assertFalse(removed.getLongList().contains(1L));
         }
@@ -152,7 +158,10 @@ public class DataTypeTests extends MultiDriverTestBase {
             stored.stringSet.remove("value1");
             morphium.store(stored);
             TestUtils.waitForConditionToBecomeTrue(5000, "Set modification not visible",
-                    () -> morphium.createQueryFor(SetEntity.class).get().stringSet.contains("value4"));
+                    () -> {
+                        var r = morphium.createQueryFor(SetEntity.class).get();
+                        return r != null && r.stringSet.contains("value4");
+                    });
             SetEntity modified = morphium.createQueryFor(SetEntity.class).get();
             assertEquals(3, modified.stringSet.size());
             assertFalse(modified.stringSet.contains("value1"));
@@ -200,7 +209,10 @@ public class DataTypeTests extends MultiDriverTestBase {
             stored.intMap.put("counter2", 25);
             morphium.store(stored);
             TestUtils.waitForConditionToBecomeTrue(5000, "Map modification not visible",
-                    () -> morphium.createQueryFor(MapEntity.class).get().stringMap.containsKey("key4"));
+                    () -> {
+                        var r = morphium.createQueryFor(MapEntity.class).get();
+                        return r != null && r.stringMap.containsKey("key4");
+                    });
 
             MapEntity modified = morphium.createQueryFor(MapEntity.class).get();
             assertEquals(3, modified.stringMap.size());
@@ -256,7 +268,10 @@ public class DataTypeTests extends MultiDriverTestBase {
             morphium.store(stored);
 
             TestUtils.waitForConditionToBecomeTrue(5000, "Enum update not visible",
-                    () -> morphium.createQueryFor(EnumEntity.class).get().status == TestStatus.COMPLETED);
+                    () -> {
+                        var r = morphium.createQueryFor(EnumEntity.class).get();
+                        return r != null && r.status == TestStatus.COMPLETED;
+                    });
             EnumEntity updated = morphium.createQueryFor(EnumEntity.class).get();
             assertEquals(4, updated.statusList.size());
             assertTrue(updated.statusList.contains(TestStatus.COMPLETED));
@@ -292,7 +307,10 @@ public class DataTypeTests extends MultiDriverTestBase {
             stored.binaryData = newData;
             morphium.store(stored);
             TestUtils.waitForConditionToBecomeTrue(5000, "Binary data update not visible",
-                    () -> Arrays.equals(newData, morphium.createQueryFor(BinaryDataEntity.class).get().binaryData));
+                    () -> {
+                        var r = Arrays.equals(newData, morphium.createQueryFor(BinaryDataEntity.class).get();
+                        return r != null && r.binaryData);
+                    });
             BinaryDataEntity updated = morphium.createQueryFor(BinaryDataEntity.class).get();
 
             // Test large binary data
@@ -301,7 +319,10 @@ public class DataTypeTests extends MultiDriverTestBase {
             updated.binaryData = largeData;
             morphium.store(updated);
             TestUtils.waitForConditionToBecomeTrue(5000, "Large binary data not visible",
-                    () -> morphium.createQueryFor(BinaryDataEntity.class).get().binaryData.length == 10000);
+                    () -> {
+                        var r = morphium.createQueryFor(BinaryDataEntity.class).get();
+                        return r != null && r.binaryData.length == 10000;
+                    });
             BinaryDataEntity withLargeData = morphium.createQueryFor(BinaryDataEntity.class).get();
             assertEquals(42, withLargeData.binaryData[5000]);
         }
@@ -343,7 +364,10 @@ public class DataTypeTests extends MultiDriverTestBase {
             stored.stringArray[1] = "modified";
             morphium.store(stored);
             TestUtils.waitForConditionToBecomeTrue(5000, "Array update not visible",
-                    () -> morphium.createQueryFor(PrimitiveArrayEntity.class).get().intArray[2] == 33);
+                    () -> {
+                        var r = morphium.createQueryFor(PrimitiveArrayEntity.class).get();
+                        return r != null && r.intArray[2] == 33;
+                    });
             PrimitiveArrayEntity updated = morphium.createQueryFor(PrimitiveArrayEntity.class).get();
             assertEquals("modified", updated.stringArray[1]);
         }
