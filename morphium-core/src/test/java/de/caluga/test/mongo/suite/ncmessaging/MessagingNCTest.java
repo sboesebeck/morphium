@@ -79,8 +79,8 @@ public class MessagingNCTest extends MultiDriverTestBase {
             assertEquals(1, morphium.createQueryFor(Msg.class).countAll());
 
             Thread.sleep(4000);
-            assert (!gotMessage1);
-            assert (!gotMessage2);
+            assertTrue((!gotMessage1));
+            assertTrue((!gotMessage2));
         } finally {
             m.terminate();
             m2.terminate();
@@ -196,7 +196,7 @@ public class MessagingNCTest extends MultiDriverTestBase {
             messaging.sendMessage(new Msg("test", "A message", "the value - for now", 5000000));
 
             Thread.sleep(1000);
-            assert (!gotMessage) : "Message recieved from self?!?!?!";
+            assertTrue((!gotMessage), "Message recieved from self?!?!?!");
             log.info("Dig not get own message - cool!");
 
             Msg m = new Msg("test", "The Message", "value is a string", 5000000);
@@ -208,7 +208,7 @@ public class MessagingNCTest extends MultiDriverTestBase {
             TestUtils.waitForConditionToBecomeTrue(10000, "Message did not come?!?!?", () -> gotMessage);
             gotMessage = false;
             Thread.sleep(200);
-            assert (!gotMessage) : "Got message again?!?!?!";
+            assertTrue((!gotMessage), "Got message again?!?!?!");
         } finally {
             messaging.terminate();
             TestUtils.waitForConditionToBecomeTrue(5000, "Messaging still running?!?", () -> !messaging.isAlive());
@@ -509,7 +509,7 @@ public class MessagingNCTest extends MultiDriverTestBase {
 
             m2.addListenerForTopic("test", (msg, m) -> {
                 gotMessage2 = true;
-                assert (m.getTo() == null || m.getTo().contains(m2.getSenderId())) : "wrongly received message?";
+                assertTrue((m.getTo() == null || m.getTo().contains(m2.getSenderId())), "wrongly received message?");
                 log.info("DM-M2 got message " + m.toString());
                 //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
                 return null;
@@ -517,7 +517,7 @@ public class MessagingNCTest extends MultiDriverTestBase {
 
             m3.addListenerForTopic("test", (msg, m) -> {
                 gotMessage3 = true;
-                assert (m.getTo() == null || m.getTo().contains(m3.getSenderId())) : "wrongly received message?";
+                assertTrue((m.getTo() == null || m.getTo().contains(m3.getSenderId())), "wrongly received message?");
                 log.info("DM-M3 got message " + m.toString());
                 //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
                 return null;
@@ -534,10 +534,10 @@ public class MessagingNCTest extends MultiDriverTestBase {
             error = false;
             TestUtils.waitForWrites(morphium, log);
             Thread.sleep(2500);
-            assert (!gotMessage1) : "Message recieved again by m1?!?!?";
-            assert (!gotMessage2) : "Message recieved again by m2?!?!?";
-            assert (!gotMessage3) : "Message recieved again by m3?!?!?";
-            assert (!error);
+            assertTrue((!gotMessage1), "Message recieved again by m1?!?!?");
+            assertTrue((!gotMessage2), "Message recieved again by m2?!?!?");
+            assertTrue((!gotMessage3), "Message recieved again by m3?!?!?");
+            assertTrue((!error));
 
             log.info("Sending direct message");
             Msg m = new Msg("test", "The message from M1", "Value");
@@ -551,10 +551,10 @@ public class MessagingNCTest extends MultiDriverTestBase {
             gotMessage3 = false;
             error = false;
             Thread.sleep(1000);
-            assert (!gotMessage1) : "Message recieved again by m1?!?!?";
-            assert (!gotMessage2) : "Message not recieved again by m2?!?!?";
-            assert (!gotMessage3) : "Message not recieved again by m3?!?!?";
-            assert (!error);
+            assertTrue((!gotMessage1), "Message recieved again by m1?!?!?");
+            assertTrue((!gotMessage2), "Message not recieved again by m2?!?!?");
+            assertTrue((!gotMessage3), "Message not recieved again by m3?!?!?");
+            assertTrue((!error));
 
             log.info("Sending message to 2 recipients");
             log.info("Sending direct message");
@@ -570,10 +570,10 @@ public class MessagingNCTest extends MultiDriverTestBase {
             gotMessage3 = false;
 
             Thread.sleep(1000);
-            assert (!gotMessage1) : "Message recieved again by m1?!?!?";
-            assert (!gotMessage2) : "Message not recieved again by m2?!?!?";
-            assert (!gotMessage3) : "Message not recieved again by m3?!?!?";
-            assert (!error);
+            assertTrue((!gotMessage1), "Message recieved again by m1?!?!?");
+            assertTrue((!gotMessage2), "Message not recieved again by m2?!?!?");
+            assertTrue((!gotMessage3), "Message not recieved again by m3?!?!?");
+            assertTrue((!error));
         } finally {
             m1.terminate();
             m2.terminate();
@@ -727,10 +727,10 @@ public class MessagingNCTest extends MultiDriverTestBase {
                     @Override
                     public Msg onMessage(MorphiumMessaging msg, Msg m) {
                         if (ids.contains(msg.getSenderId() + "/" + m.getMsgId())) failed[0] = true;
-                        assert (!ids.contains(msg.getSenderId() + "/" + m.getMsgId())) : "Re-getting message?!?!? " + m.getMsgId() + " MyId: " + msg.getSenderId();
+                        assertTrue((!ids.contains(msg.getSenderId() + "/" + m.getMsgId())), () -> String.valueOf("Re-getting message?!?!? " + m.getMsgId() + " MyId: " + msg.getSenderId()));
                         ids.add(msg.getSenderId() + "/" + m.getMsgId());
-                        assert (m.getTo() == null || m.getTo().contains(msg.getSenderId())) : "got message not for me?";
-                        assert (!m.getSender().equals(msg.getSenderId())) : "Got message from myself?";
+                        assertTrue((m.getTo() == null || m.getTo().contains(msg.getSenderId())), "got message not for me?");
+                        assertTrue((!m.getSender().equals(msg.getSenderId())), "Got message from myself?");
                         synchronized (processedMessages) {
                             Integer pr = processedMessages.get(m.getMsgId());
                             if (pr == null) {
@@ -761,7 +761,7 @@ public class MessagingNCTest extends MultiDriverTestBase {
             TestUtils.waitForWrites(morphium, log);
             log.info("...all messages persisted!");
             int last = 0;
-            assert (!failed[0]);
+            assertTrue((!failed[0]));
             Thread.sleep(1000);
             //See if whole number of messages processed is correct
             //keep in mind: a message is never recieved by the sender, hence numberOfWorkers-1
@@ -778,17 +778,17 @@ public class MessagingNCTest extends MultiDriverTestBase {
                 log.info("Waiting for messages to be processed - procCounter: " + procCounter.get());
                 Thread.sleep(2000);
             }
-            assert (!failed[0]);
+            assertTrue((!failed[0]));
             Thread.sleep(1000);
             log.info("done");
-            assert (!failed[0]);
+            assertTrue((!failed[0]));
 
-            assert (processedMessages.size() == numberOfMessages) : "sent " + numberOfMessages + " messages, but only " + processedMessages.size() + " were recieved?";
+            assertTrue((processedMessages.size() == numberOfMessages), () -> String.valueOf("sent " + numberOfMessages + " messages, but only " + processedMessages.size() + " were recieved?"));
             for (MorphiumId id : processedMessages.keySet()) {
                 log.info(id + "---- ok!");
-                assert (processedMessages.get(id) == numberOfWorkers - 1) : "Message " + id + " was not recieved by all " + (numberOfWorkers - 1) + " other workers? only by " + processedMessages.get(id);
+                assertTrue((processedMessages.get(id) == numberOfWorkers - 1), () -> String.valueOf("Message " + id + " was not recieved by all " + (numberOfWorkers - 1) + " other workers? only by " + processedMessages.get(id)));
             }
-            assert (procCounter.get() == numberOfMessages * (numberOfWorkers - 1)) : "Still processing messages?!?!?";
+            assertTrue((procCounter.get() == numberOfMessages * (numberOfWorkers - 1)), "Still processing messages?!?!?");
 
             //Waiting for all messages to be outdated and deleted
         } finally {
@@ -878,11 +878,11 @@ public class MessagingNCTest extends MultiDriverTestBase {
             gotMessage3 = false;
             gotMessage4 = false;
             Thread.sleep(500);
-            assert (!gotMessage1) : "Got message again?";
-            assert (!gotMessage2) : "m2 did get msg again?";
-            assert (!gotMessage3) : "m3 did get msg again?";
-            assert (!gotMessage4) : "m4 did get msg again?";
-            assert (!error);
+            assertTrue((!gotMessage1), "Got message again?");
+            assertTrue((!gotMessage2), "m2 did get msg again?");
+            assertTrue((!gotMessage3), "m3 did get msg again?");
+            assertTrue((!gotMessage4), "m4 did get msg again?");
+            assertTrue((!error));
         } finally {
             m1.terminate();
             m2.terminate();
@@ -952,7 +952,7 @@ public class MessagingNCTest extends MultiDriverTestBase {
                 if (processed[0] % 50 == 1) {
                     log.info(processed[0] + "... Got Message " + m.getTopic() + " / " + m.getMsg() + " / " + m.getValue());
                 }
-                assert (!messageIds.contains(m.getMsgId().toString())) : "Duplicate message: " + processed[0];
+                assertTrue((!messageIds.contains(m.getMsgId().toString())), () -> String.valueOf("Duplicate message: " + processed[0]));
                 messageIds.add(m.getMsgId().toString());
                 //simulate processing
                 try {
@@ -995,7 +995,7 @@ public class MessagingNCTest extends MultiDriverTestBase {
                 if (processed.get() % 1000 == 0) {
                     log.info("Consumed " + processed.get());
                 }
-                assert (!msgCountById.containsKey(m.getMsgId().toString()));
+                assertTrue((!msgCountById.containsKey(m.getMsgId().toString())));
                 msgCountById.putIfAbsent(m.getMsgId().toString(), new AtomicInteger());
                 msgCountById.get(m.getMsgId().toString()).incrementAndGet();
                 //simulate processing
@@ -1028,9 +1028,9 @@ public class MessagingNCTest extends MultiDriverTestBase {
             long dur = System.currentTimeMillis() - start;
             log.info("Processing took " + dur + " ms");
 
-            assert (processed.get() == numberOfMessages);
+            assertTrue((processed.get() == numberOfMessages));
             for (String id : msgCountById.keySet()) {
-                assert (msgCountById.get(id).get() == 1);
+                assertTrue((msgCountById.get(id).get() == 1));
             }
         } finally {
             producer.terminate();
@@ -1108,8 +1108,8 @@ public class MessagingNCTest extends MultiDriverTestBase {
 
             sender.sendMessage(m);
 
-            assert (!gotMessage3);
-            assert (!gotMessage4);
+            assertTrue((!gotMessage3));
+            assertTrue((!gotMessage4));
             TestUtils.waitForConditionToBecomeTrue(10000, "Exclusive message not received by m1 or m2", () -> gotMessage1 || gotMessage2);
             Thread.sleep(1200);
 
@@ -1120,7 +1120,7 @@ public class MessagingNCTest extends MultiDriverTestBase {
             if (gotMessage2) {
                 rec++;
             }
-            assert (rec == 1) : "rec is " + rec;
+            assertTrue((rec == 1), String.valueOf("rec is " + rec));
 
             gotMessage1 = false;
             gotMessage2 = false;
@@ -1132,8 +1132,8 @@ public class MessagingNCTest extends MultiDriverTestBase {
             sender2.sendMessage(m);
             TestUtils.waitForConditionToBecomeTrue(10000, "Exclusive message not received by m3 or m4", () -> gotMessage3 || gotMessage4);
             Thread.sleep(1500);
-            assert (!gotMessage1);
-            assert (!gotMessage2);
+            assertTrue((!gotMessage1));
+            assertTrue((!gotMessage2));
 
             rec = 0;
             if (gotMessage3) {
@@ -1142,7 +1142,7 @@ public class MessagingNCTest extends MultiDriverTestBase {
             if (gotMessage4) {
                 rec++;
             }
-            assert (rec == 1) : "rec is " + rec;
+            assertTrue((rec == 1), String.valueOf("rec is " + rec));
             final List<SingleCollectionMessaging> receivers = Arrays.asList(m1, m2, m3);
             TestUtils.waitForConditionToBecomeTrue(10000, "Not all messages processed - queues not empty", () -> receivers.stream().allMatch(ms -> ms.getNumberOfMessages() == 0));
 
@@ -1158,7 +1158,7 @@ public class MessagingNCTest extends MultiDriverTestBase {
                 }
             }
             for (SingleCollectionMessaging ms : Arrays.asList(m1, m2, m3)) {
-                assert (ms.getNumberOfMessages() == 0) : "Number of messages " + ms.getSenderId() + " is " + ms.getNumberOfMessages();
+                assertTrue((ms.getNumberOfMessages() == 0), () -> String.valueOf("Number of messages " + ms.getSenderId() + " is " + ms.getNumberOfMessages()));
             }
         } finally {
             m1.terminate();
@@ -1224,9 +1224,9 @@ public class MessagingNCTest extends MultiDriverTestBase {
             if (gotMessage3) {
                 rec++;
             }
-            assert (rec == 1) : "rec is " + rec;
+            assertTrue((rec == 1), String.valueOf("rec is " + rec));
 
-            assert (m1.getNumberOfMessages() == 0);
+            assertTrue((m1.getNumberOfMessages() == 0));
         } finally {
             m1.terminate();
             m2.terminate();
@@ -1269,7 +1269,7 @@ public class MessagingNCTest extends MultiDriverTestBase {
             Msg m = new Msg().setMsgId(new MorphiumId()).setMsg("test").setTopic("name").setValue("a value").setTtl(-1000);
             m1.sendMessage(m);
             Thread.sleep(200);
-            assert (cnt.get() == 0);
+            assertTrue((cnt.get() == 0));
         } finally {
             m1.terminate();
         }
@@ -1404,7 +1404,7 @@ public class MessagingNCTest extends MultiDriverTestBase {
             sender.sendMessage(new Msg("test", "test", "test"));
 
             Thread.sleep(500);
-            assert (list.size() == 1) : "Size wrong: " + list.size();
+            assertTrue((list.size() == 1), () -> String.valueOf("Size wrong: " + list.size()));
             TestUtils.waitForConditionToBecomeTrue(10000, "second message not processed", () -> list.size() == 2);
         } finally {
             sender.terminate();
@@ -1442,7 +1442,7 @@ public class MessagingNCTest extends MultiDriverTestBase {
             sender.sendMessage(new Msg("test", "test", "test"));
             Thread.sleep(1000);
 
-            assert (list.size() == 2) : "Size wrong: " + list.size();
+            assertTrue((list.size() == 2), () -> String.valueOf("Size wrong: " + list.size()));
         } finally {
             sender.terminate();
             receiver.terminate();
@@ -1485,7 +1485,7 @@ public class MessagingNCTest extends MultiDriverTestBase {
 
             for (Msg m : list) {
                 log.info("prio: " + m.getPriority());
-                assert (m.getPriority() >= lastValue);
+                assertTrue((m.getPriority() >= lastValue));
                 lastValue = m.getPriority();
             }
 
@@ -1509,7 +1509,7 @@ public class MessagingNCTest extends MultiDriverTestBase {
 
             for (Msg m : list) {
                 log.info("prio: " + m.getPriority());
-                assert (m.getPriority() >= lastValue);
+                assertTrue((m.getPriority() >= lastValue));
                 lastValue = m.getPriority();
             }
 
@@ -1538,13 +1538,13 @@ public class MessagingNCTest extends MultiDriverTestBase {
             Thread.sleep(100);
             receiver.addListenerForTopic("test", (msg, m) -> {
 //                log.info("R1: Incoming message");
-                assert (pausedReciever.get() != 1);
+                assertTrue((pausedReciever.get() != 1));
                 return null;
             });
 
             receiver2.addListenerForTopic("test", (msg, m) -> {
 //                log.info("R2: Incoming message");
-                assert (pausedReciever.get() != 2);
+                assertTrue((pausedReciever.get() != 2));
                 return null;
             });
 
@@ -1683,16 +1683,16 @@ public class MessagingNCTest extends MultiDriverTestBase {
 
                 log.info("Send excl: " + exclusiveAmount + "  brodadcast: " + broadcastAmount + " recieved: " + rec + " queue: " + messageCount + " currently processing: " + (exclusiveAmount + broadcastAmount * 4 - rec - messageCount));
                 for (SingleCollectionMessaging m : Arrays.asList(receiver, receiver2, receiver3, receiver4)) {
-                    assert (m.getRunningTasks() <= 10) : m.getSenderId() + " runs too many tasks! " + m.getRunningTasks();
+                    assertTrue((m.getRunningTasks() <= 10), () -> String.valueOf(m.getSenderId() + " runs too many tasks! " + m.getRunningTasks()));
                 }
-                assert (dups.get() == 0) : "got duplicate message";
+                assertTrue((dups.get() == 0), "got duplicate message");
 
                 Thread.sleep(1000);
             }
             int rec = received.get();
             long messageCount = sender.getPendingMessagesCount();
             log.info("Send " + exclusiveAmount + " recieved: " + rec + " queue: " + messageCount);
-            assert (received.get() == exclusiveAmount + broadcastAmount * 4) : "should have received " + (exclusiveAmount + broadcastAmount * 4) + " but actually got " + received.get();
+            assertTrue((received.get() == exclusiveAmount + broadcastAmount * 4), () -> String.valueOf("should have received " + (exclusiveAmount + broadcastAmount * 4) + " but actually got " + received.get()));
 
             for (String id : recieveCount.keySet()) {
                 log.info("Reciever " + id + " message count: " + recieveCount.get(id).get());
@@ -1819,7 +1819,7 @@ public class MessagingNCTest extends MultiDriverTestBase {
                 int rec = received.get();
                 long messageCount = sender.getPendingMessagesCount();
                 log.info("Send excl: " + amount + "  brodadcast: " + broadcastAmount + " recieved: " + rec + " queue: " + messageCount + " currently processing: " + (amount + broadcastAmount * 4 - rec - messageCount));
-                assert (dups.get() == 0) : "got duplicate message";
+                assertTrue((dups.get() == 0), "got duplicate message");
                 for (SingleCollectionMessaging m : Arrays.asList(receiver, receiver2, receiver3, receiver4)) {
                     log.info(m.getSenderId() + " active Tasks: " + m.getRunningTasks());
                 }
@@ -1828,7 +1828,7 @@ public class MessagingNCTest extends MultiDriverTestBase {
             int rec = received.get();
             long messageCount = sender.getPendingMessagesCount();
             log.info("Send " + amount + " recieved: " + rec + " queue: " + messageCount);
-            assert (received.get() == amount + broadcastAmount * 4) : "should have received " + (amount + broadcastAmount * 4) + " but actually got " + received.get();
+            assertTrue((received.get() == amount + broadcastAmount * 4), () -> String.valueOf("should have received " + (amount + broadcastAmount * 4) + " but actually got " + received.get()));
 
             for (String id : recieveCount.keySet()) {
                 log.info("Reciever " + id + " message count: " + recieveCount.get(id).get());
@@ -1870,7 +1870,7 @@ public class MessagingNCTest extends MultiDriverTestBase {
             receiverNoListener.setSenderId("recNL");
             receiverNoListener.setUseChangeStream(false).start();
 
-            assert (morphium.createQueryFor(Msg.class, sender.getCollectionName()).countAll() == 3);
+            assertTrue((morphium.createQueryFor(Msg.class, sender.getCollectionName()).countAll() == 3));
         } finally {
             sender.terminate();
             receiverNoListener.terminate();
@@ -1908,7 +1908,7 @@ public class MessagingNCTest extends MultiDriverTestBase {
             }
             TestUtils.waitForConditionToBecomeTrue(30000, "not all exclusive messages received", () -> counts.get() >= 50);
             Thread.sleep(2000);
-            assert (counts.get() == 50) : "Did get too many? " + counts.get();
+            assertTrue((counts.get() == 50), () -> String.valueOf("Did get too many? " + counts.get()));
 
 
             counts.set(0);
@@ -1918,7 +1918,7 @@ public class MessagingNCTest extends MultiDriverTestBase {
             }
             TestUtils.waitForConditionToBecomeTrue(30000, "not all broadcast messages received", () -> counts.get() >= 10 * recs.size());
             Thread.sleep(2000);
-            assert (counts.get() == 10 * recs.size()) : "Did get too many? " + counts.get();
+            assertTrue((counts.get() == 10 * recs.size()), () -> String.valueOf("Did get too many? " + counts.get()));
 
         } finally {
             sender.terminate();
@@ -1967,9 +1967,9 @@ public class MessagingNCTest extends MultiDriverTestBase {
             TestUtils.waitForConditionToBecomeTrue(10000, "not all recipients got the message", () -> receivedBy.size() >= 3);
             Thread.sleep(1000);
 
-            assert (receivedBy.size() == m.getTo().size());
+            assertTrue((receivedBy.size() == m.getTo().size()));
             for (String r : m.getTo()) {
-                assert (receivedBy.contains(r));
+                assertTrue((receivedBy.contains(r)));
             }
 
 
@@ -1984,8 +1984,8 @@ public class MessagingNCTest extends MultiDriverTestBase {
             sender.sendMessage(m);
             TestUtils.waitForConditionToBecomeTrue(10000, "exclusive message not received", () -> receivedBy.size() >= 1);
             Thread.sleep(1000);
-            assert (receivedBy.size() == 1);
-            assert (m.getTo().contains(receivedBy.get(0)));
+            assertTrue((receivedBy.size() == 1));
+            assertTrue((m.getTo().contains(receivedBy.get(0))));
         } finally {
             for (SingleCollectionMessaging ms : receivers) {
                 ms.terminate();

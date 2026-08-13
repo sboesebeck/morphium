@@ -106,7 +106,7 @@ public class AnsweringNCTests extends MultiDriverTestBase {
                                 error = true;
                             }
                             log.info("M2 got message " + m.toString());
-                            assert (m.getInAnswerTo() == null) : "M2 got an answer, but did not ask?";
+                            assertTrue((m.getInAnswerTo() == null), "M2 got an answer, but did not ask?");
                             Msg answer = m.createAnswerMsg();
                             answer.setValue("This is the answer from m2");
                             answer.addValue("when", System.currentTimeMillis());
@@ -125,7 +125,7 @@ public class AnsweringNCTests extends MultiDriverTestBase {
 
                             log.info("M3 got answer " + m.toString());
                             assertNotNull(lastMsgId, "Last message == null?");
-                            assert (m.getInAnswerTo().equals(lastMsgId)) : "Wrong answer????" + lastMsgId.toString() + " != " + m.getInAnswerTo().toString();
+                            assertTrue((m.getInAnswerTo().equals(lastMsgId)), () -> String.valueOf("Wrong answer????" + lastMsgId.toString() + " != " + m.getInAnswerTo().toString()));
                             //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
                             return null;
                         });
@@ -143,18 +143,18 @@ public class AnsweringNCTests extends MultiDriverTestBase {
                         Thread.sleep(3000);
                         long cnt = morph.createQueryFor(Msg.class, onlyAnswers.getDMCollectionName(onlyAnswers.getSenderId())).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
                         log.info("Answers in mongo: " + cnt);
-                        assert (cnt == 2);
-                        assert (gotMessage3) : "no answer got back?";
-                        assert (gotMessage1) : "Question not received by m1";
-                        assert (gotMessage2) : "Question not received by m2";
-                        assert (!error);
+                        assertTrue((cnt == 2));
+                        assertTrue((gotMessage3), "no answer got back?");
+                        assertTrue((gotMessage1), "Question not received by m1");
+                        assertTrue((gotMessage2), "Question not received by m2");
+                        assertTrue((!error));
                         gotMessage1 = false;
                         gotMessage2 = false;
                         gotMessage3 = false;
                         Thread.sleep(2000);
-                        assert (!error);
+                        assertTrue((!error));
 
-                        assert (!gotMessage3 && !gotMessage1 && !gotMessage2) : "Message processing repeat?";
+                        assertTrue((!gotMessage3 && !gotMessage1 && !gotMessage2), "Message processing repeat?");
 
                         question = new Msg("test", "This is the message text", "A question param", 30000, true);
                         question.setMsgId(new MorphiumId());
@@ -220,7 +220,7 @@ public class AnsweringNCTests extends MultiDriverTestBase {
         Thread.sleep(500);
         assertNotNull(answer);
         ;
-        assert (answer.getProcessedBy().size() == 1) : "Size wrong: " + answer.getProcessedBy();
+        assertTrue((answer.getProcessedBy().size() == 1), () -> String.valueOf("Size wrong: " + answer.getProcessedBy()));
     }
 
 
@@ -311,12 +311,12 @@ public class AnsweringNCTests extends MultiDriverTestBase {
         Msg question = new Msg("question", "question", "a value");
         question.setPriority(5);
         List<Msg> answers = m1.sendAndAwaitAnswers(question, 2, 10000);
-        assert (answers != null && !answers.isEmpty());
-        assert (answers.size() == 2) : "Got wrong number of answers: " + answers.size();
+        assertTrue((answers != null && !answers.isEmpty()));
+        assertTrue((answers.size() == 2), () -> String.valueOf("Got wrong number of answers: " + answers.size()));
         for (Msg m : answers) {
             assertNotNull(m.getInAnswerTo());
             ;
-            assert (m.getInAnswerTo().equals(question.getMsgId()));
+            assertTrue((m.getInAnswerTo().equals(question.getMsgId())));
         }
         m1.terminate();
         m2.terminate();
@@ -352,7 +352,7 @@ public class AnsweringNCTests extends MultiDriverTestBase {
             Msg answer = m1.sendAndAwaitFirstAnswer(question, 15000);
             long dur = System.currentTimeMillis() - start;
             assertTrue(answer != null && answer.getInAnswerTo() != null);
-            assert (answer.getInAnswerTo().equals(question.getMsgId()));
+            assertTrue((answer.getInAnswerTo().equals(question.getMsgId())));
             log.info("... ok - took " + dur + " ms");
         }
         m1.terminate();
@@ -420,8 +420,8 @@ public class AnsweringNCTests extends MultiDriverTestBase {
 
         sender.sendMessage(new Msg("query", "a query", "avalue"));
         TestUtils.waitForConditionToBecomeTrue(5000, "Messages not received", () -> gotMessage1 && gotMessage2);
-        assert (gotMessage1);
-        assert (gotMessage2);
+        assertTrue((gotMessage1));
+        assertTrue((gotMessage2));
 
         Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("query", "query", "avalue"), 1000);
         assertNotNull(answer);
@@ -484,12 +484,12 @@ public class AnsweringNCTests extends MultiDriverTestBase {
         Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 15000), 15000);
         assertNotNull(answer);
         ;
-        assert (answer.getTopic().equals("test"));
+        assertTrue((answer.getTopic().equals("test")));
         assertNotNull(answer.getInAnswerTo());
         ;
         assertNotNull(answer.getRecipients());
         ;
-        assert (answer.getMsg().equals("got message"));
+        assertTrue((answer.getMsg().equals("got message")));
         m1.terminate();
         sender.terminate();
     }

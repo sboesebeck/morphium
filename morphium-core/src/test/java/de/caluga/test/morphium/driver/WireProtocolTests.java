@@ -34,7 +34,7 @@ public class WireProtocolTests {
         WireProtocolMessage wp = WireProtocolMessage.parseFromStream(new ByteArrayInputStream(data));
         assertNotNull(wp);
         ;
-        assert(wp instanceof OpMsg);
+        assertTrue((wp instanceof OpMsg));
     }
 
     @Test

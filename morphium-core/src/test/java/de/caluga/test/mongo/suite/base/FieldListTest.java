@@ -16,6 +16,7 @@ import java.util.Map;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Created with IntelliJ IDEA.
@@ -38,7 +39,7 @@ public class FieldListTest extends MultiDriverTestBase {
 
         q = q.f(UncachedObject.Fields.counter).eq(30);
         UncachedObject uc = q.get();
-        assert (uc.getStrValue() == null) : "Value is " + uc.getStrValue();
+        assertTrue((uc.getStrValue() == null), () -> String.valueOf("Value is " + uc.getStrValue()));
     }
 
     @ParameterizedTest
@@ -60,7 +61,7 @@ public class FieldListTest extends MultiDriverTestBase {
         ro.readOnlyValue = "must still not be stored, even after update!";
         morphium.store(ro);
         morphium.reread(ro);
-        assert (ro.readOnlyValue == null);
+        assertTrue((ro.readOnlyValue == null));
 
         //forcing store of a value
         Map<String, Object> marshall = morphium.getMapper().serialize(ro);
@@ -73,11 +74,11 @@ public class FieldListTest extends MultiDriverTestBase {
         cmd.releaseConnection();
         Thread.sleep(100);
         morphium.reread(ro);
-        assert (ro.readOnlyValue.equals("stored in db"));
+        assertTrue((ro.readOnlyValue.equals("stored in db")));
 
         ro.readOnlyValue = "different";
         morphium.reread(ro);
-        assert (ro.readOnlyValue.equals("stored in db"));
+        assertTrue((ro.readOnlyValue.equals("stored in db")));
 
     }
 

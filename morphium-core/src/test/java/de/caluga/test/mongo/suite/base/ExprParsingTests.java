@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.*;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("core")
 public class ExprParsingTests {
@@ -24,7 +25,7 @@ public class ExprParsingTests {
         Expr add = Expr.parse(qo);
         Map<String, Object> context = UtilsMap.of("field", 12);
         Object result = add.evaluate(context);
-        assert (result.equals(2.0));
+        assertTrue((result.equals(2.0)));
         log.info("done");
     }
     @Test
@@ -35,7 +36,7 @@ public class ExprParsingTests {
         Expr add = Expr.parse(qo);
         Map<String, Object> context = UtilsMap.of("field", 12);
         Object result = add.evaluate(context);
-        assert (result.equals(47.0));
+        assertTrue((result.equals(47.0)));
         log.info("done");
     }
 
@@ -43,9 +44,9 @@ public class ExprParsingTests {
     public void backAndForthTest() {
         Expr o = Expr.abs(Expr.intExpr(1));
         Expr o2 = Expr.parse(o.toQueryObject());
-        assert (o.toQueryObject().equals(o2.toQueryObject()));
+        assertTrue((o.toQueryObject().equals(o2.toQueryObject())));
         Map<String, Object> context = UtilsMap.of("test", 1);
-        assert (o.evaluate(context).equals(o2.evaluate(context)));
+        assertTrue((o.evaluate(context).equals(o2.evaluate(context))));
     }
 
 

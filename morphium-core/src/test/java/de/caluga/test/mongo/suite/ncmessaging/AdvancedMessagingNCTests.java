@@ -19,6 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Disabled
 @Tag("messaging")
@@ -121,11 +122,11 @@ public class AdvancedMessagingNCTests extends MultiDriverTestBase {
                 log.info("-----> Messages processed so far: " + counts.size() + "/" + amount + " with " + receivers + " receivers");
 
                 for (MorphiumId id : counts.keySet()) {
-                    assert(counts.get(id) <= 1) : "Count for id " + id.toString() + " is " + counts.get(id);
+                    assertTrue((counts.get(id) <= 1), () -> String.valueOf("Count for id " + id.toString() + " is " + counts.get(id)));
                 }
 
                 Thread.sleep(1000);
-                assert(counts.size() != lastCount);
+                assertTrue((counts.size() != lastCount));
                 log.info("----> current speed: " + (counts.size() - lastCount) + "/sec");
                 lastCount = counts.size();
             }
@@ -240,14 +241,14 @@ public class AdvancedMessagingNCTests extends MultiDriverTestBase {
                 Msg query = new Msg("test", "test querey", "query");
                 query.setExclusive(true);
                 List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 1250);
-                assert(ans.size() == 1) : "Recieved more than one answer to query " + query.getMsgId();
+                assertTrue((ans.size() == 1), () -> String.valueOf("Recieved more than one answer to query " + query.getMsgId()));
             }
 
             for (int i = 0; i < 10; i++) {
                 Msg query = new Msg("test", "test querey", "query");
                 query.setExclusive(false);
                 List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 1250);
-                assert(ans.size() == 3) : "Recieved not enough answers to  " + query.getMsgId();
+                assertTrue((ans.size() == 3), () -> String.valueOf("Recieved not enough answers to  " + query.getMsgId()));
             }
         } finally {
             m1.terminate();
@@ -329,7 +330,7 @@ public class AdvancedMessagingNCTests extends MultiDriverTestBase {
             answer = producer.sendAndAwaitFirstAnswer(new Msg("testDiff", "query", "value"), 1000);
             assertNotNull(answer);
             ;
-            assert(answer.getTopic().equals("answer")) : "Name is wrong: " + answer.getTopic();
+            assertTrue((answer.getTopic().equals("answer")), () -> String.valueOf("Name is wrong: " + answer.getTopic()));
         } finally {
             producer.terminate();
             consumer.terminate();
@@ -356,7 +357,7 @@ public class AdvancedMessagingNCTests extends MultiDriverTestBase {
             MorphiumId msgId = new MorphiumId();
             producer.addListenerForTopic("answerForTestAnswering", (msg, m) -> {
                 log.info("Incoming answer! " + m.getInAnswerTo() + " ---> " + msgId);
-                assert(msgId.equals(m.getInAnswerTo()));
+                assertTrue((msgId.equals(m.getInAnswerTo())));
                 counts.put(msgId, 1);
                 return null;
             });
@@ -364,7 +365,7 @@ public class AdvancedMessagingNCTests extends MultiDriverTestBase {
             msg.setMsgId(msgId);
             producer.sendMessage(msg);
             Thread.sleep(1000);
-            assert(counts.get(msgId).equals(1));
+            assertTrue((counts.get(msgId).equals(1)));
         } finally {
             producer.terminate();
             consumer.terminate();

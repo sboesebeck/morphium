@@ -98,7 +98,7 @@ public class QueryUpdateOperatorsTest extends MultiDriverTestBase {
             () -> !morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.strValue).eq("new").asList().isEmpty());
         List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.strValue).eq("new").asList();
         assertEquals(lst.size(), 1);
-        assert (lst.get(0).getCounter() == 10002);
+        assertTrue((lst.get(0).getCounter() == 10002));
     }
 
     @ParameterizedTest

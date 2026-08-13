@@ -41,7 +41,7 @@ public class ObjectMapperCollectionsMappingTest extends MultiDriverTestBase {
         MapListObject mo = om.deserialize(MapListObject.class, marshall);
         System.out.println("Mo: " + mo.getName());
         System.out.println("lst: " + mo.getListValue());
-        assert (mo.getName().equals(o.getName())) : "Names not equal?!?!?";
+        assertTrue((mo.getName().equals(o.getName())), "Names not equal?!?!?");
         for (int i = 0; i < lst.size(); i++) {
             Object listValueNew = mo.getListValue().get(i);
             Object listValueOrig = o.getListValue().get(i);
@@ -238,7 +238,7 @@ public class ObjectMapperCollectionsMappingTest extends MultiDriverTestBase {
         assertInstanceOf(String.class, ((List) ((Map) ((List) obj.get("list")).get(0)).get("tst1")).get(0));
 
         ListOfMapOfListOfString lst6 = map.deserialize(ListOfMapOfListOfString.class, obj);
-        assert (lst6.list.size() == 2);
+        assertTrue((lst6.list.size() == 2));
         assertNotNull(lst6.list.get(0));
         ;
         assertNotNull(lst6.list.get(0).get("tst1"));

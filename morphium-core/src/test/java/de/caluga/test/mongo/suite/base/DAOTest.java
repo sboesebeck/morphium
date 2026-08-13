@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -33,21 +34,21 @@ public class DAOTest extends MultiDriverTestBase {
         Thread.sleep(1000);
         UncachedObjectDAO dao = new UncachedObjectDAO(morphium);
         List<UncachedObject> lst = dao.getAll();
-        assert (lst.size() == 100) : "Wrong element count: " + lst.size();
+        assertTrue(lst.size() == 100, "Wrong element count: " + lst.size());
 
         lst = dao.findByField(UncachedObjectDAO.Field.counter, 55);
-        assert (lst.size() == 1) : "Wrong element count in find: " + lst.size();
+        assertTrue(lst.size() == 1, "Wrong element count in find: " + lst.size());
 
-        assert (lst.get(0).getCounter() == 55) : "Got wrong element: " + lst.get(0).getCounter();
+        assertTrue(lst.get(0).getCounter() == 55, "Got wrong element: " + lst.get(0).getCounter());
         assertNotNull(dao.getValue(UncachedObjectDAO.Field.counter, lst.get(0)));
         ;
         assertNotNull(dao.getValue("counter", lst.get(0)));
         ;
-        assert (dao.existsField("str_value"));
+        assertTrue((dao.existsField("str_value")));
         dao.setValue(UncachedObjectDAO.Field.counter, 12, lst.get(0));
-        assert (lst.get(0).getCounter() == 12) : "Got wrong element: " + lst.get(0).getCounter();
+        assertTrue(lst.get(0).getCounter() == 12, "Got wrong element: " + lst.get(0).getCounter());
         dao.setValue("counter", 13, lst.get(0));
-        assert (lst.get(0).getCounter() == 13) : "Got wrong element: " + lst.get(0).getCounter();
+        assertTrue(lst.get(0).getCounter() == 13, "Got wrong element: " + lst.get(0).getCounter());
 
     }
 }

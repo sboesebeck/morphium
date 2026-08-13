@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Tag;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Properties;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("encryption")
 public class EncryptionTest {
@@ -26,15 +27,15 @@ public class EncryptionTest {
 
         encProvider.readFromProperties(p, null, null, false);
         byte[] ek = encProvider.getDecryptionKey("key1");
-        assert (Arrays.equals(ek, p.getProperty("key1").getBytes()));
+        assertTrue((Arrays.equals(ek, p.getProperty("key1").getBytes())));
         ek = encProvider.getEncryptionKey("key1");
-        assert (Arrays.equals(ek, p.getProperty("key1").getBytes()));
+        assertTrue((Arrays.equals(ek, p.getProperty("key1").getBytes())));
 
         ek = encProvider.getEncryptionKey("key2");
-        assert (Arrays.equals(ek, p.getProperty("key2.enc").getBytes()));
+        assertTrue((Arrays.equals(ek, p.getProperty("key2.enc").getBytes())));
 
         ek = encProvider.getDecryptionKey("key2");
-        assert (Arrays.equals(ek, p.getProperty("key2.dec").getBytes()));
+        assertTrue((Arrays.equals(ek, p.getProperty("key2.dec").getBytes())));
     }
 
     @Test
@@ -51,15 +52,15 @@ public class EncryptionTest {
 
         encProvider.readFromProperties(p, null, encryptionKey, true);
         byte[] ek = encProvider.getDecryptionKey("key1");
-        assert (Arrays.equals(ek, "12345".getBytes()));
+        assertTrue((Arrays.equals(ek, "12345".getBytes())));
         ek = encProvider.getEncryptionKey("key1");
-        assert (Arrays.equals(ek, "12345".getBytes()));
+        assertTrue((Arrays.equals(ek, "12345".getBytes())));
 
         ek = encProvider.getEncryptionKey("key2");
-        assert (Arrays.equals(ek, "12345".getBytes()));
+        assertTrue((Arrays.equals(ek, "12345".getBytes())));
 
         ek = encProvider.getDecryptionKey("key2");
-        assert (Arrays.equals(ek, "123456".getBytes()));
+        assertTrue((Arrays.equals(ek, "123456".getBytes())));
     }
 
 
@@ -73,7 +74,7 @@ public class EncryptionTest {
         byte[] encrypted = aes.encrypt(original.getBytes());
 
         byte[] decrypted = aes.decrypt(encrypted);
-        assert (Arrays.equals(original.getBytes(), decrypted));
+        assertTrue((Arrays.equals(original.getBytes(), decrypted)));
     }
 
     @Test
@@ -90,7 +91,7 @@ public class EncryptionTest {
         byte[] enc = provider.encrypt(originalData.getBytes());
         byte[] dec = provider.decrypt(enc);
 
-        assert (Arrays.equals(dec, originalData.getBytes()));
+        assertTrue((Arrays.equals(dec, originalData.getBytes())));
 
 
     }

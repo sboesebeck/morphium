@@ -16,6 +16,7 @@ import java.util.Map;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("aggregation")
 @Tag("external")  // Requires MongoDB - $geoNear not supported by InMemoryDriver
@@ -42,7 +43,7 @@ public class GeoNearTest extends MultiDriverTestBase {
 
         // Verify we have the expected number of documents
         long count = morphium.createQueryFor(Place.class).countAll();
-        assert count == 6 : "Expected 6 places but found " + count;
+        assertTrue(count == 6, () -> String.valueOf("Expected 6 places but found " + count));
 
         Aggregator<Place, Map> agg = morphium.createAggregator(Place.class, Map.class);
         agg.geoNear(UtilsMap.of(Aggregator.GeoNearFields.near, (Object) new Point(-73.98142, 40.71782),
@@ -52,13 +53,13 @@ public class GeoNearTest extends MultiDriverTestBase {
         );
 
         List<Map<String, Object>> result = agg.aggregateMap();
-        assert (result.size() == 3);
+        assertTrue((result.size() == 3));
 
         for (Map<String, Object> m : result) {
             log.info("Result: " + m.toString());
-            assert (m.get("category").equals("Stadiums"));
-            assert (m.get("dist") instanceof Map);
-            assert (((Map) m.get("dist")).get("calculated") instanceof Double);
+            assertTrue((m.get("category").equals("Stadiums")));
+            assertTrue((m.get("dist") instanceof Map));
+            assertTrue((((Map) m.get("dist")).get("calculated") instanceof Double));
         }
 
     }

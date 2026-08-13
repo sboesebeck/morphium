@@ -9,6 +9,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("core")
 public class QuerySortPagingTest extends MultiDriverTestBase {
@@ -18,7 +19,7 @@ public class QuerySortPagingTest extends MultiDriverTestBase {
     public void testLimit(Morphium morphium) {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.limit(10);
-        assert (q.getLimit() == 10);
+        assertTrue((q.getLimit() == 10));
     }
 
     @ParameterizedTest
@@ -26,7 +27,7 @@ public class QuerySortPagingTest extends MultiDriverTestBase {
     public void testSkip(Morphium morphium) {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.skip(10);
-        assert (q.getSkip() == 10);
+        assertTrue((q.getSkip() == 10));
     }
 
     @ParameterizedTest
@@ -36,14 +37,14 @@ public class QuerySortPagingTest extends MultiDriverTestBase {
         q.sort(UncachedObject.Fields.counter, UncachedObject.Fields.strValue);
         assertNotNull(q.getSort());
         ;
-        assert (q.getSort().get("counter").equals(Integer.valueOf(1)));
-        assert (q.getSort().get("str_value").equals(Integer.valueOf(1)));
+        assertTrue((q.getSort().get("counter").equals(Integer.valueOf(1))));
+        assertTrue((q.getSort().get("str_value").equals(Integer.valueOf(1))));
         int cnt = 0;
 
         for (String s : q.getSort().keySet()) {
-            assert (cnt < 2);
-            assert cnt != 0 || (s.equals("counter"));
-            assert cnt != 1 || (s.equals("str_value"));
+            assertTrue((cnt < 2));
+            assertTrue(cnt != 0 || (s.equals("counter")));
+            assertTrue(cnt != 1 || (s.equals("str_value")));
             cnt++;
         }
     }
@@ -55,14 +56,14 @@ public class QuerySortPagingTest extends MultiDriverTestBase {
         q.sortEnum(UtilsMap.of((Enum) UncachedObject.Fields.counter, -1, UncachedObject.Fields.strValue, 1));
         assertNotNull(q.getSort());
         ;
-        assert (q.getSort().get("counter").equals(Integer.valueOf(-1)));
-        assert (q.getSort().get("str_value").equals(Integer.valueOf(1)));
+        assertTrue((q.getSort().get("counter").equals(Integer.valueOf(-1))));
+        assertTrue((q.getSort().get("str_value").equals(Integer.valueOf(1))));
         int cnt = 0;
 
         for (String s : q.getSort().keySet()) {
-            assert (cnt < 2);
-            assert cnt == 0 || (s.equals("counter"));
-            assert cnt == 1 || (s.equals("str_value"));
+            assertTrue((cnt < 2));
+            assertTrue(cnt == 0 || (s.equals("counter")));
+            assertTrue(cnt == 1 || (s.equals("str_value")));
             cnt++;
         }
     }

@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 import static de.caluga.test.mongo.suite.base.TestUtils.waitForConditionToBecomeTrue;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("core")
 public class QuerySubDocsTest extends MultiDriverTestBase {
@@ -34,7 +35,7 @@ public class QuerySubDocsTest extends MultiDriverTestBase {
                 SubDocTest result = q.get();
                 return result != null && result.subDocs != null && result.subDocs.size() != 0;
             });
-        assert (q.get().subDocs.size() != 0);
+        assertTrue((q.get().subDocs.size() != 0));
     }
 
     @Entity

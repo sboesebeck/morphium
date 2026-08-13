@@ -60,11 +60,11 @@ public class UpdateTest extends MultiDriverTestBase {
             final Query<UncachedMultipleCounter> finalQ = q; // Capture for lambda
             TestUtils.waitForConditionToBecomeTrue(3000, "Counter increment to 15 not completed",
                 () -> finalQ.get().getCounter() == 15);
-            assert(q.get().getCounter2() == 3);
+            assertTrue((q.get().getCounter2() == 3));
             morphium.inc(q, toInc, false, true, null);
             TestUtils.waitForConditionToBecomeTrue(1000, "Counter increment to 25 not completed",
                 () -> finalQ.get().getCounter() == 25);
-            assert(q.get().getCounter2() == 3.5);
+            assertTrue((q.get().getCounter2() == 3.5));
         }
     }
 
@@ -83,7 +83,7 @@ public class UpdateTest extends MultiDriverTestBase {
             q = q.f("str_value").eq("Uncached " + 5);
             UncachedObject uc = q.get();
             morphium.inc(uc, "counter", 1);
-            assert(uc.getCounter() == 6) : "Counter is not correct: " + uc.getCounter();
+            assertTrue((uc.getCounter() == 6), () -> String.valueOf("Counter is not correct: " + uc.getCounter()));
             // inc without object - single update, no upsert
             q = morphium.createQueryFor(UncachedObject.class);
             q = q.f("counter").gte(10).f("counter").lte(25).sort("counter");
@@ -100,10 +100,7 @@ public class UpdateTest extends MultiDriverTestBase {
             List<UncachedObject> lst = q.asList(); // read the data after update
 
             for (UncachedObject u : lst) {
-                assert(u.getCounter() > 110
-                       && u.getCounter() <= 125
-                       && u.getStrValue().equals("Uncached " + (u.getCounter() - 100)))
-                    : "Counter wrong: " + u.getCounter();
+                assertTrue((u.getCounter() > 110 && u.getCounter() <= 125 && u.getStrValue().equals("Uncached " + (u.getCounter() - 100))), () -> String.valueOf("Counter wrong: " + u.getCounter()));
             }
         }
     }
@@ -134,7 +131,7 @@ public class UpdateTest extends MultiDriverTestBase {
             var q1 = q;
             TestUtils.waitForConditionToBecomeTrue(5000, "Object not found?!?!", ()->q1.get() != null);
             uc = q.get();
-            assert(uc.getCounter() == 41) : "Counter is wrong: " + uc.getCounter();
+            assertTrue((uc.getCounter() == 41), String.valueOf("Counter is wrong: " + uc.getCounter()));
             // inc without object directly in DB - multiple update
             q = morphium.createQueryFor(UncachedObject.class);
             q = q.f("counter").gt(40).f("counter").lte(55);
@@ -146,8 +143,7 @@ public class UpdateTest extends MultiDriverTestBase {
             List<UncachedObject> lst = q.asList(); // read the data after update
 
             for (UncachedObject u : lst) {
-                assert(u.getCounter() > 0 && u.getCounter() <= 55)
-                    : "Counter wrong: " + u.getCounter();
+                assertTrue((u.getCounter() > 0 && u.getCounter() <= 55), () -> String.valueOf("Counter wrong: " + u.getCounter()));
                 //            assert(u.getValue().equals("Uncached "+(u.getCounter()-40))):"Value
                 // wrong: Counter: "+u.getCounter()+" Value;: "+u.getValue();
             }
@@ -184,8 +180,7 @@ public class UpdateTest extends MultiDriverTestBase {
     }
 
     private void checkValue(Morphium morphium, UncachedObject uc, String value) throws Exception {
-        assert(uc.getStrValue().equals(value))
-            : "Value wrong: " + uc.getStrValue() + " but should be " + value;
+        assertTrue((uc.getStrValue().equals(value)), () -> String.valueOf("Value wrong: " + uc.getStrValue() + " but should be " + value));
         TestUtils.waitForConditionToBecomeTrue(5000, "Value after reread wrong",
             () -> value.equals(morphium.reread(uc).getStrValue()));
     }
@@ -209,7 +204,7 @@ public class UpdateTest extends MultiDriverTestBase {
             TestUtils.waitForConditionToBecomeTrue(5000, "Upsert not visible", ()->q1.get() != null);
             UncachedObject uc = q.get(); // should now work
             assertNotNull(uc, "Not found?!?!?");
-            assert(uc.getStrValue().equals("unexistent")) : "Value wrong: " + uc.getStrValue();
+            assertTrue((uc.getStrValue().equals("unexistent")), () -> String.valueOf("Value wrong: " + uc.getStrValue()));
         }
     }
 
@@ -337,8 +332,8 @@ public class UpdateTest extends MultiDriverTestBase {
             ListContainer lc2 = lc.get();
             assertNotNull(lc2.getEmbeddedObjectList());
             ;
-            assert(lc2.getEmbeddedObjectList().size() == 2);
-            assert(lc2.getEmbeddedObjectList().get(0).getTest() == 1L);
+            assertTrue((lc2.getEmbeddedObjectList().size() == 2));
+            assertTrue((lc2.getEmbeddedObjectList().get(0).getTest() == 1L));
         }
     }
 
@@ -364,12 +359,12 @@ public class UpdateTest extends MultiDriverTestBase {
 
             for (UncachedObject u : lst) {
                 if (u.getStrValue() == null) {
-                    assert(!found);
+                    assertTrue((!found));
                     found = true;
                 }
             }
 
-            assert(found);
+            assertTrue((found));
             // morphium.unsetQ(q, true, "binary_data", "bool_data", "str_value");
             q.unset(true, "binary_data", "bool_data", "str_value");
 
@@ -378,7 +373,7 @@ public class UpdateTest extends MultiDriverTestBase {
             lst = q.asList();
 
             for (UncachedObject u : lst) {
-                assert(u.getStrValue() == null);
+                assertTrue((u.getStrValue() == null));
             }
         }
     }
@@ -422,9 +417,8 @@ public class UpdateTest extends MultiDriverTestBase {
             ListContainer lc2 = lc.get();
             assertNotNull(lc2.getEmbeddedObjectList());
             ;
-            assert(lc2.getEmbeddedObjectList().size() == 3)
-                : "Size wrong, should be 3 is " + lc2.getEmbeddedObjectList().size();
-            assert(lc2.getEmbeddedObjectList().get(0).getTest() == 1L);
+            assertTrue((lc2.getEmbeddedObjectList().size() == 3), () -> String.valueOf("Size wrong, should be 3 is " + lc2.getEmbeddedObjectList().size()));
+            assertTrue((lc2.getEmbeddedObjectList().get(0).getTest() == 1L));
         }
     }
 
@@ -444,11 +438,11 @@ public class UpdateTest extends MultiDriverTestBase {
             TestUtils.waitForConditionToBecomeTrue(5000, "Update not applied",
                 () -> "new Value".equals(morphium.findById(UncachedObject.class, uc.getMorphiumId()).getStrValue()));
             UncachedObject uc2 = morphium.findById(UncachedObject.class, uc.getMorphiumId());
-            assert(uc2.getCounter() == 1001);
+            assertTrue((uc2.getCounter() == 1001));
             assertNotNull(uc2.getLongData());
             ;
-            assert(uc2.getLongData()[0] == 42);
-            assert(uc2.getDval() == 0);
+            assertTrue((uc2.getLongData()[0] == 42));
+            assertTrue((uc2.getDval() == 0));
         }
     }
 
@@ -496,7 +490,7 @@ public class UpdateTest extends MultiDriverTestBase {
             uc.theString = "not set";
             morphium.store(uc);
             morphium.reread(uc);
-            assert(uc.theString.equals("not set"));
+            assertTrue((uc.theString.equals("not set")));
             // uc.theString="it is set";
             morphium.setInEntity(uc,
                                  morphium.getMapper().getCollectionName(UncachedSubClass.class),
@@ -504,7 +498,7 @@ public class UpdateTest extends MultiDriverTestBase {
                                  "it is set",
                                  false,
                                  null);
-            assert(uc.theString.equals("it is set"));
+            assertTrue((uc.theString.equals("it is set")));
             TestUtils.waitForConditionToBecomeTrue(5000, "THE_STRING not updated",
                 () -> "it is set".equals(morphium.reread(uc).theString));
             uc.setTheString("another value");

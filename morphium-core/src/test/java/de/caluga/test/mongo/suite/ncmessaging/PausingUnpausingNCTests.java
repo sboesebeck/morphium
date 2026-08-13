@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Disabled
 @Tag("messaging")
@@ -62,7 +63,7 @@ public class PausingUnpausingNCTests extends MultiDriverTestBase {
 
         sender.sendMessage(new Msg("test", "a message", "the value"));
         Thread.sleep(1200);
-        assert (!gotMessage1);
+        assertTrue((!gotMessage1));
 
         Long l = m1.unpauseTopicProcessing("tst1");
         log.info("Processing was paused for ms " + l);
@@ -70,7 +71,7 @@ public class PausingUnpausingNCTests extends MultiDriverTestBase {
         TestUtils.waitForConditionToBecomeTrue(10000, "Message was not processed after unpausing", () -> gotMessage1);
         gotMessage1 = false;
         Thread.sleep(200);
-        assert (!gotMessage1);
+        assertTrue((!gotMessage1));
 
         gotMessage1 = false;
         sender.sendMessage(new Msg("test", "a message", "the value"));
@@ -129,13 +130,13 @@ public class PausingUnpausingNCTests extends MultiDriverTestBase {
         sender.sendMessage(new Msg("pause", "pause", "pause"));
         sender.sendMessage(new Msg("pause", "pause", "pause"));
         sender.sendMessage(new Msg("pause", "pause", "pause"));
-        assert (cnt.get() == 0) : "Count wrong " + cnt.get();
+        assertTrue((cnt.get() == 0), () -> String.valueOf("Count wrong " + cnt.get()));
         Thread.sleep(2000);
-        assert (cnt.get() == 1);
+        assertTrue((cnt.get() == 1));
         //1st message processed
         Thread.sleep(2000);
         //Message after unpausing:
-        assert (cnt.get() == 2) : "Count wrong: " + cnt.get();
+        assertTrue((cnt.get() == 2), () -> String.valueOf("Count wrong: " + cnt.get()));
         sender.sendMessage(new Msg("now", "now", "now"));
         TestUtils.waitForConditionToBecomeTrue(10000, "Third now-message not received", () -> list.size() == 3);
         //Message after unpausing:
@@ -196,8 +197,8 @@ public class PausingUnpausingNCTests extends MultiDriverTestBase {
         sender.sendMessage(m);
 
         Thread.sleep(200);
-        assert (!gotMessage1);
-        assert (!gotMessage2);
+        assertTrue((!gotMessage1));
+        assertTrue((!gotMessage2));
 
         TestUtils.waitForConditionToBecomeTrue(10000, "Did not get both messages", () -> gotMessage1 && gotMessage2);
 
@@ -215,8 +216,8 @@ public class PausingUnpausingNCTests extends MultiDriverTestBase {
         m.setExclusive(true);
         sender.sendMessage(m);
         Thread.sleep(200);
-        assert (!gotMessage1);
-        assert (!gotMessage2);
+        assertTrue((!gotMessage1));
+        assertTrue((!gotMessage2));
 
         TestUtils.waitForConditionToBecomeTrue(10000, "Did not get both exclusive messages", () -> gotMessage1 && gotMessage2);
 
@@ -280,18 +281,18 @@ public class PausingUnpausingNCTests extends MultiDriverTestBase {
                 msg.pauseTopicProcessing("test");
 
                 try {
-                    assert (m.isExclusive());
+                    assertTrue((m.isExclusive()));
                     //                assert (m.getReceivedBy().contains(msg.getSenderId()));
                     log.info("Incoming message " + m.getMsgId() + "/" + m.getMsg() + " from " + m.getSender() + " my id: " + msg.getSenderId());
                     Thread.sleep(500);
                     if (m.getMsg().equals("test1")) {
                         if (gotMessage1) fail[0] = true;
-                        assert (!gotMessage1);
+                        assertTrue((!gotMessage1));
                         gotMessage1 = true;
                     }
                     if (m.getMsg().equals("test2")) {
                         if (gotMessage2) fail[0] = true;
-                        assert (!gotMessage2);
+                        assertTrue((!gotMessage2));
 
                         gotMessage2 = true;
                     }
@@ -309,19 +310,19 @@ public class PausingUnpausingNCTests extends MultiDriverTestBase {
 
 
             gotMessage1 = gotMessage2 = false;
-            assert (!fail[0]);
+            assertTrue((!fail[0]));
             Msg m = new Msg("test", "test1", "test", 3000000);
             m.setExclusive(true);
             sender.sendMessage(m);
-            assert (!fail[0]);
+            assertTrue((!fail[0]));
 
             m = new Msg("test", "test2", "test", 3000000);
             m.setExclusive(true);
             sender.sendMessage(m);
             Thread.sleep(500);
-            assert (!gotMessage1);
-            assert (!gotMessage2);
-            assert (!fail[0]);
+            assertTrue((!gotMessage1));
+            assertTrue((!gotMessage2));
+            assertTrue((!fail[0]));
 
             TestUtils.waitForConditionToBecomeTrue(10000, "Did not get both exclusive messages", () -> gotMessage1 && gotMessage2);
             Thread.sleep(1000); //window for a possible duplicate processing to be detected

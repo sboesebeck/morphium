@@ -72,9 +72,9 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
                 () -> count.get() == 3); //the listener needs to be called to return false ;-)
             run[0] = false; // stop the monitor AFTER the 3rd event is confirmed
             morphium.store(new UncachedObject("test", 123)); //to have the monitor stop
-            assert(3 == count.get()) : "Count wrong " + count.get() + "!=3";
+            assertTrue((3 == count.get()), () -> String.valueOf("Count wrong " + count.get() + "!=3"));
             morphium.store(new UncachedObject("test again", 124));
-            assert(3 == count.get()) : "Count wrong " + count.get() + "!=3";  //monitor should have stopped by now
+            assertTrue((3 == count.get()), () -> String.valueOf("Count wrong " + count.get() + "!=3")); //monitor should have stopped by now
         } finally {
             dbMonitor.terminate();
         }
@@ -171,7 +171,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
             }
             return System.currentTimeMillis() - start < 8500;
         });
-        assert(count[0] >= written[0] - 1 && count[0] <= written[0]);
+        assertTrue((count[0] >= written[0] - 1 && count[0] <= written[0]));
         log.info("Stopped!");
         run[0] = false;
         writerThread.interrupt();

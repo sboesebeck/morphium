@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * @author stephan
@@ -106,7 +107,7 @@ public class MassCacheTest extends MultiDriverTestBase {
                 q.f("counter").eq(j + 1).f("value").eq("Writing thread " + i + " " + j);
                 List<CachedObject> lst = q.asList();
 
-                assert (lst != null && !lst.isEmpty()) : "List is null - Thread " + i + " Element " + (j + 1) + " not found";
+                assertTrue((lst != null && !lst.isEmpty()), String.valueOf("List is null - Thread " + i + " Element " + (j + 1) + " not found"));
 
             }
             log.info(i + "" + "/" + WRITING_THREADS);
@@ -234,8 +235,8 @@ public class MassCacheTest extends MultiDriverTestBase {
                     q.f("value").eq("Test " + i);
                     List<CachedObject> lst = q.asList();
                     assertNotNull(lst, "List is NULL????");
-                    assert (!lst.isEmpty()) : "Not found?!?!? Value: Test " + i;
-                    assert (lst.get(0).getValue().equals("Test " + i)) : "Wrong value!";
+                    assertTrue((!lst.isEmpty()), String.valueOf("Not found?!?!? Value: Test " + i));
+                    assertTrue((lst.get(0).getValue().equals("Test " + i)), "Wrong value!");
                     log.info("found " + lst.size() + " elements for value: " + lst.get(0).getValue());
 
                 }
@@ -243,8 +244,8 @@ public class MassCacheTest extends MultiDriverTestBase {
             printStats(morphium);
 
             Map<String, Double> statistics = morphium.getStatistics();
-            assert (statistics.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") == null || statistics.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") == 0);
-            assert (statistics.get("WRITES_CACHED") == 0);
+            assertTrue((statistics.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") == null || statistics.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") == 0));
+            assertTrue((statistics.get("WRITES_CACHED") == 0));
             morphium.getConfig().cacheSettings().setReadCacheEnabled(true);
             for (int j = 0; j < 3; j++) {
                 for (int i = 0; i < NO_OBJECTS; i++) {
@@ -252,17 +253,17 @@ public class MassCacheTest extends MultiDriverTestBase {
                     q.f("value").eq("Test " + i);
                     List<CachedObject> lst = q.asList();
                     assertNotNull(lst, "List is NULL????");
-                    assert (!lst.isEmpty()) : "Not found?!?!? Value: Test " + i;
-                    assert (lst.get(0).getValue().equals("Test " + i)) : "Wrong value!";
+                    assertTrue((!lst.isEmpty()), String.valueOf("Not found?!?!? Value: Test " + i));
+                    assertTrue((lst.get(0).getValue().equals("Test " + i)), "Wrong value!");
                     log.info("found " + lst.size() + " elements for value: " + lst.get(0).getValue());
 
                 }
             }
             printStats(morphium);
             statistics = morphium.getStatistics();
-            assert (statistics.get("CACHE_ENTRIES") != 0);
-            assert (statistics.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") > 0);
-            assert (statistics.get("CHITS") != 0);
+            assertTrue((statistics.get("CACHE_ENTRIES") != 0));
+            assertTrue((statistics.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") > 0));
+            assertTrue((statistics.get("CHITS") != 0));
         } finally {
             morphium.getConfig().cacheSettings().setReadCacheEnabled(true);
             morphium.getConfig().cacheSettings().setBufferedWritesEnabled(true);
@@ -297,8 +298,8 @@ public class MassCacheTest extends MultiDriverTestBase {
                 q.f("value").eq("Test " + i);
                 List<CachedObject> lst = q.asList();
                 assertNotNull(lst, "List is NULL????");
-                assert (!lst.isEmpty()) : "Not found?!?!? Value: Test " + i;
-                assert (lst.get(0).getValue().equals("Test " + i)) : "Wrong value!";
+                assertTrue((!lst.isEmpty()), String.valueOf("Not found?!?!? Value: Test " + i));
+                assertTrue((lst.get(0).getValue().equals("Test " + i)), "Wrong value!");
                 log.info("found " + lst.size() + " elements for value: " + lst.get(0).getValue());
 
             }
@@ -307,9 +308,9 @@ public class MassCacheTest extends MultiDriverTestBase {
 
         printStats(morphium);
         Map<String, Double> stats = morphium.getStatistics();
-        assert (stats.get("CACHE_ENTRIES") >= 100);
-        assert (stats.get("CHITS") >= 200);
-        assert (stats.get("CHITSPERC") >= 40);
+        assertTrue((stats.get("CACHE_ENTRIES") >= 100));
+        assertTrue((stats.get("CHITS") >= 200));
+        assertTrue((stats.get("CHITSPERC") >= 40));
         morphium.getCache().setDefaultCacheTime(CachedObject.class);
         morphium.getCache().clearCachefor(CachedObject.class);
     }

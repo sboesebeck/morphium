@@ -57,9 +57,9 @@ public class DistinctTest extends MultiDriverTestBase {
             createUncachedObjects(morphium, 100);
 
             List lst = morphium.createQueryFor(UncachedObject.class).distinct("counter");
-            assert (lst.size() == 100);
+            assertTrue((lst.size() == 100));
             lst = morphium.createQueryFor(UncachedObject.class).distinct("str_value");
-            assert (lst.size() == 1);
+            assertTrue((lst.size() == 1));
         }
     }
 

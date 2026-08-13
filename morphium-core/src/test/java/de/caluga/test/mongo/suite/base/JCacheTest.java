@@ -23,6 +23,7 @@ import java.util.Map;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -75,7 +76,7 @@ public class JCacheTest extends MultiDriverTestBase {
         e.destroyCache("Testcache");
         e.unwrap(e.getClass());
 
-        assert (!e.isClosed());
+        assertTrue((!e.isClosed()));
 
         lst.add(e);
 
@@ -135,7 +136,7 @@ public class JCacheTest extends MultiDriverTestBase {
         Map<String, Integer> sizes = cache.getSizes();
         for (String k : sizes.keySet()) {
             log.info("Key " + k + " size: " + sizes.get(k));
-            assert (sizes.get(k) > 0);
+            assertTrue((sizes.get(k) > 0));
         }
         Map<String, Double> stats = morphium.getStatistics();
         for (String k : stats.keySet()) {

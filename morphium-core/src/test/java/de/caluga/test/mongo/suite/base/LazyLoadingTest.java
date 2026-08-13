@@ -67,12 +67,12 @@ public class LazyLoadingTest extends MultiDriverTestBase {
         Object id = morphium.getId(lzRead);
         assertNotNull(id);
         ;
-        assert (lzRead.getLazyUncached().getCounter() == 15);
-        assert (lzRead.getLazyUncached().getStrValue().equals("A uncached value"));
+        assertTrue((lzRead.getLazyUncached().getCounter() == 15));
+        assertTrue((lzRead.getLazyUncached().getStrValue().equals("A uncached value")));
         co = lzRead.getLazyCached();
         Thread.sleep(1000);
         id = morphium.getId(co);
-        assert (co.getCounter() == 22) : "Counter wrong.." + co.getCounter();
+        assertTrue((co.getCounter() == 22), String.valueOf("Counter wrong.." + co.getCounter()));
         assertNotNull(id);
         ;
 
@@ -124,7 +124,7 @@ public class LazyLoadingTest extends MultiDriverTestBase {
 
         assertNotNull(lzRead, "Not found????");
         log.info("LZRead: " + lzRead.getClass().getName());
-        assert (!(lzRead instanceof MorphiumProxyMarker)) : "Lazy loader in Root-Object?";
+        assertTrue((!(lzRead instanceof MorphiumProxyMarker)), "Lazy loader in Root-Object?");
         Double rd = morphium.getStatistics().get(StatisticKeys.READS.name());
         if (rd == null) {
             rd = 0.0;
@@ -133,11 +133,11 @@ public class LazyLoadingTest extends MultiDriverTestBase {
 
         int cnt = lzRead.getLazyUncached().getCounter();
         log.info("uncached: " + lzRead.getLazyUncached().getClass().getName());
-        assert (lzRead.getLazyUncached() instanceof MorphiumProxyMarker) : "Not lazy loader?";
+        assertTrue((lzRead.getLazyUncached() instanceof MorphiumProxyMarker), "Not lazy loader?");
 
-        assert (cnt == o.getCounter()) : "Counter not equal";
+        assertTrue((cnt == o.getCounter()), "Counter not equal");
         double rd2 = morphium.getStatistics().get(StatisticKeys.READS.name());
-        assert (rd2 > rd) : "No read?";
+        assertTrue((rd2 > rd), "No read?");
 
         if (morphium.getDriver().getName().equals(InMemoryDriver.driverName)) {
             log.info("Cannot check for caching, inMemoryDriver enabled");
@@ -145,16 +145,16 @@ public class LazyLoadingTest extends MultiDriverTestBase {
             rd = morphium.getStatistics().get(StatisticKeys.READS.name());
             double crd = morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name());
             cnt = lzRead.getLazyCached().getCounter();
-            assert (cnt == co.getCounter()) : "Counter (cached) not equal";
+            assertTrue((cnt == co.getCounter()), "Counter (cached) not equal");
             rd2 = morphium.getStatistics().get(StatisticKeys.READS.name());
-            assert (rd2 > rd) : "No read?";
+            assertTrue((rd2 > rd), "No read?");
             log.info("Cache Entries:" + morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()));
             assertTrue (morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) > crd, "not cached");
         }
 
-        assert (lzRead.getLazyLst().size() == lz.getLazyLst().size()) : "List sizes differ?!?!";
+        assertTrue((lzRead.getLazyLst().size() == lz.getLazyLst().size()), "List sizes differ?!?!");
         for (UncachedObject uc : lzRead.getLazyLst()) {
-            assert (uc instanceof MorphiumProxyMarker) : "Lazy list not lazy?";
+            assertTrue((uc instanceof MorphiumProxyMarker), "Lazy list not lazy?");
 
         }
 
@@ -276,14 +276,14 @@ public class LazyLoadingTest extends MultiDriverTestBase {
         Thread.sleep(200);
 
         SimpleEntity s1Fetched = m.createQueryFor(SimpleEntity.class).f("value").eq(1).get();
-        assert (s1Fetched.value == 1);
+        assertTrue((s1Fetched.value == 1));
         SimpleEntity s2Fetched = m.createQueryFor(SimpleEntity.class).f("value").eq(2).get();
-        assert (s2Fetched.value == 2);
+        assertTrue((s2Fetched.value == 2));
         SimpleEntity s3Fetched = m.createQueryFor(SimpleEntity.class).f("value").eq(3).get();
-        assert (s3Fetched.value == 3);
-        assert (s2Fetched.getRef().getValue() == 1);
+        assertTrue((s3Fetched.value == 3));
+        assertTrue((s2Fetched.getRef().getValue() == 1));
         System.out.println(s2Fetched.lazyRef.value);
-        assert (s2Fetched.getLazyRef().getValue() == 3);
+        assertTrue((s2Fetched.getLazyRef().getValue() == 3));
 
     }
 

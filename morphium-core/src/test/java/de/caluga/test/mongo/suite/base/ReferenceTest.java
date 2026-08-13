@@ -21,6 +21,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -100,29 +101,29 @@ public class ReferenceTest extends MultiDriverTestBase {
         Query<ReferenceContainer> q = morphium.createQueryFor(ReferenceContainer.class);
         q.f("uc").eq(uc1);
         ReferenceContainer rcRead = q.get(); //should only be one...
-        assert(rcRead.getId().equals(rc.getId())) : "ID's different?!?!?";
-        assert(rcRead.getUc().getMorphiumId().equals(rc.getUc().getMorphiumId())) : "Uc's Id's different?!?!";
-        assert(rcRead.getCo().getId().equals(rc.getCo().getId())) : "Co's id's different";
-        assert(rcRead.getLazyUc().getMorphiumId().equals(rc.getLazyUc().getMorphiumId())) : "lazy refs Ids differ";
-        assert(rcRead.getLst().size() == rc.getLst().size()) : "Size of lists differ?";
-        assert(rcRead.getLzyLst().get(0) instanceof MorphiumProxyMarker) : "List not lazy?";
-        assert(rcRead.getLzyLst().get(0).getCounter() == rc.getLzyLst().get(0).getCounter()) : "Counter different?!?";
+        assertTrue((rcRead.getId().equals(rc.getId())), "ID's different?!?!?");
+        assertTrue((rcRead.getUc().getMorphiumId().equals(rc.getUc().getMorphiumId())), "Uc's Id's different?!?!");
+        assertTrue((rcRead.getCo().getId().equals(rc.getCo().getId())), "Co's id's different");
+        assertTrue((rcRead.getLazyUc().getMorphiumId().equals(rc.getLazyUc().getMorphiumId())), "lazy refs Ids differ");
+        assertTrue((rcRead.getLst().size() == rc.getLst().size()), "Size of lists differ?");
+        assertTrue((rcRead.getLzyLst().get(0) instanceof MorphiumProxyMarker), "List not lazy?");
+        assertTrue((rcRead.getLzyLst().get(0).getCounter() == rc.getLzyLst().get(0).getCounter()), "Counter different?!?");
         q = morphium.createQueryFor(ReferenceContainer.class).f("lst").eq(toSearchFor);
         rcRead = q.get();
         assertNotNull(rcRead);
         ;
-        assert(rcRead.getUc().getCounter() != (toSearchFor != null ? toSearchFor.getCounter() : 0));
+        assertTrue((rcRead.getUc().getCounter() != (toSearchFor != null ? toSearchFor.getCounter() : 0)));
         assertNotNull(rcRead.getCo());
         ;
-        assert(rcRead.getId().equals(rc.getId()));
+        assertTrue((rcRead.getId().equals(rc.getId())));
         q = morphium.createQueryFor(ReferenceContainer.class).f("lzyLst").eq(toSearchFor2);
         rcRead = q.get();
         assertNotNull(rcRead);
         ;
-        assert(rcRead.getUc().getCounter() != (toSearchFor2 != null ? toSearchFor2.getCounter() : 0));
+        assertTrue((rcRead.getUc().getCounter() != (toSearchFor2 != null ? toSearchFor2.getCounter() : 0)));
         assertNotNull(rcRead.getCo());
         ;
-        assert(rcRead.getId().equals(rc.getId()));
+        assertTrue((rcRead.getId().equals(rc.getId())));
     }
 
     @ParameterizedTest
@@ -145,12 +146,12 @@ public class ReferenceTest extends MultiDriverTestBase {
         cmd.execute();
         cmd.releaseConnection();
         Thread.sleep(1000);
-        assert(morphium.createQueryFor(ReferenceContainer.class).countAll() == 1);
+        assertTrue((morphium.createQueryFor(ReferenceContainer.class).countAll() == 1));
         ReferenceContainer container = morphium.createQueryFor(ReferenceContainer.class).get();
         assertNotNull(container.uc);
         ;
-        assert(container.uc.getMorphiumId().equals(referenced.getMorphiumId()));
-        assert(container.uc.getCounter() == referenced.getCounter());
+        assertTrue((container.uc.getMorphiumId().equals(referenced.getMorphiumId())));
+        assertTrue((container.uc.getCounter() == referenced.getCounter()));
     }
 
 
@@ -177,8 +178,8 @@ public class ReferenceTest extends MultiDriverTestBase {
         Thread.sleep(100);
         e2 = m.findById(SimpleDoublyLinkedEntity.class, e2.id);
         e1 = m.findById(SimpleDoublyLinkedEntity.class, e1.id);
-        assert(e1.getValue() == e2.getPrev().getValue());
-        assert(e2.getValue() == e1.getNext().getValue());
+        assertTrue((e1.getValue() == e2.getPrev().getValue()));
+        assertTrue((e2.getValue() == e1.getNext().getValue()));
     }
 
 
@@ -200,12 +201,12 @@ public class ReferenceTest extends MultiDriverTestBase {
         morphium.store(c);
         Thread.sleep(150);
         ReferenceContainer cont = morphium.createQueryFor(ReferenceContainer.class).get();
-        assert(cont.id.equals(c.id));
+        assertTrue((cont.id.equals(c.id)));
 
         for (int i = 0; i < 10; i++) {
-            assert(cont.map.get("" + i).getCounter() == i);
-            assert(cont.map.get("" + i).getStrValue().equals("" + i));
-            assert(cont.map.get("" + i).getMorphiumId().equals(c.map.get("" + i).getMorphiumId()));
+            assertTrue((cont.map.get("" + i).getCounter() == i));
+            assertTrue((cont.map.get("" + i).getStrValue().equals("" + i)));
+            assertTrue((cont.map.get("" + i).getMorphiumId().equals(c.map.get("" + i).getMorphiumId())));
         }
     }
 

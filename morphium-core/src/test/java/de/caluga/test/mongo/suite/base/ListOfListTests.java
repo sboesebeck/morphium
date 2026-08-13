@@ -12,6 +12,7 @@ import java.util.List;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -48,9 +49,9 @@ public class ListOfListTests extends MultiDriverTestBase {
         morphium.store(l);
 
         LoLType l2 = morphium.createQueryFor(LoLType.class).f("id").eq(l.id).get();
-        assert (l2.lst.size() == l.lst.size()) : "Error in list sizes";
-        assert (l2.lst.get(0).size() == l.lst.get(0).size()) : "error in sublist sizes";
-        assert (l2.lst.get(1).get(0).equals(l.lst.get(1).get(0))) : "error in sublist values";
+        assertTrue((l2.lst.size() == l.lst.size()), "Error in list sizes");
+        assertTrue((l2.lst.get(0).size() == l.lst.get(0).size()), "error in sublist sizes");
+        assertTrue((l2.lst.get(1).get(0).equals(l.lst.get(1).get(0))), "error in sublist values");
     }
 
 
@@ -68,7 +69,7 @@ public class ListOfListTests extends MultiDriverTestBase {
         System.out.println(l.getStringList().get(0));
         List<UncachedObject> lst = l.getUcLstList().get(0);
         u = lst.get(1);
-        assert (u.getCounter() == 1);
+        assertTrue((u.getCounter() == 1));
         System.out.println("Done");
     }
 

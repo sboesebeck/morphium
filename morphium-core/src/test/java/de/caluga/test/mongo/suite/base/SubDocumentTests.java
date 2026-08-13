@@ -130,7 +130,7 @@ public class SubDocumentTests extends MultiDriverTestBase {
             while (lst.size() != 1) {
                 Thread.sleep(100);
                 lst = morphium.createQueryFor(SubDocumentAdditional.class).f("sub.val").eq(42).asList();
-                assert (System.currentTimeMillis() - st < 5000);
+                assertTrue((System.currentTimeMillis() - st < 5000));
             }
             assertEquals(1, lst.size());
             assertNotNull(lst.get(0).additionals.get("sub"));

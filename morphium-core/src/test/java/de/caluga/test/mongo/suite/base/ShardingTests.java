@@ -94,13 +94,13 @@ public class ShardingTests extends MultiDriverTestBase {
         uc.setStrValue("again");
         morphium.store(uc, morphium.getMapper().getCollectionName(UncachedObject.class), null);
         morphium.reread(uc, morphium.getMapper().getCollectionName(UncachedObject.class));
-        assert(uc.getStrValue().equals("again"));
+        assertTrue((uc.getStrValue().equals("again")));
         uc = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(42).get();
         uc.setStrValue("another value");
         morphium.store(uc, morphium.getMapper().getCollectionName(UncachedObject.class), null);
         Thread.sleep(100);
         morphium.reread(uc, morphium.getMapper().getCollectionName(UncachedObject.class));
-        assert(uc.getStrValue().equals("another value"));
+        assertTrue((uc.getStrValue().equals("another value")));
     }
 
     @ParameterizedTest
@@ -148,7 +148,7 @@ public class ShardingTests extends MultiDriverTestBase {
         uc.value = "again";
         morphium.store(uc, morphium.getMapper().getCollectionName(StringIdTestEntity.class), null);
         morphium.reread(uc, morphium.getMapper().getCollectionName(StringIdTestEntity.class));
-        assert(uc.value.equals("again"));
+        assertTrue((uc.value.equals("again")));
         uc = new StringIdTestEntity();
         uc.value = "test123";
         morphium.store(uc, morphium.getMapper().getCollectionName(StringIdTestEntity.class), null);
@@ -157,7 +157,7 @@ public class ShardingTests extends MultiDriverTestBase {
         morphium.store(uc, morphium.getMapper().getCollectionName(StringIdTestEntity.class), null);
         Thread.sleep(100);
         morphium.reread(uc, morphium.getMapper().getCollectionName(StringIdTestEntity.class));
-        assert(uc.value.equals("another value"));
+        assertTrue((uc.value.equals("another value")));
     }
 
     @Entity

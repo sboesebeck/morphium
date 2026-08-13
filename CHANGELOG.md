@@ -44,8 +44,15 @@ MapListTest, DataTypeTests, QueryUpdateOperatorsTest, UpdateTest, CacheSyncTest 
 `TestUtils.waitForConditionToBecomeTrue` waits instead; unbounded poll loops got bounds too.
 Sleeps that are load-bearing (negative "must-NOT-arrive" windows, exactly-once settle windows,
 TTL waits, pause-semantics and throughput measurements) were deliberately kept. No production
-code affected; the remaining files and the migration of bare `assert` statements to JUnit
-assertions are tracked in #292.
+code affected; the remaining sleep+assert files are tracked in #292.
+
+#### Test suite: all bare `assert` statements migrated to JUnit assertions (#292)
+1114 bare Java `assert` statements across 97 test files only ever ran because surefire enables
+`-ea` by default — as `assertTrue(...)` they are independent of JVM flags and produce proper
+assertion errors. Messages are preserved; dynamic messages keep the `assert` statement's lazy
+evaluation via supplier arguments (except where a lambda could not capture the local, which use
+eager `String.valueOf`). Behavior-preserving by construction: assertions were already enabled in
+the test JVMs.
 
 #### Messaging: "CHANGESTREAM DUPLICATE CAUGHT" dropped from WARN to DEBUG
 The guard fires whenever the change stream and the fallback poll both find the same message,

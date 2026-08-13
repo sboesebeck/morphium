@@ -12,6 +12,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Created by stephan on 28.07.16.
@@ -48,11 +49,11 @@ public class MapReduceTest extends MultiDriverTestBase {
                     even = true;
                 }
 
-                assert(r.getCounter() > 0);
+                assertTrue((r.getCounter() > 0));
             }
 
-            assert(odd);
-            assert(even);
+            assertTrue((odd));
+            assertTrue((even));
         }
     }
 }

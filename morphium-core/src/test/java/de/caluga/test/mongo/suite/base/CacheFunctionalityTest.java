@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * TODO: Add Documentation here
@@ -85,9 +86,9 @@ public class CacheFunctionalityTest extends MultiDriverTestBase {
                 log.info("Reached " + i);
             }
             CachedObject o = morphium.createQueryFor(CachedObject.class).f(CachedObject.Fields.counter).eq(amount + 1).get();
-            assert (o == null);
+            assertTrue((o == null));
             List<CachedObject> lst = morphium.createQueryFor(CachedObject.class).f("counter").gt(amount + 1).asList();
-            assert (lst == null || lst.size() == 0);
+            assertTrue((lst == null || lst.size() == 0));
         }
         long dur = System.currentTimeMillis() - start;
 
@@ -101,7 +102,7 @@ public class CacheFunctionalityTest extends MultiDriverTestBase {
         log.info("Cache hit ratio: " + morphium.getStatistics().get(StatisticKeys.CHITSPERC.name()));
         log.info("Cache hits     : " + morphium.getStatistics().get(StatisticKeys.CHITS.name()));
         log.info("Cache miss     : " + morphium.getStatistics().get(StatisticKeys.CMISS.name()));
-        assert (morphium.getStatistics().get(StatisticKeys.CHITS.name()) >= 90);
+        assertTrue((morphium.getStatistics().get(StatisticKeys.CHITS.name()) >= 90));
     }
 
     @ParameterizedTest
@@ -123,7 +124,7 @@ public class CacheFunctionalityTest extends MultiDriverTestBase {
         Cache cache = morphium.getARHelper().getAnnotationFromHierarchy(SpecCachedOjbect.class, Cache.class);
         log.info("Housekeeping: " + hcTime);
         log.info("Cache valid:  " + gcTime);
-        assert (cache.timeout() == -1);
+        assertTrue((cache.timeout() == -1));
 
         int amount = 100;
         for (int i = 0; i < amount; i++) {
@@ -143,13 +144,13 @@ public class CacheFunctionalityTest extends MultiDriverTestBase {
             assertNotNull(morphium.createQueryFor(SpecCachedOjbect.class).f("counter").eq(i).get());
             ;
         }
-        assert (morphium.getCache().getSizes().get("idCache|" + SpecCachedOjbect.class.getName()) > 0);
+        assertTrue((morphium.getCache().getSizes().get("idCache|" + SpecCachedOjbect.class.getName()) > 0));
         TestUtils.waitForConditionToBecomeTrue(hcTime + 1000, "Cache not maintained after housekeeping",
             () -> morphium.getCache().getSizes().get("idCache|" + SpecCachedOjbect.class.getName()) > 0);
-        assert (morphium.getCache().getSizes().get("idCache|" + SpecCachedOjbect.class.getName()) > 0);
+        assertTrue((morphium.getCache().getSizes().get("idCache|" + SpecCachedOjbect.class.getName()) > 0));
         TestUtils.waitForConditionToBecomeTrue(gcTime + 2000, "Cache not cleared after global cache time",
             () -> morphium.getCache().getSizes().get("idCache|" + SpecCachedOjbect.class.getName()) == 0);
-        assert (morphium.getCache().getSizes().get("idCache|" + SpecCachedOjbect.class.getName()) == 0) : "Stored still: " + morphium.getCache().getSizes().get("idCache|" + SpecCachedOjbect.class.getName());
+        assertTrue((morphium.getCache().getSizes().get("idCache|" + SpecCachedOjbect.class.getName()) == 0), () -> String.valueOf("Stored still: " + morphium.getCache().getSizes().get("idCache|" + SpecCachedOjbect.class.getName())));
 
     }
 

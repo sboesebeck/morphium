@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("core")
 public class MapSubDocumentTest extends MultiDriverTestBase {
@@ -30,11 +31,11 @@ public class MapSubDocumentTest extends MultiDriverTestBase {
             morphium.store(m);
             Thread.sleep(500);
             MapDoc d = morphium.findById(MapDoc.class, m.id);
-            assert(d.value.equals("Val"));
+            assertTrue((d.value.equals("Val")));
             assertNotNull(d.mapValue);
             ;
-            assert(d.mapValue.get(42L).equals("life and universe and everything"));
-            assert(d.mapValue.get(54322321L).equals("test 2"));
+            assertTrue((d.mapValue.get(42L).equals("life and universe and everything")));
+            assertTrue((d.mapValue.get(54322321L).equals("test 2")));
         }
 
         //this test will fail with map keys that cannot easily be translated

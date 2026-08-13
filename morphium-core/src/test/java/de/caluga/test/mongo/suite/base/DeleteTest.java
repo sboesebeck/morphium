@@ -9,6 +9,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.List;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -30,7 +31,7 @@ public class DeleteTest extends MultiDriverTestBase {
             TestUtils.waitForConditionToBecomeTrue(1000, "delete failed", () -> TestUtils.countUC(morphium) == 9);
             List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).asList();
             for (UncachedObject uc : lst) {
-                assert (!uc.getMorphiumId().equals(u.getMorphiumId()));
+                assertTrue((!uc.getMorphiumId().equals(u.getMorphiumId())));
             }
         }
     }
@@ -46,7 +47,7 @@ public class DeleteTest extends MultiDriverTestBase {
             TestUtils.waitForConditionToBecomeTrue(1000, "delete failed", () -> TestUtils.countUC(morphium) == 9);
             List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).asList();
             for (UncachedObject uc : lst) {
-                assert (!uc.getMorphiumId().equals(u.getMorphiumId()));
+                assertTrue((!uc.getMorphiumId().equals(u.getMorphiumId())));
             }
         }
     }
@@ -59,7 +60,7 @@ public class DeleteTest extends MultiDriverTestBase {
             createCachedObjects(morphium, 10);
             TestUtils.waitForWrites(morphium, log);
             long c = morphium.createQueryFor(CachedObject.class).countAll();
-            assert (c == 10) : "Count is " + c;
+            assertTrue((c == 10), String.valueOf("Count is " + c));
             CachedObject u = morphium.createQueryFor(CachedObject.class).get();
             morphium.delete(u);
             TestUtils.waitForWrites(morphium, log);
@@ -72,10 +73,10 @@ public class DeleteTest extends MultiDriverTestBase {
             }
 
             c = morphium.createQueryFor(CachedObject.class).countAll();
-            assert (c == 9);
+            assertTrue((c == 9));
             List<CachedObject> lst = morphium.createQueryFor(CachedObject.class).asList();
             for (CachedObject uc : lst) {
-                assert (!uc.getId().equals(u.getId()));
+                assertTrue((!uc.getId().equals(u.getId())));
             }
         }
     }
@@ -87,7 +88,7 @@ public class DeleteTest extends MultiDriverTestBase {
             createCachedObjects(morphium, 10);
             TestUtils.waitForWrites(morphium, log);
             long cnt = morphium.createQueryFor(CachedObject.class).countAll();
-            assert (cnt == 10) : "Count is " + cnt;
+            assertTrue((cnt == 10), String.valueOf("Count is " + cnt));
             CachedObject co = morphium.createQueryFor(CachedObject.class).get();
             morphium.delete(morphium.createQueryFor(CachedObject.class).f("counter").eq(co.getCounter()));
             TestUtils.waitForWrites(morphium, log);
@@ -95,10 +96,10 @@ public class DeleteTest extends MultiDriverTestBase {
             TestUtils.waitForConditionToBecomeTrue(10000, "Delete not visible",
                 () -> morphium.createQueryFor(CachedObject.class).countAll() == 9);
             cnt = morphium.createQueryFor(CachedObject.class).countAll();
-            assert (cnt == 9);
+            assertTrue((cnt == 9));
             List<CachedObject> lst = morphium.createQueryFor(CachedObject.class).asList();
             for (CachedObject c : lst) {
-                assert (!c.getId().equals(co.getId()));
+                assertTrue((!c.getId().equals(co.getId())));
             }
         }
     }

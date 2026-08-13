@@ -168,7 +168,7 @@ public class BasicJMSTests extends MultiDriverTestBase {
         Message msg2 = consumer2.receive(1000);
         assertTrue(msg != null || msg2 != null);
         ;
-        assert (msg != msg2);
+        assertTrue((msg != msg2));
 
         m.terminate();
         m2.terminate();

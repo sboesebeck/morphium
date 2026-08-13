@@ -20,6 +20,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
 /**
@@ -36,7 +37,7 @@ public class AliasesTest extends MultiDriverTestBase {
         try (morphium) {
             Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class).f("last_changed").eq(new Date());
             assertNotNull(q, "Null Query?!?!?");
-            assert(q.toQueryObject().toString().startsWith("{changed=")) : "Wrong query: " + q.toQueryObject().toString();
+            assertTrue((q.toQueryObject().toString().startsWith("{changed=")), () -> String.valueOf("Wrong query: " + q.toQueryObject().toString()));
             log.info("All ok");
         }
     }

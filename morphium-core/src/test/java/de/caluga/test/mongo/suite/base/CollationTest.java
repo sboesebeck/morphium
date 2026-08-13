@@ -17,6 +17,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("core")
 public class CollationTest extends MultiDriverTestBase {
@@ -41,15 +42,15 @@ public class CollationTest extends MultiDriverTestBase {
             morphium.store(new UncachedObject("c", 1));
             TestUtils.waitForConditionToBecomeTrue(2500, "store failed", ()->TestUtils.countUC(morphium) == 6);
             Collation col = new Collation("de", false, Collation.CaseFirst.LOWER, Collation.Strength.TERTIARY, false, Collation.Alternate.SHIFTED, Collation.MaxVariable.SPACE, false, false);
-            assert(col.getLocale().equals("de"));
-            assert(!col.getCaseLevel());
-            assert(col.getCaseFirst().equals(Collation.CaseFirst.LOWER));
-            assert(!col.getNumericOrdering());
-            assert(!col.getBackwards());
-            assert(!col.getNormalization());
-            assert(col.getStrength().equals(Collation.Strength.TERTIARY));
-            assert(col.getAlternate().equals(Collation.Alternate.SHIFTED));
-            assert(col.getMaxVariable().equals(Collation.MaxVariable.SPACE));
+            assertTrue((col.getLocale().equals("de")));
+            assertTrue((!col.getCaseLevel()));
+            assertTrue((col.getCaseFirst().equals(Collation.CaseFirst.LOWER)));
+            assertTrue((!col.getNumericOrdering()));
+            assertTrue((!col.getBackwards()));
+            assertTrue((!col.getNormalization()));
+            assertTrue((col.getStrength().equals(Collation.Strength.TERTIARY)));
+            assertTrue((col.getAlternate().equals(Collation.Alternate.SHIFTED)));
+            assertTrue((col.getMaxVariable().equals(Collation.MaxVariable.SPACE)));
             List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).setCollation(col).sort("strValue").asList();
             String result = "";
 
@@ -58,7 +59,7 @@ public class CollationTest extends MultiDriverTestBase {
                 result += u.getStrValue();
             }
 
-            assert(result.equals("aAbBcC")) : "Wrong ordering: " + result;
+            assertTrue((result.equals("aAbBcC")), String.valueOf("Wrong ordering: " + result));
             col.normalization(true)
                .numericOrdering(true)
                .backwards(true)
@@ -67,20 +68,20 @@ public class CollationTest extends MultiDriverTestBase {
                .maxVariable(Collation.MaxVariable.PUNCT)
                .caseLevel(true)
                .caseFirst(Collation.CaseFirst.UPPER);
-            assert(col.getLocale().equals("de"));
-            assert(col.getCaseLevel());
-            assert(col.getCaseFirst().equals(Collation.CaseFirst.UPPER));
-            assert(col.getNumericOrdering());
-            assert(col.getBackwards());
-            assert(col.getNormalization());
-            assert(col.getStrength().equals(Collation.Strength.SECONDARY));
-            assert(col.getAlternate().equals(Collation.Alternate.NON_IGNORABLE));
-            assert(col.getMaxVariable().equals(Collation.MaxVariable.PUNCT));
+            assertTrue((col.getLocale().equals("de")));
+            assertTrue((col.getCaseLevel()));
+            assertTrue((col.getCaseFirst().equals(Collation.CaseFirst.UPPER)));
+            assertTrue((col.getNumericOrdering()));
+            assertTrue((col.getBackwards()));
+            assertTrue((col.getNormalization()));
+            assertTrue((col.getStrength().equals(Collation.Strength.SECONDARY)));
+            assertTrue((col.getAlternate().equals(Collation.Alternate.NON_IGNORABLE)));
+            assertTrue((col.getMaxVariable().equals(Collation.MaxVariable.PUNCT)));
             assertNotNull(col.getMaxVariable().getMongoText());
             ;
             assertNotNull(col.getAlternate().getMongoText());
             ;
-            assert(col.getStrength().getMongoValue() != 0);
+            assertTrue((col.getStrength().getMongoValue() != 0));
             assertNotNull(col.getCaseFirst().getMongoText());
             ;
             log.info("Query: " + Utils.toJsonString(col.toQueryObject()));
@@ -144,7 +145,7 @@ public class CollationTest extends MultiDriverTestBase {
                 });
 
             for (UncachedObject u : q.asIterable()) {
-                assert(u.getCounter() == 2);
+                assertTrue((u.getCounter() == 2));
             }
         }
     }
@@ -207,7 +208,7 @@ public class CollationTest extends MultiDriverTestBase {
             agg.collation(new Collation().locale("de").strength(Collation.Strength.PRIMARY));
             agg.match(Expr.eq(Expr.field("str_value"), Expr.string("a")));
             List<Map> lst = agg.aggregate();
-            assert(lst.size() == 2) : "Count wrong " + lst.size();
+            assertTrue((lst.size() == 2), () -> String.valueOf("Count wrong " + lst.size()));
         }
     }
 

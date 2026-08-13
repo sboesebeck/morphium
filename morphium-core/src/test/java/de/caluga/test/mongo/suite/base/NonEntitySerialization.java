@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Created by stephan on 18.11.14.
@@ -36,7 +37,7 @@ public class NonEntitySerialization extends MultiDriverTestBase {
         log.debug(obj.toString());
 
         NonEntity ne2 = morphium.getMapper().deserialize(NonEntity.class, obj);
-        assert (ne2.getInteger() == 42);
+        assertTrue((ne2.getInteger() == 42));
         log.debug("Successful read:" + ne2);
     }
 
@@ -60,7 +61,7 @@ public class NonEntitySerialization extends MultiDriverTestBase {
         assertNotNull(nc2.getList().get(0));
         ;
         NonEntity ne2 = (NonEntity) nc2.getList().get(0);
-        assert (ne2.getInteger() == 42);
+        assertTrue((ne2.getInteger() == 42));
 
         //now store to Mongo
         morphium.dropCollection(NonEntityContainer.class);
@@ -72,8 +73,8 @@ public class NonEntitySerialization extends MultiDriverTestBase {
         assertNotNull(nc2.getList().get(0));
         ;
         ne2 = (NonEntity) nc2.getList().get(0);
-        assert (ne2.getInteger() == 42);
-        assert (nc2.getList().get(1).equals("Some string")) : "Wrong Value: " + nc2.getList().get(1);
+        assertTrue((ne2.getInteger() == 42));
+        assertTrue((nc2.getList().get(1).equals("Some string")), String.valueOf("Wrong Value: " + nc2.getList().get(1)));
     }
 
     @ParameterizedTest
@@ -99,7 +100,7 @@ public class NonEntitySerialization extends MultiDriverTestBase {
         assertNotNull(nc2.getMap().get("Serialized"));
         ;
         NonEntity ne2 = (NonEntity) nc2.getMap().get("Serialized");
-        assert (ne2.getInteger() == 42);
+        assertTrue((ne2.getInteger() == 42));
 
         //now store to Mongo
         morphium.dropCollection(NonEntityContainer.class);
@@ -111,7 +112,7 @@ public class NonEntitySerialization extends MultiDriverTestBase {
         assertNotNull(nc2.getMap().get("Serialized"));
         ;
         ne2 = (NonEntity) nc2.getMap().get("Serialized");
-        assert (ne2.getInteger() == 42);
+        assertTrue((ne2.getInteger() == 42));
     }
 
 

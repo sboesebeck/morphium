@@ -11,6 +11,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.Arrays;
 import java.util.Map;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Created with IntelliJ IDEA.
@@ -92,7 +93,7 @@ public class BulkOperationTest extends MultiDriverTestBase {
                 "Bulk set operation not persisted",
                 () -> morphium.createQueryFor(UncachedObject.class).f("counter").eq(999).countAll() == 100);
             for (UncachedObject o : morphium.createQueryFor(UncachedObject.class).asList()) {
-                assert (o.getCounter() == 999) : "Counter is " + o.getCounter();
+                assertTrue((o.getCounter() == 999), () -> String.valueOf("Counter is " + o.getCounter()));
             }
         }
     }
@@ -116,7 +117,7 @@ public class BulkOperationTest extends MultiDriverTestBase {
                     log.error("Counter is < 1000!?");
                     morphium.reread(o);
                 }
-                assert (o.getCounter() >= 1000) : "Counter is " + o.getCounter() + " - Total number: " + TestUtils.countUC(morphium) + " >= 1000: " + morphium.createQueryFor(UncachedObject.class).f("counter").gte(1000).countAll();
+                assertTrue((o.getCounter() >= 1000), () -> String.valueOf("Counter is " + o.getCounter() + " - Total number: " + TestUtils.countUC(morphium) + " >= 1000: " + morphium.createQueryFor(UncachedObject.class).f("counter").gte(1000).countAll()));
             }
         }
     }
@@ -154,10 +155,10 @@ public class BulkOperationTest extends MultiDriverTestBase {
             incTest(morphium);
             TestUtils.waitForConditionToBecomeTrue(3000, "Bulk operation callbacks not triggered",
                 () -> preUpdate && postUpdate);
-            assert (preUpdate);
-            assert (postUpdate);
-            assert (!preRemove);
-            assert (!postRemove);
+            assertTrue((preUpdate));
+            assertTrue((postUpdate));
+            assertTrue((!preRemove));
+            assertTrue((!postRemove));
             morphium.removeListener(listener);
         }
     }
@@ -196,12 +197,12 @@ public class BulkOperationTest extends MultiDriverTestBase {
             log.info("Bulk operation results: " + ret);
 
             // Verify return values are present and correct
-assert ret != null : "Bulk operation should return results";
-            assert ret.containsKey("num_inserted") : "Result should contain num_inserted";
-            assert ret.containsKey("num_matched") : "Result should contain num_matched";
-            assert ret.containsKey("num_modified") : "Result should contain num_modified";
-            assert ret.containsKey("num_deleted") : "Result should contain num_deleted";
-            assert ret.containsKey("num_upserts") : "Result should contain num_upserts";
+assertTrue(ret != null, "Bulk operation should return results");
+            assertTrue(ret.containsKey("num_inserted"), "Result should contain num_inserted");
+            assertTrue(ret.containsKey("num_matched"), "Result should contain num_matched");
+            assertTrue(ret.containsKey("num_modified"), "Result should contain num_modified");
+            assertTrue(ret.containsKey("num_deleted"), "Result should contain num_deleted");
+            assertTrue(ret.containsKey("num_upserts"), "Result should contain num_upserts");
 
             int inserted = ((Number) ret.get("num_inserted")).intValue();
             int matched = ((Number) ret.get("num_matched")).intValue();
@@ -213,15 +214,15 @@ assert ret != null : "Bulk operation should return results";
                                    inserted, matched, modified, deleted, upserts));
 
             // Verify counts
-assert inserted == 5 : "Should have inserted 5 documents, got: " + inserted;
-assert matched >= 10 : "Should have matched at least 10 documents, got: " + matched;
-assert modified >= 10 : "Should have modified at least 10 documents, got: " + modified;
-assert deleted >= 10 : "Should have deleted at least 10 documents, got: " + deleted;
-assert upserts == 1 : "Should have 1 upsert, got: " + upserts;
+assertTrue(inserted == 5, () -> String.valueOf("Should have inserted 5 documents, got: " + inserted));
+assertTrue(matched >= 10, () -> String.valueOf("Should have matched at least 10 documents, got: " + matched));
+assertTrue(modified >= 10, () -> String.valueOf("Should have modified at least 10 documents, got: " + modified));
+assertTrue(deleted >= 10, () -> String.valueOf("Should have deleted at least 10 documents, got: " + deleted));
+assertTrue(upserts == 1, () -> String.valueOf("Should have 1 upsert, got: " + upserts));
 
             // Check upserted IDs
             if (upserts > 0) {
-                assert ret.containsKey("upsertedIds") : "Result should contain upsertedIds when upserts occurred";
+                assertTrue(ret.containsKey("upsertedIds"), "Result should contain upsertedIds when upserts occurred");
                 log.info("Upserted IDs: " + ret.get("upsertedIds"));
             }
 

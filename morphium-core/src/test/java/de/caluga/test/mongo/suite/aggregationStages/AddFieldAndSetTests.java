@@ -17,6 +17,7 @@ import java.util.List;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("aggregation")
 public class AddFieldAndSetTests extends MultiDriverTestBase {
@@ -35,9 +36,9 @@ public class AddFieldAndSetTests extends MultiDriverTestBase {
         List<Student> lst = agg.aggregate();
         for (Student s : lst) {
             log.info(s.toString());
-            assert (s.totalHomework != 0);
-            assert (s.totalQuiz != 0);
-            assert (s.totalScore != 0);
+            assertTrue((s.totalHomework != 0));
+            assertTrue((s.totalQuiz != 0));
+            assertTrue((s.totalScore != 0));
         }
 
     }
@@ -81,9 +82,9 @@ public class AddFieldAndSetTests extends MultiDriverTestBase {
         List<Student> lst = agg.aggregate();
         for (Student s : lst) {
             log.info(s.toString());
-            assert (s.totalHomework != 0);
-            assert (s.totalQuiz != 0);
-            assert (s.totalScore != 0);
+            assertTrue((s.totalHomework != 0));
+            assertTrue((s.totalQuiz != 0));
+            assertTrue((s.totalScore != 0));
         }
 
     }

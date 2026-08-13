@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
 /**
@@ -75,7 +76,7 @@ public class MorphiumCursorTest extends MultiDriverTestBase {
             lastv2 = u.v2;
             lastv1 = u.v1;
         }
-        assert (!error);
+        assertTrue((!error));
     }
 
     @ParameterizedTest

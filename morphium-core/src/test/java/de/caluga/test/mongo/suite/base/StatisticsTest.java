@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("core")
 public class StatisticsTest extends MultiDriverTestBase {
@@ -33,13 +34,13 @@ public class StatisticsTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void equalsTest(Morphium morphium) {
-        assert (!morphium.getStatistics().equals(UtilsMap.of("test", 0.2)));
+        assertTrue((!morphium.getStatistics().equals(UtilsMap.of("test", 0.2))));
     }
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void hashcodeTest(Morphium morphium) {
-        assert (morphium.getStatistics().hashCode() != 0);
+        assertTrue((morphium.getStatistics().hashCode() != 0));
     }
 
     @ParameterizedTest

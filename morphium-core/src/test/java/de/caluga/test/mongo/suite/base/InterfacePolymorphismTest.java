@@ -13,6 +13,7 @@ import java.util.List;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Created with IntelliJ IDEA.
@@ -32,7 +33,7 @@ public class InterfacePolymorphismTest extends MultiDriverTestBase {
         ifaceTestType.setPolyTest(new SubClass(11));
         morphium.store(ifaceTestType);
         Thread.sleep(100);
-        assert (morphium.createQueryFor(IfaceTestType.class).countAll() == 1);
+        assertTrue((morphium.createQueryFor(IfaceTestType.class).countAll() == 1));
         List<IfaceTestType> lst = morphium.createQueryFor(IfaceTestType.class).asList();
         for (IfaceTestType tst : lst) {
             log.info("Class " + tst.getClass().toString());

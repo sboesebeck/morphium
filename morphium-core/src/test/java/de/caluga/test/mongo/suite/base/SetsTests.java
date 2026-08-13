@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
 /**
@@ -49,7 +50,7 @@ public class SetsTests extends MultiDriverTestBase {
         morphium.storeList(lst);
         Thread.sleep(200);
         long count = morphium.createQueryFor(UncachedObject.class, "UCTest").countAll();
-        assert(count == 100) : "Count wrong " + count;
+        assertTrue((count == 100), () -> String.valueOf("Count wrong " + count));
     }
 
     @ParameterizedTest
@@ -94,19 +95,19 @@ public class SetsTests extends MultiDriverTestBase {
         assertNotNull(lst2.getStringSet(), "String list null?");
 
         for (int i = 0; i < count; i++) {
-            assert(lst2.getEmbeddedObjectsSet().toArray()[i].equals(lst.getEmbeddedObjectsSet().toArray()[i])) : "Embedded objects list differ? - " + i;
-            assert(lst2.getLongSet().toArray()[i].equals(lst.getLongSet().toArray()[i])) : "long list differ? - " + i;
-            assert(lst2.getStringSet().toArray()[i].equals(lst.getStringSet().toArray()[i])) : "string list differ? - " + i;
-            assert(lst2.getRefSet().toArray()[i].equals(lst.getRefSet().toArray()[i])) : "reference list differ? - " + i;
+            assertTrue((lst2.getEmbeddedObjectsSet().toArray()[i].equals(lst.getEmbeddedObjectsSet().toArray()[i])), String.valueOf("Embedded objects list differ? - " + i));
+            assertTrue((lst2.getLongSet().toArray()[i].equals(lst.getLongSet().toArray()[i])), String.valueOf("long list differ? - " + i));
+            assertTrue((lst2.getStringSet().toArray()[i].equals(lst.getStringSet().toArray()[i])), String.valueOf("string list differ? - " + i));
+            assertTrue((lst2.getRefSet().toArray()[i].equals(lst.getRefSet().toArray()[i])), String.valueOf("reference list differ? - " + i));
         }
 
         Thread.sleep(1000);
         q = morphium.createQueryFor(SetContainer.class).f("refSet").eq(lst2.getRefSet().toArray()[0]);
-        assert(q.countAll() != 0);
+        assertTrue((q.countAll() != 0));
         log.info("found " + q.countAll() + " entries");
-        assert(q.countAll() == 1);
+        assertTrue((q.countAll() == 1));
         SetContainer c = q.get();
-        assert(c.getId().equals(lst2.getId()));
+        assertTrue((c.getId().equals(lst2.getId())));
     }
 
     @ParameterizedTest
@@ -150,9 +151,9 @@ public class SetsTests extends MultiDriverTestBase {
         Query q = morphium.createQueryFor(SetContainer.class).f("id").eq(lst.getId());
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         SetContainer lst2 = (SetContainer) q.get();
-        assert(lst2.getStringSet().toArray()[count] == null);
-        assert(lst2.getRefSet().toArray()[count] == null);
-        assert(lst2.getEmbeddedObjectsSet().toArray()[count] == null);
+        assertTrue((lst2.getStringSet().toArray()[count] == null));
+        assertTrue((lst2.getRefSet().toArray()[count] == null));
+        assertTrue((lst2.getEmbeddedObjectsSet().toArray()[count] == null));
     }
 
 
@@ -171,7 +172,7 @@ public class SetsTests extends MultiDriverTestBase {
         lst.toArray(new UncachedObject[] {})[0].setCounter(999);
         morphium.storeList(lst);
         Thread.sleep(100);
-        assert(morphium.createQueryFor(UncachedObject.class).asList().get(0).getCounter() == 999);
+        assertTrue((morphium.createQueryFor(UncachedObject.class).asList().get(0).getCounter() == 999));
     }
 
 
@@ -204,20 +205,20 @@ public class SetsTests extends MultiDriverTestBase {
         TestUtils.waitForConditionToBecomeTrue(15000, "Object not queryable",
             () -> morphium.findById(MySetContainer.class, expectedId) != null);
         MySetContainer mc2 = morphium.findById(MySetContainer.class, expectedId);
-        assert(mc2.id.equals(mc.id));
-        assert(mc2.objectList.size() == mc.objectList.size());
-        assert(mc2.objectList.toArray()[0] instanceof UncachedObject);
-        assert(mc2.objectList.toArray()[1] instanceof EmbeddedObject);
-        assert(mc2.objectList.toArray()[2] instanceof ExtendedEmbeddedObject);
-        assert(((UncachedObject) mc2.objectList.toArray()[0]).getStrValue().equals("val"));
-        assert(((UncachedObject) mc2.objectList.toArray()[0]).getCounter() == 42);
-        assert(((EmbeddedObject) mc2.objectList.toArray()[1]).getValue().equals("Embedded"));
-        assert(((EmbeddedObject) mc2.objectList.toArray()[1]).getName().equals("Fred"));
-        assert(((EmbeddedObject) mc2.objectList.toArray()[1]).getTest() != 0);
-        assert(((ExtendedEmbeddedObject) mc2.objectList.toArray()[2]).getName().equals("testName"));
-        assert(((ExtendedEmbeddedObject) mc2.objectList.toArray()[2]).getAdditionalValue().equals("additionalValue"));
-        assert(((ExtendedEmbeddedObject) mc2.objectList.toArray()[2]).getTest() == 4711);
-        assert(((ExtendedEmbeddedObject) mc2.objectList.toArray()[2]).getValue().equals("value"));
+        assertTrue((mc2.id.equals(mc.id)));
+        assertTrue((mc2.objectList.size() == mc.objectList.size()));
+        assertTrue((mc2.objectList.toArray()[0] instanceof UncachedObject));
+        assertTrue((mc2.objectList.toArray()[1] instanceof EmbeddedObject));
+        assertTrue((mc2.objectList.toArray()[2] instanceof ExtendedEmbeddedObject));
+        assertTrue((((UncachedObject) mc2.objectList.toArray()[0]).getStrValue().equals("val")));
+        assertTrue((((UncachedObject) mc2.objectList.toArray()[0]).getCounter() == 42));
+        assertTrue((((EmbeddedObject) mc2.objectList.toArray()[1]).getValue().equals("Embedded")));
+        assertTrue((((EmbeddedObject) mc2.objectList.toArray()[1]).getName().equals("Fred")));
+        assertTrue((((EmbeddedObject) mc2.objectList.toArray()[1]).getTest() != 0));
+        assertTrue((((ExtendedEmbeddedObject) mc2.objectList.toArray()[2]).getName().equals("testName")));
+        assertTrue((((ExtendedEmbeddedObject) mc2.objectList.toArray()[2]).getAdditionalValue().equals("additionalValue")));
+        assertTrue((((ExtendedEmbeddedObject) mc2.objectList.toArray()[2]).getTest() == 4711));
+        assertTrue((((ExtendedEmbeddedObject) mc2.objectList.toArray()[2]).getValue().equals("value")));
     }
 
     @ParameterizedTest
@@ -243,13 +244,13 @@ public class SetsTests extends MultiDriverTestBase {
             () -> morphium.findById(MyIdSetContainer.class, expectedId) != null);
         MyIdSetContainer ilst2 = morphium.findById(MyIdSetContainer.class, expectedId);
         assertNotNull(ilst2);
-        assert(ilst2.idList.size() == ilst.idList.size());
-        assert(ilst2.idList.toArray()[0].equals(ilst.idList.toArray()[0]));
+        assertTrue((ilst2.idList.size() == ilst.idList.size()));
+        assertTrue((ilst2.idList.toArray()[0].equals(ilst.idList.toArray()[0])));
         ilst2.idList.add(new MorphiumId());
         ilst2.number = 234;
         morphium.store(ilst2);
-        assert(ilst2.idList.toArray()[0] instanceof MorphiumId);
-        assert(ilst2.idList.toArray()[0].equals(ilst.idList.toArray()[0]));
+        assertTrue((ilst2.idList.toArray()[0] instanceof MorphiumId));
+        assertTrue((ilst2.idList.toArray()[0].equals(ilst.idList.toArray()[0])));
     }
 
 

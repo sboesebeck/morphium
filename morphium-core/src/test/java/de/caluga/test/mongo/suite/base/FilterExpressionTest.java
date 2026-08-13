@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Hans Karlsson
@@ -33,21 +34,21 @@ public class FilterExpressionTest {
     public void testNullValue() {
         fe.setValue(null);
         Map<String, Object> dbObject = fe.dbObject();
-        assert (dbObject.containsKey("field"));
-        assert (dbObject.get("field") == null);
+        assertTrue((dbObject.containsKey("field")));
+        assertTrue((dbObject.get("field") == null));
     }
 
     @Test
     public void testAddTwoChildren() {
         fe.addChild(createChild1());
         fe.addChild(createChild2());
-        assert (fe.getChildren().size() == 2);
+        assertTrue((fe.getChildren().size() == 2));
     }
 
     @Test
     public void testAddListWithTwoChildren() {
         fe.setChildren(createChildrenList());
-        assert (fe.getChildren().size() == 2);
+        assertTrue((fe.getChildren().size() == 2));
     }
 
     @Test
@@ -56,9 +57,9 @@ public class FilterExpressionTest {
 
         String key = (String) map.keySet().iterator().next();
         String value = (String) map.values().iterator().next();
-        assert (map.keySet().size() == 1);
-        assert ("field".equals(key));
-        assert ("value".equals(value));
+        assertTrue((map.keySet().size() == 1));
+        assertTrue(("field".equals(key)));
+        assertTrue(("value".equals(value)));
     }
 
     private enum TestEnum {
@@ -76,9 +77,9 @@ public class FilterExpressionTest {
 
         String key = (String) map.keySet().iterator().next();
         String value = (String) map.values().iterator().next();
-        assert (map.keySet().size() == 1);
-        assert ("field".equals(key));
-        assert (testEnum.name().equals(value));
+        assertTrue((map.keySet().size() == 1));
+        assertTrue(("field".equals(key)));
+        assertTrue((testEnum.name().equals(value)));
     }
 
     @Test
@@ -86,18 +87,18 @@ public class FilterExpressionTest {
         fe.addChild(createChild1());
         fe.addChild(createChild2());
 
-        assert ("field".equals(fe.getField()));
+        assertTrue(("field".equals(fe.getField())));
 
         Map map = fe.dbObject();
-        assert (map.keySet().size() == 1);
-        assert (map.keySet().iterator().next().equals("field"));
-        assert (map.values().size() == 1);
+        assertTrue((map.keySet().size() == 1));
+        assertTrue((map.keySet().iterator().next().equals("field")));
+        assertTrue((map.values().size() == 1));
 
         Set fetchedKeys = ((Map<String, Object>) map.values().iterator().next()).keySet();
 
-        assert (fetchedKeys.contains("child1Field") && fetchedKeys.contains("child2Field"));
-        assert (((Map<String, Object>) map.values().iterator().next()).get("child1Field").equals("child1Value"));
-        assert (((Map<String, Object>) map.values().iterator().next()).get("child2Field").equals("child2Value"));
+        assertTrue((fetchedKeys.contains("child1Field") && fetchedKeys.contains("child2Field")));
+        assertTrue((((Map<String, Object>) map.values().iterator().next()).get("child1Field").equals("child1Value")));
+        assertTrue((((Map<String, Object>) map.values().iterator().next()).get("child2Field").equals("child2Value")));
     }
 
     @Test
@@ -111,7 +112,7 @@ public class FilterExpressionTest {
         fe2.setField("field");
         fe2.setChildren(createChildrenList());
 
-        assert (fe1.dbObject().equals(fe2.dbObject()));
+        assertTrue((fe1.dbObject().equals(fe2.dbObject())));
     }
 
     private List<FilterExpression> createChildrenList() {

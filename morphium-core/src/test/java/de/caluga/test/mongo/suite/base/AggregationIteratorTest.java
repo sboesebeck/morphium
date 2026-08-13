@@ -59,7 +59,7 @@ public class AggregationIteratorTest extends MultiDriverTestBase {
 
             for (AggRes m : agg2.aggregateIterable()) {
                 log.info(m.toString());
-                assert (m.number != null && m.number.intValue() > 0);
+                assertTrue((m.number != null && m.number.intValue() > 0));
             }
         }
 

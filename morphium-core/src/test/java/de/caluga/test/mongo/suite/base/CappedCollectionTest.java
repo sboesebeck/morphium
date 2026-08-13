@@ -34,7 +34,7 @@ public class CappedCollectionTest extends MultiDriverTestBase {
             cc.setStrValue("A value");
             cc.setCounter(-1);
             morphium.store(cc);
-            assert(morphium.getDriver().isCapped(morphium.getConfig().connectionSettings().getDatabase(), "capped_col"));
+            assertTrue((morphium.getDriver().isCapped(morphium.getConfig().connectionSettings().getDatabase(), "capped_col")));
 
             //storing more than max entries
             for (int i = 0; i < 1000; i++) {
@@ -45,7 +45,7 @@ public class CappedCollectionTest extends MultiDriverTestBase {
             }
 
             Thread.sleep(1000);
-            assert(morphium.createQueryFor(CappedCol.class).countAll() <= 10);
+            assertTrue((morphium.createQueryFor(CappedCol.class).countAll() <= 10));
 
             for (CappedCol cp : morphium.createQueryFor(CappedCol.class).sort("counter").asIterable(10)) {
                 log.info("Capped: " + cp.getCounter() + " - " + cp.getStrValue());
@@ -95,7 +95,7 @@ public class CappedCollectionTest extends MultiDriverTestBase {
 
             morphium.storeList(lst);
             Thread.sleep(100);
-            assert(morphium.getDriver().isCapped(morphium.getConfig().connectionSettings().getDatabase(), "capped_col"));
+            assertTrue((morphium.getDriver().isCapped(morphium.getConfig().connectionSettings().getDatabase(), "capped_col")));
             assertTrue(morphium.createQueryFor(CappedCol.class).countAll() <= 10);
 
             for (CappedCol cp : morphium.createQueryFor(CappedCol.class).sort("counter").asIterable(10)) {

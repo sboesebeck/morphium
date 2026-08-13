@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("core")
 public class ExpEvaluationTest {
@@ -17,7 +18,7 @@ public class ExpEvaluationTest {
         Expr f = Expr.field("fld1");
 
         Object v = f.evaluate(context);
-        assert (v.equals(context.get("fld1")));
+        assertTrue((v.equals(context.get("fld1"))));
 
     }
 
@@ -25,6 +26,6 @@ public class ExpEvaluationTest {
     public void divideTest() {
         Map<String, Object> context = UtilsMap.of("fld1", (Object) 42, "fld2", 2);
         Object r = Expr.divide(Expr.field("fld1"), Expr.intExpr(3)).evaluate(context);
-        assert (r != null && r.equals(14.0));
+        assertTrue((r != null && r.equals(14.0)));
     }
 }

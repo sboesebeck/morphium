@@ -89,12 +89,12 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
             log.info(Utils.toJsonString(o));
         }
 
-        assert (lst.size() == 1);
-        assert (((Number) lst.get(0).get("summe")).doubleValue() == 1683);
-        assert (((Number) lst.get(0).get("tst")).doubleValue() == 1683);
-        assert (((Number) lst.get(0).get("cnt")).doubleValue() == 34);
-        assert (((Number) lst.get(0).get("avg")).doubleValue() == 49.5);
-        assert (lst.get(0).get("_id").equals("mod0"));
+        assertTrue((lst.size() == 1));
+        assertTrue((((Number) lst.get(0).get("summe")).doubleValue() == 1683));
+        assertTrue((((Number) lst.get(0).get("tst")).doubleValue() == 1683));
+        assertTrue((((Number) lst.get(0).get("cnt")).doubleValue() == 34));
+        assertTrue((((Number) lst.get(0).get("avg")).doubleValue() == 49.5));
+        assertTrue((lst.get(0).get("_id").equals("mod0")));
     }
 
 
@@ -112,13 +112,13 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         for (Map<String, Object> o : lst) {
             log.info(Utils.toJsonString(o));
         }
-        assert (lst.size() == 3);
-        assert (((Number) lst.get(0).get("cnt")).doubleValue() == 0);
-        assert (((Number) lst.get(1).get("cnt")).doubleValue() == 1);
-        assert (((Number) lst.get(2).get("cnt")).doubleValue() == 2);
-        assert (((Number) lst.get(0).get("lst")).doubleValue() == 99);
-        assert (((Number) lst.get(1).get("lst")).doubleValue() == 97);
-        assert (((Number) lst.get(2).get("lst")).doubleValue() == 98);
+        assertTrue((lst.size() == 3));
+        assertTrue((((Number) lst.get(0).get("cnt")).doubleValue() == 0));
+        assertTrue((((Number) lst.get(1).get("cnt")).doubleValue() == 1));
+        assertTrue((((Number) lst.get(2).get("cnt")).doubleValue() == 2));
+        assertTrue((((Number) lst.get(0).get("lst")).doubleValue() == 99));
+        assertTrue((((Number) lst.get(1).get("lst")).doubleValue() == 97));
+        assertTrue((((Number) lst.get(2).get("lst")).doubleValue() == 98));
     }
 
     @Test
@@ -136,14 +136,14 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         for (Map<String, Object> o : lst) {
             log.info(Utils.toJsonString(o));
             if (lastValue.equals(o.get("str_value"))) {
-                assert (((Number) o.get("counter")).intValue() < lastCounter) : "LastCounter: " + lastCounter + " got: " + o.get("counter");
+                assertTrue((((Number) o.get("counter")).intValue() < lastCounter), String.valueOf("LastCounter: " + lastCounter + " got: " + o.get("counter")));
                 lastCounter = ((Number) o.get("counter")).intValue();
             } else {
                 lastCounter = 100;
                 lastValue = (String) o.get("str_value");
             }
 
-            assert (lastValue.compareTo((String) o.get("str_value")) <= 0) : "LastValue: " + lastValue + " current: " + o.get("str_value");
+            assertTrue((lastValue.compareTo((String) o.get("str_value")) <= 0), String.valueOf("LastValue: " + lastValue + " current: " + o.get("str_value")));
 
         }
     }
@@ -158,8 +158,8 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         agg.count("myCount");
         List<Map<String, Object>> lst = agg.aggregateMap();
         log.info(Utils.toJsonString(lst.get(0)));
-        assert (lst.size() == 1);
-        assert (lst.get(0).get("myCount").equals(100));
+        assertTrue((lst.size() == 1));
+        assertTrue((lst.get(0).get("myCount").equals(100)));
     }
 
     @Test
@@ -168,10 +168,10 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
         agg.count("myCount");
         List<Map<String, Object>> lst = agg.aggregateMap();
-        assert (lst.isEmpty()) : "$count on empty input must yield no document, got: " + lst;
+        assertTrue((lst.isEmpty()), () -> String.valueOf("$count on empty input must yield no document, got: " + lst));
 
         Aggregator<UncachedObject, Map> agg2 = morphium.createAggregator(UncachedObject.class, Map.class);
-        assert (agg2.getCount() == 0) : "getCount() on empty collection must be 0";
+        assertTrue((agg2.getCount() == 0), "getCount() on empty collection must be 0");
     }
 
     @Test
@@ -184,8 +184,8 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         agg.group("all").push("mods", "$value");
         List<Map<String, Object>> lst = agg.aggregateMap();
         log.info(Utils.toJsonString(lst.get(0)));
-        assert (lst.size() == 1);
-        assert (((List) lst.get(0).get("mods")).size() == 100);
+        assertTrue((lst.size() == 1));
+        assertTrue((((List) lst.get(0).get("mods")).size() == 100));
     }
 
     @Test
@@ -440,7 +440,7 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         agg.sample(10);
         agg.sort("counter");
         List<Map<String, Object>> lst = agg.aggregateMap();
-        assert (lst.size() == 10);
+        assertTrue((lst.size() == 10));
         //hard to check randomness....
     }
 
@@ -455,7 +455,7 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         agg.group("all").addToSet("mods", "$str_value");
         List<Map<String, Object>> lst = agg.aggregateMap();
         log.info(Utils.toJsonString(lst.get(0)));
-        assert (lst.size() == 1);
+        assertTrue((lst.size() == 1));
         assertEquals (3, ((List) lst.get(0).get("mods")).size());
     }
 
@@ -469,8 +469,8 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         agg.count("my_count");
         List<CountAggTest> lst = agg.aggregate();
         log.info(Utils.toJsonString(lst.get(0)));
-        assert (lst.size() == 1);
-        assert (lst.get(0).getMyCount() == 100);
+        assertTrue((lst.size() == 1));
+        assertTrue((lst.get(0).getMyCount() == 100));
     }
 
 
@@ -533,10 +533,10 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         List<Map<String, Object>> result = agg.aggregateMap();
         assertNotNull(result);
         ;
-        assert (result.size() == 1000);
+        assertTrue((result.size() == 1000));
         assertNotNull(result.get(0).get("long_list"));
         ;
-        assert (!(result.get(1).get("long_list") instanceof List));
+        assertTrue((!(result.get(1).get("long_list") instanceof List)));
     }
 
     @Embedded

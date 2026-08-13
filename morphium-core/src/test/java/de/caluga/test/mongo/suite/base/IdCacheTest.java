@@ -13,6 +13,7 @@ import java.util.Map;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -64,20 +65,20 @@ public class IdCacheTest extends MultiDriverTestBase {
         List<CachedObject> lst = q.asList();
 
         String k = morphium.getCache().getCacheKey(q);
-        assert (lst.size() == 29) : "Size matters! " + lst.size();
+        assertTrue((lst.size() == 29), () -> String.valueOf("Size matters! " + lst.size()));
         Thread.sleep(1100);
         Map<String, Integer> sizes = morphium.getCache().getSizes();
         MorphiumId id = lst.get(0).getId();
 
         CachedObject c = morphium.findById(CachedObject.class, id);
-        assert (lst.get(0) == c) : "Object differ?";
+        assertTrue((lst.get(0) == c), "Object differ?");
 
         c.setCounter(1009);
-        assert (lst.get(0).getCounter() == 1009) : "changes not work?";
+        assertTrue((lst.get(0).getCounter() == 1009), "changes not work?");
 
         morphium.reread(c);
-        assert (c.getCounter() != 1009) : "reread did not work?";
+        assertTrue((c.getCounter() != 1009), "reread did not work?");
 
-        assert (lst.get(0) == c) : "Object changed?!?!?";
+        assertTrue((lst.get(0) == c), "Object changed?!?!?");
     }
 }

@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("core")
 public class QueryCountDistinctTest extends MultiDriverTestBase {
@@ -26,7 +27,7 @@ public class QueryCountDistinctTest extends MultiDriverTestBase {
 
         Thread.sleep(100);
         List lt = morphium.createQueryFor(UncachedObject.class).distinct("counter");
-        assert (lt.size() == 3);
+        assertTrue((lt.size() == 3));
     }
 
     @ParameterizedTest
@@ -52,8 +53,8 @@ public class QueryCountDistinctTest extends MultiDriverTestBase {
         Query<ListContainer> q = morphium.createQueryFor(ListContainer.class);
         q = q.f(ListContainer.Fields.longList).size(10);
         lc = q.get();
-        assert (lc.getLongList().size() == 10);
-        assert (lc.getName().equals("A test"));
+        assertTrue((lc.getLongList().size() == 10));
+        assertTrue((lc.getName().equals("A test")));
     }
 
     @ParameterizedTest
@@ -64,7 +65,7 @@ public class QueryCountDistinctTest extends MultiDriverTestBase {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.f(UncachedObject.Fields.counter).lt(100);
         q.limit(1);
-        assert (q.countAll() == 10) : "Wrong amount: " + q.countAll();
+        assertTrue((q.countAll() == 10), () -> String.valueOf("Wrong amount: " + q.countAll()));
     }
 
     @ParameterizedTest
@@ -81,7 +82,7 @@ public class QueryCountDistinctTest extends MultiDriverTestBase {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.where("this.counter<100");
         q.limit(1);
-        assert (q.countAll() == 10) : "Wrong amount: " + q.countAll();
+        assertTrue((q.countAll() == 10), () -> String.valueOf("Wrong amount: " + q.countAll()));
     }
 
     @ParameterizedTest
@@ -108,10 +109,10 @@ public class QueryCountDistinctTest extends MultiDriverTestBase {
 
         while (c.get() != 10) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < morphium.getConfig().connectionSettings().getMaxWaitTime());
+            assertTrue((System.currentTimeMillis() - s < morphium.getConfig().connectionSettings().getMaxWaitTime()));
         }
 
-        assert (c.get() == 10);
+        assertTrue((c.get() == 10));
     }
 
     @ParameterizedTest

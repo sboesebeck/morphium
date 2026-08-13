@@ -52,7 +52,7 @@ public class BsonTest extends BaseTest {
 
         BsonDecoder dec = new BsonDecoder();
         Map<String, Object> aDoc = dec.decodeDocument(bytes);
-        assert (aDoc.equals(doc));
+        assertTrue((aDoc.equals(doc)));
     }
 
 
@@ -95,7 +95,7 @@ public class BsonTest extends BaseTest {
                 log.info("Created " + i);
             }
             MorphiumId id = new MorphiumId();
-            assert (!lst.contains(id));
+            assertTrue((!lst.contains(id)));
             lst.add(id);
         }
         log.info("done");

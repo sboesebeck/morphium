@@ -130,7 +130,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                 while (!(count.get() > 0 && count.get() * 2 >= written.get() - 2)) {
                     Thread.sleep(500);
                     log.info(morphium.getDriver().getName() + ": Wrong count: " + count.get() + " written: " + written.get());
-                    assert(System.currentTimeMillis() - start < 10000);
+                    assertTrue((System.currentTimeMillis() - start < 10000));
                 }
 
                 log.info("finished.");
@@ -300,7 +300,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
 
             Thread.sleep(5000);
             m.terminate();
-            assert(cnt.get() >= 100 && cnt.get() <= 101) : "count is wrong: " + cnt.get();
+            assertTrue((cnt.get() >= 100 && cnt.get() <= 101), () -> String.valueOf("count is wrong: " + cnt.get()));
             morphium.store(new UncachedObject("killing", 0));
         }
     }
@@ -381,7 +381,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                 if (evt.getOperationType().equals("delete")) {
                     deletes.incrementAndGet();
                 }
-                assert(evt.getOperationType().equals("insert"));
+                assertTrue((evt.getOperationType().equals("insert")));
                 return true;
             });
             mon.start();
@@ -393,8 +393,8 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object").set("strValue", "updated");
             morphium.delete(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"));
             TestUtils.waitForConditionToBecomeTrue(10000, "Wrong number of inserts", () -> inserts.get() == 10);
-            assert(updates.get() == 0);
-            assert(deletes.get() == 0);
+            assertTrue((updates.get() == 0));
+            assertTrue((deletes.get() == 0));
             mon.terminate();
             log.info("Resetting counters");
             inserts.set(0);
