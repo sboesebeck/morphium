@@ -2129,18 +2129,30 @@ Notes
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="k">new</span><span class="w"> </span><span class="n">MessagingCacheSynchronizer</span><span class="p">(</span><span class="n">messaging</span><span class="p">,</span><span class="w"> </span><span class="n">morphium</span><span class="p">);</span>
 </span></code></pre></div>
 When to use
-- Multi‑node deployments that need consistent caches after writes</p>
+- Multi‑node deployments that need consistent caches after writes made <em>through Morphium</em>
+- Works on any backend/driver, including a standalone MongoDB or in‑memory driver — no replica set required
+- Blind spot: writes done outside Morphium's storage listener (other apps, mongosh, restores) don't trigger invalidation
+- Plus: it's a real message on a topic (<code>cacheSyncType</code>/<code>cacheSyncRecord</code>), not just a raw DB event — any other node or process that understands the message format can hook in and run extra, custom logic beyond clear/remove/update. Useful when cache‑clear logic is more involved than the built‑in strategies</p>
+<p>3b) Cluster‑wide synchronization via change streams
+- Watches the underlying collections directly instead of relying on Morphium's own write path
+<div class="language-java highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">new</span><span class="w"> </span><span class="n">WatchingCacheSynchronizer</span><span class="p">(</span><span class="n">morphium</span><span class="p">);</span><span class="w"> </span><span class="c1">// no messaging setup needed</span>
+</span></code></pre></div>
+When to use
+- The cached collections can be written by processes other than this Morphium cluster (other services, admin tools, migrations) — this catches those writes too, <code>MessagingCacheSynchronizer</code> would not
+- You have a replica set available (Change Streams require one — same restriction as <code>messagingSettings().setUseChangeStream(true)</code>) and don't want to depend on messaging being healthy on every node
+- Not for standalone/single‑node MongoDB — falls back to nothing, since there's no oplog to watch</p>
+<p>Pick one, not both, unless you specifically want redundant coverage. See <a href="../../developer-guide/#cache-synchronization">Developer Guide § Cache Synchronization</a> for the full comparison.</p>
 <p>4) TTL tuning and hot‑set sizing
 - Keep <code>@Cache.timeout</code> small enough to minimize staleness, large enough to reduce DB load
 - Use <code>maxEntries</code> and <code>strategy</code> to control memory use and eviction behavior
-<div class="language-java highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nd">@Cache</span><span class="p">(</span><span class="n">timeout</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">15_000</span><span class="p">,</span><span class="w"> </span><span class="n">maxEntries</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">50_000</span><span class="p">,</span><span class="w"> </span><span class="n">strategy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Cache</span><span class="p">.</span><span class="na">ClearStrategy</span><span class="p">.</span><span class="na">LRU</span><span class="p">)</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">Article</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">}</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nd">@Cache</span><span class="p">(</span><span class="n">timeout</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">15_000</span><span class="p">,</span><span class="w"> </span><span class="n">maxEntries</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">50_000</span><span class="p">,</span><span class="w"> </span><span class="n">strategy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Cache</span><span class="p">.</span><span class="na">ClearStrategy</span><span class="p">.</span><span class="na">LRU</span><span class="p">)</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">Article</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div></p>
 <p>5) JCache integration and layering
 - Use <code>MorphiumCacheJCacheImpl</code> to adopt javax.cache
 - Optionally back it with an external provider for cross‑JVM cache layers
-<div class="language-java highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">MorphiumCacheJCacheImpl</span><span class="w"> </span><span class="n">jcache</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumCacheJCacheImpl</span><span class="p">();</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">cfg</span><span class="p">.</span><span class="na">cacheSettings</span><span class="p">().</span><span class="na">setCache</span><span class="p">(</span><span class="n">jcache</span><span class="p">);</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">MorphiumCacheJCacheImpl</span><span class="w"> </span><span class="n">jcache</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumCacheJCacheImpl</span><span class="p">();</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">cfg</span><span class="p">.</span><span class="na">cacheSettings</span><span class="p">().</span><span class="na">setCache</span><span class="p">(</span><span class="n">jcache</span><span class="p">);</span>
 </span></code></pre></div></p>
 <p>6) Avoiding cache stampede
 - For heavy queries, consider:
@@ -2155,16 +2167,16 @@ When to use
   - Ensure messaging is available and responsive (replica set + change streams is preferred)</p>
 <p>8) Batching and write buffering
 - Global write buffering and async writes reduce DB pressure under load
-<div class="language-java highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">cacheSettings</span><span class="p">().</span><span class="na">setAsyncWritesEnabled</span><span class="p">(</span><span class="kc">true</span><span class="p">);</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">cfg</span><span class="p">.</span><span class="na">cacheSettings</span><span class="p">().</span><span class="na">setBufferedWritesEnabled</span><span class="p">(</span><span class="kc">true</span><span class="p">);</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">cacheSettings</span><span class="p">().</span><span class="na">setAsyncWritesEnabled</span><span class="p">(</span><span class="kc">true</span><span class="p">);</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">cfg</span><span class="p">.</span><span class="na">cacheSettings</span><span class="p">().</span><span class="na">setBufferedWritesEnabled</span><span class="p">(</span><span class="kc">true</span><span class="p">);</span>
 </span></code></pre></div>
 Trade‑off
 - Buffering can delay writes; choose TTLs and cache sync strategies accordingly</p>
 <p>9) Manual controls for maintenance
-<div class="language-java highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1">// Clear one type</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">morphium</span><span class="p">.</span><span class="na">clearCachefor</span><span class="p">(</span><span class="n">Product</span><span class="p">.</span><span class="na">class</span><span class="p">);</span>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="c1">// Clear all types on all nodes</span>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="k">new</span><span class="w"> </span><span class="n">MessagingCacheSynchronizer</span><span class="p">(</span><span class="n">messaging</span><span class="p">,</span><span class="w"> </span><span class="n">morphium</span><span class="p">).</span><span class="na">sendClearAllMessage</span><span class="p">(</span><span class="s">&quot;maintenance&quot;</span><span class="p">);</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1">// Clear one type</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">morphium</span><span class="p">.</span><span class="na">clearCachefor</span><span class="p">(</span><span class="n">Product</span><span class="p">.</span><span class="na">class</span><span class="p">);</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="c1">// Clear all types on all nodes</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="k">new</span><span class="w"> </span><span class="n">MessagingCacheSynchronizer</span><span class="p">(</span><span class="n">messaging</span><span class="p">,</span><span class="w"> </span><span class="n">morphium</span><span class="p">).</span><span class="na">sendClearAllMessage</span><span class="p">(</span><span class="s">&quot;maintenance&quot;</span><span class="p">);</span>
 </span></code></pre></div></p>
 <p>10) Query‑result cache keys
 - Morphium computes a deterministic key for queries (criteria + sort + projection + paging)

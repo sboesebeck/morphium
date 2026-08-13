@@ -2851,10 +2851,9 @@ of the checklist below (systemd unit, secrets handling, backup/restore, monitori
 </span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">cfg</span><span class="p">.</span><span class="na">authSettings</span><span class="p">().</span><span class="na">setMongoAdminPwd</span><span class="p">(</span><span class="n">System</span><span class="p">.</span><span class="na">getenv</span><span class="p">(</span><span class="s">&quot;MONGO_ADMIN_PWD&quot;</span><span class="p">));</span>
 </span></code></pre></div></p>
 <p><strong>Network Security:</strong>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1">// Note: Wire protocol driver has limitations</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="c1">// - No MongoDB Atlas support</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1">// - No SSL/TLS connections</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1">// Deploy in trusted network environments or use network-level encryption</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1">// SSL/TLS and MongoDB Atlas (mongodb+srv://) are supported since v6.0/v6.2 —</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="c1">// see docs/ssl-tls.md for setup, including the Atlas example.</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">cfg</span><span class="p">.</span><span class="na">connectionSettings</span><span class="p">().</span><span class="na">setUseSSL</span><span class="p">(</span><span class="kc">true</span><span class="p">);</span>
 </span></code></pre></div></p>
 <h3 id="3-environment-specific-configurations">3. Environment-Specific Configurations<a class="headerlink" href="#3-environment-specific-configurations" title="Permanent link">&para;</a></h3>
 <h4 id="development-environment">Development Environment<a class="headerlink" href="#development-environment" title="Permanent link">&para;</a></h4>

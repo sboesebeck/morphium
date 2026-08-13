@@ -2575,11 +2575,11 @@
 </span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">    </span><span class="c1">// ...</span>
 </span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="p">}</span>
 </span></code></pre></div>
-<p>Morphium caches automatically locally. For <strong>cluster-wide synchronization</strong>, you need a <code>CacheSynchronizer</code>:</p>
+<p>Morphium caches automatically locally. For <strong>cluster-wide synchronization</strong>, attach a cache synchronizer:</p>
 <div class="language-java highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1">// Enable cache synchronization in cluster</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">CacheSynchronizer</span><span class="w"> </span><span class="n">cacheSynchronizer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">CacheSynchronizer</span><span class="p">(</span><span class="n">messaging</span><span class="p">,</span><span class="w"> </span><span class="n">morphium</span><span class="p">);</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">MessagingCacheSynchronizer</span><span class="w"> </span><span class="n">cacheSynchronizer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MessagingCacheSynchronizer</span><span class="p">(</span><span class="n">messaging</span><span class="p">,</span><span class="w"> </span><span class="n">morphium</span><span class="p">);</span>
 </span></code></pre></div>
-<p>The CacheSynchronizer uses the messaging system to propagate cache invalidations to all instances. No Redis/Memcached setup needed — just Morphium's own messaging.</p>
+<p><code>MessagingCacheSynchronizer</code> uses Morphium's own messaging to propagate cache invalidations to all instances — no Redis/Memcached setup needed. There's also a <code>WatchingCacheSynchronizer</code>, which watches the underlying collections directly via MongoDB Change Streams instead of relying on messaging (trade-offs and a "which one" guide are in the <a href="../developer-guide/#cache-synchronization">Developer Guide</a>).</p>
 <hr />
 <h3 id="3-inmemory-driver-for-tests">3. InMemory Driver for Tests<a class="headerlink" href="#3-inmemory-driver-for-tests" title="Permanent link">&para;</a></h3>
 <p><strong>Without Morphium:</strong>
@@ -2641,12 +2641,8 @@ more than a test fixture.</p>
 </thead>
 <tbody>
 <tr>
-<td>MongoDB Atlas</td>
-<td><strong>Official Driver</strong> (Morphium doesn't support Atlas)</td>
-</tr>
-<tr>
-<td>Maximum throughput (&gt;50K ops/sec)</td>
-<td><strong>Official Driver</strong> (less overhead)</td>
+<td>Need the official driver's full feature surface on day one (GridFS, every admin/aggregation operator)</td>
+<td><strong>Official Driver</strong> — Morphium's own wire-protocol driver covers a subset, see <a href="../ssl-tls/">SSL/TLS guide</a> and driver docs for what's supported</td>
 </tr>
 <tr>
 <td>Team only knows Spring Data</td>

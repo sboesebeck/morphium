@@ -2777,7 +2777,7 @@ without adding latency at low traffic. See
 <li>Non‑exclusive messages are broadcast to all listeners of a topic</li>
 <li>For delayed/scheduled handling, add your own not‑before timestamp field and have the listener re‑queue or skip until due; <code>Msg.timestamp</code> is used for ordering, not scheduling</li>
 <li>For retries and DLQ, implement logic in listeners (inspect payload, track retry count, re‑queue or redirect to a DLQ topic)</li>
-<li>For distributed cache synchronization, see <a href="../howtos/caching-examples/">Caching Examples</a> and <a href="../howtos/cache-patterns/">Cache Patterns</a>; Morphium provides <code>MessagingCacheSynchronizer</code>.</li>
+<li>For distributed cache synchronization, see <a href="../howtos/caching-examples/">Caching Examples</a> and <a href="../howtos/cache-patterns/">Cache Patterns</a>; Morphium provides <code>MessagingCacheSynchronizer</code> (uses this messaging system) and <code>WatchingCacheSynchronizer</code> (uses Change Streams directly, no messaging needed) — see the <a href="../developer-guide/#cache-synchronization">Developer Guide</a> for which one to pick.</li>
 </ul>
 
 
