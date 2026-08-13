@@ -35,6 +35,22 @@ Individual fixes, each observable on its own:
 
 ### Fixed
 
+#### InMemoryDriver: index-store publish can no longer race a concurrent invalidate (#290)
+`getIndexStore()` is reachable without the collection lock (explain and slow-query logging), so
+its from-scratch build could race any write that invalidates the store — most visibly
+`createUser`: the build snapshots the documents, the write lands and invalidates, and the build
+then publishes its pre-mutation snapshot anyway. That store passed the provenance check for
+every later reader and stayed authoritative until the next invalidate; in the worst case the
+duplicate-`_id` check ran against it and admitted a second document with the same `_id`. Every
+invalidation now bumps a per-collection epoch *before* removing the store, builds sample it
+before snapshotting, and a build whose epoch moved is not published (checked again after the
+publish, so a full invalidate landing between check and publish is undone too). Whole-DB drops
+and `resetData()`, which discard stores in bulk without `invalidateIndexStore()`, get the same
+fencing via a global drop epoch — a build racing a `dropDatabase` could previously resurrect
+the dropped collection's index store, pre-drop documents included. The explain/slow-query paths
+stay lock-free: a refused build is still returned to its caller for that one read, it just
+never becomes visible to anyone else.
+
 #### InMemoryDriver: literal array queries support whole-array equality ({field: []} et al.)
 A literal query with an array operand only ever matched via the multikey "array contains the
 operand as an element" rule; MongoDB additionally matches when the document's array *is* the

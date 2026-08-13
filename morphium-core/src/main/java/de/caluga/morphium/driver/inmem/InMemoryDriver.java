@@ -349,6 +349,29 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private final Map<String, OwnedIndexStore> indexStoreByCollection = new ConcurrentHashMap<>();
 
     /**
+     * Monotonic per-collection invalidation counter ({@code db + "." + collection}, absent means
+     * "never invalidated"), bumped by every {@link #invalidateIndexStore} BEFORE it removes the
+     * store. {@link #getIndexStore} reads it before snapshotting the documents in
+     * {@link #buildIndexStore} and refuses to publish the build if it changed in between - two
+     * callers reach getIndexStore WITHOUT the collection lock (the ExplainCommand path in
+     * runCommand and recordAggregateSlowQueryIfNeeded), so their build can race a concurrent
+     * write+invalidate and would otherwise publish a pre-mutation snapshot AFTER the invalidate,
+     * serving permanently stale data to every later reader (#290). Entries are deliberately never
+     * removed (a dropped collection keeps its counter): removal would reopen an ABA window, and
+     * the cost is one boxed long per namespace ever invalidated.
+     */
+    private final ConcurrentHashMap<String, Long> indexStoreEpochByCollection = new ConcurrentHashMap<>();
+
+    /**
+     * Companion to {@link #indexStoreEpochByCollection} for the store removals that do NOT go
+     * through {@link #invalidateIndexStore}: whole-DB {@link #drop(String, WriteConcern)} and
+     * {@link #resetData()} discard stores wholesale (bulk removal - a per-key bump cannot cover
+     * collections whose store was not built yet), so they bump this global counter BEFORE the
+     * removal instead, with the same publish-fencing contract (#290).
+     */
+    private final AtomicLong indexStoreDropEpoch = new AtomicLong();
+
+    /**
      * A {@link CollectionIndexStore} together with the data provenance it was built from:
      * either a specific {@link InMemTransactionContext} (the store holds that transaction's
      * cloned documents) or {@link #NO_TRANSACTION} (built from the live database).
@@ -879,6 +902,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         cappedCurrentBytesByCollection.clear();
         collectionsWithTtlIndex.clear();
         ttlQueueByCollection.clear();
+        // Bump BEFORE the clear - see drop(): fences a build racing this reset out of
+        // re-publishing a pre-reset snapshot (#290).
+        indexStoreDropEpoch.incrementAndGet();
         indexStoreByCollection.clear();
 
         for (var m : monitors) {
@@ -6209,7 +6235,19 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // otherwise publish a store built from a document list another thread is
             // concurrently mutating.
         }
+        // Read BEFORE the documents snapshot inside buildIndexStore: if an invalidate or a
+        // DB-wide drop lands between here and the publish below, the snapshot may predate that
+        // mutation and must not be published (see indexStoreEpochByCollection, #290).
+        Long epochBefore = indexStoreEpochByCollection.get(key);
+        long dropEpochBefore = indexStoreDropEpoch.get();
         OwnedIndexStore built = new OwnedIndexStore(buildIndexStore(db, collection), requiredOwner);
+        if (indexStoreEpochMovedSince(key, epochBefore, dropEpochBefore)) {
+            // Concurrent invalidate during the build - the snapshot is possibly stale. Use it
+            // privately (same semantics as losing the publish race below: valid for this caller's
+            // one-shot read, invisible to everyone else) and let the next caller rebuild fresh.
+            // No transaction recording either: that tracks PUBLISHED stores a commit must purge.
+            return built.store();
+        }
         // Store and owner are published in a single map operation, so no other thread can ever
         // see one without the other. If existing was null, this is a plain first-touch publish
         // (putIfAbsent). If existing was non-null (the mismatch case above), the entry changes
@@ -6232,6 +6270,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         if (prev != null) {
             return prev.owner() == requiredOwner ? prev.store() : built.store();
         }
+        // Post-publish re-validation: the pre-build check above is check-then-act, so a full
+        // invalidate (bump + remove) can land entirely between it and the publish - the publish
+        // then resurrects the possibly-stale snapshot right after the invalidate's remove. If the
+        // epoch moved, undo exactly our own entry (conditional remove - OwnedIndexStore compares
+        // by store identity, so someone else's newer publish is never touched) and fall back to
+        // private use. Combined with invalidateIndexStore's bump-before-remove ordering this
+        // closes the race completely: a publish that slips past this check happened before the
+        // bump, and therefore before the remove that discards it (#290).
+        if (indexStoreEpochMovedSince(key, epochBefore, dropEpochBefore)) {
+            indexStoreByCollection.remove(key, built);
+            return built.store();
+        }
         // Record that this collection's persistent index store was actually BUILT (not merely
         // reused) while a transaction is open - see
         // InMemTransactionContext#getIndexStoreAccessedCollections. Only a build reads via
@@ -6249,7 +6299,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return built.store();
     }
 
-    private CollectionIndexStore buildIndexStore(String db, String collection) throws MorphiumDriverException {
+    /* package-private: same-package tests override this to interleave a concurrent write with the
+     * publish in getIndexStore (#290) */
+    CollectionIndexStore buildIndexStore(String db, String collection) throws MorphiumDriverException {
         indexStoreRebuilds++;
         CollectionIndexStore store = new CollectionIndexStore();
         List<Map<String, Object>> indexDescriptors = getIndexes(db, collection);
@@ -6296,8 +6348,25 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * collection's document list wholesale (see each call site's own comment for why a full rebuild
      * is the right, and cheap-enough, answer there).
      */
+    /**
+     * True when {@code db.collection}'s store was invalidated (per-key epoch) or ANY store was
+     * dropped wholesale (drop epoch) since the caller sampled both values before its
+     * {@link #buildIndexStore} snapshot - i.e. when that snapshot may predate a concurrent
+     * mutation and must not be published (#290).
+     */
+    private boolean indexStoreEpochMovedSince(String key, Long epochBefore, long dropEpochBefore) {
+        return !java.util.Objects.equals(epochBefore, indexStoreEpochByCollection.get(key))
+                || dropEpochBefore != indexStoreDropEpoch.get();
+    }
+
     private void invalidateIndexStore(String db, String collection) {
-        indexStoreByCollection.remove(db + "." + collection);
+        String key = db + "." + collection;
+        // Bump BEFORE the remove: a lock-free builder (see getIndexStore, #290) re-reads this
+        // epoch at publish time, so with this ordering its publish either happens after the bump
+        // (epoch check refuses it) or before it (this remove discards it) - a pre-mutation
+        // snapshot can never outlive this invalidate either way.
+        indexStoreEpochByCollection.merge(key, 1L, Long::sum);
+        indexStoreByCollection.remove(key);
     }
 
     /**
@@ -10037,6 +10106,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         String dbPrefix = db + ".";
+        // Bump BEFORE the removal - same publish-fencing contract as invalidateIndexStore's
+        // bump-before-remove, but via the global drop epoch: a per-key bump could not cover
+        // collections whose store is only being built right now (#290).
+        indexStoreDropEpoch.incrementAndGet();
         indexStoreByCollection.keySet().removeIf(key -> key.startsWith(dbPrefix));
 
         long dropBoundary = changeStreamSequence.addAndGet(100);
