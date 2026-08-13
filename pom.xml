@@ -96,10 +96,13 @@
          2g leaves headroom. Override per run with -Dtest.maxHeap=-XmxNNN. -->
     <test.maxHeap>-Xmx2g</test.maxHeap>
     <!-- JUnit tag control (defaults)
-         external = needs a real MongoDB (enabled by -Pexternal)
-         manual   = process-killing / hardcoded-local tests, NEVER in CI -->
+         external  = needs a real MongoDB (enabled by -Pexternal)
+         manual    = process-killing / hardcoded-local tests, NEVER in CI
+         benchmark = timing-sensitive perf benchmarks (e.g. PerformanceBenchmarkTest), not part
+                     of the regular suite; run explicitly via -Dtest=(class name) or the
+                     "tags benchmark" runtests.sh option -->
     <test.includeTags />
-    <test.excludeTags>external,manual</test.excludeTags>
+    <test.excludeTags>external,manual,benchmark</test.excludeTags>
     <!-- Extension module property for morphium-jakarta-data.
          Deliberately only the version, no Quarkus/Spring BOM (see I4). -->
     <jakarta.data.version>1.0.0</jakarta.data.version>
@@ -405,8 +408,8 @@
     <profile>
       <id>external</id>
       <properties>
-        <!-- enable external-tagged tests, but manual-only tests stay excluded -->
-        <test.excludeTags>manual</test.excludeTags>
+        <!-- enable external-tagged tests, but manual/benchmark tests stay excluded -->
+        <test.excludeTags>manual,benchmark</test.excludeTags>
       </properties>
       <build>
         <plugins>

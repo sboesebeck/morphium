@@ -640,6 +640,18 @@ if [[ ! "$includeTags" == *"manual"* ]]; then
 	fi
 fi
 
+# 'benchmark' tagged tests (timing-sensitive perf benchmarks, e.g. PerformanceBenchmarkTest) are
+# not part of the regular suite - same reasoning/mechanism as 'manual' above: the pom default
+# excludes them, but a self-built -Dtest.excludeTags overrides that default, so 'benchmark' has
+# to be re-added here too. Only an explicit --tags benchmark (plus --exclude-tags '') runs them.
+if [[ ! "$includeTags" == *"benchmark"* ]]; then
+	if [ -z "$excludeTags" ]; then
+		excludeTags="benchmark"
+	elif [[ ! "$excludeTags" == *"benchmark"* ]]; then
+		excludeTags="$excludeTags,benchmark"
+	fi
+fi
+
 # Handle --rerunfailed option early to bypass interactive prompts
 if [ "$rerunfailed" -eq 1 ]; then
 	echo -e "${MG}Rerunning${CL} ${CN}failed tests...${CL}"
