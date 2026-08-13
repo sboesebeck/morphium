@@ -535,6 +535,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#poppydb-mongodbcompatible-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PoppyDB — MongoDB‑compatible Server
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#new-here-start-here" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2227,6 +2238,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#poppydb-mongodbcompatible-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PoppyDB — MongoDB‑compatible Server
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#new-here-start-here" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2358,6 +2380,23 @@
 
 <p>Morphium is a Java 21+ Object Document Mapper (ODM) and MongoDB‑backed messaging system. It includes a custom MongoDB wire‑protocol driver, distributed caching, and a topic‑based message queue.</p>
 <hr />
+<p align="center">
+  <img src="assets/brand/poppydb-logo.svg" alt="PoppyDB" width="480">
+</p>
+
+<h2 id="poppydb-mongodbcompatible-server">PoppyDB — MongoDB‑compatible Server<a class="headerlink" href="#poppydb-mongodbcompatible-server" title="Permanent link">&para;</a></h2>
+<p>PoppyDB is the project's second product: a standalone, self‑contained server that speaks the
+MongoDB wire protocol — any MongoDB client (Java, Python, Node.js, Go, <code>mongosh</code>, ...) can
+connect to it. Perfect for CI/CD pipelines, integration testing, and lightweight deployments.</p>
+<ul>
+<li><strong>Replica Sets</strong> with Raft‑based failover</li>
+<li>Opt‑in <strong>Authentication (SCRAM)</strong> and <strong>TLS</strong></li>
+<li><strong>Persistence</strong> via snapshots</li>
+</ul>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>java<span class="w"> </span>-jar<span class="w"> </span>poppydb-&lt;version&gt;-cli.jar<span class="w"> </span>--port<span class="w"> </span><span class="m">27017</span>
+</span></code></pre></div>
+<p>→ <a href="poppydb/">Overview</a> · <a href="howtos/poppydb-deployment/">Production Deployment Playbook</a> · <a href="howtos/migration-mongodb-to-poppydb/">Migrating from MongoDB</a></p>
+<hr />
 <h2 id="new-here-start-here">🚀 New Here? Start Here!<a class="headerlink" href="#new-here-start-here" title="Permanent link">&para;</a></h2>
 <p><strong>Learning path for beginners:</strong></p>
 <ol>
@@ -2379,11 +2418,7 @@
 - <strong><a href="developer-testing-guide/">Developer Testing Guide</a></strong> - How to run and write tests, MultiDriverTestBase, runtests.sh
 - <strong><a href="test-runner/">Test Runner</a></strong> - Quick reference for the <code>runtests.sh</code> script
 - <strong><a href="howtos/inmemory-driver/">InMemory Driver</a></strong> - Embedded in-memory driver for unit tests (no MongoDB installation required!)
-- <strong><a href="poppydb/">PoppyDB</a></strong> - Standalone MongoDB-compatible server that speaks the wire protocol (formerly MorphiumServer)
-  - Perfect for CI/CD pipelines, integration testing, and microservices development
-  - Any MongoDB client (Java, Python, Node.js, Go, etc.) can connect to it
-  - Supports <strong>Replica Sets</strong> with Raft failover, <strong>opt-in Authentication (SCRAM) &amp; TLS</strong>, and <strong>Persistence (Snapshots)</strong>
-  - Run with: <code>java -jar poppydb/target/poppydb-&lt;version&gt;-cli.jar --port 27017</code></p>
+- <strong><a href="poppydb/">PoppyDB</a></strong> - Standalone MongoDB-compatible server that speaks the wire protocol — see the <a href="#poppydb-mongodbcompatible-server">PoppyDB section</a> above</p>
 <h2 id="production-deployment">Production Deployment<a class="headerlink" href="#production-deployment" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong><a href="production-deployment-guide/">Production Deployment Guide</a></strong> - Complete guide for deploying Morphium in production environments</li>
