@@ -2461,19 +2461,51 @@
 </span></code></pre></div>
 <p><strong>Problems:</strong>
 - <strong>Complex configuration</strong> — Codec Registry setup is non-trivial
-- <strong>Limited control</strong> — Little influence over mapping behavior
+- <strong>Limited control</strong> — no first-class support for lifecycle hooks, lazy <code>@Reference</code> loading,
+  field-level encryption, or custom name providers; you get whatever the codec conventions expose
+  and no more
 - <strong>Conflicts with other mappers</strong> — The driver "wants" to map itself, which can lead to <strong>double mapping</strong> when integrating with other frameworks
-- <strong>No caching integration</strong> — You have to build caching yourself</p>
+- <strong>No caching integration — and that's a real gap, not a minor one</strong> — the driver gives you no
+  hook into the write path, no distributed invalidation mechanism, and no deterministic cache-key
+  generation for queries. Replicating what Morphium gives you for free (<code>@Cache</code> per entity,
+  <code>MessagingCacheSynchronizer</code>/<code>WatchingCacheSynchronizer</code> for cluster-wide invalidation, a
+  query-result cache keyed by criteria+sort+projection+paging — see the
+  <a href="../developer-guide/#cache-synchronization">caching docs</a>) means building, yourself: a wrapper
+  around every store/update/delete to know when to invalidate, a way to propagate that across a
+  cluster (a message queue you now also have to operate, or your own change-stream consumer with
+  fan-out), and a stable cache-key scheme per query shape. Most teams never build this properly —
+  they either accept "always hit the DB", or bolt on Redis as a second system where cache
+  consistency can now break independently of the database.</p>
 <h3 id="why-morphium-has-its-own-driver-since-v50">Why Morphium Has Its Own Driver (since v5.0)<a class="headerlink" href="#why-morphium-has-its-own-driver-since-v50" title="Permanent link">&para;</a></h3>
-<p>The official driver's built-in mapping conflicted with Morphium's mapping:
-- Double mapping (performance loss)
-- Unexpected type conversions
-- Hard-to-debug errors</p>
-<p><strong>The solution:</strong> A custom wire-protocol driver, <strong>tailored exactly to Morphium's needs</strong>.</p>
+<p>Running the official driver's built-in POJO mapping <em>underneath</em> Morphium's own ODM mapping meant
+mapping every document twice, with two independently-opinionated mappers fighting over the same
+object graph:
+- Double mapping (real work done twice, not just a "the codec itself is slow" issue)
+- Unexpected type conversions where the two mappers disagreed
+- Hard-to-debug errors from that disagreement</p>
+<p>Note: this is an <em>integration</em> problem, not a claim that the official driver's own mapper is slow
+in isolation — it isn't, and older claims here about generics support/mapping speed being weak
+points of the official driver no longer hold and shouldn't be used as arguments.</p>
+<p><strong>The solution:</strong> A custom wire-protocol driver, <strong>tailored exactly to Morphium's needs</strong>, avoiding
+the double-mapping problem entirely since there's only one mapper in the picture.</p>
 <p><strong>Benefits of the custom driver:</strong>
-- <strong>Lightweight</strong> — Only what Morphium needs, no overhead
-- <strong>Full control</strong> — Mapping, retry, failover by our rules
-- <strong>InMemory Driver possible</strong> — The lean driver made a complete in-memory implementation practical</p>
+- <strong>Failover, on our terms</strong> — the official driver's failover behavior caused real production
+  issues; owning the wire protocol means Morphium controls retry/reconnect/failover semantics
+  directly instead of working around someone else's.
+- <strong>No double mapping</strong> — a single object-mapping layer, tightly integrated with Morphium's
+  lifecycle callbacks, <code>@Reference</code> lazy loading, <code>@Encrypted</code> fields, and custom type mappers,
+  instead of two mappers fighting over the same document.
+- <strong>InMemoryDriver</strong> — owning the driver abstraction (<code>MorphiumDriver</code>) made a pure-Java,
+  no-network in-memory implementation practical; most of the test suite runs against it, no
+  MongoDB or Testcontainers required.
+- <strong>PoppyDB</strong> — a self-contained, wire-protocol-compatible alternative server exists only because
+  Morphium isn't tied to the official driver's internals or assumptions.
+- <strong>One abstraction, three interchangeable backends</strong> — the same <code>MorphiumDriver</code> interface runs
+  against real MongoDB, PoppyDB, and the InMemoryDriver, which wouldn't be possible wrapping a
+  driver designed around exactly one server implementation.
+- <strong>Wire-level control</strong> — e.g. BSON's 16MB message limit is enforced end-to-end with a custom
+  batch splitter; messaging (a MongoDB-collection-based pub/sub) is built directly on top of the
+  same driver layer instead of bolted onto a black-box client.</p>
 <hr />
 <h2 id="morphium-the-same-code-simplified">Morphium: The Same Code, Simplified<a class="headerlink" href="#morphium-the-same-code-simplified" title="Permanent link">&para;</a></h2>
 <div class="language-java highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1">// Morphium: The same user query</span>
