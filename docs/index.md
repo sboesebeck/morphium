@@ -114,7 +114,7 @@ Benefits
 - Tailored to Morphium’s mapping and lifecycle needs; minimal impedance with Morphium’s object mapper.
 - Full control over retry/failover semantics and performance trade‑offs.
 - SSL/TLS support for secure connections (since v6.0).
+- MongoDB Atlas support via `mongodb+srv://` connection strings (DNS SRV/TXT resolution, TLS enabled automatically); see the [SSL/TLS guide](./ssl-tls.md#mongodb-atlas-example).
 
 Limitations
-- No MongoDB Atlas support.
 - Some advanced features of the official driver are not available.

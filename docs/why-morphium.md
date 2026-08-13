@@ -183,14 +183,14 @@ public class Product {
 }
 ```
 
-Morphium caches automatically locally. For **cluster-wide synchronization**, you need a `CacheSynchronizer`:
+Morphium caches automatically locally. For **cluster-wide synchronization**, attach a cache synchronizer:
 
 ```java
 // Enable cache synchronization in cluster
-CacheSynchronizer cacheSynchronizer = new CacheSynchronizer(messaging, morphium);
+MessagingCacheSynchronizer cacheSynchronizer = new MessagingCacheSynchronizer(messaging, morphium);
 ```
 
-The CacheSynchronizer uses the messaging system to propagate cache invalidations to all instances. No Redis/Memcached setup needed — just Morphium's own messaging.
+`MessagingCacheSynchronizer` uses Morphium's own messaging to propagate cache invalidations to all instances — no Redis/Memcached setup needed. There's also a `WatchingCacheSynchronizer`, which watches the underlying collections directly via MongoDB Change Streams instead of relying on messaging (trade-offs and a "which one" guide are in the [Developer Guide](./developer-guide.md#cache-synchronization)).
 
 ---
 
@@ -262,8 +262,7 @@ Let's be honest: Morphium isn't always the best choice.
 
 | Scenario | Recommendation |
 |----------|----------------|
-| MongoDB Atlas | **Official Driver** (Morphium doesn't support Atlas) |
-| Maximum throughput (>50K ops/sec) | **Official Driver** (less overhead) |
+| Need the official driver's full feature surface on day one (GridFS, every admin/aggregation operator) | **Official Driver** — Morphium's own wire-protocol driver covers a subset, see [SSL/TLS guide](./ssl-tls.md) and driver docs for what's supported |
 | Team only knows Spring Data | **Spring Data MongoDB** (lower learning curve) |
 | No messaging needed, simple CRUD | **Official Driver** is sufficient |
 | Already have RabbitMQ/Kafka in stack | Messaging advantage disappears |
