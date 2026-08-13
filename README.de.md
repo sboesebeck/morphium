@@ -1,7 +1,10 @@
 # Morphium
 
 <p align="center">
-  <img src="branding/morphium-logo.svg" alt="Morphium" width="640">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="branding/morphium-logo-dark.svg">
+    <img src="branding/morphium-logo.svg" alt="Morphium" width="640">
+  </picture>
 </p>
 
 **Feature-reiches MongoDB ODM und Messaging-Framework für Java 21+**
@@ -84,7 +87,10 @@ Server-Parallelisierung — nicht 100K+, die kein System ohne Batching erreicht.
 ## 🌱 PoppyDB — MongoDB-kompatibler In-Memory-Server
 
 <p align="center">
-  <img src="branding/poppydb-logo.svg" alt="PoppyDB" width="560">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="branding/poppydb-logo-dark.svg">
+    <img src="branding/poppydb-logo.svg" alt="PoppyDB" width="560">
+  </picture>
 </p>
 
 PoppyDB ist Morphiums Schwesterprodukt: ein In-Memory-Server, der das MongoDB Wire Protocol
