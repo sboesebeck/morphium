@@ -123,11 +123,26 @@ the filter was never evaluated: uniqueness was enforced against every document, 
 JEF's task queue (`{msg_id:1}, unique, partialFilterExpression {msg_id:{$type:"objectId"}}`)
 rejected the *second* document without an `msg_id` — or with a non-ObjectId one — with E11000,
 where mongod accepts any number of them. Documents outside the filter are not part of a partial
-index in MongoDB and cannot collide in it; both the index store and the insert-path pre-check now
-honour that. The filter cuts both ways: a stored document that does not match no longer counts as
-a collision partner either, which matters when the filter selects on a field outside the index key
-(uncovered and covered documents then share a key bucket). Found during the PoppyDB drop-in
-rehearsal for the acceptance messageBus cluster, verified against mongod 8.0.
+index in MongoDB and cannot collide in it; the index store now honours that. The filter cuts both
+ways: a stored document that does not match no longer counts as a collision partner either, which
+matters when the filter selects on a field outside the index key (uncovered and covered documents
+then share a key bucket). Found during the PoppyDB drop-in rehearsal for the acceptance messageBus
+cluster, verified against mongod 8.0.
+
+The follow-up review of this fix surfaced three more gaps, all closed:
+- `insert()`'s legacy O(collection)-scan unique pre-check had gotten the cuts-both-ways half
+  wrong (it exempted only the incoming document, still raising the false E11000 the store fix
+  removed). It re-implemented the index-membership rules separately from the store, which its own
+  comments already declared the single uniqueness authority — deleted outright; committed and
+  intra-batch conflicts alike now surface via `CollectionIndexStore.onInsert`, with mongod's
+  actual ordered semantics (stop at the first error).
+- An update that leaves the index key untouched but moves a document *into* the partial filter
+  now runs the uniqueness check too — before, it silently created two covered documents on one
+  unique key, a state mongod rejects with E11000 and the store's own rebuild would refuse.
+- TTL expiry honours `partialFilterExpression`: a TTL index with a filter no longer deletes
+  uncovered documents (mongod's TTL monitor never touches them). The partial filter is also
+  compiled once per index definition now instead of being re-interpreted through the global
+  query cache on every write.
 
 ## [6.3.1] - 2026-08-11
 

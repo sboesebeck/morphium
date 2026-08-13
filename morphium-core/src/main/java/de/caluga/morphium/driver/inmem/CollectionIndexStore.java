@@ -213,7 +213,7 @@ public class CollectionIndexStore {
     private boolean collidesOnUnique(IndexEntry entry, IndexKey key, Map<String, Object> doc) {
         IndexDefinition def = entry.definition;
 
-        if (!def.unique() || (def.sparse() && key.allMissing()) || !coveredByPartialFilter(def, doc)) {
+        if (!def.unique() || (def.sparse() && key.allMissing())) {
             return false;
         }
 
@@ -221,8 +221,13 @@ public class CollectionIndexStore {
             return entry.hasBucket(key);
         }
 
+        // Bucket lookup FIRST: it is an O(1) hash probe and empty on the common no-collision
+        // path, while the filter evaluations below are the expensive half of this check.
         List<Map<String, Object>> bucket = entry.bucket(key);
         if (bucket == null) {
+            return false;
+        }
+        if (!coveredByPartialFilter(def, doc)) {
             return false;
         }
         for (Map<String, Object> other : bucket) {
@@ -242,7 +247,13 @@ public class CollectionIndexStore {
      */
     private static boolean coveredByPartialFilter(IndexDefinition def, Map<String, Object> doc) {
         Map<String, Object> filter = def.partialFilterExpression();
-        return filter == null || QueryHelper.matchesQuery(filter, doc, null);
+        if (filter == null) {
+            return true;
+        }
+        // Prefer the filter compiled once at IndexDefinition construction over
+        // QueryHelper.matchesQuery, whose global query cache takes a process-wide lock per call.
+        CompiledQuery compiled = def.compiledPartialFilter();
+        return compiled != null ? compiled.matches(doc) : QueryHelper.matchesQuery(filter, doc, null);
     }
 
     /** Removes {@code doc} (matched by reference identity) from every index. */
@@ -284,32 +295,30 @@ public class CollectionIndexStore {
         for (IndexEntry entry : indexesByName.values()) {
             IndexKey oldKey = IndexKey.extract(before, entry.definition);
             IndexKey newKey = IndexKey.extract(after, entry.definition);
-            if (!oldKey.equals(newKey)) {
+            boolean keyChanged = !oldKey.equals(newKey);
+            if (keyChanged) {
                 changedEntries.add(entry);
                 oldKeys.add(oldKey);
                 newKeys.add(newKey);
             }
-        }
 
-        for (int i = 0; i < changedEntries.size(); i++) {
-            IndexEntry entry = changedEntries.get(i);
             if (!entry.definition.unique()) {
                 continue;
             }
-            IndexKey newKey = newKeys.get(i);
-            if (entry.definition.sparse() && newKey.allMissing()) {
-                continue;
+            // Uniqueness must be validated not only when the KEY changed: with an unchanged key,
+            // an update can still move the document INTO a partial index's filter, making it a
+            // collision partner for covered neighbors already sharing its bucket - mongod raises
+            // E11000 on exactly that update. Checked here, BEFORE any structural mutation below
+            // (see the caller-obligation javadoc). collidesOnUnique excludes {@code after} itself
+            // by reference, so the unchanged-key case (where it already sits in the bucket) is
+            // safe; the coverage-transition test keeps the check off the plain-update fast path.
+            boolean check = keyChanged;
+            if (!check && entry.definition.partialFilterExpression() != null) {
+                check = !coveredByPartialFilter(entry.definition, before)
+                        && coveredByPartialFilter(entry.definition, after);
             }
-            if (!coveredByPartialFilter(entry.definition, after)) {
-                continue;
-            }
-            List<Map<String, Object>> bucket = entry.bucket(newKey);
-            if (bucket != null) {
-                for (Map<String, Object> other : bucket) {
-                    if (other != after && coveredByPartialFilter(entry.definition, other)) {
-                        throw duplicateKeyException(indexNameOf(entry.definition), newKey);
-                    }
-                }
+            if (check && collidesOnUnique(entry, newKey, after)) {
+                throw duplicateKeyException(indexNameOf(entry.definition), newKey);
             }
         }
 

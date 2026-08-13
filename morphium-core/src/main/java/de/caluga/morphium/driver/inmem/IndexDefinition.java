@@ -27,6 +27,7 @@ public final class IndexDefinition {
     private final boolean unique;
     private final boolean sparse;
     private final Map<String, Object> partialFilterExpression;
+    private final CompiledQuery compiledPartialFilter;
     private final Long expireAfterSeconds;
     private final String name;
 
@@ -39,6 +40,20 @@ public final class IndexDefinition {
         this.partialFilterExpression = partialFilterExpression;
         this.expireAfterSeconds = expireAfterSeconds;
         this.name = name;
+        // The filter is immutable and evaluated on every write of a partial index's collection -
+        // compile it ONCE here instead of going through QueryHelper.matchesQuery per document,
+        // whose global identity-keyed LRU takes a process-wide lock on every call (its own javadoc
+        // tells hot paths to compile). Falls back to null (interpreted evaluation) if this filter
+        // uses something the compiler cannot handle.
+        CompiledQuery compiled = null;
+        if (partialFilterExpression != null) {
+            try {
+                compiled = CompiledQuery.compile(partialFilterExpression);
+            } catch (RuntimeException e) {
+                compiled = null;
+            }
+        }
+        this.compiledPartialFilter = compiled;
     }
 
     /**
@@ -145,6 +160,15 @@ public final class IndexDefinition {
      */
     public Map<String, Object> partialFilterExpression() {
         return partialFilterExpression;
+    }
+
+    /**
+     * The {@link #partialFilterExpression()} compiled once at construction, or {@code null} when
+     * there is no filter or it could not be compiled (callers then fall back to interpreted
+     * evaluation via {@code QueryHelper.matchesQuery}).
+     */
+    public CompiledQuery compiledPartialFilter() {
+        return compiledPartialFilter;
     }
 
     /** TTL, in seconds, or {@code null} if this is not a TTL index. */

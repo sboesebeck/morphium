@@ -596,10 +596,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private static class TtlIndexInfo {
         final String fieldName;
         final int expireAfterSeconds;
+        // mongod's TTL monitor deletes only documents the index actually covers - a TTL index
+        // with a partialFilterExpression must leave uncovered documents alone (review 2026-08-13)
+        final Map<String, Object> partialFilterExpression;
 
-        TtlIndexInfo(String fieldName, int expireAfterSeconds) {
+        TtlIndexInfo(String fieldName, int expireAfterSeconds, Map<String, Object> partialFilterExpression) {
             this.fieldName = fieldName;
             this.expireAfterSeconds = expireAfterSeconds;
+            this.partialFilterExpression = partialFilterExpression;
         }
     }
 
@@ -4565,6 +4569,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     // already pushed a fresh entry reflecting the new expiry; this one is stale.
                     continue;
                 }
+                if (ttlInfo.partialFilterExpression != null
+                        && !QueryHelper.matchesQuery(ttlInfo.partialFilterExpression, doc, null)) {
+                    // A document outside the index's partialFilterExpression is not part of the
+                    // TTL index - mongod's TTL monitor never deletes it. Checked against the LIVE
+                    // document, so a later transition into the filter still expires normally via
+                    // the next enqueued entry.
+                    continue;
+                }
 
                 collectionData.remove(doc);
                 indexStore.onRemove(doc);
@@ -6686,76 +6698,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
 
             objs.removeAll(oversized);
-            // check for unique index
-            List<Map<String, Object>> indexes = getIndexes(db, collection);
-            if (indexes != null && !indexes.isEmpty()) {
-                for (var idx : indexes) {
-                    if (idx.containsKey("$options")) {
-                        Map<String, Object> options = (Map<String, Object>) idx.get("$options");
-
-                        if (options.containsKey("unique")
-                                && (options.get("unique").equals("true") || options.get("unique").equals(true))) {
-                            // checking fields
-                            boolean sparse = options.containsKey("sparse")
-                                    && (options.get("sparse").equals("true") || options.get("sparse").equals(true));
-                            Map<String, Object> partialFilter =
-                                    (options.get("partialFilterExpression") instanceof Map
-                                            && !((Map<String, Object>) options.get("partialFilterExpression")).isEmpty())
-                                    ? (Map<String, Object>) options.get("partialFilterExpression") : null;
-                            Map<String, Object> indexKey = new HashMap<>(idx);
-                            List<Map<String, Object>> duplicateDocs = new ArrayList<>();
-
-                            for (int objIdx = 0; objIdx < objs.size(); objIdx++) {
-                                var o = objs.get(objIdx);
-                                var q = Doc.of();
-
-                                for (String k : indexKey.keySet()) {
-                                    if (k.startsWith("$")) {
-                                        continue;
-                                    }
-
-                                    q.put(k, o.get(k));
-                                }
-
-                                // Sparse unique index: a document containing none of the indexed
-                                // fields is not part of the index in MongoDB, so it can never
-                                // collide - skip the duplicate check entirely.
-                                if (sparse && q.values().stream().allMatch(java.util.Objects::isNull)) {
-                                    continue;
-                                }
-
-                                // Partial index: a document not matching partialFilterExpression is
-                                // not part of the index in MongoDB either - same reasoning.
-                                if (partialFilter != null && !QueryHelper.matchesQuery(partialFilter, o, null)) {
-                                    continue;
-                                }
-
-                                if (q.size() != 1) {
-                                    // need to add and query
-                                    List<Map<String, Object>> and = new ArrayList();
-                                    for (var e : q.entrySet()) {
-                                        and .add(Doc.of(e.getKey(), e.getValue()));
-                                    }
-                                    q = Doc.of("$and", and );
-                                }
-
-                                if (existsMatchingDocument(db, collection, q)) {
-                                    log.error("Cannot store - unique index!");
-                                    writeErrors.add(Doc.of(
-                                        "index", objIdx,
-                                        "code", 11000,
-                                        "errmsg", "E11000 duplicate key error"
-                                    ));
-                                    duplicateDocs.add(o);
-                                }
-                            }
-
-                            errors = errors + duplicateDocs.size();
-                            objs.removeAll(duplicateDocs);
-                        }
-                    }
-                }
-            }
+            // NO unique-index pre-check here anymore: CollectionIndexStore.onInsert (the loop
+            // further down) is the single authority for uniqueness - committed-document conflicts
+            // and intra-batch conflicts alike surface there as per-doc writeErrors, with mongod's
+            // actual ordered semantics (stop at the first error) instead of the removed legacy
+            // O(collection)-scan's skip-and-continue. The scan also re-implemented the index
+            // membership rules (sparse/partialFilterExpression) separately from the store and got
+            // the partial-filter half wrong: it exempted only the INCOMING document, so an
+            // uncovered stored document still counted as a collision partner - a false E11000
+            // mongod does not raise (review 2026-08-13).
 
             // Get collection once - used for capped eviction and the physical adds below
             var collectionData = getCollection(db, collection);
@@ -10820,7 +10771,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (fieldName != null) {
                 Object expireVal = options.get("expireAfterSeconds");
                 int expireSeconds = (expireVal instanceof Number) ? ((Number) expireVal).intValue() : 0;
-                ttlInfo = new TtlIndexInfo(fieldName, expireSeconds);
+                Map<String, Object> ttlPartialFilter =
+                        (options.get("partialFilterExpression") instanceof Map
+                                && !((Map<String, Object>) options.get("partialFilterExpression")).isEmpty())
+                        ? (Map<String, Object>) options.get("partialFilterExpression") : null;
+                ttlInfo = new TtlIndexInfo(fieldName, expireSeconds, ttlPartialFilter);
                 collectionsWithTtlIndex.put(db + "." + collection, ttlInfo);
             }
         }
