@@ -1126,8 +1126,23 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
      * <p>The replication coordinator is resolved through {@link #replicationCoordinator()} at
      * call time so a later switch to a live supplier needs no change here.
      */
-    private boolean postWrite(ChannelHandlerContext ctx, Map<String, Object> doc, String cmd,
+    // package-private: exercised by JournalConcernHonestyTest
+    boolean postWrite(ChannelHandlerContext ctx, Map<String, Object> doc, String cmd,
                               Map<String, Object> answer, int requestId) {
+        // PoppyDB has no journal: j:true promises durability that does not exist. Like mongod
+        // without journaling, the write is executed but the concern fails honestly (code 2,
+        // BadValue). Checked BEFORE the coordinator/primary guards so it also fires standalone,
+        // and short-circuits the replication wait - the concern is already unsatisfiable.
+        Object wc = doc.get("writeConcern");
+        if (wc instanceof Map && Boolean.TRUE.equals(((Map<String, Object>) wc).get("j"))) {
+            answer.put("writeConcernError", Doc.of(
+                "code", 2,
+                "codeName", "BadValue",
+                "errmsg", "cannot use 'j' option: PoppyDB has no journal (in-memory store with snapshot persistence)"
+            ));
+            return false;
+        }
+
         ReplicationCoordinator coordinator = replicationCoordinator();
         if (coordinator == null || !isCurrentPrimary()) {
             return false;
