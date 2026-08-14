@@ -3343,9 +3343,31 @@ public class QueryHelper {
         }
 
         if (collation.containsKey("strength")) {
-            coll.setStrength((Integer) collation.get("strength"));
+            coll.setStrength(mapMongoStrength((Integer) collation.get("strength")));
         }
 
         return coll;
+    }
+
+    /**
+     * MongoDB collation strength is 1-5 (primary..identical), {@link Collator} strength is 0-3
+     * (PRIMARY..IDENTICAL). Passed through unmapped, every level shifted by one and 4/5 threw
+     * IllegalArgumentException. Java has no quaternary level, so 4 and 5 both map to IDENTICAL -
+     * the closest level at least as strong as what mongo promises.
+     */
+    private static int mapMongoStrength(int mongoStrength) {
+        switch (mongoStrength) {
+            case 1:
+                return Collator.PRIMARY;
+            case 2:
+                return Collator.SECONDARY;
+            case 3:
+                return Collator.TERTIARY;
+            case 4:
+            case 5:
+                return Collator.IDENTICAL;
+            default:
+                throw new IllegalArgumentException("Invalid collation strength: " + mongoStrength + " (must be 1-5)");
+        }
     }
 }
