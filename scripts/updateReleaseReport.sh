@@ -163,12 +163,15 @@ fi
 # so the exit code alone can't distinguish "zero results" from "partial
 # results". The markdown is the one artifact both this script and
 # test_report.py agree on the shape of (see render_markdown()/selftest() in
-# test_report.py), so it's the more robust signal. A data row looks like
-# "| <phase> | ... |" with the phase name lowercase; the header row starts
-# with "| Phase" (capital P) and the separator row with "|---" - both are
-# filtered out by requiring a lowercase first table cell. Any surviving row
-# not containing "*missing*" means at least one phase qualified.
-QUALIFYING_ROWS=$(grep -E '^\| [a-z]' "$REPORT_MD" | { grep -v '\*missing\*' || true; })
+# test_report.py), so it's the more robust signal. Exclude the header ("|
+# Phase | ...") and the separator ("|---|...") structurally by their fixed
+# literal prefixes rather than by the first data cell's letter case - phase
+# names are free-form for optional/extension-module phases (e.g. a future
+# "Jakarta-Data" row) and may start with an uppercase letter or digit, so a
+# character-class match on the first cell would misclassify those as
+# non-data rows. Any surviving "| ...|" row not containing "*missing*" means
+# at least one phase qualified.
+QUALIFYING_ROWS=$(grep '^| ' "$REPORT_MD" | grep -v '^| Phase ' | grep -v '^|---' | { grep -v '\*missing\*' || true; })
 if [ -z "$QUALIFYING_ROWS" ]; then
   echo "info: no qualifying test results for $TAG - leaving release notes untouched" >&2
   exit 0
