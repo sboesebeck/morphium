@@ -108,7 +108,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
      * Outcome of the shared pre-dispatch middleware. When {@link #errorResponse} is non-null
      * the caller must send it and stop; otherwise dispatch proceeds.
      */
-    private static final class CheckResult {
+    // package-private: exercised by SecondaryReadPreferenceTest
+    static final class CheckResult {
         static final CheckResult PROCEED = new CheckResult(null);
         final Map<String, Object> errorResponse;
 
@@ -313,10 +314,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             reply.setResponseTo(requestId);
             reply.setNumReturned(1);
 
-            Map<String, Object> response = getHelloResult().toMsg();
-            response.put("poppyDB", true);
-            response.put("morphiumServer", true);
-            response.put("inMemoryBackend", true);
+            Map<String, Object> response = helloAnswer();
             reply.setDocuments(Arrays.asList(response));
 
             ctx.writeAndFlush(reply);
@@ -485,10 +483,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             case "isMaster":
             case "hello":
                 log.debug("OpMsg->hello/ismaster");
-                answer = getHelloResult().toMsg();
-                answer.put("poppyDB", true);
-                answer.put("morphiumServer", true);
-                answer.put("inMemoryBackend", true);
+                answer = helloAnswer();
                 break;
 
             case "getFreeMonitoringStatus":
@@ -1057,7 +1052,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
      * the error response the caller must send.
      */
     @SuppressWarnings("unchecked")
-    private CheckResult preDispatch(ChannelHandlerContext ctx, String cmd, Map<String, Object> doc) {
+    // package-private: exercised by SecondaryReadPreferenceTest
+    CheckResult preDispatch(ChannelHandlerContext ctx, String cmd, Map<String, Object> doc) {
         boolean isWriteCommand = WRITE_COMMANDS.contains(cmd.toLowerCase());
         boolean isPrimary = isCurrentPrimary();
 
@@ -1094,10 +1090,17 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             return CheckResult.reject(errorResponse);
         }
 
-        // (2) Reject primary-only reads on secondaries to ensure consistency.
+        // (2) Reject primary-only reads on secondaries to ensure consistency. MongoDB's
+        // DEFAULT read preference is primary, so a read arriving WITHOUT an explicit
+        // $readPreference is a primary read too and must be rejected just like
+        // mode:"primary" - previously it silently served possibly-stale secondary data.
+        // Mirrors mongod's handling of a direct secondary connection without secondaryOk.
+        // Morphium's own wire commands always carry $readPreference (default
+        // primaryPreferred), so they are unaffected; getMore/control commands never
+        // reach preDispatch (CONTROL_COMMANDS).
         if (!isPrimary && !isWriteCommand) {
             Map<String, Object> readPref = (Map<String, Object>) doc.get("$readPreference");
-            if (readPref != null && "primary".equalsIgnoreCase((String) readPref.get("mode"))) {
+            if (readPref == null || "primary".equalsIgnoreCase((String) readPref.get("mode"))) {
                 String currentPrimary = getCurrentPrimaryHost();
                 Map<String, Object> errorResponse = Doc.of(
                     "ok", 0.0,
@@ -1564,6 +1567,20 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         }
 
         return myAddress;
+    }
+
+    /**
+     * The complete hello/isMaster answer: topology from {@link #getHelloResult()} plus the
+     * PoppyDB identity flags. Single source for both the OP_QUERY legacy path and the OP_MSG
+     * path, so the two can never drift.
+     */
+    // package-private: exercised by HelloCapabilitiesTest
+    Map<String, Object> helloAnswer() {
+        Map<String, Object> answer = getHelloResult().toMsg();
+        answer.put("poppyDB", true);
+        answer.put("morphiumServer", true);
+        answer.put("inMemoryBackend", true);
+        return answer;
     }
 
     private HelloResult getHelloResult() {
