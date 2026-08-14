@@ -404,21 +404,26 @@ public class ElectionManagerTest {
         ElectionManager manager = new ElectionManager("localhost:27017", hosts, config);
         managers.add(manager);
 
-        // Set our log state to be ahead
+        // Set our log state to reflect real (non-empty) replication progress.
         manager.updateLogIndex(10, 2);
 
         manager.start();
         Thread.sleep(50);
 
-        // Request from candidate with older log (lower term)
-        VoteRequest oldLogRequest = new VoteRequest(3, "localhost:27018", 5, 1);
-        VoteResponse response1 = manager.handleVoteRequest(oldLogRequest);
-        assertFalse(response1.isVoteGranted(), "Should deny vote to candidate with older log (lower term)");
+        // isLogAtLeastAsUpToDate is deliberately NOT a Raft term/index comparison (see its
+        // javadoc): replication sequences are primary-local and lastLogTerm is only a
+        // currentTerm stand-in, so term ordering across nodes isn't meaningful here. The one
+        // invariant it enforces: an empty candidate (index 0) must never win against a voter
+        // that holds data (index > 0) - a stale-but-non-empty candidate is intentionally NOT
+        // denied by this check (handled elsewhere: fail-closed resync + candidacy restraint).
+        VoteRequest emptyCandidateRequest = new VoteRequest(3, "localhost:27018", 0, 0);
+        VoteResponse response1 = manager.handleVoteRequest(emptyCandidateRequest);
+        assertFalse(response1.isVoteGranted(), "Should deny vote to an empty candidate (index 0) when we hold data");
 
-        // Request from candidate with up-to-date log
-        VoteRequest upToDateRequest = new VoteRequest(4, "localhost:27019", 10, 2);
-        VoteResponse response2 = manager.handleVoteRequest(upToDateRequest);
-        assertTrue(response2.isVoteGranted(), "Should grant vote to candidate with up-to-date log");
+        // Any non-zero index is granted, even if numerically behind our own index.
+        VoteRequest nonEmptyCandidateRequest = new VoteRequest(4, "localhost:27019", 5, 1);
+        VoteResponse response2 = manager.handleVoteRequest(nonEmptyCandidateRequest);
+        assertTrue(response2.isVoteGranted(), "Should grant vote to any non-empty candidate");
     }
 
     @Test

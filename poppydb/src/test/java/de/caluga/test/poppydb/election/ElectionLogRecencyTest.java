@@ -21,11 +21,17 @@ import static org.junit.jupiter.api.Assertions.*;
  * node winning an election against nodes still holding data because {@code lastLogIndex} was
  * never updated by any production caller.
  *
- * <p>The deny-case test deliberately sets up the voter's data via the same production
+ * <p>The deny-case tests deliberately set up the voter's data via the same production
  * mechanism (leader-side {@code localSequenceSupplier} synced while heartbeating) rather than
  * poking {@link ElectionManager#updateLogIndex} directly - that method already worked correctly
  * before this fix (see {@code ElectionManagerTest#testVoteRequestLogComparison}); the bug was
  * that nothing production ever called it.
+ *
+ * <p>{@link #deniesVoteFromEmptyCandidateWithHigherStaleTermThanVoter} covers a second-round
+ * review finding: {@code isLogAtLeastAsUpToDate} must NOT fall back to comparing {@code
+ * lastLogTerm} when indices differ, because that term is only a {@code currentTerm} stand-in
+ * fed independently on each node - a once-elected, now-empty candidate can carry a higher stale
+ * term than a data-holding voter, and a term-first comparison would wrongly grant it the vote.
  */
 public class ElectionLogRecencyTest {
 
@@ -99,6 +105,24 @@ public class ElectionLogRecencyTest {
 
         assertFalse(response.isVoteGranted(),
                 "must deny vote to an empty candidate (log behind) when the voter holds real replicated data");
+    }
+
+    @Test
+    void deniesVoteFromEmptyCandidateWithHigherStaleTermThanVoter() throws Exception {
+        ElectionManager voter = singleNodeLeaderWithSequence("voter-with-data:27020", 500);
+
+        // Adversarial case from review: an empty candidate (index 0) whose lastLogTerm happens
+        // to be HIGHER than the voter's currentTerm - e.g. it was elected once before while
+        // still empty, or simply raced its own currentTerm up through repeated candidacy
+        // retries. A term-first Raft-style comparison would grant this vote (candidateLastTerm >
+        // myLastTerm), reopening the exact empty-node-wipe bug. Must still be denied on index
+        // alone.
+        VoteRequest staleHighTermEmptyCandidateRequest = new VoteRequest(
+                voter.getCurrentTerm() + 1, "empty-candidate-high-term:27020", 0, voter.getCurrentTerm() + 100);
+        VoteResponse response = voter.handleVoteRequest(staleHighTermEmptyCandidateRequest);
+
+        assertFalse(response.isVoteGranted(),
+                "must deny an empty candidate even when its (stand-in) lastLogTerm is higher than the voter's");
     }
 
     @Test

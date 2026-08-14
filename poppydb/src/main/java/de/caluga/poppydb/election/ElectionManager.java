@@ -589,22 +589,24 @@ public class ElectionManager {
     }
 
     /**
-     * Check if candidate's log is at least as up-to-date as ours.
-     * Per Raft: compare by (lastLogTerm, lastLogIndex) - term is more important.
+     * Deliberately NOT a Raft &sect;5.4.1 log comparison: {@code ReplicationManager}'s change
+     * stream sequences are primary-local, and {@code lastLogTerm} is a stand-in fed from
+     * {@code currentTerm} at uncorrelated moments (leader heartbeat vs. follower batch-apply,
+     * on different nodes, with no synchronization between the two feeds' timing) - so ordering
+     * nodes by {@code (term, index)} the way Raft does is not meaningful here: a node that was
+     * elected once while still empty can carry a high, stale {@code lastLogTerm} at {@code
+     * index 0}, which a naive term-first comparison would prefer over a real data-holding voter.
      *
-     * <p>{@code lastLogIndex}/{@code lastLogTerm} are fed from the real replication sequence
-     * (see {@link #updateLogIndex}'s javadoc for the leader/follower call sites), so a node that
-     * just started with an empty local database (both still {@code 0}) is correctly rejected in
-     * favor of a candidate that has actually replicated data.
+     * <p>The one invariant this can honestly enforce: a node that has applied/produced no data
+     * since process start ({@code index 0}) must never win against a voter that has ({@code
+     * index > 0}) - directly closes the empty-node-wipe bug this method exists for. A stale but
+     * non-empty candidate (index &gt; 0 but behind) is intentionally NOT denied here; that case
+     * is handled elsewhere (fail-closed resync refusing sequence regression, and candidacy
+     * restraint keeping behind nodes from campaigning in the first place - see the other D-tasks
+     * in this bug's task list).
      */
     private boolean isLogAtLeastAsUpToDate(long candidateLastTerm, long candidateLastIndex) {
-        long myLastTerm = lastLogTerm.get();
-        long myLastIndex = lastLogIndex.get();
-
-        if (candidateLastTerm != myLastTerm) {
-            return candidateLastTerm > myLastTerm;
-        }
-        return candidateLastIndex >= myLastIndex;
+        return !(candidateLastIndex == 0 && lastLogIndex.get() > 0);
     }
 
     // ==================== Heartbeat Handling ====================
@@ -638,9 +640,9 @@ public class ElectionManager {
         // Keep our own log index fed from real replication progress while we lead - this is
         // the leader-side half of the log-recency check's data source (the follower half is
         // ReplicationManager's onLogIndexUpdate, wired in PoppyDB). Piggybacked on the existing
-        // heartbeat cadence rather than a new timer; currentTerm is used as the log term because
-        // by the time any peer compares it (in isLogAtLeastAsUpToDate) terms are already
-        // Raft-synced across the cluster - see updateLogIndex's javadoc.
+        // heartbeat cadence rather than a new timer. currentTerm is still passed through as the
+        // log term for bookkeeping/future use, but isLogAtLeastAsUpToDate no longer reads it -
+        // see that method's javadoc for why term ordering across nodes isn't meaningful here.
         updateLogIndex(localSequenceSupplier.getAsLong(), currentTerm.get());
 
         AppendEntriesRequest heartbeat = AppendEntriesRequest.heartbeat(
@@ -1024,26 +1026,41 @@ public class ElectionManager {
      *       for the term {@code ReplicationManager} passes, which it has no way to know).</li>
      * </ul>
      *
-     * <p>Term is deliberately {@code currentTerm}, not a genuine per-log-entry term:
-     * {@code ReplicationManager}'s change-stream sequence numbers are primary-local (see
-     * {@code ReplicationManager#tryConsistencyShortcut}'s javadoc), so there is no real
-     * replicated log with indices that mean the same thing across a leader change to draw a
-     * proper log term from. Using {@code currentTerm} works because {@link #handleVoteRequest}
-     * only reaches {@link #isLogAtLeastAsUpToDate} once the request's Raft term already matches
-     * ours (an older request term is denied earlier, a newer one is adopted first) - so both
-     * sides of the comparison use the same term basis by construction, and the index comparison
-     * (the part that matters for the empty-node-wipe bug) is not distorted by the simplification.
+     * <p>Term is still passed through as {@code currentTerm} and stored in {@code lastLogTerm}
+     * (harmless bookkeeping, and may serve a genuine per-log-entry term if PoppyDB ever gets a
+     * real replicated log), but {@link #isLogAtLeastAsUpToDate} deliberately does NOT read it
+     * for the vote decision any more - see that method's javadoc. An earlier version of this
+     * comment argued the two nodes' terms were "the same basis by construction" at comparison
+     * time; that argument does not hold across the actual comparison, which reads whatever
+     * {@code lastLogTerm} was last written by this node's own feed (possibly stale, from a term
+     * this node held before a later election it did not participate in) against the candidate's
+     * {@code lastLogTerm} (same staleness problem on their side) - i.e. two independently stale
+     * snapshots, not a fresh pair. Relying on term ordering there reopened the exact bug this
+     * method exists to close (a once-elected, now-empty node carrying a high stale term at index
+     * 0 outranking a real data-holding voter). Index-only comparison side-steps this entirely.
+     *
+     * <p>Thread-safety: called from two independent, unsynchronized threads - the leader's
+     * heartbeat scheduler ({@link #sendHeartbeats()}) and the follower's replication batch
+     * processor (via the {@code onLogIndexUpdate} hook wired in PoppyDB). Takes {@code
+     * stateLock} for the duration of the two writes so they can never interleave with each other
+     * or with {@link #handleVoteRequest}'s read of both fields (which already runs under the
+     * same lock).
      *
      * <p>Because both process state and this in-memory field reset to {@code 0} on restart, a
      * node whose local database was just cleared for a resync (e.g. mid-{@code
      * clearLocalDatabases}) still starts back at {@code 0} - that is intentional (see the
      * users-file version gate's documented mid-resync caveat,
      * {@code docs/poppydb.md#bootstrapping-users---users-file}); it is exactly why {@link
-     * #isLogAtLeastAsUpToDate} now has real values on the other side to compare against.
+     * #isLogAtLeastAsUpToDate} now has a real value on the other side to compare against.
      */
     public void updateLogIndex(long index, long term) {
-        lastLogIndex.set(index);
-        lastLogTerm.set(term);
+        stateLock.lock();
+        try {
+            lastLogIndex.set(index);
+            lastLogTerm.set(term);
+        } finally {
+            stateLock.unlock();
+        }
     }
 
     /**
