@@ -449,6 +449,12 @@ public class ReplicationFailClosedTest {
     // over - would make the destructive-resync guard vacuously pass on every leader change; these
     // tests exercise ReplicationManager#carryOverLastAppliedSequence directly, the same call
     // PoppyDB now makes before starting the replacement.
+    //
+    // 2026-08-14 production-CI fix (I-2): both tests below now use the two-arg,
+    // primary-identity-aware carryOverLastAppliedSequence(seq, sourceAddress) - portA/portB/portC
+    // are all DIFFERENT addresses, exactly the shape a real leader change has in production. See
+    // carryOverRefusesOnlyWhenReplacementLeaderIsTheSameAddressRegressed below for the mirror that
+    // covers the SAME-address case (the actual kill chain).
 
     @Test
     public void carryOverAllowsNormalSyncWhenReplacementLeaderIsCaughtUp() throws Exception {
@@ -474,6 +480,7 @@ public class ReplicationFailClosedTest {
         assertTrue(poll(5_000, () -> rm1.getLastAppliedSequence() > 0),
             "rm1 lastAppliedSequence must have advanced past 0");
         long predecessorSeq = rm1.getLastAppliedSequence();
+        String predecessorAddress = rm1.getLeaderAddress();
 
         // Simulate PoppyDB#startReplicationToLeader tearing down the old RM on a leader change.
         rm1.stop();
@@ -488,10 +495,14 @@ public class ReplicationFailClosedTest {
             writerB.close();
         }
 
-        // Replacement RM, same local driver, carrying the predecessor's sequence forward exactly
-        // as PoppyDB#startReplicationToLeader now does.
+        // Replacement RM, same local driver, carrying the predecessor's (sequence, source
+        // address) forward exactly as PoppyDB#startReplicationToLeader now does. Different
+        // address (portA vs portB) - per the identity-aware overload, this does NOT arm the
+        // guard; the outcome (sync succeeds) is unchanged from before I-2 either way here since
+        // the new leader is caught up regardless, but the MECHANISM is now adopt-at-registration,
+        // not a guard pass.
         rm = new ReplicationManager(local, "localhost", portB);
-        rm.carryOverLastAppliedSequence(predecessorSeq);
+        rm.carryOverLastAppliedSequence(predecessorSeq, predecessorAddress);
         rm.start();
 
         assertTrue(poll(30_000, rm::isInitialSyncComplete),
@@ -504,8 +515,23 @@ public class ReplicationFailClosedTest {
             predecessorSeq, localCount());
     }
 
+    /**
+     * I-2 (production-CI fix, superseding the old {@code carryOverRefusesWhenReplacementLeaderIsRegressed}):
+     * a genuine leader change to a DIFFERENT primary, even one whose own counter is far below the
+     * predecessor's, must NOT be refused - the carried sequence lives in an unrelated, foreign
+     * number space and must not arm the guard at all. This is exactly the CI incident: node1
+     * carried 227951 from its old leader; the new leader's own counter was 213896 (lower, but a
+     * completely different and entirely legitimate primary) - the old code refused for 40+
+     * minutes; the fix adopts the new primary's own base at registration and lets dbHash/the
+     * consistency shortcut decide. Here that means a full resync legitimately proceeds (the new,
+     * near-empty primary's data does not match local's) and local converges to ITS (near-empty)
+     * state - the wipe is correct in this case, because a genuinely different, currently-elected
+     * leader's state is exactly what a follower is supposed to converge to. Protecting against a
+     * WRONGLY-elected empty leader is the election layer's job (Tasks 1/2/4), not this guard's -
+     * see the class-level javadoc on {@code ReplicationManager#carryOverLastAppliedSequence(long, String)}.
+     */
     @Test
-    public void carryOverRefusesWhenReplacementLeaderIsRegressed() throws Exception {
+    public void carryOverAdoptsFreshBaseWhenReplacementLeaderIsDifferentEvenIfItsCounterIsLower() throws Exception {
         int portA = nextPort();
         int portC = nextPort();
         startStandalonePrimary(portA);
@@ -528,25 +554,87 @@ public class ReplicationFailClosedTest {
         assertTrue(poll(5_000, () -> rm1.getLastAppliedSequence() > 0),
             "rm1 lastAppliedSequence must have advanced past 0");
         long predecessorSeq = rm1.getLastAppliedSequence();
+        String predecessorAddress = rm1.getLeaderAddress();
 
         rm1.stop();
 
-        // The "new leader": a FRESH, EMPTY standalone primary - a regressed/stale leader
-        // (sequence starts near 0, necessarily behind predecessorSeq).
+        // The "new leader": a genuinely DIFFERENT (different port/address) standalone primary,
+        // fresh and empty - its own counter is near 0, far below predecessorSeq. In production
+        // this is an ordinary leader change to a new, currently-quiet leader, not a restart of
+        // the same node.
         startStandalonePrimary(portC);
 
         rm = new ReplicationManager(local, "localhost", portC);
-        rm.carryOverLastAppliedSequence(predecessorSeq);
+        rm.carryOverLastAppliedSequence(predecessorSeq, predecessorAddress);
+        rm.start();
+
+        assertTrue(poll(30_000, rm::isInitialSyncComplete),
+            "a genuinely different replacement leader must sync normally - never blocked by a "
+                + "carried sequence earned against a different primary");
+        assertEquals(0, rm.getRefusedResyncCount(),
+            "a different replacement leader must never trip the destructive-resync guard, "
+                + "regardless of its own counter being lower than the predecessor's");
+        assertFalse(rm.isRefusingDestructiveResync());
+        assertTrue(poll(10_000, () -> localCount() == 0),
+            "local must legitimately converge to the new (empty) leader's real state - this guard "
+                + "is not the barrier against a wrongly-elected leader, the election layer is");
+
+        log.info("I-2 different-leader-lower-counter case converged: predecessorSeq={}", predecessorSeq);
+    }
+
+    /**
+     * I-2's mirror: the SAME leader address restarting empty/stale, reached via the
+     * RM-REPLACEMENT path (not the intra-RM {@code triggerResync()} path already covered by
+     * {@link #refusesWhenReconnectedPrimaryIsBehind()}) - this is the true kill chain
+     * {@code EmptyNodeRestartWipeTest} guards end-to-end, and must still refuse after I-2.
+     */
+    @Test
+    public void carryOverRefusesOnlyWhenReplacementLeaderIsTheSameAddressRegressed() throws Exception {
+        int portA = nextPort();
+        startStandalonePrimary(portA);
+
+        local = new InMemoryDriver();
+        local.connect();
+        ReplicationManager rm1 = new ReplicationManager(local, "localhost", portA);
+        extraReplicationManagers.add(rm1);
+        rm1.start();
+        assertTrue(poll(30_000, rm1::isInitialSyncComplete), "rm1 initial sync must complete");
+
+        Morphium writerA = writerFor(portA, DB);
+        try {
+            writeDocs(writerA, DOCS, "pre");
+            assertTrue(poll(30_000, () -> localCount() == DOCS),
+                "rm1 must live-replicate the batch (got " + localCount() + ")");
+        } finally {
+            writerA.close();
+        }
+        assertTrue(poll(5_000, () -> rm1.getLastAppliedSequence() > 0),
+            "rm1 lastAppliedSequence must have advanced past 0");
+        long predecessorSeq = rm1.getLastAppliedSequence();
+        String predecessorAddress = rm1.getLeaderAddress();
+
+        rm1.stop();
+        nodes.get(0).shutdown(); // kill the SAME node's process (destroying its in-memory state)
+        nodes.remove(0);
+        // ... and put a brand-new, empty PoppyDB back on the EXACT SAME port - "the same node
+        // restarted empty", reached this time via a fresh ReplicationManager (RM replacement),
+        // not via the original RM's own reconnect/triggerResync loop.
+        startStandalonePrimary(portA);
+
+        rm = new ReplicationManager(local, "localhost", portA);
+        assertEquals(predecessorAddress, rm.getLeaderAddress(),
+            "test setup: the replacement RM must target the exact same address as the predecessor");
+        rm.carryOverLastAppliedSequence(predecessorSeq, predecessorAddress);
         rm.start();
 
         assertTrue(poll(30_000, () -> rm.getRefusedResyncCount() >= 1),
-            "a regressed replacement leader must be refused (refusedResyncCount="
+            "a same-address regressed replacement leader must still be refused (refusedResyncCount="
                 + rm.getRefusedResyncCount() + ")");
         assertFalse(rm.isInitialSyncComplete(), "a refused replacement must not report a completed sync");
         assertEquals(DOCS, localCount(),
             "local data carried over from the predecessor RM must survive a refused replacement resync");
 
-        log.info("carry-over regressed case converged: predecessorSeq={}, refusedResyncCount={}",
+        log.info("I-2 same-address-regressed case converged: predecessorSeq={}, refusedResyncCount={}",
             predecessorSeq, rm.getRefusedResyncCount());
     }
 
@@ -599,6 +687,40 @@ public class ReplicationFailClosedTest {
 
             assertEquals(500, node.carryOverSequenceFor(predecessor),
                 "a live predecessor's own position must be used, not the stale watermark");
+        } finally {
+            drv.close();
+        }
+    }
+
+    // ---- I-2 (production-CI fix): PoppyDB#carryOverSourceFor, the companion to
+    // carryOverSequenceFor - same pure/isolated/no-network shape as the two tests above.
+
+    @Test
+    public void carryOverSourceFallsBackToPersistedWatermarkWhenNoPredecessor() {
+        PoppyDB node = new PoppyDB();
+        nodes.add(node);
+
+        node.setLastKnownAppliedSequenceSourceForTest("localhost:9999");
+
+        assertEquals("localhost:9999", node.carryOverSourceFor(null),
+            "a failed-start retry (predecessor == null) must fall back to the persisted source "
+                + "watermark, exactly mirroring carryOverSequenceFor's own fallback");
+    }
+
+    @Test
+    public void carryOverSourceReadsLivePredecessorWhenPresent() throws Exception {
+        PoppyDB node = new PoppyDB();
+        nodes.add(node);
+
+        node.setLastKnownAppliedSequenceSourceForTest("localhost:1111"); // stale, must not shadow
+
+        InMemoryDriver drv = new InMemoryDriver();
+        drv.connect();
+        try {
+            ReplicationManager predecessor = new ReplicationManager(drv, "localhost", 2222);
+
+            assertEquals("localhost:2222", node.carryOverSourceFor(predecessor),
+                "a live predecessor's own leader address must be used, not the stale watermark");
         } finally {
             drv.close();
         }

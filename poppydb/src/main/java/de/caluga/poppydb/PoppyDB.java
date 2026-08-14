@@ -154,6 +154,15 @@ public class PoppyDB {
     // the most recently known-good position. volatile: written only under the class monitor
     // (synchronized methods), but read here defensively for the same reason replicationManager is.
     private volatile long lastKnownAppliedSequence = 0;
+    // Companion to lastKnownAppliedSequence above (2026-08-14 production-CI fix, I-2): the
+    // "host:port" the watermark sequence was actually earned against - see
+    // ReplicationManager#carryOverLastAppliedSequence(long, String)'s javadoc for why comparing
+    // sequences across a genuine leader change is unsound (production incident: 82 refusal loops
+    // over 40+ minutes). Always updated TOGETHER with lastKnownAppliedSequence, from the same
+    // predecessor read, so the pair is never inconsistent with each other. null means "no
+    // predecessor ever recorded" (cold boot) - carryOverSourceFor()'s null result correctly never
+    // matches any real ReplicationManager#getLeaderAddress().
+    private volatile String lastKnownAppliedSequenceSource = null;
     // Held behind an AtomicReference (rather than a plain volatile field copied into each
     // connection at accept time) so every MongoCommandHandler resolves the coordinator live
     // via a Supplier - onLeadershipChange swaps this reference and every existing connection
@@ -905,27 +914,34 @@ public class PoppyDB {
             oldReplicationManager.stop();
             replicationManager = null;
         }
-        // carryOverSequenceFor() is called AFTER stop() returns, not before (2026-08-14 review
-        // hardening - TOCTOU): stop() flushes the batch processor's last drained batch before
-        // returning, which can still advance lastAppliedSequence past whatever a pre-stop
-        // snapshot would have captured. The reference is still valid here - stop() does not
-        // invalidate it, only the `replicationManager` field assignment above does - so this
-        // reads the predecessor's definitive final position instead of a possibly-stale one.
+        // carryOverSequenceFor()/carryOverSourceFor() are called AFTER stop() returns, not before
+        // (2026-08-14 review hardening - TOCTOU): stop() flushes the batch processor's last
+        // drained batch before returning, which can still advance lastAppliedSequence past
+        // whatever a pre-stop snapshot would have captured. The reference is still valid here -
+        // stop() does not invalidate it, only the `replicationManager` field assignment above
+        // does - so this reads the predecessor's definitive final position instead of a
+        // possibly-stale one.
         long carriedLastAppliedSequence = carryOverSequenceFor(oldReplicationManager);
+        // Paired with the sequence above (2026-08-14 production-CI fix, I-2) - see
+        // ReplicationManager#carryOverLastAppliedSequence(long, String)'s javadoc: the sequence
+        // alone is meaningless without knowing WHICH primary it was earned against, since a
+        // leader change is the normal case that makes two RMs' sequence spaces incomparable.
+        String carriedSource = carryOverSourceFor(oldReplicationManager);
 
         // Persist for a possible failed-start retry of THIS attempt (see lastKnownAppliedSequence's
         // javadoc): must happen regardless of whether newReplicationManager.start() below ever
-        // succeeds - if it throws, replicationManager stays null and only this field (not the
-        // oldReplicationManager local, which dies with this method invocation) survives into the
-        // next startReplicationToLeader() call the retry chain makes.
+        // succeeds - if it throws, replicationManager stays null and only these two fields (not
+        // the oldReplicationManager local, which dies with this method invocation) survive into
+        // the next startReplicationToLeader() call the retry chain makes. Always updated together.
         lastKnownAppliedSequence = carriedLastAppliedSequence;
+        lastKnownAppliedSequenceSource = carriedSource;
 
         String leaderHost = parts[0];
         int leaderPort = Integer.parseInt(parts[1]);
 
         // Start replication from new leader
         ReplicationManager newReplicationManager = new ReplicationManager(driver, leaderHost, leaderPort);
-        newReplicationManager.carryOverLastAppliedSequence(carriedLastAppliedSequence);
+        newReplicationManager.carryOverLastAppliedSequence(carriedLastAppliedSequence, carriedSource);
         newReplicationManager.setInternalConnectionSecurity(
                 authRequired, rootUser, rootPassword, sslEnabled ? internalSslContext : null);
         newReplicationManager.setMyAddress(host + ":" + port);
@@ -1703,6 +1719,20 @@ public class PoppyDB {
         return predecessor != null ? predecessor.getLastAppliedSequence() : lastKnownAppliedSequence;
     }
 
+    /**
+     * Companion to {@link #carryOverSequenceFor(ReplicationManager)} (2026-08-14 production-CI
+     * fix, I-2): the {@code "host:port"} the sequence returned by that method was actually earned
+     * against - a live predecessor's own {@link ReplicationManager#getLeaderAddress()}, or the
+     * durable {@link #lastKnownAppliedSequenceSource} watermark on a failed-start retry, mirroring
+     * {@code carryOverSequenceFor}'s own fallback exactly (same {@code predecessor} parameter,
+     * same null-means-fallback shape) so the two are always read as a matched pair. Passed
+     * together into {@link ReplicationManager#carryOverLastAppliedSequence(long, String)}, whose
+     * javadoc explains why the sequence is meaningless without this.
+     */
+    String carryOverSourceFor(ReplicationManager predecessor) {
+        return predecessor != null ? predecessor.getLeaderAddress() : lastKnownAppliedSequenceSource;
+    }
+
     /** Test hook: read the durable carry-over watermark (see {@link #lastKnownAppliedSequence}'s javadoc). */
     long getLastKnownAppliedSequenceForTest() {
         return lastKnownAppliedSequence;
@@ -1711,6 +1741,16 @@ public class PoppyDB {
     /** Test hook: seed the durable carry-over watermark without going through a real replication attempt. */
     void setLastKnownAppliedSequenceForTest(long sequence) {
         lastKnownAppliedSequence = sequence;
+    }
+
+    /** Test hook: read the durable carry-over source watermark (see its field javadoc). */
+    String getLastKnownAppliedSequenceSourceForTest() {
+        return lastKnownAppliedSequenceSource;
+    }
+
+    /** Test hook: seed the durable carry-over source watermark without a real replication attempt. */
+    void setLastKnownAppliedSequenceSourceForTest(String source) {
+        lastKnownAppliedSequenceSource = source;
     }
 
     public ElectionManager getElectionManager() {
