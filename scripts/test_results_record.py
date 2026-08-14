@@ -133,8 +133,20 @@ def selftest():
     print("selftest OK")
 
 
+class ArgumentParser(argparse.ArgumentParser):
+    """argparse exits 2 on usage errors by default, which collides with this
+    script's documented "exit 2 = nothing to publish" contract (see
+    parse_logdir/build above). Usage errors (missing/malformed args) are a
+    hard error in the caller, not a benign skip, so they must exit 1
+    instead - only the intentional sys.exit(2) sites above mean "skip"."""
+
+    def error(self, message):
+        self.print_usage(sys.stderr)
+        self.exit(1, "%s: error: %s\n" % (self.prog, message))
+
+
 def main():
-    ap = argparse.ArgumentParser()
+    ap = ArgumentParser()
     ap.add_argument("--selftest", action="store_true")
     ap.add_argument("--logdir")
     ap.add_argument("--phase")

@@ -194,12 +194,34 @@ function publish_test_results() {
 	[ -n "$SCOPE_TAGS" ] && publish_args+=(--tags "$SCOPE_TAGS")
 	[ -n "$SCOPE_PATTERN" ] && publish_args+=(--test-pattern "$SCOPE_PATTERN")
 
+	# Resolve commit/branch. In a phase-orchestrator run this script itself lives
+	# in a symlink farm workdir (mirrors the repo but has no .git), so a plain
+	# "git rev-parse HEAD" here comes back empty - not a git error, since bash 3.2's
+	# `git` still finds *some* enclosing .git via cwd in the general case, but the
+	# workdir has none at all. Fall back to resolving the runtests.sh symlink's
+	# real path (python3 is already a hard dependency of this function, so no
+	# readlink -f needed) and asking the checkout it actually points into.
+	local commit branch script_repo
+	commit=$(git rev-parse HEAD 2>/dev/null || true)
+	if [ -z "$commit" ]; then
+		script_repo=$(python3 -c "import os,sys; print(os.path.dirname(os.path.realpath(sys.argv[1])))" "$0")
+		commit=$(git -C "$script_repo" rev-parse HEAD 2>/dev/null || true)
+		branch=$(git -C "$script_repo" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+	else
+		branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+	fi
+	if [ -z "$commit" ]; then
+		echo -e "${YL}Info:${CL} could not resolve a git commit (not a git checkout, even via symlink target) - skipping results publish"
+		return 0
+	fi
+	[ -z "$branch" ] && branch="unknown"
+
 	local record_json
 	record_json=$(python3 "$(dirname "$0")/scripts/test_results_record.py" \
 		--logdir "$LOGDIR" --phase "$phase" \
 		--runner "${RUNNER_LABEL:-$(hostname -s)}" \
-		--commit "$(git rev-parse HEAD)" \
-		--branch "$(git rev-parse --abbrev-ref HEAD)" \
+		--commit "$commit" \
+		--branch "$branch" \
 		--duration-s "$(($(date +%s) - TESTS_STARTED_AT))" \
 		"${publish_args[@]}")
 	local record_rc=$?
