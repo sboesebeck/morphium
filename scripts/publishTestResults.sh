@@ -4,6 +4,15 @@
 # pushers only ever need a fetch+retry. bash 3.2 compatible.
 set -eo pipefail
 
+# Resolve the real repo root from this script's own location rather than the
+# caller's CWD. Callers in CI phase workdirs (/tmp/morphium-phase-workdir-*)
+# invoke this script through a symlink sitting in a non-git symlink farm -
+# `dirname "$0"` alone stays inside that farm, so it has to be dereferenced
+# (python3 os.path.realpath; bash 3.2 has no readlink -f) back to where the
+# script file actually lives, i.e. inside the real checkout.
+REPO_DIR=$(python3 -c 'import os,sys; print(os.path.dirname(os.path.dirname(os.path.realpath(sys.argv[1]))))' "$0")
+git -C "$REPO_DIR" rev-parse --git-dir >/dev/null 2>&1 || { echo "error: cannot resolve real repo root from $0 (resolved: $REPO_DIR)" >&2; exit 1; }
+
 REMOTE=origin
 DRY_RUN=0
 BRANCH=test-results
@@ -38,7 +47,7 @@ case "$FILE" in *[!A-Za-z0-9._-]*|"") echo "error: unsafe filename: $FILE" >&2; 
 
 WORKDIR=$(mktemp -d "${TMPDIR:-/tmp}/morphium-testresults.XXXXXX")
 trap 'rm -rf "$WORKDIR"' EXIT
-REMOTE_URL=$(git remote get-url "$REMOTE")
+REMOTE_URL=$(git -C "$REPO_DIR" remote get-url "$REMOTE")
 
 if git ls-remote --exit-code --heads "$REMOTE_URL" "$BRANCH" >/dev/null 2>&1; then
   git clone -q --depth 1 --branch "$BRANCH" "$REMOTE_URL" "$WORKDIR/store"
