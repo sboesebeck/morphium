@@ -79,6 +79,7 @@ public class ConfigLoader {
         define("memory-warn", Type.INT, "--memory-warn");
         define("memory-reject", Type.INT, "--memory-reject");
         define("max-bson-size", Type.INT, "--max-bson-size");
+        define("replay-buffer", Type.STRING, "--replay-buffer");
         define("compressor", Type.COMPRESSOR, "--compressor");
         define("rs-name", Type.STRING, "--rs-name");
         define("rs-seed", Type.STRING, "--rs-seed");

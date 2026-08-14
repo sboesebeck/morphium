@@ -300,6 +300,12 @@ public class PoppyDBCLI {
                     idx += 2;
                     break;
 
+                case "--replay-buffer":
+                    opts.replayBuffer = value(effectiveArgs, idx);
+                    opts.sources.put("replay-buffer", src);
+                    idx += 2;
+                    break;
+
                 case "--log-level":
                     opts.logLevel = value(effectiveArgs, idx);
                     opts.sources.put("log-level", src);
@@ -484,6 +490,18 @@ public class PoppyDBCLI {
         srv.setMemoryWatermarks(opts.memoryWarnPct, opts.memoryRejectPct);
         srv.setMaxBsonObjectSize(opts.maxBsonSizeBytes);
 
+        long replayBufferBytes;
+
+        try {
+            replayBufferBytes = opts.replayBufferBytes();
+        } catch (IllegalArgumentException e) {
+            throw new ConfigException(e.getMessage(), e);
+        }
+
+        srv.setReplayBufferByteBudget(replayBufferBytes);
+        log.info("Replay buffer byte budget: {} ({} bytes{})", opts.replayBuffer, replayBufferBytes,
+            replayBufferBytes == 0 ? ", byte cap off" : "");
+
         // Configure replica set - election is always enabled for multi-node replica sets
         boolean enableElection = !opts.rsName.isEmpty() && hosts.size() > 1;
         if (enableElection) {
@@ -593,6 +611,9 @@ public class PoppyDBCLI {
         System.out.println("  -b, --bind <host>          : Host to bind to (default: localhost)");
         System.out.println("  --log-level <level>        : Log verbosity: ERROR, WARN, INFO, DEBUG, TRACE (default: INFO)");
         System.out.println("  --memory-warn <percent>    : Log a warning when heap occupancy crosses this percentage (default: 75, 100 = off)");
+        System.out.println("  --replay-buffer <size>     : Byte budget for the change-stream replay buffer backing replication resume.");
+        System.out.println("                               Fixed size with k/m/g suffix (e.g. 512m, 1g) or percent of max heap (e.g. 5%),");
+        System.out.println("                               0 = byte cap off (default: 256m; the 100000-event count limit always applies)");
         System.out.println("  --memory-reject <percent>  : Reject document-creating writes (code 146 ExceededMemoryLimit) above this");
         System.out.println("                               heap percentage; updates/deletes/TTL keep working (default: 90, 100 = off)");
         System.out.println("  --max-bson-size <bytes>    : BSON document size limit, enforced like mongod (code 10334 BSONObjectTooLarge,");

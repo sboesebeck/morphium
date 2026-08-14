@@ -194,12 +194,30 @@ public class PoppyDB {
         driver.setServerMode(true);
         // Size the change-event replay buffer for replication resume-after-disconnect: a reconnecting
         // secondary replays events after its last-applied sequence from this buffer instead of doing a
-        // full re-sync. Bound: 100_000 events (ring buffer, oldest evicted on overflow).
+        // full re-sync. Bounds: 100_000 events AND a byte budget (ring buffer, oldest evicted on
+        // overflow of either). The count limit alone does not bound memory - every buffered event
+        // retains its full document, so 100k bulk-write events pinned ~4GB on the ACC message bus
+        // (incident 2026-08-14, spec 2026-08-14-replay-buffer-byte-budget.md). Trade-off: heavy bulk
+        // writes shrink the resume window in wall-clock time, making a secondary re-sync more likely -
+        // deliberate (availability over resumability).
         driver.setChangeStreamHistoryLimit(REPLICATION_REPLAY_BUFFER_EVENTS);
+        driver.setChangeStreamHistoryByteBudget(REPLICATION_REPLAY_BUFFER_BYTES);
     }
 
     /** Primary replay-buffer bound (events) backing replication resume-after-disconnect. */
     static final int REPLICATION_REPLAY_BUFFER_EVENTS = 100_000;
+
+    /** Default replay-buffer byte budget (estimated bytes) - overridable via --replay-buffer. */
+    static final long REPLICATION_REPLAY_BUFFER_BYTES = 256L * 1024 * 1024;
+
+    /**
+     * Replay-buffer byte budget (estimated bytes, 0 = off) - see
+     * InMemoryDriver.setChangeStreamHistoryByteBudget. Evicting for bytes has the same
+     * window-lost semantics as count overflow: an affected secondary re-syncs.
+     */
+    public void setReplayBufferByteBudget(long bytes) {
+        driver.setChangeStreamHistoryByteBudget(bytes);
+    }
 
     /**
      * Warn/reject memory watermarks in percent of max heap (100 disables a stage) - see

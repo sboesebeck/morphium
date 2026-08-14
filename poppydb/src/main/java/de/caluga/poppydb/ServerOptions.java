@@ -38,6 +38,11 @@ class ServerOptions {
     long dumpIntervalSec = 0;
     int maxConnections = 500;
     int socketTimeoutSec = 300;
+    // Replay-buffer byte budget, raw input form (spec: 2026-08-14-replay-buffer-byte-budget.md).
+    // Suffix k/m/g = fixed bytes, suffix % = percent of max heap (resolved once at startup),
+    // plain number = bytes, 0 = byte cap off. Kept as the raw string so --print-config can show
+    // both the input form and the resolved value.
+    String replayBuffer = "256m";
 
     /** canonical config key (see ConfigLoader) -> origin of the effective value. */
     final Map<String, Source> sources = new LinkedHashMap<>();
@@ -104,5 +109,65 @@ class ServerOptions {
             prios.put(hosts.get(i), prio);
         }
         return prios;
+    }
+
+    /**
+     * replay-buffer resolved to bytes against the current JVM's max heap. Throws
+     * IllegalArgumentException with a user-readable message on invalid input - surfaced by
+     * ConfigInspector.validate() and by buildServer(), same contract as {@link #seedPriorities()}.
+     */
+    long replayBufferBytes() {
+        return parseReplayBufferBytes(replayBuffer, Runtime.getRuntime().maxMemory());
+    }
+
+    /**
+     * Parses a replay-buffer value: {@code 512m}/{@code 1g}/{@code 64k} = fixed bytes, {@code 5%}
+     * = percent of {@code maxHeap} (resolved here, the max heap is fixed for the JVM's lifetime),
+     * a plain number = bytes, {@code 0} = byte cap off. {@code maxHeap} is a parameter so tests
+     * can resolve percentages deterministically.
+     */
+    static long parseReplayBufferBytes(String input, long maxHeap) {
+        String v = input == null ? "" : input.trim().toLowerCase(java.util.Locale.ROOT);
+
+        if (v.isEmpty()) {
+            throw new IllegalArgumentException("replay-buffer must not be empty - use e.g. 256m, 5% or 0 (off)");
+        }
+
+        try {
+            if (v.endsWith("%")) {
+                double pct = Double.parseDouble(v.substring(0, v.length() - 1).trim());
+
+                if (pct < 0 || pct > 100) {
+                    throw new IllegalArgumentException("replay-buffer percentage must be between 0 and 100, got: " + input);
+                }
+
+                return (long) (maxHeap * pct / 100.0);
+            }
+
+            long factor = 1;
+            String num = v;
+
+            if (v.endsWith("k")) {
+                factor = 1024;
+                num = v.substring(0, v.length() - 1);
+            } else if (v.endsWith("m")) {
+                factor = 1024 * 1024;
+                num = v.substring(0, v.length() - 1);
+            } else if (v.endsWith("g")) {
+                factor = 1024L * 1024 * 1024;
+                num = v.substring(0, v.length() - 1);
+            }
+
+            long bytes = Long.parseLong(num.trim()) * factor;
+
+            if (bytes < 0) {
+                throw new IllegalArgumentException("replay-buffer must be >= 0 (0 = off), got: " + input);
+            }
+
+            return bytes;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("replay-buffer '" + input
+                + "' is not a valid size - use a byte count with optional k/m/g suffix (e.g. 256m) or a percentage of the max heap (e.g. 5%)");
+        }
     }
 }

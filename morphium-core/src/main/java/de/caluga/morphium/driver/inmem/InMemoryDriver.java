@@ -508,6 +508,24 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     // primary all buffer mutations come from a single writer thread, and any drift is transient and
     // self-correcting — it only loosens the eviction bound slightly and never corrupts the deque.
     private final AtomicInteger changeStreamHistorySize = new AtomicInteger();
+    // Byte budget for the replay buffer (spec: 2026-08-14-replay-buffer-byte-budget.md). The
+    // count limit alone does not bound memory: every buffered event retains its full document,
+    // so bulk writes of large documents can pin GBs (ACC incident 2026-08-14: 100k events held
+    // ~4GB live while the visible collections stayed under 1MB). Once the estimated buffered
+    // bytes exceed the budget, oldest events are evicted - identical window-lost semantics as
+    // count overflow, a disconnected consumer simply has to re-sync. 0 = no byte bound (core
+    // default, unchanged behaviour; PoppyDB opts in - planned to become the default in 7.0).
+    private volatile long changeStreamHistoryByteBudget = 0;
+    // Estimated bytes currently buffered; same best-effort consistency contract as
+    // changeStreamHistorySize above (single writer on the PoppyDB primary, transient drift
+    // only loosens the bound). Every deque mutation site maintains it via the event's
+    // estimatedBytes field.
+    private final AtomicLong changeStreamHistoryBytes = new AtomicLong();
+    // Monotonic count of events evicted because of the byte budget (not the count limit) -
+    // diagnostic only, exposed in serverStatus like mongod's oplogTruncation counters.
+    private final AtomicLong changeStreamHistoryEvictedForBudget = new AtomicLong();
+    // Rate limit for the budget-eviction WARN log (at most one per minute).
+    private volatile long lastBudgetEvictWarnAt = 0;
     // Track the sequence number at the time of the last drop per namespace (db.collection or db).
     // replayHistory skips events older than this to prevent stale events from being replayed.
     private final ConcurrentHashMap<String, Long> lastDropSequence = new ConcurrentHashMap<>();
@@ -919,6 +937,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         changeStreamSubscribers.clear();
         changeStreamHistory.clear();
         changeStreamHistorySize.set(0);
+        changeStreamHistoryBytes.set(0);
+        changeStreamHistoryEvictedForBudget.set(0);
         changeStreamSequence.set(0);
         lastDropSequence.clear();
         lastGlobalDropSequence.set(0);
@@ -2536,6 +2556,28 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                         "heapUsedAfterGcPercent", Math.round(heapUsedAfterGcPercent() * 10) / 10.0,
                                         "warnPercent", memoryWarnPercent, "rejectPercent", memoryRejectPercent,
                                         "warnActive", memoryWarnActive.get()));
+        // Replay-buffer state. Primary operational metric is the retained resume window in
+        // seconds - the analogue of mongod's oplog "log length start to end"
+        // (rs.printReplicationInfo()): how much consumer/secondary downtime is still resumable
+        // without a re-sync. peekFirst/peekLast are O(1); under concurrent eviction the two
+        // reads are not atomic, which at worst skews a diagnostic value transiently.
+        ChangeStreamEventInfo histFirst = changeStreamHistory.peekFirst();
+        ChangeStreamEventInfo histLast = changeStreamHistory.peekLast();
+        Doc replayBuffer = Doc.of("events", changeStreamHistorySize.get(),
+                                  "bytes", changeStreamHistoryBytes.get(),
+                                  "budgetBytes", changeStreamHistoryByteBudget,
+                                  "limitEvents", changeStreamHistoryLimit,
+                                  "evictedForBudget", changeStreamHistoryEvictedForBudget.get());
+
+        if (histFirst != null && histLast != null) {
+            replayBuffer.put("firstEventTime", new Date(histFirst.createdAt));
+            replayBuffer.put("lastEventTime", new Date(histLast.createdAt));
+            replayBuffer.put("windowSeconds", Math.max(0, (histLast.createdAt - histFirst.createdAt) / 1000));
+        } else {
+            replayBuffer.put("windowSeconds", 0L);
+        }
+
+        m.put("changeStreamReplayBuffer", replayBuffer);
         addResult(ret, m);
         return ret;
     }
@@ -9091,12 +9133,40 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         changeStreamHistory.addLast(eventInfo);
         changeStreamHistorySize.incrementAndGet();
+        changeStreamHistoryBytes.addAndGet(eventInfo.estimatedBytes);
 
-        while (changeStreamHistorySize.get() > changeStreamHistoryLimit) {
-            if (changeStreamHistory.pollFirst() != null) {
-                changeStreamHistorySize.decrementAndGet();
-            } else {
+        long budget = changeStreamHistoryByteBudget;
+
+        // Evict oldest while either bound is exceeded. The just-appended (= newest) event is
+        // never evicted (size > 1 guard on the byte branch), so an event larger than the whole
+        // budget stays buffered as the only entry instead of looping forever.
+        while (true) {
+            boolean overCount = changeStreamHistorySize.get() > changeStreamHistoryLimit;
+            boolean overBytes = budget > 0 && changeStreamHistoryBytes.get() > budget
+                && changeStreamHistorySize.get() > 1;
+
+            if (!overCount && !overBytes) {
+                break;
+            }
+
+            ChangeStreamEventInfo evicted = changeStreamHistory.pollFirst();
+
+            if (evicted == null) {
                 break; // deque already empty
+            }
+
+            changeStreamHistorySize.decrementAndGet();
+            changeStreamHistoryBytes.addAndGet(-evicted.estimatedBytes);
+
+            if (!overCount) {
+                changeStreamHistoryEvictedForBudget.incrementAndGet();
+                long now = System.currentTimeMillis();
+
+                if (now - lastBudgetEvictWarnAt > 60_000) {
+                    lastBudgetEvictWarnAt = now;
+                    log.warn("Replay buffer byte budget ({} bytes) exceeded - evicting oldest change "
+                        + "events; the resume window is shrinking (bulk writes of large documents?)", budget);
+                }
             }
         }
 
@@ -9310,12 +9380,56 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
         this.changeStreamHistoryLimit = limit;
         while (changeStreamHistorySize.get() > limit) {
-            if (changeStreamHistory.pollFirst() != null) {
+            ChangeStreamEventInfo evicted = changeStreamHistory.pollFirst();
+            if (evicted != null) {
                 changeStreamHistorySize.decrementAndGet();
+                changeStreamHistoryBytes.addAndGet(-evicted.estimatedBytes);
             } else {
                 break; // deque already empty
             }
         }
+    }
+
+    /**
+     * Set the replay-buffer byte budget (estimated bytes, see {@link #estimateBsonSize}). 0
+     * disables the byte bound (default - only the count limit applies). Shrinking the budget
+     * immediately trims the oldest buffered events down to the new bound; the newest event is
+     * always retained. Eviction semantics are identical to count overflow: a consumer whose
+     * resume token falls into the evicted range gets window-lost and must re-sync.
+     */
+    public void setChangeStreamHistoryByteBudget(long bytes) {
+        if (bytes < 0) {
+            throw new IllegalArgumentException("changeStreamHistoryByteBudget must be >= 0 (0 = disabled)");
+        }
+
+        this.changeStreamHistoryByteBudget = bytes;
+
+        while (bytes > 0 && changeStreamHistoryBytes.get() > bytes && changeStreamHistorySize.get() > 1) {
+            ChangeStreamEventInfo evicted = changeStreamHistory.pollFirst();
+
+            if (evicted == null) {
+                break; // deque already empty
+            }
+
+            changeStreamHistorySize.decrementAndGet();
+            changeStreamHistoryBytes.addAndGet(-evicted.estimatedBytes);
+            changeStreamHistoryEvictedForBudget.incrementAndGet();
+        }
+    }
+
+    /** Current replay-buffer byte budget; 0 = byte bound disabled. */
+    public long getChangeStreamHistoryByteBudget() {
+        return changeStreamHistoryByteBudget;
+    }
+
+    /** Estimated bytes currently held by the replay buffer (diagnostic). */
+    public long getChangeStreamHistoryBytes() {
+        return changeStreamHistoryBytes.get();
+    }
+
+    /** Number of events currently held by the replay buffer (diagnostic). */
+    public int getChangeStreamHistorySize() {
+        return changeStreamHistorySize.get();
     }
 
     /**
@@ -9640,6 +9754,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         private final String collection;
         private final Map<String, Object> event;
         private final long createdAt;
+        // Estimated BSON-ish size of the full event map (including fullDocument), measured
+        // exactly once at construction - the byte-budget bookkeeping adds/subtracts this at
+        // every deque mutation site, so no separate size cache is needed.
+        private final long estimatedBytes;
 
         private ChangeStreamEventInfo(long token, String db, String collection, Map<String, Object> event,
                                       long createdAt) {
@@ -9648,7 +9766,43 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             this.collection = collection;
             this.event = event;
             this.createdAt = createdAt;
+            this.estimatedBytes = estimateBsonSize(event);
         }
+    }
+
+    /**
+     * Cheap, allocation-free estimate of a value's BSON size, used to enforce the replay-buffer
+     * byte budget on the write hot path. Deliberately NOT exact: strings are estimated at 1.5
+     * bytes/char (between ASCII's 1 and the UTF-8 worst case), scalars at a flat 16 bytes. Stays
+     * within roughly a factor of 2 of {@code BsonEncoder.encodeDocument().length} for realistic
+     * documents - good enough for a budget bound without re-encoding the document (allocates) or
+     * JOL (shallow {@code sizeOf} is useless here, deep {@code GraphLayout} far too expensive).
+     */
+    public static long estimateBsonSize(Object v) {
+        if (v == null) {
+            return 4;
+        }
+        if (v instanceof String s) {
+            return (long) (s.length() * 1.5) + 8;
+        }
+        if (v instanceof byte[] b) {
+            return b.length + 16L;
+        }
+        if (v instanceof Map<?, ?> m) {
+            long sum = 8;
+            for (Map.Entry<?, ?> e : m.entrySet()) {
+                sum += (e.getKey() instanceof String k ? k.length() + 2 : 8) + estimateBsonSize(e.getValue());
+            }
+            return sum;
+        }
+        if (v instanceof Collection<?> c) {
+            long sum = 8;
+            for (Object o : c) {
+                sum += 4 + estimateBsonSize(o);
+            }
+            return sum;
+        }
+        return 16; // numbers, booleans, dates, ObjectIds, other scalars
     }
 
     private class ChangeStreamSubscription {
@@ -10136,6 +10290,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         changeStreamHistory.removeIf(e -> {
             if (db.equals(e.db) && collection.equals(e.collection)) {
                 changeStreamHistorySize.decrementAndGet();
+                changeStreamHistoryBytes.addAndGet(-e.estimatedBytes);
                 return true;
             }
             return false;
@@ -10152,6 +10307,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         changeStreamHistory.removeIf(e -> {
             if (db.equals(e.db) && collection.equals(e.collection)) {
                 changeStreamHistorySize.decrementAndGet();
+                changeStreamHistoryBytes.addAndGet(-e.estimatedBytes);
                 return true;
             }
             return false;
@@ -10187,6 +10343,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         changeStreamHistory.removeIf(e -> {
             if (db.equals(e.db)) {
                 changeStreamHistorySize.decrementAndGet();
+                changeStreamHistoryBytes.addAndGet(-e.estimatedBytes);
                 return true;
             }
             return false;
