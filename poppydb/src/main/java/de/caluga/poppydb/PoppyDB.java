@@ -879,6 +879,19 @@ public class PoppyDB {
             return;
         }
 
+        // Captured BEFORE stop()/nulling below, and BEFORE constructing the replacement: a fresh
+        // ReplicationManager's own lastAppliedSequence starts at 0, and its first watch
+        // registration would otherwise unconditionally seed it from whatever the NEW leader
+        // reports (recordPrimarySequenceAtRegistration's compareAndSet(0, primarySeq)) - making
+        // the destructive-resync guard in startInitialSyncOnce() vacuously pass every time on
+        // this path (see ReplicationManager#carryOverLastAppliedSequence's javadoc for the full
+        // "why"). Carrying the predecessor's real position forward is what lets that guard also
+        // protect a leader change, not just a same-address reconnect - defense-in-depth alongside
+        // the election-layer empty-vs-data invariant (Tasks 1/2/4). 0 (no predecessor, or a
+        // predecessor that never synced) is the correct cold-boot default and a no-op below.
+        long carriedLastAppliedSequence =
+                replicationManager != null ? replicationManager.getLastAppliedSequence() : 0;
+
         if (replicationManager != null) {
             replicationManager.stop();
             replicationManager = null;
@@ -889,6 +902,7 @@ public class PoppyDB {
 
         // Start replication from new leader
         ReplicationManager newReplicationManager = new ReplicationManager(driver, leaderHost, leaderPort);
+        newReplicationManager.carryOverLastAppliedSequence(carriedLastAppliedSequence);
         newReplicationManager.setInternalConnectionSecurity(
                 authRequired, rootUser, rootPassword, sslEnabled ? internalSslContext : null);
         newReplicationManager.setMyAddress(host + ":" + port);

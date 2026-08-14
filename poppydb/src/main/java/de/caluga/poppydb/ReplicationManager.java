@@ -233,6 +233,15 @@ public class ReplicationManager {
     private final AtomicLong lastWatchResponseTime = new AtomicLong(0);
     private static final long STALENESS_THRESHOLD_MS = 30000; // 30 seconds without response = stale
 
+    // How long isContinued() sleeps before ending the watch while refusingDestructiveResync is
+    // true (2026-08-14 task-3 review fix). Paces the register/teardown cycle that refreshes
+    // lastKnownPrimarySequence - see the pacing comment at that isContinued() check for why this
+    // is load-bearing, not cosmetic. A fixed interval rather than mirroring the initial-sync
+    // thread's own growing 1s->30s backoff: that state lives on a different thread and this is a
+    // different loop (the watch's own getMore cadence, not the sync-decision retry cadence) -
+    // a fixed value in the same 1-5s ballpark is simpler and avoids coupling the two.
+    private static final long REFUSAL_WATCH_PACE_MS = 2000;
+
     // Callback to notify when log index is updated (for election consistency)
     private java.util.function.BiConsumer<Long, Long> onLogIndexUpdate;
 
@@ -1769,14 +1778,30 @@ public class ReplicationManager {
                         // on the primary sequence observed at that one registration forever, never
                         // discovering that the primary has since caught up ("a later caught-up
                         // leader syncs normally" would then require some UNRELATED event, e.g. a
-                        // real disconnect, to ever re-check). Ending this getMore loop here (this
-                        // method is polled every getMore round-trip, whether or not events arrived)
-                        // lets the replication loop's own retry immediately re-establish the watch,
-                        // which re-registers and refreshes the primary-sequence signal the
-                        // destructive-resync guard reads on its next attempt.
+                        // real disconnect, to ever re-check). Ending the watch here lets the
+                        // replication loop's own retry re-establish it, which re-registers and
+                        // refreshes the primary-sequence signal the destructive-resync guard reads
+                        // on its next attempt.
+                        //
+                        // PACING (2026-08-14 task-3 review fix): this is NOT reached only after a
+                        // maxTimeMS getMore wait as the earlier version of this comment assumed -
+                        // isContinued() is also checked immediately after the very first reply that
+                        // establishes the watch cursor (SingleMongoConnection.watch()'s post-
+                        // establishment check, before any getMore is ever issued), and
+                        // replicationLoop() calls watchForChanges() again with no sleep of its own
+                        // once it returns. Without an explicit sleep here those two facts combine
+                        // into an unbounded register/teardown spin against a possibly-troubled
+                        // primary - measured at ~1400 registrations/s in review, not the "~500ms,
+                        // bounded, self-limiting" cadence this comment used to (wrongly) claim. The
+                        // sleep paces every refusal retry, not just conceptually the first.
                         if (refusingDestructiveResync.get()) {
                             log.debug("Watch cycling while refusing a destructive resync, to refresh the "
                                     + "primary-sequence signal");
+                            try {
+                                Thread.sleep(REFUSAL_WATCH_PACE_MS);
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                            }
                             return false;
                         }
                         return true;
@@ -2279,6 +2304,35 @@ public class ReplicationManager {
      */
     public long getLastAppliedSequence() {
         return lastAppliedSequence.get();
+    }
+
+    /**
+     * Seeds {@link #lastAppliedSequence} from a predecessor {@code ReplicationManager}'s value,
+     * carried across a leader-change instance replacement (2026-08-14 task-3 review fix, D2
+     * defense-in-depth). {@code PoppyDB#startReplicationToLeader} constructs a brand-new
+     * {@code ReplicationManager} on every leader change; a fresh instance's
+     * {@code lastAppliedSequence} starts at 0, and
+     * {@code recordPrimarySequenceAtRegistration()}'s own seed
+     * ({@code compareAndSet(0, primarySeq)}) then unconditionally adopts whatever the new
+     * leader reports - making {@code localSeqBeforeWipe == primarySeqAtRegistration} by
+     * construction and the destructive-resync guard in {@link #startInitialSyncOnce()} vacuously
+     * pass every time on this path (a primary can never be "behind" a local sequence it just
+     * supplied itself). Without carrying the predecessor's real position forward, this path was
+     * protected only by the election-layer empty-vs-data invariant (Tasks 1/2/4), not by this
+     * task's own guard.
+     *
+     * <p>Must be called before {@link #start()}, while {@code lastAppliedSequence} is still its
+     * untouched 0 default - enforced with the same {@code compareAndSet(0, ...)} idiom every
+     * other seed of this field uses (see {@link #recordPrimarySequenceAtRegistration}), so a
+     * second/late call, or one that races an already-started sync, is a safe no-op rather than a
+     * regression. A predecessor sequence of 0 (cold-boot / never-synced predecessor, or no
+     * predecessor at all) is intentionally a no-op - 0 is exactly the legitimate default for a
+     * genuinely fresh node with nothing to protect.
+     */
+    void carryOverLastAppliedSequence(long predecessorSequence) {
+        if (predecessorSequence > 0) {
+            lastAppliedSequence.compareAndSet(0, predecessorSequence);
+        }
     }
 
     /**
