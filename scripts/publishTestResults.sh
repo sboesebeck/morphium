@@ -52,13 +52,21 @@ else
        "scripts/publishTestResults.sh (see docs in the main branches). Do not edit." \
        > README.md \
     && git add README.md \
-    && git commit -q -m "chore: bootstrap test-results store")
+    && git -c user.name="${MORPHIUM_RESULTS_GIT_NAME:-morphium-test-results}" \
+            -c user.email="${MORPHIUM_RESULTS_GIT_EMAIL:-test-results@morphium.invalid}" \
+            commit -q -m "chore: bootstrap test-results store")
 fi
 
 cd "$WORKDIR/store"
 printf '%s\n' "$RECORD" > "$FILE"
 git add "$FILE"
-git commit -q -m "results: $FILE"
+# -c user.name/-c user.email give this commit an identity even on a fresh
+# machine with no git user.* configured (hit for real on the CI testrunner:
+# "fatal: empty ident name" silently dropped a publish) - env vars let a
+# runner customize it, the default is a neutral bot identity either way.
+git -c user.name="${MORPHIUM_RESULTS_GIT_NAME:-morphium-test-results}" \
+    -c user.email="${MORPHIUM_RESULTS_GIT_EMAIL:-test-results@morphium.invalid}" \
+    commit -q -m "results: $FILE"
 
 if [ "$DRY_RUN" -eq 1 ]; then
   echo "dry-run: would push $FILE to $REMOTE/$BRANCH"

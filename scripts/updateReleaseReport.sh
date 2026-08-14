@@ -107,7 +107,9 @@ else
            "scripts/publishTestResults.sh (see docs in the main branches). Do not edit." \
            > README.md \
         && git add README.md \
-        && git commit -q -m "chore: bootstrap test-results store")
+        && git -c user.name="${MORPHIUM_RESULTS_GIT_NAME:-morphium-test-results}" \
+                -c user.email="${MORPHIUM_RESULTS_GIT_EMAIL:-test-results@morphium.invalid}" \
+                commit -q -m "chore: bootstrap test-results store")
     fi
 
     (
@@ -128,7 +130,13 @@ else
         # written when a phase record carries coverage data), so claiming it
         # was published when it wasn't would be a lie in the log.
         PUBLISHED_FILES=$(git diff --cached --name-only -- badges/ | paste -sd+ -)
-        git commit -q -m "badges: update for $TAG"
+        # -c user.name/-c user.email give this commit an identity even on a
+        # fresh machine with no git user.* configured (hit for real on the CI
+        # testrunner: "fatal: empty ident name" silently dropped a publish) -
+        # env vars let a runner customize it, default is a neutral bot identity.
+        git -c user.name="${MORPHIUM_RESULTS_GIT_NAME:-morphium-test-results}" \
+            -c user.email="${MORPHIUM_RESULTS_GIT_EMAIL:-test-results@morphium.invalid}" \
+            commit -q -m "badges: update for $TAG"
 
         n=0
         while ! git push -q "$REMOTE" "HEAD:refs/heads/$BRANCH" 2>/dev/null; do
