@@ -126,7 +126,13 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   --help)
-    sed -n '4,48p' "$0" | sed 's/^# //' | sed 's/^#//'
+    # Print from line 4 through the header comment block's closing banner:
+    # the block runs as contiguous "#"-prefixed lines, terminated by the
+    # first truly blank line in the file (the one separating the header
+    # from "# Colors for output" below) - so this self-adjusts as the
+    # header comment grows/shrinks instead of rotting like a hardcoded
+    # end-line number (was '4,44p', silently undercounting after edits).
+    sed -n '4,/^$/p' "$0" | sed 's/^# //' | sed 's/^#//'
     exit 0
     ;;
   *)
