@@ -40,6 +40,13 @@ public class ElectionManager {
     private final AtomicLong lastLogIndex = new AtomicLong(0);
     private final AtomicLong lastLogTerm = new AtomicLong(0);
 
+    // Candidacy restraint (D3, empty-node-wipe fix): highest lastLogIndex this process has ever
+    // observed reported by ANY peer via AppendEntries/heartbeat traffic - the leader's own index
+    // (advertised as prevLogIndex while we are a follower) or a follower's matchIndex (while we
+    // are the leader). Used solely to hold back becomeCandidate() while we are empty; see the
+    // guard there and its javadoc for the full rationale.
+    private final AtomicLong highestPeerLogIndexSeen = new AtomicLong(0);
+
     // Election bookkeeping
     private final Set<String> votesReceived = ConcurrentHashMap.newKeySet();
     private volatile long lastHeartbeatTime = 0;
@@ -258,6 +265,20 @@ public class ElectionManager {
         // Check if blocked from recent stepdown
         if (isElectionBlocked()) {
             log.debug("{} is blocked from election (recent stepdown), waiting...", myAddress);
+            resetElectionTimer();
+            return;
+        }
+
+        // Candidacy restraint (D3, empty-node-wipe fix): we are empty (nothing applied/produced
+        // this process lifetime) but have observed a peer that holds real data. Starting an
+        // election now can only lose - handleVoteRequest's isLogAtLeastAsUpToDate check denies
+        // us on every data-holding voter - while still inflating the term and forcing the
+        // legitimate leader into a pointless step-down. Hold back until either our own index
+        // catches up (sync completes - Task 1's seed makes this prompt) or - cold start, no
+        // data-bearing peer ever observed - there is nothing to defer to.
+        if (lastLogIndex.get() == 0 && highestPeerLogIndexSeen.get() > 0) {
+            log.debug("{} holding back candidacy: empty (index=0) but a peer has reported index {} - waiting for sync",
+                    myAddress, highestPeerLogIndexSeen.get());
             resetElectionTimer();
             return;
         }
@@ -702,6 +723,11 @@ public class ElectionManager {
             lastHeartbeatTime = System.currentTimeMillis();
             currentLeader = request.getLeaderId();
 
+            // Candidacy restraint (D3): the leader's own index, advertised as prevLogIndex on
+            // every heartbeat (see sendHeartbeats), tells us whether the cluster has real data
+            // even while our own lastLogIndex is still 0.
+            recordPeerLogIndex(request.getPrevLogIndex());
+
             // If we were a candidate, step down
             if (state == ElectionState.CANDIDATE) {
                 log.info("{} stepping down from candidate (received heartbeat from leader {})",
@@ -765,6 +791,10 @@ public class ElectionManager {
                 // Extend our lease since we got a response
                 leaseExpiryTime = System.currentTimeMillis() + config.getLeaderLeaseTimeoutMs();
                 peerLastContact.put(peer, System.currentTimeMillis());
+
+                // Candidacy restraint (D3): a follower's matchIndex tells us it holds real data,
+                // relevant if we ever step down and end up empty ourselves (e.g. after a resync).
+                recordPeerLogIndex(response.getMatchIndex());
 
                 // Nodes older than priority takeover omit the field and report -1
                 if (response.getPriority() >= 0) {
@@ -1010,6 +1040,19 @@ public class ElectionManager {
 
     public boolean isRunning() {
         return running;
+    }
+
+    /**
+     * Records the highest lastLogIndex we have observed reported by ANY peer via
+     * AppendEntries/heartbeat traffic (see {@link #highestPeerLogIndexSeen}). Monotonic (max),
+     * same rationale as {@link #updateLogIndex}: this is used purely as a "have we ever seen a
+     * data-bearing peer" signal for the candidacy-restraint guard in {@link #becomeCandidate()},
+     * so a peer's index momentarily appearing lower (e.g. it just restarted itself) must not
+     * make this node newly eligible to race for an election it would still lose against that
+     * same peer once it resyncs.
+     */
+    private void recordPeerLogIndex(long peerIndex) {
+        highestPeerLogIndexSeen.updateAndGet(current -> Math.max(current, peerIndex));
     }
 
     /**
