@@ -2332,6 +2332,18 @@ public class ReplicationManager {
     }
 
     /**
+     * This instance's own replication target, in {@code "host:port"} form - the identity a
+     * carried sequence must match to be comparable (see the two-arg
+     * {@link #carryOverLastAppliedSequence(long, String)} overload). {@code primaryHost}/
+     * {@code primaryPort} are final, set once at construction and never updated for the life of
+     * this instance (see the field javadocs) - a leader change always replaces the whole
+     * {@code ReplicationManager}, it never repoints an existing one.
+     */
+    String getLeaderAddress() {
+        return primaryHost + ":" + primaryPort;
+    }
+
+    /**
      * Seeds {@link #lastAppliedSequence} from a predecessor {@code ReplicationManager}'s value,
      * carried across a leader-change instance replacement (2026-08-14 task-3 review fix, D2
      * defense-in-depth). {@code PoppyDB#startReplicationToLeader} constructs a brand-new
@@ -2346,6 +2358,15 @@ public class ReplicationManager {
      * protected only by the election-layer empty-vs-data invariant (Tasks 1/2/4), not by this
      * task's own guard.
      *
+     * <p><b>Superseded by the two-arg overload below for production use</b> (2026-08-14
+     * production-CI fix, I-2): calling this single-arg form unconditionally is only correct when
+     * the caller has already established that the carried sequence was earned against THIS SAME
+     * primary - see that overload's javadoc for why blindly carrying a value across a genuine
+     * leader change caused a real incident (82 refusal loops on poppydb.fritz.box). Kept
+     * package-private (not deleted) because it is still exactly right for that one case - the
+     * two-arg overload delegates to it - and because tests exercise it directly to seed a
+     * {@code ReplicationManager} without a live connection.
+     *
      * <p>Must be called before {@link #start()}, while {@code lastAppliedSequence} is still its
      * untouched 0 default - enforced with the same {@code compareAndSet(0, ...)} idiom every
      * other seed of this field uses (see {@link #recordPrimarySequenceAtRegistration}), so a
@@ -2358,6 +2379,56 @@ public class ReplicationManager {
         if (predecessorSequence > 0) {
             lastAppliedSequence.compareAndSet(0, predecessorSequence);
         }
+    }
+
+    /**
+     * Primary-identity-aware carry-over (2026-08-14 production-CI fix, I-2): the single-arg
+     * overload above blindly arms the destructive-resync guard with the predecessor's carried
+     * sequence, which is only sound when that sequence was earned against THIS SAME primary.
+     * Change-stream sequences are PRIMARY-LOCAL (see {@code tryConsistencyShortcut}'s own
+     * javadoc), and a LEADER CHANGE - the very reason a carry-over happens at all - is the NORMAL
+     * case that makes two RMs' sequence spaces incomparable, not a rare edge case. Production
+     * evidence (poppydb.fritz.box CI, branch fix/poppydb-empty-node-wipe): after a real leader
+     * change under messaging load, a follower carried {@code lastAppliedSequence} 227951 from the
+     * old leader's space; the new leader's own (entirely unrelated) counter was 213896. Every
+     * reconnect logged "refusing full re-sync: primary sequence 213896 is behind local 227951"
+     * every 1-2s for 40+ minutes - the node stuck RECOVERING, three messaging test classes timed
+     * out. The commit that made a successful sync ADOPT the synced primary's base
+     * ({@code lastAppliedSequence.set(lastKnownPrimarySequence.get())}, see the reseed comment in
+     * {@link #startInitialSyncOnce()}) could not help: adoption only runs AFTER a successful sync,
+     * and the guard - armed with the foreign 227951 - was exactly what blocked that sync from ever
+     * succeeding. Hen-and-egg.
+     *
+     * <p>{@code predecessorSourceAddress} is the {@code "host:port"} the carried sequence was
+     * actually earned against (see {@link #getLeaderAddress()}), or {@code null} if there was no
+     * live predecessor at all. Two cases:
+     * <ul>
+     *   <li><b>Matches this instance's own {@link #getLeaderAddress()}</b> - the true kill chain:
+     *       the SAME node (address-wise) restarted empty/stale, or - the other route into this
+     *       state - the intra-RM {@code triggerResync()} retry path, where the primary literally
+     *       cannot have changed (one {@code ReplicationManager}'s {@code primaryHost}/
+     *       {@code primaryPort} are final). Arm the guard exactly as before, via
+     *       {@link #carryOverLastAppliedSequence(long)}.</li>
+     *   <li><b>Any other address, including {@code null}</b> - a genuinely different primary (or
+     *       no predecessor at all). The carried sequence must NOT arm the guard - it lives in an
+     *       unrelated number space. Deliberately a no-op here: {@code lastAppliedSequence} is left
+     *       at its 0 default, so {@code recordPrimarySequenceAtRegistration()}'s EXISTING
+     *       {@code compareAndSet(0, primarySeq)} seed (unconditionally live for every instance,
+     *       not something this method needs to duplicate) adopts THIS primary's own base the
+     *       moment it is first learned at watch registration - "let dbHash/the consistency
+     *       shortcut decide whether a resync is actually needed", exactly as a genuinely fresh
+     *       node would. This is a deliberate scope boundary, not a gap: a wrongly-elected empty
+     *       primary that has itself taken on enough fresh writes could still pass a subsequent
+     *       resync decision - the actual barrier against that is the election-layer invariant
+     *       (Tasks 1/2/4, "an empty node must never win against a data-bearing voter"), not this
+     *       guard.</li>
+     * </ul>
+     */
+    void carryOverLastAppliedSequence(long predecessorSequence, String predecessorSourceAddress) {
+        if (getLeaderAddress().equals(predecessorSourceAddress)) {
+            carryOverLastAppliedSequence(predecessorSequence);
+        }
+        // else: different primary (or no predecessor) - see javadoc; intentionally not armed.
     }
 
     /**
