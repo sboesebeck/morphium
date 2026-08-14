@@ -9,7 +9,8 @@ set -eo pipefail
 # 2. Runs tests (optional)
 # 3. Aligns POM versions if necessary; bumps README version snippets
 # 4. Reports on the test-results store (scripts/test_report.py) - never
-#    blocks the release - and commits regenerated badges/*.json
+#    blocks the release (badges live on the test-results store branch, kept
+#    current by scripts/updateReleaseReport.sh, not committed here)
 # 5. Prepares release (creates tag, bumps next SNAPSHOT via maven-release-plugin)
 # 6. Builds release artifacts for all modules
 # 7. Creates combined bundle (parent + all modules in MODULE_DIRS, see the
@@ -415,10 +416,12 @@ upload_bundle() {
 # Türsteher": it never aborts the release. Exit codes from test_report.py:
 # 0 = all required phases complete and green, 1 = gaps or broken tests (the
 # release notes will carry the honest table, including the gaps), 3 = infra
-# error (store unreachable) - in that case there is nothing to report, so
-# badges are left untouched. On a loadable result (exit 0 or 1), stages+
-# commits the regenerated badges/*.json (only if they actually changed) so
-# the release tag carries badges matching the latest known state.
+# error (store unreachable) - in that case there is nothing to report. The
+# markdown already carries the marker-wrapped section (test_report.py); it is
+# written to $RELEASE_TMP/test-report.md for publish_github_release_notes()
+# below. Badges are no longer produced/committed here - they live on the
+# test-results store branch and are kept current by
+# scripts/updateReleaseReport.sh, called after every runtests.sh publish.
 run_test_results_report() {
   log_step "Checking test-results store for HEAD"
 
@@ -426,8 +429,7 @@ run_test_results_report() {
   local report_status=0
   python3 scripts/test_report.py \
     --target-commit "$(git rev-parse HEAD)" \
-    --markdown-out "$report_file" \
-    --badges-dir badges || report_status=$?
+    --markdown-out "$report_file" || report_status=$?
 
   if [ "$report_status" -eq 3 ]; then
     log_warn "Test-results store unreachable - skipping test report"
@@ -436,16 +438,6 @@ run_test_results_report() {
     log_warn "Test matrix incomplete or broken - release continues, the release notes will say so"
   else
     log_success "Test matrix complete and green"
-  fi
-
-  if ! git add badges/tests.json badges/coverage.json 2>/dev/null; then
-    log_warn "git add badges/*.json failed - continuing without staging badges"
-  fi
-  if ! git diff --cached --quiet; then
-    git commit -m "chore(release): update test/coverage badges" -q
-    log_success "Test/coverage badges updated"
-  else
-    log_info "Badges unchanged - nothing to commit"
   fi
 }
 

@@ -18,7 +18,14 @@ contributor can supply results without homelab infrastructure. `release.sh` aggr
 records per (commit, phase) — newest run wins, only complete phase runs qualify, results
 from earlier commits stay valid when only docs/tests/tooling changed since — and posts the
 honest result table to the GitHub release notes, missing or broken phases included, plus
-optional JaCoCo coverage (from `-Pcoverage`); the README badges are refreshed to match.
+optional JaCoCo coverage (from `-Pcoverage`). The report is a *living* one: it is not frozen
+at release time. The markdown section is wrapped in `<!-- morphium-test-report:start/end -->`
+markers, and `scripts/updateReleaseReport.sh` — called best-effort after every
+`runtests.sh --publish-results` — resolves the latest (or a given `--tag`) release, replaces
+that marked section in its GitHub notes with a report for the *tag's* commit, and regenerates
+the `tests`/`coverage` badges into the `test-results` store branch, so both the release notes
+and the README badges (now served from `.../test-results/badges/*.json` instead of `master`)
+keep refreshing automatically as new results come in, without another release being cut.
 This is a report, not a gate: `release.sh` never aborts on an incomplete or red matrix, it
 just says so in the release notes ("Transparenz statt Türsteher"). The aggregator itself
 (`scripts/test_report.py`) still exits 0/1/3 for complete-and-green / gaps-or-broken /

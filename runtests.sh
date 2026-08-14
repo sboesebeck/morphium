@@ -217,8 +217,18 @@ function publish_test_results() {
 		publisher_args+=(--dry-run)
 	fi
 
+	local publish_rc=0
 	echo "$record_json" | "$(dirname "$0")/scripts/publishTestResults.sh" "${publisher_args[@]}" \
-		|| echo -e "${RD}publishing test results failed (tests unaffected)${CL}"
+		|| { echo -e "${RD}publishing test results failed (tests unaffected)${CL}"; publish_rc=1; }
+
+	# Living report: after a real (non-dry-run) successful publish, best-effort
+	# refresh the latest release's notes section + badges from the store.
+	# updateReleaseReport.sh has its own guards (missing/unauthenticated gh,
+	# no tag, store unreachable, ...) - "|| true" here just protects against
+	# it failing outright, it should never affect the test run's exit status.
+	if [ "$publish_rc" -eq 0 ] && [ "${MORPHIUM_PUBLISH_DRYRUN:-0}" != "1" ]; then
+		"$(dirname "$0")/scripts/updateReleaseReport.sh" || true
+	fi
 	return 0
 }
 
