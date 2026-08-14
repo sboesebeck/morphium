@@ -39,7 +39,11 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
     private static final Logger log = LoggerFactory.getLogger(MongoCommandHandler.class);
 
-    // Dedicated executor for command processing — offloads work from Netty I/O threads.
+    // Executor used ONLY for the asynchronous write-concern replication wait (see postWrite) -
+    // command processing itself, including the insert/find/update/delete fast paths, runs
+    // synchronously on the Netty event loop. A slow command therefore blocks every other
+    // connection on the same event loop; moving data commands onto a worker pool (with per-
+    // channel response ordering) is a known, deliberate open point, not an oversight.
     // Uses a fixed pool (not virtual threads) to bound memory: virtual threads caused OOM
     // because hundreds accumulated waiting on InMemoryDriver's per-collection write lock.
     // Pool size = 2x CPU cores provides enough parallelism without memory pressure.
