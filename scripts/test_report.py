@@ -212,7 +212,10 @@ def main():
     if args.markdown_out:
         with open(args.markdown_out, "w") as fh:
             fh.write(md)
-    if args.badges_dir:
+    # Only write badges when this run will exit 0 (gate passed, or explicitly
+    # overridden) -- otherwise a failed gate leaves badges/*.json modified in
+    # the working tree, and release.sh's next run trips its clean-tree check.
+    if args.badges_dir and (not gate_failed or args.accept_stale_run):
         write_badges(chosen, cov, args.badges_dir)
     if gate_failed:
         print("GATE FAILED: missing=%s broken=%d" % (missing, broken),
