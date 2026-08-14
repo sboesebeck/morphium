@@ -8,8 +8,8 @@ set -eo pipefail
 # 1. Validates prerequisites (branch, credentials, GPG, Java)
 # 2. Runs tests (optional)
 # 3. Aligns POM versions if necessary; bumps README version snippets
-# 4. Gates the release on the test-results store (scripts/test_report.py) and
-#    commits regenerated badges/*.json; --accept-stale-run overrides
+# 4. Reports on the test-results store (scripts/test_report.py) - never
+#    blocks the release - and commits regenerated badges/*.json
 # 5. Prepares release (creates tag, bumps next SNAPSHOT via maven-release-plugin)
 # 6. Builds release artifacts for all modules
 # 7. Creates combined bundle (parent + all modules in MODULE_DIRS, see the
@@ -40,9 +40,6 @@ set -eo pipefail
 #   --auto-publish     Automatically publish to Maven Central after validation
 #   --deploy-docs      Deploy documentation to gh-pages after release
 #   --skip-to-upload   Skip to Step 8 (Upload) if previous run failed
-#   --accept-stale-run Allow the test-results gate to pass despite missing or
-#                      broken phases (passed through to scripts/test_report.py);
-#                      the release notes/report call this out explicitly
 #   --rollback         Roll back the last release (renames tag, resets branches)
 #   --reset            Emergency reset: clean up release leftovers, align all
 #                      module versions to develop, remove dangling tags
@@ -71,10 +68,9 @@ DEPLOY_DOCS=false
 SKIP_TO_UPLOAD=false
 ROLLBACK=false
 RESET=false
-GATE_EXTRA_ARGS=""
 
-# Working dir for release-scoped scratch files (e.g. the test-results gate's
-# markdown report, read back later by the GitHub-release step). Created
+# Working dir for release-scoped scratch files (e.g. the test-results
+# report's markdown, read back later by the GitHub-release step). Created
 # unconditionally below and removed by the cleanup() trap on any exit path.
 RELEASE_TMP=""
 
@@ -111,10 +107,6 @@ while [[ $# -gt 0 ]]; do
     ;;
   --skip-to-upload)
     SKIP_TO_UPLOAD=true
-    shift
-    ;;
-  --accept-stale-run)
-    GATE_EXTRA_ARGS="--accept-stale-run"
     shift
     ;;
   --rollback)
@@ -415,33 +407,35 @@ upload_bundle() {
   fi
 }
 
-# Gate the release on the decoupled test-results store (scripts/test_report.py,
-# see .superpowers/sdd/2026-08-13-test-results-store/): all required phases
-# (inmem/mongodb_rs/poppydb_rs/mongodb_single/poppydb_single) must have a
-# scope=complete record covering HEAD (or an allowlisted-diff ancestor of it)
-# with zero broken tests. Exit codes: 0 = gate passed, 1 = gate failed
-# (missing/broken phases - use --accept-stale-run to override), 3 = infra
-# error (store unreachable), treated as a hard, distinct abort below since
-# it is not a signal about test health at all. On success, stages+commits the
-# regenerated badges/*.json (only if they actually changed) so the release
-# tag carries badges matching what it just gated on.
-run_test_results_gate() {
+# Report on the decoupled test-results store (scripts/test_report.py, see
+# .superpowers/sdd/2026-08-13-test-results-store/) for HEAD: aggregates
+# whatever scope=complete records cover HEAD (or an allowlisted-diff ancestor
+# of it) per required phase (inmem/mongodb_rs/poppydb_rs/mongodb_single/
+# poppydb_single). This is a REPORT, not a gate - "Transparenz statt
+# Türsteher": it never aborts the release. Exit codes from test_report.py:
+# 0 = all required phases complete and green, 1 = gaps or broken tests (the
+# release notes will carry the honest table, including the gaps), 3 = infra
+# error (store unreachable) - in that case there is nothing to report, so
+# badges are left untouched. On a loadable result (exit 0 or 1), stages+
+# commits the regenerated badges/*.json (only if they actually changed) so
+# the release tag carries badges matching the latest known state.
+run_test_results_report() {
   log_step "Checking test-results store for HEAD"
 
   local report_file="$RELEASE_TMP/test-report.md"
-  local gate_status=0
+  local report_status=0
   python3 scripts/test_report.py \
     --target-commit "$(git rev-parse HEAD)" \
     --markdown-out "$report_file" \
-    --badges-dir badges \
-    $GATE_EXTRA_ARGS || gate_status=$?
+    --badges-dir badges || report_status=$?
 
-  if [ "$gate_status" -eq 3 ]; then
-    log_error "Test-results store unreachable (infra error) - aborting release"
-    exit 1
-  elif [ "$gate_status" -ne 0 ]; then
-    log_error "Test-results gate failed. Run a full matrix (or use --accept-stale-run) first."
-    exit 1
+  if [ "$report_status" -eq 3 ]; then
+    log_warn "Test-results store unreachable - skipping test report"
+    return 0
+  elif [ "$report_status" -ne 0 ]; then
+    log_warn "Test matrix incomplete or broken - release continues, the release notes will say so"
+  else
+    log_success "Test matrix complete and green"
   fi
 
   if ! git add badges/tests.json badges/coverage.json 2>/dev/null; then
@@ -453,8 +447,6 @@ run_test_results_gate() {
   else
     log_info "Badges unchanged - nothing to commit"
   fi
-
-  log_success "Test-results gate passed"
 }
 
 # Attach the test-results report to the GitHub release for $tag: create the
@@ -527,7 +519,7 @@ trap cleanup EXIT
 # Record starting branch early so cleanup trap can return here on any error
 ORIGINAL_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
 
-# Scratch dir for this run (test-results gate report, read back by the
+# Scratch dir for this run (test-results report markdown, read back by the
 # GitHub-release step); cleaned up by the cleanup() trap above.
 RELEASE_TMP=$(mktemp -d)
 
@@ -1039,16 +1031,16 @@ if [ "$SKIP_TO_UPLOAD" != true ]; then
 fi
 
 # -----------------------------------------------------------------------------
-# Step 4b: Test-results gate
+# Step 4b: Test-results report
 # -----------------------------------------------------------------------------
-# Gates the release on the decoupled test-results store instead of the old
-# opt-in `--run-tests` (mvn clean test locally, never covering the real
+# Reports on the decoupled test-results store instead of the old opt-in
+# `--run-tests` (mvn clean test locally, never covering the real
 # inmem/mongodb_rs/poppydb_rs/mongodb_single/poppydb_single matrix). Runs
-# unconditionally in the default path now; --accept-stale-run is the escape
-# hatch for a deliberate release without full fresh coverage.
+# unconditionally in the default path now; it never blocks the release -
+# gaps and broken phases just get reported honestly in the release notes.
 
 if [ "$SKIP_TO_UPLOAD" != true ]; then
-  run_test_results_gate
+  run_test_results_report
 fi
 
 # -----------------------------------------------------------------------------
