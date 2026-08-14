@@ -523,13 +523,11 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 break;
 
             case "abortTransaction":
-                handleAbortTransaction(ctx);
-                answer = Doc.of("ok", 1.0);
+                answer = handleAbortTransaction(ctx);
                 break;
 
             case "commitTransaction":
-                handleCommitTransaction(ctx);
-                answer = Doc.of("ok", 1.0);
+                answer = handleCommitTransaction(ctx);
                 break;
 
             case "getMore":
@@ -1716,30 +1714,49 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         }
     }
 
-    private void handleAbortTransaction(ChannelHandlerContext ctx) {
+    // package-private: exercised by TransactionErrorPropagationTest
+    Map<String, Object> handleAbortTransaction(ChannelHandlerContext ctx) {
         MorphiumTransactionContext txCtx = ctx.channel().attr(TX_CONTEXT_KEY).getAndSet(null);
         if (txCtx != null) {
             log.debug("Aborting transaction");
-            driver.setTransactionContext(txCtx);
             try {
+                driver.setTransactionContext(txCtx);
                 driver.abortTransaction();
             } catch (Exception e) {
                 log.error("Error aborting transaction", e);
+                return txnErrorAnswer("abortTransaction", e);
             }
         }
+        return Doc.of("ok", 1.0);
     }
 
-    private void handleCommitTransaction(ChannelHandlerContext ctx) {
+    // package-private: exercised by TransactionErrorPropagationTest
+    Map<String, Object> handleCommitTransaction(ChannelHandlerContext ctx) {
         MorphiumTransactionContext txCtx = ctx.channel().attr(TX_CONTEXT_KEY).getAndSet(null);
         if (txCtx != null) {
             log.debug("Committing transaction");
-            driver.setTransactionContext(txCtx);
             try {
+                driver.setTransactionContext(txCtx);
                 driver.commitTransaction();
             } catch (Exception e) {
                 log.error("Error committing transaction", e);
+                return txnErrorAnswer("commitTransaction", e);
             }
         }
+        return Doc.of("ok", 1.0);
+    }
+
+    /**
+     * A commit/abort that threw was previously logged and acknowledged with ok:1 - the client
+     * believed its transaction was committed. The failure is answered mongo-shaped instead;
+     * code 8 (UnknownError) unless the driver attached a specific mongo code.
+     */
+    private static Map<String, Object> txnErrorAnswer(String cmd, Exception e) {
+        Object code = 8;
+        if (e instanceof MorphiumDriverException mde && mde.getMongoCode() != null) {
+            code = mde.getMongoCode();
+        }
+        return Doc.of("ok", 0.0, "errmsg", cmd + " failed: " + e.getMessage(), "code", code);
     }
 
     private String extractSessionId(Map<String, Object> doc) {
