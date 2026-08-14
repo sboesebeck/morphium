@@ -444,7 +444,9 @@ run_test_results_gate() {
     exit 1
   fi
 
-  git add badges/tests.json badges/coverage.json 2>/dev/null || true
+  if ! git add badges/tests.json badges/coverage.json 2>/dev/null; then
+    log_warn "git add badges/*.json failed - continuing without staging badges"
+  fi
   if ! git diff --cached --quiet; then
     git commit -m "chore(release): update test/coverage badges" -q
     log_success "Test/coverage badges updated"
@@ -479,7 +481,10 @@ publish_github_release_notes() {
 
   if gh release view "$tag" >/dev/null 2>&1; then
     local body
-    body=$(gh release view "$tag" --json body -q .body)
+    if ! body=$(gh release view "$tag" --json body -q .body); then
+      log_warn "Failed to read existing GitHub release body for $tag - skipping GitHub release notes"
+      return 0
+    fi
     if ! printf '%s\n\n%s\n' "$body" "$(cat "$report_file")" | gh release edit "$tag" --notes-file -; then
       log_warn "Failed to update GitHub release notes for $tag"
       return 0

@@ -18,7 +18,10 @@ contributor can supply results without homelab infrastructure. `release.sh` aggr
 records per (commit, phase) — newest run wins, only complete phase runs qualify, results
 from earlier commits stay valid when only docs/tests/tooling changed since — gates the
 release on a green 5-phase matrix, posts the result table (incl. optional JaCoCo coverage
-from `-Pcoverage`) to the GitHub release and refreshes the README badges.
+from `-Pcoverage`) to the GitHub release and refreshes the README badges. Coverage records
+themselves are produced by whatever runs `-Pcoverage` and passes `--coverage-xml` to
+`runtests.sh --publish-results` — the CI orchestrator wiring for that is a follow-up; for now
+it's manual runs.
 
 #### PoppyDB: honest capability advertisement in the hello reply (`poppyCapabilities`)
 The hello reply advertises replica-set topology and logical sessions, which makes modern
