@@ -207,6 +207,11 @@
             <arguments>-Dmaven.javadoc.skip=false -DskipTests</arguments>
           </configuration>
         </plugin>
+        <plugin>
+          <groupId>org.jacoco</groupId>
+          <artifactId>jacoco-maven-plugin</artifactId>
+          <version>0.8.12</version>
+        </plugin>
       </plugins>
     </pluginManagement>
   </build>
@@ -442,6 +447,32 @@
       <properties>
         <morphium.driver>single</morphium.driver>
       </properties>
+    </profile>
+    <profile>
+      <id>coverage</id>
+      <!-- Opt-in only: the agent costs measurable time and the CI phases are
+           load-sensitive. prepare-agent sets ${argLine}; surefire composes it
+           with ${test.maxHeap} (see the argLine property comment above). -->
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.jacoco</groupId>
+            <artifactId>jacoco-maven-plugin</artifactId>
+            <version>0.8.12</version>
+            <executions>
+              <execution>
+                <id>prepare-agent</id>
+                <goals><goal>prepare-agent</goal></goals>
+              </execution>
+              <execution>
+                <id>report</id>
+                <phase>verify</phase>
+                <goals><goal>report</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
     </profile>
     <!-- Extension modules. Active by default; disable with
          "-DskipExtensions" for a core-only build without Quarkus/Spring
