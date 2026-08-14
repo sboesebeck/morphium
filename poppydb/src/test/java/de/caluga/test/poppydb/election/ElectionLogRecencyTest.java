@@ -196,6 +196,40 @@ public class ElectionLogRecencyTest {
     }
 
     @Test
+    void emptyNodeWithDataBearingPeerDelaysCandidacyUntilSyncedOrPeerNeverSeen() throws Exception {
+        // D3: candidacy restraint. Short timeouts so several election-timeout cycles fit into
+        // the sleep window below - if the guard did not hold, at least one of them would flip
+        // this node to CANDIDATE.
+        ElectionConfig config = new ElectionConfig()
+                .setElectionTimeoutMinMs(50)
+                .setElectionTimeoutMaxMs(100);
+        ElectionManager restrained = new ElectionManager("restrained:27023",
+                List.of("restrained:27023", "data-peer:27023"), config);
+        managers.add(restrained);
+        restrained.start();
+
+        // Simulate this node observing AppendEntries traffic from a leader that reports a real,
+        // non-zero log index - exactly what handleAppendEntries sees in production heartbeats.
+        AppendEntriesRequest fromDataPeer = AppendEntriesRequest.heartbeat(
+                restrained.getCurrentTerm(), "data-peer:27023", 500, 0, 500);
+        restrained.handleAppendEntries(fromDataPeer);
+
+        // Own index is still 0 (nothing applied/produced this process lifetime). Despite
+        // repeated election timeouts, this node must never transition to CANDIDATE while a
+        // data-bearing peer is known - it can only lose that election and would just inflate
+        // the term, forcing the legitimate leader into a pointless step-down.
+        Thread.sleep(600);
+        assertEquals(ElectionState.FOLLOWER, restrained.getState(),
+                "empty node must hold back candidacy while a data-bearing peer is known, not race to CANDIDATE");
+
+        // Once its own index catches up (sync completed - Task 1's seed makes this prompt), the
+        // guard must no longer apply and candidacy becomes eligible again on the very next timeout.
+        restrained.updateLogIndex(10, restrained.getCurrentTerm());
+        awaitCondition("restrained becomes CANDIDATE once its own index is no longer 0", 1000,
+                () -> restrained.getState() == ElectionState.CANDIDATE);
+    }
+
+    @Test
     void coldStartGrantsVoteWhenBothSidesAreEmpty() throws Exception {
         // Cold-start invariant: three freshly started nodes, all at log index 0, must still be
         // able to elect a leader - equal (0 == 0) indices must GRANT, not deadlock forever.
