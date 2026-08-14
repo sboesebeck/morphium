@@ -1580,6 +1580,21 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         answer.put("poppyDB", true);
         answer.put("morphiumServer", true);
         answer.put("inMemoryBackend", true);
+        // Honest capability advertisement: the hello reply's RS topology + logical sessions
+        // make modern drivers enable retryable writes by default, but PoppyDB has no
+        // (lsid, txnNumber) dedup (spec: issue #293) - there is no standard hello field to
+        // say "sessions yes, retryable writes no", so clients/tooling get an explicit
+        // document instead of discovering the gaps at runtime. Documented in docs/poppydb.md.
+        Doc capabilities = Doc.of(
+            "version", 1,
+            "retryableWrites", false,
+            "journal", false,
+            "durability", "snapshot",
+            "readConcern", "local",
+            "transactions", "partial"
+        );
+        capabilities.put("textSearch", "simplified");
+        answer.put("poppyCapabilities", capabilities);
         return answer;
     }
 

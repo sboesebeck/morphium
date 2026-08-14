@@ -10,6 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### PoppyDB: honest capability advertisement in the hello reply (`poppyCapabilities`)
+The hello reply advertises replica-set topology and logical sessions, which makes modern
+drivers enable retryable writes by default — a capability PoppyDB does not have (no
+`(lsid, txnNumber)` deduplication; the road to real support is specced in #293). There is no
+standard hello field to say "sessions yes, retryable writes no", so the reply now carries an
+explicit `poppyCapabilities` document (`retryableWrites: false`, `journal: false`,
+`durability: "snapshot"`, `readConcern: "local"`, `transactions: "partial"`,
+`textSearch: "simplified"`). Non-Morphium clients should connect with `retryWrites=false`;
+documented in `docs/poppydb.md` together with the other honesty changes below.
+
 #### PoppyDB: mongodump/mongorestore work against PoppyDB (mongo-tools compatibility)
 `mongorestore` against a PoppyDB used to die at the handshake, and dumps of real-world schemas
 could not be loaded at all. A restore is the natural way to seed a PoppyDB from an existing
@@ -86,6 +96,21 @@ a day of it, burying the handful of warnings that actually matter (found during 
 analysis). The deduplication behavior is unchanged, only the log level.
 
 ### Fixed
+
+#### PoppyDB: j:true write concern no longer promises durability that does not exist
+A `j: true` write concern was silently accepted and acknowledged although PoppyDB has no
+journal (persistence is periodic snapshots). Like mongod running without journaling, the
+write is still executed but the answer now carries `writeConcernError` code 2 (`BadValue`),
+so clients relying on journal durability learn the truth instead of getting a hollow
+acknowledgement.
+
+#### PoppyDB: secondaries no longer serve reads that defaulted to primary read preference
+MongoDB's default read preference *is* `primary`, but only an explicit `mode: "primary"` was
+rejected on secondaries — a read without `$readPreference` was silently served, returning
+possibly-stale data to a client that (by default) asked for primary consistency. Such reads
+now get `NotPrimaryNoSecondaryOk` (13435), matching mongod's handling of a direct secondary
+connection without `secondaryOk`. Morphium's own wire commands always send a read preference
+(default `primaryPreferred`) and are unaffected.
 
 #### InMemoryDriver: MongoDB collation strength mapped to the wrong Java collator level
 MongoDB collation strength (1=primary..5=identical) was passed straight to

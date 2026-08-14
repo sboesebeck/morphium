@@ -740,6 +740,39 @@ PoppyDB server = new PoppyDB();
 
 ## Connecting Clients
 
+### Capabilities document and driver settings
+
+The `hello` reply carries a `poppyCapabilities` document describing what PoppyDB honestly
+supports, so clients and tooling can adapt instead of discovering gaps at runtime:
+
+```json
+"poppyCapabilities": {
+  "version": 1,
+  "retryableWrites": false,
+  "journal": false,
+  "durability": "snapshot",
+  "readConcern": "local",
+  "transactions": "partial",
+  "textSearch": "simplified"
+}
+```
+
+Practical consequences for non-Morphium drivers:
+
+- **Set `retryWrites=false` in the connection string.** PoppyDB advertises a replica set and
+  logical sessions, which makes modern drivers enable retryable writes by default — but
+  PoppyDB has no `(lsid, txnNumber)` deduplication yet, so a driver-side retry after a lost
+  acknowledgement would apply the write twice. (True retryable-write support is specced in
+  issue #293.)
+- **`j: true` write concerns fail honestly** with `writeConcernError` code 2 (`BadValue`),
+  like mongod running without journaling: PoppyDB persists via periodic snapshots, there is
+  no journal to wait for. The write itself is still executed.
+- **Reads on a secondary require an explicit read preference.** MongoDB's default read
+  preference is `primary`, so a read without `$readPreference` is rejected on a secondary
+  with `NotPrimaryNoSecondaryOk` (13435) — the same way mongod treats a direct secondary
+  connection without `secondaryOk`. Morphium's own driver always sends a read preference
+  (default `primaryPreferred`) and is unaffected.
+
 ### Java (Morphium)
 
 ```java
