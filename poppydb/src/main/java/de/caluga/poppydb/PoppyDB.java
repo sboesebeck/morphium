@@ -142,6 +142,18 @@ public class PoppyDB {
     // volatile: mutated under synchronized on the election/leadership paths but read unsynchronized
     // from Netty event-loop threads via the isSecondarySyncing() supplier passed to each handler.
     private volatile ReplicationManager replicationManager = null;
+    // Durable carry-over watermark for ReplicationManager#carryOverLastAppliedSequence (2026-08-14
+    // review hardening). startReplicationToLeader() reads the predecessor RM's lastAppliedSequence
+    // into a purely LOCAL variable before building the replacement - which dies with the attempt
+    // if newReplicationManager.start() then throws (real, if narrow: an auth/TLS connect failure).
+    // replicationManager stays null in that case, so the retry chain's NEXT
+    // startReplicationToLeader() call would otherwise read 0 again, silently making the
+    // destructive-resync guard vacuous on the retry. This field persists that value across such
+    // retries independent of whether any particular attempt ever successfully starts - updated
+    // every time startReplicationToLeader() reads (and stops) a predecessor, so it always reflects
+    // the most recently known-good position. volatile: written only under the class monitor
+    // (synchronized methods), but read here defensively for the same reason replicationManager is.
+    private volatile long lastKnownAppliedSequence = 0;
     // Held behind an AtomicReference (rather than a plain volatile field copied into each
     // connection at accept time) so every MongoCommandHandler resolves the coordinator live
     // via a Supplier - onLeadershipChange swaps this reference and every existing connection
@@ -879,23 +891,34 @@ public class PoppyDB {
             return;
         }
 
-        // Captured BEFORE stop()/nulling below, and BEFORE constructing the replacement: a fresh
-        // ReplicationManager's own lastAppliedSequence starts at 0, and its first watch
-        // registration would otherwise unconditionally seed it from whatever the NEW leader
-        // reports (recordPrimarySequenceAtRegistration's compareAndSet(0, primarySeq)) - making
-        // the destructive-resync guard in startInitialSyncOnce() vacuously pass every time on
-        // this path (see ReplicationManager#carryOverLastAppliedSequence's javadoc for the full
-        // "why"). Carrying the predecessor's real position forward is what lets that guard also
-        // protect a leader change, not just a same-address reconnect - defense-in-depth alongside
-        // the election-layer empty-vs-data invariant (Tasks 1/2/4). 0 (no predecessor, or a
-        // predecessor that never synced) is the correct cold-boot default and a no-op below.
-        long carriedLastAppliedSequence =
-                replicationManager != null ? replicationManager.getLastAppliedSequence() : 0;
-
-        if (replicationManager != null) {
-            replicationManager.stop();
+        // Carries the predecessor RM's real position into the replacement (2026-08-14
+        // empty-node-wipe fix): a fresh ReplicationManager's own lastAppliedSequence starts at 0,
+        // and its first watch registration would otherwise unconditionally seed it from whatever
+        // the NEW leader reports (recordPrimarySequenceAtRegistration's compareAndSet(0,
+        // primarySeq)) - making the destructive-resync guard in startInitialSyncOnce() vacuously
+        // pass every time on this path (see ReplicationManager#carryOverLastAppliedSequence's
+        // javadoc for the full "why"). Carrying it forward is what lets that guard also protect a
+        // leader change, not just a same-address reconnect - defense-in-depth alongside the
+        // election-layer empty-vs-data invariant (Tasks 1/2/4).
+        ReplicationManager oldReplicationManager = replicationManager;
+        if (oldReplicationManager != null) {
+            oldReplicationManager.stop();
             replicationManager = null;
         }
+        // carryOverSequenceFor() is called AFTER stop() returns, not before (2026-08-14 review
+        // hardening - TOCTOU): stop() flushes the batch processor's last drained batch before
+        // returning, which can still advance lastAppliedSequence past whatever a pre-stop
+        // snapshot would have captured. The reference is still valid here - stop() does not
+        // invalidate it, only the `replicationManager` field assignment above does - so this
+        // reads the predecessor's definitive final position instead of a possibly-stale one.
+        long carriedLastAppliedSequence = carryOverSequenceFor(oldReplicationManager);
+
+        // Persist for a possible failed-start retry of THIS attempt (see lastKnownAppliedSequence's
+        // javadoc): must happen regardless of whether newReplicationManager.start() below ever
+        // succeeds - if it throws, replicationManager stays null and only this field (not the
+        // oldReplicationManager local, which dies with this method invocation) survives into the
+        // next startReplicationToLeader() call the retry chain makes.
+        lastKnownAppliedSequence = carriedLastAppliedSequence;
 
         String leaderHost = parts[0];
         int leaderPort = Integer.parseInt(parts[1]);
@@ -1656,6 +1679,38 @@ public class PoppyDB {
     /** Test hook: the secondary-side replication manager (null on a node that is currently primary). */
     ReplicationManager getReplicationManagerForTest() {
         return replicationManager;
+    }
+
+    /**
+     * The sequence to carry into a replacement {@link ReplicationManager} being started in
+     * {@link #startReplicationToLeader(String, long)}: the (already-stopped, but still readable)
+     * predecessor's own final position if one was actually stopped this attempt, otherwise the
+     * durable {@link #lastKnownAppliedSequence} watermark left behind by a previous attempt -
+     * which is exactly what a failed-start retry (predecessor {@code null}, since
+     * {@code replicationManager} was already nulled and no live RM survived to hand a value
+     * forward) falls back to instead of silently losing the position and reading a vacuous 0.
+     *
+     * <p>Deliberately pure (reads but never writes {@link #lastKnownAppliedSequence} - the
+     * caller persists the result separately) and package-private: lets a test exercise the
+     * fallback decision in isolation - including the {@code predecessor == null} branch that in
+     * production only a failed {@code newReplicationManager.start()} retry ever reaches - without
+     * needing to force a real synchronous {@code start()} throw (which in this driver stack
+     * realistically requires an auth/TLS connect mismatch; disproportionate machinery for
+     * covering this one fallback decision - see {@code carryOverSequenceFallsBackToPersistedWatermarkWhenNoPredecessor}
+     * in {@code ReplicationFailClosedTest}).
+     */
+    long carryOverSequenceFor(ReplicationManager predecessor) {
+        return predecessor != null ? predecessor.getLastAppliedSequence() : lastKnownAppliedSequence;
+    }
+
+    /** Test hook: read the durable carry-over watermark (see {@link #lastKnownAppliedSequence}'s javadoc). */
+    long getLastKnownAppliedSequenceForTest() {
+        return lastKnownAppliedSequence;
+    }
+
+    /** Test hook: seed the durable carry-over watermark without going through a real replication attempt. */
+    void setLastKnownAppliedSequenceForTest(long sequence) {
+        lastKnownAppliedSequence = sequence;
     }
 
     public ElectionManager getElectionManager() {
