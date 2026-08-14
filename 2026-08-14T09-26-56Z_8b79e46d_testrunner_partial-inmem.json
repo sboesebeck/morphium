@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "commit": "8b79e46d12cf5b71702f36b200d4a0e0a6a0f6ed",
+  "branch": "feature/test-results-store",
+  "timestamp": "2026-08-14T09:26:56Z",
+  "runner": "testrunner",
+  "scope": {
+    "complete": false,
+    "tags": null,
+    "testPattern": "BufferedWriterTest#testWriteBufferRemoveByQuery"
+  },
+  "phases": {
+    "inmem": {
+      "classes": 1,
+      "methods": 1,
+      "passed": 1,
+      "skipped": 0,
+      "broken": 0,
+      "duration_s": 13,
+      "flaky": 0
+    }
+  }
+}
