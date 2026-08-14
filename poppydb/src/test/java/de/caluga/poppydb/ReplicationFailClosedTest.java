@@ -178,6 +178,42 @@ public class ReplicationFailClosedTest {
     }
 
     /**
+     * Copies the follower's CURRENT {@code DB.COLL} documents, verbatim, into a target node's
+     * driver - the same doc {@code Map}s {@link InMemoryDriver#find} returns, re-inserted as-is.
+     * Unlike two independent inserts built from scratch (which do not reliably dbHash-match -
+     * apparently not just field content but some internal representation detail differs), this
+     * guarantees a genuine dbHash match: it is a literal copy of the exact bytes replication
+     * already produced, the same technique {@code performInitialSync}'s own {@code syncCollection}
+     * uses to seed a follower from a primary.
+     */
+    private void copyLocalDataInto(PoppyDB target) throws Exception {
+        List<Map<String, Object>> docs = local.find(DB, COLL, Doc.of(), null, null, 0, 1000);
+        GenericCommand cmd = new GenericCommand(target.getDriver());
+        cmd.setDb(DB);
+        cmd.setColl(COLL);
+        cmd.setCmdData(Doc.of("insert", COLL, "$db", DB, "documents", docs));
+        target.getDriver().runCommand(cmd);
+    }
+
+    /**
+     * Inserts {@code count} documents with DETERMINISTIC {@code _id}s (unlike {@link #writeDocs},
+     * whose {@link UncachedObject}s get a fresh random {@code MorphiumId} on every call) directly
+     * into a target node's driver - bypassing Morphium/the wire protocol, same pattern as the
+     * dbHash-comparison tests elsewhere in this file.
+     */
+    private void insertFixedDocs(PoppyDB target, int count, String prefix) throws Exception {
+        List<Map<String, Object>> docs = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            docs.add(Doc.of("_id", prefix + "-" + i, "value", i));
+        }
+        GenericCommand cmd = new GenericCommand(target.getDriver());
+        cmd.setDb(DB);
+        cmd.setColl(COLL);
+        cmd.setCmdData(Doc.of("insert", COLL, "$db", DB, "documents", docs));
+        target.getDriver().runCommand(cmd);
+    }
+
+    /**
      * Common setup for cases (a) and (b): a standalone primary fed {@link #DOCS} documents,
      * live-replicated to a manually-wired {@link ReplicationManager}, its replay buffer then
      * shrunk so a subsequent gap cannot be resumed from the buffer (forcing the primary to
@@ -566,5 +602,130 @@ public class ReplicationFailClosedTest {
         } finally {
             drv.close();
         }
+    }
+
+    // ---- I-1 (final review): adopt the synced primary's own base, don't max() with a stale one -
+
+    /**
+     * Sequences are PRIMARY-LOCAL (see {@code tryConsistencyShortcut}'s own javadoc). Before this
+     * fix, a successful sync/shortcut reseeded {@code lastAppliedSequence} via
+     * {@code Math.max(current, lastKnownPrimarySequence)} - so a follower that had accumulated a
+     * HIGH sequence N against an old primary kept N even after successfully converging against a
+     * brand-new primary whose own counter is comfortably below N (only reachable via the
+     * consistency SHORTCUT: the D2 guard would otherwise refuse a full sync against a primary
+     * whose counter is behind local - so "successful sync with a lower primary counter" and
+     * "guard-gated full sync" are mutually exclusive by construction; the shortcut is the only
+     * path that bypasses the guard entirely). Every later reconnect then sent
+     * {@code resumeAfter=N}, which the new (low-counter) primary could never satisfy -> "resume
+     * window lost" -> a dbHash mismatch as soon as one real write happened (breaking the
+     * shortcut) -> the D2 guard comparing the new primary's still-low counter against the STALE
+     * inherited N -> refusing an entirely legitimate resync, unbounded on a quiet cluster.
+     *
+     * <p>Reproduced here by CHURNING the original primary (delete + re-insert the same content)
+     * so its own counter inflates well past what recreating that exact content needs, then
+     * replacing it with a brand-new primary fed the identical content in a single write (same
+     * deterministic {@code _id}s via {@link #insertFixedDocs} - the dbHash comparison, unlike
+     * {@link #writeDocs}'s random {@code MorphiumId}s, needs byte-for-byte identical documents to
+     * match). Verified red against the reverted {@code Math.max(...)} before landing the
+     * {@code set(...)} fix (manual step, not committed - the assertion on
+     * {@code getLastAppliedSequence() < n} failed, and the final legitimate-resync poll timed out
+     * with the follower stuck refusing).
+     */
+    @Test
+    public void adoptsNewPrimaryBaseAfterSuccessfulShortcutSoLaterResyncsAreNotRefused() throws Exception {
+        int port1 = nextPort();
+        PoppyDB primaryA = startStandalonePrimary(port1);
+
+        local = new InMemoryDriver();
+        local.connect();
+        rm = new ReplicationManager(local, "localhost", port1);
+        rm.start();
+        assertTrue(poll(30_000, rm::isInitialSyncComplete), "initial (trivially empty) sync must complete");
+
+        insertFixedDocs(primaryA, DOCS, "chk");
+        assertTrue(poll(30_000, () -> localCount() == DOCS),
+            "follower must live-replicate the batch (got " + localCount() + ")");
+
+        // Churn: delete and re-insert the SAME content so primaryA's own counter advances well
+        // past what a single write needs, while the final DATA (all dbHash compares) is
+        // unchanged.
+        GenericCommand delAll = new GenericCommand(primaryA.getDriver());
+        delAll.setDb(DB);
+        delAll.setColl(COLL);
+        delAll.setCmdData(Doc.of("delete", COLL, "$db", DB,
+            "deletes", List.of(Doc.of("q", Doc.of(), "limit", 0))));
+        primaryA.getDriver().runCommand(delAll);
+        assertTrue(poll(10_000, () -> primaryA.getDriver().count(DB, COLL, Doc.of(), null, null) == 0),
+            "churn delete must land on the primary");
+        insertFixedDocs(primaryA, DOCS, "chk");
+
+        assertTrue(poll(30_000, () -> localCount() == DOCS),
+            "follower must reconverge to the re-inserted batch (got " + localCount() + ")");
+        assertTrue(poll(5_000, () -> rm.getLastAppliedSequence() > 0),
+            "lastAppliedSequence must have advanced past 0");
+        long n = rm.getLastAppliedSequence(); // the OLD primary's high, churn-inflated counter
+
+        primaryA.getDriver().setChangeStreamHistoryLimit(2);
+        rm.pauseReplicationForTest();
+        Thread.sleep(500);
+        nodes.get(0).shutdown();
+        nodes.remove(0);
+
+        // A brand-new primary whose own counter starts near 0, fed the EXACT SAME final content
+        // in one write (no churn), copied verbatim from the follower's current data (see
+        // copyLocalDataInto's javadoc for why a verbatim copy, not an independently-reconstructed
+        // insert, is what reliably dbHash-matches) - comfortably below N either way.
+        PoppyDB primaryB = startStandalonePrimary(port1);
+        copyLocalDataInto(primaryB);
+
+        // isInitialSyncComplete() is ALREADY true at this point (stale from the trivial bootstrap
+        // sync at the very top of this test, never reset) - polling it directly would pass
+        // instantly without waiting for a real cycle against primaryB at all. Wait for the
+        // MONOTONIC shortcut-attempt counter to advance instead - the only reliable "a genuinely
+        // NEW sync decision cycle has run" signal (a boolean flip false->true here is real but
+        // racy: the whole reconnect+resume-window-lost+shortcut cycle can complete faster than a
+        // 100ms poll interval, so a poll might only ever observe the post-cycle `true`, identical
+        // to the pre-cycle stale `true`).
+        int shortcutAttemptsBeforeResume = rm.getConsistencyShortcutAttemptsForTest();
+        rm.resumeReplicationForTest();
+
+        assertTrue(poll(30_000, () -> rm.getConsistencyShortcutAttemptsForTest() > shortcutAttemptsBeforeResume
+                && rm.isInitialSyncComplete()),
+            "a genuinely new sync cycle must run and complete against primaryB (shortcut attempts "
+                + "before=" + shortcutAttemptsBeforeResume + ", now=" + rm.getConsistencyShortcutAttemptsForTest()
+                + ", isInitialSyncComplete=" + rm.isInitialSyncComplete() + ")");
+        assertTrue(rm.wasLastSyncShortcut(),
+            "test setup: this sync must take the consistency shortcut (identical data, D2 guard "
+                + "bypassed) to reproduce a successful sync while the new primary's own counter "
+                + "is far below N=" + n);
+        assertEquals(0, rm.getRefusedResyncCount(), "the initial shortcut sync itself must never be refused");
+
+        // The core I-1 assertion: lastAppliedSequence must have been ADOPTED from the new
+        // primary's own (low) base, not left at the old primary's inflated N via Math.max.
+        assertTrue(rm.getLastAppliedSequence() < n,
+            "lastAppliedSequence must adopt the new primary's own (lower) base after a successful "
+                + "sync, not stay pinned at the old primary's unrelated, inflated sequence space "
+                + "(N=" + n + ", got " + rm.getLastAppliedSequence() + ")");
+
+        // The actual regression: force a SECOND, entirely legitimate resync against the SAME
+        // still-alive (never regressed) primary B - a real gap it cannot buffer from. Before the
+        // fix this refused forever, because lastAppliedSequence (still pinned at N) could never
+        // be <= primary B's real, much lower counter.
+        primaryB.getDriver().setChangeStreamHistoryLimit(2);
+        rm.pauseReplicationForTest();
+        Thread.sleep(500);
+        insertFixedDocs(primaryB, DOCS, "gap2");
+        Thread.sleep(300);
+        rm.resumeReplicationForTest();
+
+        assertTrue(poll(30_000, () -> rm.isInitialSyncComplete() && localCount() == 2 * DOCS),
+            "a legitimate resync against the SAME (never-regressed) primary must proceed, not be "
+                + "refused forever due to a stale, unrelated old-primary sequence (got count="
+                + localCount() + ", refusedResyncCount=" + rm.getRefusedResyncCount() + ")");
+        assertEquals(0, rm.getRefusedResyncCount(),
+            "a legitimate resync must never trip the D2 guard once the base has been correctly adopted");
+
+        log.info("I-1 regression converged: N={}, final lastAppliedSequence={}",
+            n, rm.getLastAppliedSequence());
     }
 }

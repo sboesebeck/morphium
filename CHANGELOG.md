@@ -131,7 +131,12 @@ The fix has three parts, each closing a different leg:
   is observable rather than silent. Sequence knowledge now also carries over across leader
   changes — a freshly constructed replication manager used to start its own sequence at 0 and
   immediately self-seed from whatever the new leader reported, which made the guard structurally
-  unable to fire on that path.
+  unable to fire on that path. Change-stream sequences are primary-local: after a successful
+  sync/shortcut against a primary, a follower now *adopts* that primary's own counter as its new
+  base rather than keeping the higher of the two — the old and new primaries' counters are
+  unrelated numbers, and keeping a stale, inflated one made every later reconnect to that (still
+  perfectly healthy) primary look like a resume-window loss, which then tripped the guard against
+  the new primary's own honest, lower counter and refused every subsequent legitimate resync.
 
 Composition note, stated plainly: the resync guard is a sequence-height heuristic, not a
 lineage check. A wrongly-promoted empty primary that manages to take on enough fresh writes
