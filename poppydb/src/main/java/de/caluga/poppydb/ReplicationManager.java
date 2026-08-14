@@ -59,6 +59,19 @@ public class ReplicationManager {
     // Number of times the primary signalled "resume window lost" and we fell back to a full re-sync.
     // Exposed for tests/metrics to distinguish a clean resume (0) from a re-sync fallback.
     private final AtomicLong resyncCount = new AtomicLong(0);
+    // True while the initial-sync retry loop is refusing a destructive full re-sync (clear +
+    // snapshot, or a shortcut-driven equivalent) because the primary's reported sequence at the
+    // most recent watch registration is BEHIND the sequence our local data was last known to
+    // reflect - see the guard in startInitialSyncOnce(). Cleared as soon as an attempt's primary
+    // sequence catches back up (>= local), whether that attempt then takes the shortcut or a full
+    // sync. Exposed via getStats() so operators/tests can see a node that is deliberately holding
+    // onto its data rather than idly "still syncing".
+    private final AtomicBoolean refusingDestructiveResync = new AtomicBoolean(false);
+    // Number of times a destructive full re-sync was refused for the reason above. Monotonic
+    // counter, never reset - distinguishes "never needed to refuse" from "refused N times" in
+    // stats/tests, independent of the current (possibly already-cleared) refusingDestructiveResync
+    // flag.
+    private final AtomicLong refusedResyncCount = new AtomicLong(0);
     // Wall-clock time (System.currentTimeMillis()) of the previous resync, used to detect resyncs
     // repeating faster than the buffer can absorb (see triggerResync()). 0 = no resync yet.
     private final AtomicLong lastResyncTimestamp = new AtomicLong(0);
@@ -1023,6 +1036,37 @@ public class ReplicationManager {
                         }
 
                         if (!shortcut) {
+                            // Fail-closed destructive-resync guard (D2, 2026-08-14 empty-node-wipe
+                            // fix): a legitimate primary NEVER regresses its own change-stream
+                            // sequence counter - not even a real, replicated dropDatabase, which is
+                            // itself an event and therefore ADVANCES the counter. A primary whose
+                            // sequence at THIS watch registration is BEHIND the sequence our local
+                            // data was last known to reflect can therefore only be a freshly
+                            // restarted/stale process that reset its counter to 0 (or an older
+                            // build's "resume window lost" chain that lost the original data's
+                            // provenance) - not a trustworthy source of "the real current state".
+                            // Wiping local data to match it would be the exact kill chain this fix
+                            // closes: a restarted, empty node winning re-election (or simply coming
+                            // back up on the same address) and every follower dropping its real
+                            // data to match it. Refuse instead: keep the data, keep retrying with
+                            // backoff - a later, genuinely caught-up primary (sequence >= ours)
+                            // un-sticks this on its own, no manual intervention needed.
+                            long primarySeqAtRegistration = lastKnownPrimarySequence.get();
+                            long localSeqBeforeWipe = lastAppliedSequence.get();
+
+                            if (primarySeqAtRegistration < localSeqBeforeWipe) {
+                                log.error("refusing full re-sync: primary sequence {} is behind local {} - "
+                                        + "possible restarted/stale primary, keeping local data",
+                                        primarySeqAtRegistration, localSeqBeforeWipe);
+                                refusingDestructiveResync.set(true);
+                                refusedResyncCount.incrementAndGet();
+                                Thread.sleep(backoffMs);
+                                backoffMs = Math.min(backoffMs * 2, 30_000);
+                                continue;
+                            }
+
+                            refusingDestructiveResync.set(false);
+
                             // Start each attempt from a clean local slate so a retry after a
                             // partially-successful copy doesn't fail on already-copied documents.
                             // The flag is set BEFORE the clear: even a clear that throws partway
@@ -1056,6 +1100,30 @@ public class ReplicationManager {
                             continue;
                         }
 
+                        // Not (or no longer) refusing: this attempt is about to declare success,
+                        // whether via the shortcut or a full copy, both of which require the guard
+                        // above to have passed (or never triggered - shortcut skips it entirely,
+                        // but a matching dbHash on non-trivial data is itself strong evidence of a
+                        // legitimate, caught-up primary).
+                        refusingDestructiveResync.set(false);
+
+                        // Reseed lastAppliedSequence to this attempt's confirmed primary sequence
+                        // now that we are declaring success. recordPrimarySequenceAtRegistration()'s
+                        // own reseed (compareAndSet(0, primarySeq), fired earlier THIS cycle at
+                        // watch registration) only takes effect when lastAppliedSequence was still
+                        // exactly 0 at that moment - which it deliberately was NOT whenever this
+                        // cycle preserved a pre-existing local sequence for the destructive-resync
+                        // guard above (see triggerResync() - it no longer zeroes this field, so the
+                        // guard can compare the primary's regressed sequence against our real local
+                        // position). Without this, a resynced/shortcut-matched node would keep
+                        // reporting its OLD, pre-resync sequence downstream (the next resumeAfter
+                        // token, the election feed below) instead of its actual, now-current
+                        // position. Math.max rather than a blind set(): monotonic, matching every
+                        // other update to this field, and a safe no-op on the ordinary (never
+                        // regressed) path where the registration-time compareAndSet already applied
+                        // the same value.
+                        lastAppliedSequence.updateAndGet(current -> Math.max(current, lastKnownPrimarySequence.get()));
+
                         // Success: open the gate. The batch processor now drains the events
                         // buffered during the snapshot (idempotent replay) and all subsequent live
                         // events, in order.
@@ -1067,10 +1135,10 @@ public class ReplicationManager {
                         // Seed the election layer's view of our replication position now that we
                         // hold the primary's dataset (either path: full snapshot or consistency
                         // shortcut both land here). lastAppliedSequence is already correct at this
-                        // point - recordPrimarySequenceAtRegistration() seeded it from the
-                        // primary's sequence at watch registration, before this snapshot even
-                        // started copying (see that method's javadoc). Without this call, a
-                        // freshly-synced node that then applies zero LIVE events would never reach
+                        // point (either seeded at registration when it started at 0, or reseeded
+                        // just above when it did not) - see the reseed comment above for the full
+                        // picture. Without this, a freshly-synced node that then applies zero LIVE
+                        // events would never reach
                         // processBatch()'s onLogIndexUpdate call (it only fires when there is
                         // something in eventQueue to drain) and would keep reporting index 0 to
                         // ElectionManager despite actually holding real data - wrongly granting
@@ -1694,6 +1762,23 @@ public class ReplicationManager {
                                     now - lastResponse);
                             return false;
                         }
+                        // While refusing a destructive resync (see the guard in
+                        // startInitialSyncOnce()), recordPrimarySequenceAtRegistration() only ever
+                        // refreshes lastKnownPrimarySequence at watch REGISTRATION - a live watch
+                        // session registers exactly once, so without this, a refusal would freeze
+                        // on the primary sequence observed at that one registration forever, never
+                        // discovering that the primary has since caught up ("a later caught-up
+                        // leader syncs normally" would then require some UNRELATED event, e.g. a
+                        // real disconnect, to ever re-check). Ending this getMore loop here (this
+                        // method is polled every getMore round-trip, whether or not events arrived)
+                        // lets the replication loop's own retry immediately re-establish the watch,
+                        // which re-registers and refreshes the primary-sequence signal the
+                        // destructive-resync guard reads on its next attempt.
+                        if (refusingDestructiveResync.get()) {
+                            log.debug("Watch cycling while refusing a destructive resync, to refresh the "
+                                    + "primary-sequence signal");
+                            return false;
+                        }
                         return true;
                     }
                 });
@@ -1797,10 +1882,25 @@ public class ReplicationManager {
     /**
      * Fall back to a full re-initial-sync after the primary signalled that our resume point is no
      * longer replayable. Rearms the Task 8 initial-sync machinery: closes the apply gate, resets the
-     * sync flags so {@link #startInitialSyncOnce()} launches a fresh snapshot, drops the events left
-     * over from the lost window, and resets the sequence so the next watch starts fresh (no
-     * resumeAfter) instead of re-requesting the same lost window in a loop. The replication loop then
-     * re-runs initial sync + watch on its next iteration.
+     * sync flags so {@link #startInitialSyncOnce()} launches a fresh snapshot, and drops the events
+     * left over from the lost window. The replication loop then re-runs initial sync + watch on its
+     * next iteration.
+     *
+     * <p>Deliberately does NOT reset {@code lastAppliedSequence} to 0 (unlike before the 2026-08-14
+     * empty-node-wipe fix). {@code initialSyncComplete} is already false at this point, which alone
+     * already suppresses the next watch's {@code resumeAfter} (see the {@code initialSyncComplete.get()
+     * && resumeSeq > 0} guard in {@link #watchForChanges()}) - zeroing the sequence was never load-
+     * bearing for that. It WAS, however, load-bearing for a hazard: zeroing it here made
+     * {@code recordPrimarySequenceAtRegistration()}'s reseed ({@code compareAndSet(0, primarySeq)})
+     * fire unconditionally on the very next registration, silently replacing our real local data's
+     * last-known-good sequence with whatever the new/possibly-empty primary reports - which is
+     * exactly what let {@link #startInitialSyncOnce()}'s destructive-resync guard be defeated: by the
+     * time that guard ran, the honest "how far behind is this primary" signal was already gone.
+     * Preserving the value here is what lets that guard compare the primary's regressed sequence
+     * against our data's true position instead of a freshly-overwritten 0. The now-stale value is
+     * reseeded explicitly, and correctly, once a sync attempt actually succeeds (or is legitimately
+     * allowed to proceed) - see the reseed at the "not (or no longer) refusing" point in
+     * {@link #startInitialSyncOnce()}.
      */
     private void triggerResync(long fromSequence) {
         long n = resyncCount.incrementAndGet();
@@ -1817,7 +1917,6 @@ public class ReplicationManager {
         initialSyncComplete.set(false);
         initialSyncStarted.set(false);  // allow startInitialSyncOnce() to launch a new snapshot
         watchLive.set(false);
-        lastAppliedSequence.set(0);     // resume fresh; next watch sends no resumeAfter
         lastReportedSequence.set(0);
         eventQueue.clear();             // discard events buffered for the lost window
     }
@@ -1841,6 +1940,20 @@ public class ReplicationManager {
     /** Number of times replication fell back to a full re-sync because the resume window was lost. */
     long getResyncCount() {
         return resyncCount.get();
+    }
+
+    /**
+     * True while this node is currently refusing a destructive full re-sync because the primary's
+     * sequence regressed below our local data's (see {@link #getStats()}'s
+     * {@code refusingDestructiveResync}).
+     */
+    boolean isRefusingDestructiveResync() {
+        return refusingDestructiveResync.get();
+    }
+
+    /** Lifetime count of destructive-resync refusals (see {@link #isRefusingDestructiveResync()}). */
+    long getRefusedResyncCount() {
+        return refusedResyncCount.get();
     }
 
     /**
@@ -2107,6 +2220,12 @@ public class ReplicationManager {
      * of MongoDB's RECOVERING member: it must not serve data-plane reads or writes. Returns false
      * once the initial sync has completed and the local database is a consistent replica, and false
      * after {@link #stop()} (running == false).
+     *
+     * <p>Also true while {@link #isRefusingDestructiveResync()} holds - a node refusing a
+     * destructive resync has NOT re-completed initial sync against the (currently untrusted) primary,
+     * even though, unlike the ordinary half-cleared case this javadoc otherwise describes, its local
+     * database is fully intact and deliberately left untouched. It is still treated as RECOVERING
+     * here (conservative: correctness over availability) rather than carved out as a distinct state.
      */
     public boolean isSyncing() {
         return running.get() && !initialSyncComplete.get();
@@ -2134,6 +2253,12 @@ public class ReplicationManager {
         stats.put("lastReportedSequence", lastReportedSequence.get());
         stats.put("lastKnownPrimarySequence", lastKnownPrimarySequence.get());
         stats.put("resyncCount", resyncCount.get());
+        // D2 (2026-08-14 empty-node-wipe fix): true while this node is deliberately refusing a
+        // destructive full re-sync because the primary's sequence regressed below our local data's
+        // - see the guard in startInitialSyncOnce(). refusedResyncCount is the monotonic lifetime
+        // count of such refusals, independent of whether the flag is currently set.
+        stats.put("refusingDestructiveResync", refusingDestructiveResync.get());
+        stats.put("refusedResyncCount", refusedResyncCount.get());
         stats.put("primaryHost", primaryHost + ":" + primaryPort);
         stats.put("myAddress", myAddress);
         stats.put("eventQueueSize", eventQueue.size());
