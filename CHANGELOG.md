@@ -97,6 +97,58 @@ analysis). The deduplication behavior is unchanged, only the log level.
 
 ### Fixed
 
+#### PoppyDB: a restarted empty node could wipe the whole replica set
+Reproduced kill chain: kill one node of a 3-node RS, restart it empty (fresh data dir), and it
+could both win the next election and cause the surviving, data-bearing followers to drop their
+local databases to match it. Two independent holes made this possible. First,
+`ElectionManager`'s Raft log-recency check existed but was vacuous — `lastLogIndex` had no
+production writer, so it stayed 0 on every node and an empty restarted candidate compared as
+"at least as up to date" as a voter sitting on real data. Second, on the follower side, a
+replication resume that finds its window already gone falls back to a full resync, and that
+fallback trusted whatever the primary reported unconditionally — reconnecting to a now-empty
+primary meant "wipe local data to match" with no discriminator between a legitimately empty
+primary (post-`dropDatabase`) and a stale one that had simply forgotten everything.
+
+The fix has three parts, each closing a different leg:
+- **Vote safety**: the log-recency check now enforces the one invariant that can be honestly
+  made without a real replicated log — a candidate reporting index 0 never wins against a voter
+  sitting above 0; three empty nodes still elect cleanly on cold start. A related hole let a
+  freshly-synced node still report index 0 to the election (initial sync suppresses the change
+  stream, so the normal live-write feed never fired) — such nodes now seed their true position
+  right after sync completes, so they neither wrongly grant votes to an empty candidate nor get
+  wrongly denied candidacy themselves.
+- **Candidacy restraint**: an empty node now holds off campaigning for as long as it can see a
+  data-bearing peer, preventing the term churn an empty node's repeated candidacies would
+  otherwise cause even after vote safety alone denies it the win.
+- **Fail-closed resync**: a follower now refuses a destructive drop-to-match resync whenever
+  the primary's replication sequence at registration is *behind* the sequence the follower's own
+  data was last known to reflect — the discriminator that tells a restarted/stale primary apart
+  from a legitimately empty one, since a real primary's sequence only ever advances, including
+  across a replicated `dropDatabase`. The refusal logs an ERROR, keeps local data intact, and
+  retries with a paced (2s) backoff until a genuinely caught-up primary answers or an operator
+  intervenes; the replication stats now expose `refusingDestructiveResync` /
+  `refusedResyncCount` so this state is observable rather than silent. Sequence knowledge now
+  also carries over across leader changes — a freshly constructed replication manager used to
+  start its own sequence at 0 and immediately self-seed from whatever the new leader reported,
+  which made the guard structurally unable to fire on that path.
+
+Composition note, stated plainly: the resync guard is a sequence-height heuristic, not a
+lineage check. A wrongly-promoted empty primary that manages to take on enough fresh writes
+before a follower reconnects could, in principle, still pass it — the guard alone is not the
+safety boundary. The actual barrier against that scenario is the election-side fix: an empty
+node must never be able to win the election in the first place, which is what vote safety and
+candidacy restraint together guarantee. The resync guard is defense in depth on top of that,
+not a substitute for it.
+
+Operator note: if the *last* data-bearing node in a cluster dies permanently, the surviving
+empty nodes deliberately hold back candidacy indefinitely rather than elect one of themselves —
+restarting any one of the survivors clears its peer-index memory and lets the cluster elect
+again, so recovery is "restart one node", not "restart the cluster".
+
+Regression coverage: `EmptyNodeRestartWipeTest` reproduces both directions of the original bug
+(empty node restarted as would-be primary, and as a would-be follower reconnecting to an empty
+primary) against a real in-process 3-node replica set.
+
 #### PoppyDB: j:true write concern no longer promises durability that does not exist
 A `j: true` write concern was silently accepted and acknowledged although PoppyDB has no
 journal (persistence is periodic snapshots). Like mongod running without journaling, the
