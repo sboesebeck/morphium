@@ -76,6 +76,8 @@ public class ReplicationFailClosedTest {
 
     /** Started nodes, shut down in reverse start order on teardown. */
     private final List<PoppyDB> nodes = new ArrayList<>();
+    /** Extra ReplicationManager instances (RM-replacement tests use more than one) to stop on teardown. */
+    private final List<ReplicationManager> extraReplicationManagers = new ArrayList<>();
     private ReplicationManager rm;
     private InMemoryDriver local;
 
@@ -87,6 +89,13 @@ public class ReplicationFailClosedTest {
             } catch (Exception ignored) {
             }
         }
+        for (int i = extraReplicationManagers.size() - 1; i >= 0; i--) {
+            try {
+                extraReplicationManagers.get(i).stop();
+            } catch (Exception ignored) {
+            }
+        }
+        extraReplicationManagers.clear();
         if (local != null) {
             try {
                 local.close();
@@ -142,6 +151,13 @@ public class ReplicationFailClosedTest {
 
     private long localCount() throws Exception {
         return local.count(DB, COLL, Doc.of(), null, null);
+    }
+
+    /** Count of "Starting change stream watch on primary..." lines captured so far - one per watch registration. */
+    private long registrationLogCount(ListAppender<ILoggingEvent> appender) {
+        return appender.list.stream()
+            .filter(ev -> ev.getFormattedMessage().contains("Starting change stream watch on primary"))
+            .count();
     }
 
     private void writeDocs(Morphium writer, int count, String prefix) {
@@ -247,6 +263,21 @@ public class ReplicationFailClosedTest {
                 "getStats() must surface the active refusal");
             assertTrue((Long) stats.get("refusedResyncCount") >= 1,
                 "getStats() must surface the refusal count");
+
+            // Pacing sanity check (task-3 review, issue 1): while refusing, the watch
+            // register/teardown cycle must be paced (REFUSAL_WATCH_PACE_MS), not spinning hot.
+            // A ~6s window at the 2s pace should see roughly 3 registrations; assert well under a
+            // spin's ~1400/s rate (thousands in this window) without pinning to an exact count.
+            long registrationsBefore = registrationLogCount(appender);
+            long windowStart = System.currentTimeMillis();
+            Thread.sleep(6_000);
+            long registrationsDuringWindow = registrationLogCount(appender) - registrationsBefore;
+            long windowMs = System.currentTimeMillis() - windowStart;
+            assertTrue(registrationsDuringWindow < 20,
+                "watch registrations while refusing must be paced, not spinning (got "
+                    + registrationsDuringWindow + " registrations in " + windowMs + "ms)");
+            assertTrue(rm.isRefusingDestructiveResync(),
+                "still refusing after the pacing-measurement window (primary was never caught up)");
 
             // Recoverability (the brief's explicit requirement): once the SAME reconnected
             // process genuinely catches up - its own sequence overtakes the follower's local
@@ -370,5 +401,116 @@ public class ReplicationFailClosedTest {
             "the local-only extra namespace must be wiped by the (legitimate) full resync");
 
         log.info("case (c) converged: local sequence was {}", s);
+    }
+
+    // ---- issue 2 (task-3 review): sequence carry-over across RM replacement (leader change) --
+    //
+    // PoppyDB#startReplicationToLeader constructs a brand-new ReplicationManager on every leader
+    // change, reusing the SAME persistent local driver (only the RM wrapper is replaced - the
+    // production analogue of what these two tests build by hand: rm1 against primary A is
+    // stop()ped, and a fresh rm is built against a different primary, sharing the same `local`
+    // driver). A fresh instance's own lastAppliedSequence starts at 0, which - absent the carry-
+    // over - would make the destructive-resync guard vacuously pass on every leader change; these
+    // tests exercise ReplicationManager#carryOverLastAppliedSequence directly, the same call
+    // PoppyDB now makes before starting the replacement.
+
+    @Test
+    public void carryOverAllowsNormalSyncWhenReplacementLeaderIsCaughtUp() throws Exception {
+        int portA = nextPort();
+        int portB = nextPort();
+        startStandalonePrimary(portA);
+
+        local = new InMemoryDriver();
+        local.connect();
+        ReplicationManager rm1 = new ReplicationManager(local, "localhost", portA);
+        extraReplicationManagers.add(rm1);
+        rm1.start();
+        assertTrue(poll(30_000, rm1::isInitialSyncComplete), "rm1 initial sync must complete");
+
+        Morphium writerA = writerFor(portA, DB);
+        try {
+            writeDocs(writerA, DOCS, "pre");
+            assertTrue(poll(30_000, () -> localCount() == DOCS),
+                "rm1 must live-replicate the batch (got " + localCount() + ")");
+        } finally {
+            writerA.close();
+        }
+        assertTrue(poll(5_000, () -> rm1.getLastAppliedSequence() > 0),
+            "rm1 lastAppliedSequence must have advanced past 0");
+        long predecessorSeq = rm1.getLastAppliedSequence();
+
+        // Simulate PoppyDB#startReplicationToLeader tearing down the old RM on a leader change.
+        rm1.stop();
+
+        // The "new leader": a DIFFERENT standalone primary, fed enough writes that its own
+        // sequence is comfortably >= predecessorSeq - a legitimate, caught-up new leader.
+        startStandalonePrimary(portB);
+        Morphium writerB = writerFor(portB, DB);
+        try {
+            writeDocs(writerB, (int) predecessorSeq + 50, "leaderb");
+        } finally {
+            writerB.close();
+        }
+
+        // Replacement RM, same local driver, carrying the predecessor's sequence forward exactly
+        // as PoppyDB#startReplicationToLeader now does.
+        rm = new ReplicationManager(local, "localhost", portB);
+        rm.carryOverLastAppliedSequence(predecessorSeq);
+        rm.start();
+
+        assertTrue(poll(30_000, rm::isInitialSyncComplete),
+            "a caught-up replacement leader must sync normally despite the carried-over sequence");
+        assertEquals(0, rm.getRefusedResyncCount(),
+            "a caught-up replacement leader must never trigger the destructive-resync refusal");
+        assertFalse(rm.isRefusingDestructiveResync());
+
+        log.info("carry-over caught-up case converged: predecessorSeq={}, final local count={}",
+            predecessorSeq, localCount());
+    }
+
+    @Test
+    public void carryOverRefusesWhenReplacementLeaderIsRegressed() throws Exception {
+        int portA = nextPort();
+        int portC = nextPort();
+        startStandalonePrimary(portA);
+
+        local = new InMemoryDriver();
+        local.connect();
+        ReplicationManager rm1 = new ReplicationManager(local, "localhost", portA);
+        extraReplicationManagers.add(rm1);
+        rm1.start();
+        assertTrue(poll(30_000, rm1::isInitialSyncComplete), "rm1 initial sync must complete");
+
+        Morphium writerA = writerFor(portA, DB);
+        try {
+            writeDocs(writerA, DOCS, "pre");
+            assertTrue(poll(30_000, () -> localCount() == DOCS),
+                "rm1 must live-replicate the batch (got " + localCount() + ")");
+        } finally {
+            writerA.close();
+        }
+        assertTrue(poll(5_000, () -> rm1.getLastAppliedSequence() > 0),
+            "rm1 lastAppliedSequence must have advanced past 0");
+        long predecessorSeq = rm1.getLastAppliedSequence();
+
+        rm1.stop();
+
+        // The "new leader": a FRESH, EMPTY standalone primary - a regressed/stale leader
+        // (sequence starts near 0, necessarily behind predecessorSeq).
+        startStandalonePrimary(portC);
+
+        rm = new ReplicationManager(local, "localhost", portC);
+        rm.carryOverLastAppliedSequence(predecessorSeq);
+        rm.start();
+
+        assertTrue(poll(30_000, () -> rm.getRefusedResyncCount() >= 1),
+            "a regressed replacement leader must be refused (refusedResyncCount="
+                + rm.getRefusedResyncCount() + ")");
+        assertFalse(rm.isInitialSyncComplete(), "a refused replacement must not report a completed sync");
+        assertEquals(DOCS, localCount(),
+            "local data carried over from the predecessor RM must survive a refused replacement resync");
+
+        log.info("carry-over regressed case converged: predecessorSeq={}, refusedResyncCount={}",
+            predecessorSeq, rm.getRefusedResyncCount());
     }
 }
