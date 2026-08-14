@@ -10,18 +10,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-#### Decoupled test-results store, release gate and badges
+#### Decoupled test-results store, release report and badges
 Test runs (full CI phases as well as partial developer runs) can now publish a JSON record
 of their results to the append-only `test-results` orphan branch via
 `runtests.sh --publish-results` — decoupled from the machine that produced them, so any
 contributor can supply results without homelab infrastructure. `release.sh` aggregates the
 records per (commit, phase) — newest run wins, only complete phase runs qualify, results
-from earlier commits stay valid when only docs/tests/tooling changed since — gates the
-release on a green 5-phase matrix, posts the result table (incl. optional JaCoCo coverage
-from `-Pcoverage`) to the GitHub release and refreshes the README badges. Coverage records
-themselves are produced by whatever runs `-Pcoverage` and passes `--coverage-xml` to
-`runtests.sh --publish-results` — the CI orchestrator wiring for that is a follow-up; for now
-it's manual runs.
+from earlier commits stay valid when only docs/tests/tooling changed since — and posts the
+honest result table to the GitHub release notes, missing or broken phases included, plus
+optional JaCoCo coverage (from `-Pcoverage`); the README badges are refreshed to match.
+This is a report, not a gate: `release.sh` never aborts on an incomplete or red matrix, it
+just says so in the release notes ("Transparenz statt Türsteher"). The aggregator itself
+(`scripts/test_report.py`) still exits 0/1/3 for complete-and-green / gaps-or-broken /
+store-unreachable, so a future caller or CI job that *does* want to gate on the matrix can
+build that policy on top without changing the tool. Coverage records themselves are produced
+by whatever runs `-Pcoverage` and passes `--coverage-xml` to `runtests.sh --publish-results`
+— the CI orchestrator wiring for that is a follow-up; for now it's manual runs.
 
 #### PoppyDB: honest capability advertisement in the hello reply (`poppyCapabilities`)
 The hello reply advertises replica-set topology and logical sessions, which makes modern

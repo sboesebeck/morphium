@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
-"""Aggregate test-results records for a target commit; release gate + report.
+"""Aggregate test-results records for a target commit into a markdown report.
 
 Rules (spec 2026-08-13-test-results-store-design.md):
 - only scope.complete records count;
 - per (phase) the record with the newest timestamp wins among records whose
   commit *qualifies* for the target commit;
 - commit C qualifies for target R iff C == R, or C is an ancestor of R and
-  every path in `git diff C..R` matches the allowlist below;
-- gate: all REQUIRED_PHASES covered and broken == 0 everywhere.
+  every path in `git diff C..R` matches the allowlist below.
+
+This tool only *reports*: it aggregates and renders, it never decides whether
+a release should proceed. Its exit code is a signal, not a gate - it is the
+caller's business whether to treat exit 1 (gaps/broken tests) as fatal, a
+warning, or something to ignore entirely. Exit codes: 0 = all REQUIRED_PHASES
+covered and broken == 0 everywhere; 1 = gaps or broken tests found; 3 =
+infra/fetch failure (store unreachable) - distinct from 1 because it says
+nothing about test health.
 """
 import argparse
 import fnmatch
@@ -175,6 +182,17 @@ def selftest():
     md_tests, _ = render_markdown(chosen, "a" * 40)
     assert "test/doc/tooling files changed" in md_tests, \
         "annotation MUST fire for test-only diffs"
+    # A gap-state (missing phases) must still write badges - the tool only
+    # reports, it never withholds output because the news is bad.
+    import tempfile
+    with mock.patch(__name__ + ".classify_diff", return_value=""):
+        gap_chosen = aggregate([rec], "a" * 40)  # only "inmem" present, 4 missing
+    with tempfile.TemporaryDirectory() as tmp:
+        write_badges(gap_chosen, None, tmp)
+        with open(os.path.join(tmp, "tests.json")) as fh:
+            badge = json.load(fh)
+    assert badge["color"] == "red", "gap-state badge must be red"
+    assert "1/5" in badge["message"], "gap-state badge must show the shortfall"
     print("selftest OK")
 
 
@@ -184,7 +202,6 @@ def main():
     ap.add_argument("--target-commit")
     ap.add_argument("--markdown-out")
     ap.add_argument("--badges-dir")
-    ap.add_argument("--accept-stale-run", action="store_true")
     args = ap.parse_args()
     if args.selftest:
         selftest()
@@ -194,37 +211,27 @@ def main():
     records = load_records()
     chosen = aggregate(records, args.target_commit)
     md, cov = render_markdown(chosen, args.target_commit)
-    # Compute gate status before rendering, so we can add warning if needed
     missing = [p for p in REQUIRED_PHASES if p not in chosen]
-    # gate looks at required phases only — a red optional (extension-module)
-    # phase is reported but must not block the release
+    # "broken" looks at required phases only — a red optional (extension-module)
+    # phase is reported but does not affect the exit code
     broken = sum(chosen[p][1]["broken"] for p in chosen if p in REQUIRED_PHASES)
-    gate_failed = missing or broken
-    # Add override warning to markdown if gate would fail but --accept-stale-run is set
-    if gate_failed and args.accept_stale_run:
-        missing_str = ", ".join(missing) if missing else "none"
-        warning = ("\n> ⚠️ **Release gate overridden** (`--accept-stale-run`): "
-                   "missing phases: %s, broken tests: %d. "
-                   "This release shipped despite incomplete test evidence.\n" %
-                   (missing_str, broken))
-        md = md.rstrip() + "\n" + warning + "\n"
+    has_gaps = missing or broken
     print(md)
     if args.markdown_out:
         with open(args.markdown_out, "w") as fh:
             fh.write(md)
-    # Only write badges when this run will exit 0 (gate passed, or explicitly
-    # overridden) -- otherwise a failed gate leaves badges/*.json modified in
-    # the working tree, and release.sh's next run trips its clean-tree check.
-    if args.badges_dir and (not gate_failed or args.accept_stale_run):
+    # Badges are written whenever records were loadable at all (exit 0 or 1) -
+    # a red badge honestly reflects a gap-state, it's not withheld to keep the
+    # working tree clean. Only exit 3 (store unreachable) skips them, since
+    # there is nothing to render.
+    if args.badges_dir:
         write_badges(chosen, cov, args.badges_dir)
-    if gate_failed:
-        print("GATE FAILED: missing=%s broken=%d" % (missing, broken),
+    if has_gaps:
+        print("REPORT: gaps found - missing=%s broken=%d" % (missing, broken),
               file=sys.stderr)
-        if not args.accept_stale_run:
-            sys.exit(1)
-        print("continuing due to --accept-stale-run", file=sys.stderr)
+        sys.exit(1)
     else:
-        print("GATE PASSED", file=sys.stderr)
+        print("REPORT: all required phases complete and green", file=sys.stderr)
 
 
 if __name__ == "__main__":
