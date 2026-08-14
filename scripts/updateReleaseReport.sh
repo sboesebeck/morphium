@@ -34,8 +34,18 @@ while [ $# -ne 0 ]; do
   esac
 done
 
-SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
-REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
+# Resolve the real repo root from this script's own location rather than the
+# caller's CWD. Callers in CI phase workdirs (/tmp/morphium-phase-workdir-*)
+# invoke this script through a symlink sitting in a non-git symlink farm -
+# `dirname "$0"`/`pwd` alone stays inside that farm (pwd doesn't dereference
+# symlinks in the path it walked through), so it has to be dereferenced
+# (python3 os.path.realpath; bash 3.2 has no readlink -f) back to where the
+# script file actually lives, i.e. inside the real checkout.
+REPO_ROOT=$(python3 -c 'import os,sys; print(os.path.dirname(os.path.dirname(os.path.realpath(sys.argv[1]))))' "$0")
+git -C "$REPO_ROOT" rev-parse --git-dir >/dev/null 2>&1 || { echo "error: cannot resolve real repo root from $0 (resolved: $REPO_ROOT)" >&2; exit 1; }
+# All subsequent git calls in this script, AND test_report.py's subprocess
+# git calls (which inherit the CWD, not just argv), must run against the real
+# repo regardless of where the caller invoked us from - so cd there now.
 cd "$REPO_ROOT"
 
 if [ -z "$TAG" ]; then
@@ -60,7 +70,7 @@ REPORT_MD="$WORKDIR/report.md"
 BADGES_TMP="$WORKDIR/badges"
 
 report_status=0
-python3 "$SCRIPT_DIR/test_report.py" --target-commit "$TAG_COMMIT" \
+python3 "$REPO_ROOT/scripts/test_report.py" --target-commit "$TAG_COMMIT" \
   --markdown-out "$REPORT_MD" --badges-dir "$BADGES_TMP" >/dev/null 2>&1 || report_status=$?
 
 if [ "$report_status" -eq 3 ]; then
