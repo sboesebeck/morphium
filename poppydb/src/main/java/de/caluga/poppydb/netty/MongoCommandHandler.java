@@ -2096,12 +2096,17 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> processFindDirect(ChannelHandlerContext ctx, Map<String, Object> doc, int requestId) {
+    // package-private: exercised by FastPathOptionsTest
+    Map<String, Object> processFindDirect(ChannelHandlerContext ctx, Map<String, Object> doc, int requestId) {
         String db = (String) doc.get("$db");
         String coll = (String) doc.get("find");
         Map<String, Object> filter = (Map<String, Object>) doc.get("filter");
         Map<String, Object> sort = (Map<String, Object>) doc.get("sort");
         Map<String, Object> projection = (Map<String, Object>) doc.get("projection");
+        // The client's collation was ignored on this path (#252 follow-up) - update/delete/
+        // count/distinct were fixed, find was not. hint stays unread: the InMemoryDriver has
+        // no hint support on any path, so ignoring it cannot diverge from the generic path.
+        Map<String, Object> collation = (Map<String, Object>) doc.get("collation");
         Integer limit = doc.get("limit") instanceof Number ? ((Number) doc.get("limit")).intValue() : 0;
         Integer skip = doc.get("skip") instanceof Number ? ((Number) doc.get("skip")).intValue() : 0;
         Integer batchSize = doc.get("batchSize") instanceof Number ? ((Number) doc.get("batchSize")).intValue() : 0;
@@ -2121,7 +2126,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             int windowSize = MAX_RETAINED_BATCHES * batchSize;
             int fetchLimit = batchSize + windowSize;
             if (limit > 0) fetchLimit = Math.min(fetchLimit, limit);
-            var window = driver.find(db, coll, filter, sort, projection, skip, fetchLimit);
+            var window = driver.find(db, coll, filter, sort, projection, collation, skip, fetchLimit);
 
             if (window.size() > batchSize) {
                 List<Map<String, Object>> firstBatch = new ArrayList<>(window.subList(0, batchSize));
@@ -2131,7 +2136,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 boolean hasLimit = limit > 0;
                 int remainingLimit = hasLimit ? Math.max(0, limit - window.size()) : 0;
                 findCursorRegistry.put(cursorId, new FindCursorRegistry.FindCursorState(db, coll, filter, sort, projection,
-                        retained, batchSize, nextSkip, hasLimit, remainingLimit));
+                        collation, retained, batchSize, nextSkip, hasLimit, remainingLimit));
                 channelCursors.add(cursorId);
                 return Doc.of("ok", 1.0, "cursor",
                         Doc.of("firstBatch", firstBatch, "id", cursorId, "ns", db + "." + coll));
@@ -2143,7 +2148,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
         // No batchSize requested — single-shot fetch of the full (limit-bounded) result set,
         // returned inline with no server-side cursor (unchanged from prior behaviour).
-        var results = driver.find(db, coll, filter, sort, projection, skip, limit);
+        var results = driver.find(db, coll, filter, sort, projection, collation, skip, limit);
         return Doc.of("ok", 1.0, "cursor",
                 Doc.of("firstBatch", results, "id", 0L, "ns", db + "." + coll));
     }
@@ -2154,7 +2159,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
      * {@code limit} has already been exhausted. See {@link FindCursorRegistry.FindCursorState}
      * for the concurrent-write caveat this re-execution carries.
      */
-    private void refillFindCursorWindow(FindCursorRegistry.FindCursorState state) {
+    // package-private: exercised by FastPathOptionsTest
+    void refillFindCursorWindow(FindCursorRegistry.FindCursorState state) {
         if (state.hasLimit && state.remainingLimit <= 0) {
             return;
         }
@@ -2162,7 +2168,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         int fetchLimit = state.hasLimit ? Math.min(windowSize, state.remainingLimit) : windowSize;
         if (fetchLimit <= 0) return;
         List<Map<String, Object>> refill = driver.find(state.db, state.collection, state.filter,
-                state.sort, state.projection, state.nextSkip, fetchLimit);
+                state.sort, state.projection, state.collation, state.nextSkip, fetchLimit);
         state.nextSkip += refill.size();
         if (state.hasLimit) state.remainingLimit -= refill.size();
         state.remaining.addAll(refill);

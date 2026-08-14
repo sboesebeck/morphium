@@ -5381,6 +5381,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return find(db, collection, query, sort, projection, null, skip, limit, false);
     }
 
+    public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query,
+                                          Map<String, Object> sort, Map<String, Object> projection,
+                                          Map<String, Object> collation, int skip, int limit)
+    throws MorphiumDriverException {
+        return find(db, collection, query, sort, projection, collation, skip, limit, false);
+    }
+
     private java.util.concurrent.locks.ReadWriteLock getCollectionLock(String db, String collection) {
         String key = db + "." + collection;
         return collectionLocks.computeIfAbsent(key, k -> new java.util.concurrent.locks.ReentrantReadWriteLock());

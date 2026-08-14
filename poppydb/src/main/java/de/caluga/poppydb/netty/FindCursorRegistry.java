@@ -138,6 +138,9 @@ public class FindCursorRegistry {
         final Map<String, Object> filter;
         final Map<String, Object> sort;
         final Map<String, Object> projection;
+        // The find's collation - refills must re-execute the query with it, or a getMore
+        // window would silently match differently than the firstBatch did (#252).
+        final Map<String, Object> collation;
         final int batchSize;
         // true if the original find had a positive (non-zero) limit; caps how many more
         // documents may ever be pulled in via refills, independent of what's left to match.
@@ -152,13 +155,15 @@ public class FindCursorRegistry {
         volatile long lastAccessed;
 
         FindCursorState(String db, String collection, Map<String, Object> filter, Map<String, Object> sort,
-                         Map<String, Object> projection, List<Map<String, Object>> remaining, int batchSize,
+                         Map<String, Object> projection, Map<String, Object> collation,
+                         List<Map<String, Object>> remaining, int batchSize,
                          int nextSkip, boolean hasLimit, int remainingLimit) {
             this.db = db;
             this.collection = collection;
             this.filter = filter;
             this.sort = sort;
             this.projection = projection;
+            this.collation = collation;
             this.remaining = remaining;
             this.batchSize = batchSize;
             this.nextSkip = nextSkip;

@@ -121,6 +121,44 @@ public class FastPathOptionsTest {
     }
 
     @Test
+    public void findDirect_honoursCollation() throws Exception {
+        List<Map<String, Object>> seed = new ArrayList<>();
+        seed.add(Doc.of("_id", new MorphiumId(), "name", "hello"));
+        new de.caluga.morphium.driver.commands.InsertMongoCommand(drv)
+            .setDb(db).setColl(coll).setDocuments(seed).execute();
+
+        Map<String, Object> answer = handler().processFindDirect(null, Doc.of(
+            "$db", db, "find", coll, "filter", Doc.of("name", "HELLO"),
+            "collation", Doc.of("locale", "en", "strength", 1)), 1);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> cursor = (Map<String, Object>) answer.get("cursor");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> firstBatch = (List<Map<String, Object>>) cursor.get("firstBatch");
+        assertEquals(1, firstBatch.size(),
+            "a case-insensitive collation from the request must be honoured by the find fast path");
+    }
+
+    @Test
+    public void findCursorRefill_keepsCollation() throws Exception {
+        List<Map<String, Object>> seed = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            seed.add(Doc.of("_id", new MorphiumId(), "name", "hello", "n", i));
+        }
+        new de.caluga.morphium.driver.commands.InsertMongoCommand(drv)
+            .setDb(db).setColl(coll).setDocuments(seed).execute();
+
+        FindCursorRegistry.FindCursorState state = new FindCursorRegistry.FindCursorState(
+            db, coll, Doc.of("name", "HELLO"), null, null,
+            Doc.of("locale", "en", "strength", 1),
+            new ArrayList<>(), 2, 0, false, 0);
+        handler().refillFindCursorWindow(state);
+
+        assertEquals(5, state.remaining.size(),
+            "a getMore refill must re-execute the query with the original collation, not without it");
+    }
+
+    @Test
     public void deleteDirect_honoursCollation() throws Exception {
         List<Map<String, Object>> seed = new ArrayList<>();
         seed.add(Doc.of("_id", new MorphiumId(), "name", "hello"));
