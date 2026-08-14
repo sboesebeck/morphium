@@ -455,13 +455,16 @@
       <id>coverage</id>
       <!-- Opt-in only: the agent costs measurable time and the CI phases are
            load-sensitive. prepare-agent sets ${argLine}; surefire composes it
-           with ${test.maxHeap} (see the argLine property comment above). -->
+           with ${test.maxHeap} (see the argLine property comment above). Inherited
+           reactor-wide: a root build with -Pcoverage also instruments the extension
+           modules (morphium-jakarta-data, quarkus-morphium); coverage reports are only
+           consumed for morphium-core and poppydb - use -pl or -DskipExtensions to avoid
+           the extra agent cost. -->
       <build>
         <plugins>
           <plugin>
             <groupId>org.jacoco</groupId>
             <artifactId>jacoco-maven-plugin</artifactId>
-            <version>0.8.12</version>
             <executions>
               <execution>
                 <id>prepare-agent</id>
