@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "commit": "8b79e46d12cf5b71702f36b200d4a0e0a6a0f6ed",
+  "branch": "feature/test-results-store",
+  "timestamp": "2026-08-14T09:12:50Z",
+  "runner": "gandalf",
+  "scope": {
+    "complete": false,
+    "tags": null,
+    "testPattern": "BufferedWriterTest"
+  },
+  "phases": {
+    "inmem": {
+      "classes": 1,
+      "methods": 1,
+      "passed": 1,
+      "skipped": 0,
+      "broken": 0,
+      "duration_s": 6,
+      "flaky": 0
+    }
+  }
+}
