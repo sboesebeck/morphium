@@ -52,6 +52,8 @@ def classify_diff(commit, target):
     if sh("git", "merge-base", "--is-ancestor", commit, target).returncode != 0:
         return None
     diff = sh("git", "diff", "--name-only", "%s..%s" % (commit, target))
+    if diff.returncode != 0:
+        return None
     files = [f for f in diff.stdout.splitlines() if f.strip()]
     if not files:
         return ""
@@ -91,7 +93,7 @@ def render_markdown(chosen, target):
             lines.append("| %s | — | — | — | — | *missing* | | |" % phase)
             continue
         rec, st, diff_class = chosen[phase]
-        if diff_class:
+        if diff_class == "tests":
             annotate = True
         lines.append("| %s | %d | %d | %d | %d | %s | %s | %s |" % (
             phase, st["methods"], st["passed"], st.get("flaky", 0),
@@ -99,7 +101,7 @@ def render_markdown(chosen, target):
     # extension-module phases (jakarta-data, quarkus, ...): report-only, never gate-relevant
     for phase in sorted(p for p in chosen if p not in REQUIRED_PHASES):
         rec, st, diff_class = chosen[phase]
-        if diff_class:
+        if diff_class == "tests":
             annotate = True
         lines.append("| %s *(optional)* | %d | %d | %d | %d | %s | %s | %s |" % (
             phase, st["methods"], st["passed"], st.get("flaky", 0),
@@ -162,6 +164,17 @@ def selftest():
     assert chosen == {}, "incomplete records must never qualify"
     md, cov = render_markdown({}, "a" * 40)
     assert "*missing*" in md
+    # Verify annotation only fires for "tests" diffs, not "clean" diffs
+    with mock.patch(__name__ + ".classify_diff", return_value="clean"):
+        chosen = aggregate([rec], "a" * 40)
+    md_clean, _ = render_markdown(chosen, "a" * 40)
+    assert "test/doc/tooling files changed" not in md_clean, \
+        "annotation must NOT fire for clean diffs (docs-only)"
+    with mock.patch(__name__ + ".classify_diff", return_value="tests"):
+        chosen = aggregate([rec], "a" * 40)
+    md_tests, _ = render_markdown(chosen, "a" * 40)
+    assert "test/doc/tooling files changed" in md_tests, \
+        "annotation MUST fire for test-only diffs"
     print("selftest OK")
 
 
@@ -181,17 +194,27 @@ def main():
     records = load_records()
     chosen = aggregate(records, args.target_commit)
     md, cov = render_markdown(chosen, args.target_commit)
+    # Compute gate status before rendering, so we can add warning if needed
+    missing = [p for p in REQUIRED_PHASES if p not in chosen]
+    # gate looks at required phases only — a red optional (extension-module)
+    # phase is reported but must not block the release
+    broken = sum(chosen[p][1]["broken"] for p in chosen if p in REQUIRED_PHASES)
+    gate_failed = missing or broken
+    # Add override warning to markdown if gate would fail but --accept-stale-run is set
+    if gate_failed and args.accept_stale_run:
+        missing_str = ", ".join(missing) if missing else "none"
+        warning = ("\n> ⚠️ **Release gate overridden** (`--accept-stale-run`): "
+                   "missing phases: %s, broken tests: %d. "
+                   "This release shipped despite incomplete test evidence.\n" %
+                   (missing_str, broken))
+        md = md.rstrip() + "\n" + warning + "\n"
     print(md)
     if args.markdown_out:
         with open(args.markdown_out, "w") as fh:
             fh.write(md)
     if args.badges_dir:
         write_badges(chosen, cov, args.badges_dir)
-    missing = [p for p in REQUIRED_PHASES if p not in chosen]
-    # gate looks at required phases only — a red optional (extension-module)
-    # phase is reported but must not block the release
-    broken = sum(chosen[p][1]["broken"] for p in chosen if p in REQUIRED_PHASES)
-    if missing or broken:
+    if gate_failed:
         print("GATE FAILED: missing=%s broken=%d" % (missing, broken),
               file=sys.stderr)
         if not args.accept_stale_run:
