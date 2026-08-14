@@ -125,20 +125,24 @@ The fix has three parts, each closing a different leg:
   data was last known to reflect — the discriminator that tells a restarted/stale primary apart
   from a legitimately empty one, since a real primary's sequence only ever advances, including
   across a replicated `dropDatabase`. The refusal logs an ERROR, keeps local data intact, and
-  retries with a paced (2s) backoff until a genuinely caught-up primary answers or an operator
-  intervenes; the replication stats now expose `refusingDestructiveResync` /
-  `refusedResyncCount` so this state is observable rather than silent. Sequence knowledge now
-  also carries over across leader changes — a freshly constructed replication manager used to
-  start its own sequence at 0 and immediately self-seed from whatever the new leader reported,
-  which made the guard structurally unable to fire on that path.
+  retries with watch re-registration paced at 2s and sync-loop retry backing off exponentially
+  from 1s to 30s, until a genuinely caught-up primary answers or an operator intervenes; the
+  replication stats now expose `refusingDestructiveResync` / `refusedResyncCount` so this state
+  is observable rather than silent. Sequence knowledge now also carries over across leader
+  changes — a freshly constructed replication manager used to start its own sequence at 0 and
+  immediately self-seed from whatever the new leader reported, which made the guard structurally
+  unable to fire on that path.
 
 Composition note, stated plainly: the resync guard is a sequence-height heuristic, not a
 lineage check. A wrongly-promoted empty primary that manages to take on enough fresh writes
 before a follower reconnects could, in principle, still pass it — the guard alone is not the
 safety boundary. The actual barrier against that scenario is the election-side fix: an empty
 node must never be able to win the election in the first place, which is what vote safety and
-candidacy restraint together guarantee. The resync guard is defense in depth on top of that,
-not a substitute for it.
+candidacy restraint together guarantee — guaranteed for the single-restart case; if a majority
+of nodes restart empty simultaneously, an empty node can still be elected (the fail-closed resync
+then still protects each surviving node's local data, but the cluster serves empty until a
+data-bearing node takes over). The resync guard is defense in depth on top of that, not a
+substitute for it.
 
 Operator note: if the *last* data-bearing node in a cluster dies permanently, the surviving
 empty nodes deliberately hold back candidacy indefinitely rather than elect one of themselves —
