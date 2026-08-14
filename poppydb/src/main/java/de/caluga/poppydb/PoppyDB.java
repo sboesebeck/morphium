@@ -892,6 +892,13 @@ public class PoppyDB {
         newReplicationManager.setInternalConnectionSecurity(
                 authRequired, rootUser, rootPassword, sslEnabled ? internalSslContext : null);
         newReplicationManager.setMyAddress(host + ":" + port);
+        // Follower-side half of the election log-recency feed (see ElectionManager#updateLogIndex's
+        // javadoc): keep our applied replication sequence flowing into ElectionManager so the
+        // vote-deny check has real data to compare against instead of a vacuous 0.
+        if (electionManager != null) {
+            newReplicationManager.setOnLogIndexUpdate((index, term) ->
+                    electionManager.updateLogIndex(index, electionManager.getCurrentTerm()));
+        }
         try {
             newReplicationManager.start();
             replicationManager = newReplicationManager;
