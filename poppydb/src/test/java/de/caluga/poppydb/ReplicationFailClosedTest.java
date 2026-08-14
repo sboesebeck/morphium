@@ -513,4 +513,58 @@ public class ReplicationFailClosedTest {
         log.info("carry-over regressed case converged: predecessorSeq={}, refusedResyncCount={}",
             predecessorSeq, rm.getRefusedResyncCount());
     }
+
+    // ---- issue 1 (2nd review pass): carry-over must survive a failed replication start --------
+    //
+    // PoppyDB#startReplicationToLeader(String, long) is private and tightly coupled to the
+    // election/leader-discovery machinery (primary/leaderId guards, the retry-scheduler chain),
+    // and reproducing a genuine SYNCHRONOUS throw from newReplicationManager.start() realistically
+    // needs an auth/TLS connect mismatch (a plain unreachable port is documented elsewhere in this
+    // class as SWALLOWED by PooledDriver.connect(), not thrown - see
+    // scheduleReplicationLivenessProbe's javadoc). Driving that end-to-end through a real 3-node
+    // election, on a schedule precise enough to fail exactly the FIRST attempt and succeed the
+    // retry, would be disproportionate machinery for covering one fallback decision. Per the
+    // review's own escape hatch, these two tests instead exercise PoppyDB#carryOverSequenceFor -
+    // the pure decision function startReplicationToLeader delegates to - directly and in
+    // isolation: no network, no election, no started server at all.
+
+    @Test
+    public void carryOverSequenceFallsBackToPersistedWatermarkWhenNoPredecessor() {
+        PoppyDB node = new PoppyDB();
+        nodes.add(node); // shutdown() on a never-started instance is a safe no-op
+
+        // The exact bug scenario: a PREVIOUS attempt persisted a real predecessor's position into
+        // the durable watermark, then (in production) newReplicationManager.start() threw, so
+        // replicationManager is null going into the retry - predecessor == null here mirrors that.
+        node.setLastKnownAppliedSequenceForTest(777);
+
+        assertEquals(777, node.carryOverSequenceFor(null),
+            "a failed-start retry (predecessor == null) must fall back to the persisted "
+                + "watermark, not silently reset to 0");
+    }
+
+    @Test
+    public void carryOverSequenceReadsLivePredecessorWhenPresent() throws Exception {
+        PoppyDB node = new PoppyDB();
+        nodes.add(node);
+
+        // A stale watermark from an even earlier attempt must NOT shadow a real, live
+        // predecessor - the live value always wins when one is available.
+        node.setLastKnownAppliedSequenceForTest(1);
+
+        InMemoryDriver drv = new InMemoryDriver();
+        drv.connect();
+        try {
+            ReplicationManager predecessor = new ReplicationManager(drv, "localhost", 1);
+            // Seeds lastAppliedSequence without ever calling start()/connecting anywhere - the
+            // decision function only reads getLastAppliedSequence(), so no live connection is
+            // needed to exercise it.
+            predecessor.carryOverLastAppliedSequence(500);
+
+            assertEquals(500, node.carryOverSequenceFor(predecessor),
+                "a live predecessor's own position must be used, not the stale watermark");
+        } finally {
+            drv.close();
+        }
+    }
 }
