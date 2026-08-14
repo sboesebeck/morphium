@@ -8,15 +8,22 @@ set -eo pipefail
 # 1. Validates prerequisites (branch, credentials, GPG, Java)
 # 2. Runs tests (optional)
 # 3. Aligns POM versions if necessary; bumps README version snippets
-# 4. Prepares release (creates tag, bumps next SNAPSHOT via maven-release-plugin)
-# 5. Builds release artifacts for all modules
-# 6. Creates combined bundle (parent + all modules in MODULE_DIRS, see the
+# 4. Gates the release on the test-results store (scripts/test_report.py) and
+#    commits regenerated badges/*.json; --accept-stale-run overrides
+# 5. Prepares release (creates tag, bumps next SNAPSHOT via maven-release-plugin)
+# 6. Builds release artifacts for all modules
+# 7. Creates combined bundle (parent + all modules in MODULE_DIRS, see the
 #    "Module registry" section below)
-# 7. Signs & generates checksums for all artifacts
-# 8. Uploads bundle to Sonatype Central Portal
-# 9. Merges tag to master and pushes changes
-# 10. Deploys documentation to gh-pages (optional)
-# 11. Finalizes state and provides summary
+# 8. Signs & generates checksums for all artifacts
+# 9. Uploads bundle to Sonatype Central Portal
+# 10. Merges tag to master and pushes changes; attaches the test report to the
+#     GitHub release (best-effort, needs authenticated gh)
+# 11. Deploys documentation to gh-pages (optional)
+# 12. Finalizes state and provides summary
+#
+# Note: in-code step comments keep their original numbers (Step 1..11) with
+# 4b/9b suffixes for these two additions, to keep this diff minimal — the
+# list above is the narrative order, not a literal grep target.
 #
 # Note: Can skip to Step 8 (Upload) using --skip-to-upload if previous run failed, this can happen when
 # the Sonatype credentials are not correct
@@ -33,6 +40,9 @@ set -eo pipefail
 #   --auto-publish     Automatically publish to Maven Central after validation
 #   --deploy-docs      Deploy documentation to gh-pages after release
 #   --skip-to-upload   Skip to Step 8 (Upload) if previous run failed
+#   --accept-stale-run Allow the test-results gate to pass despite missing or
+#                      broken phases (passed through to scripts/test_report.py);
+#                      the release notes/report call this out explicitly
 #   --rollback         Roll back the last release (renames tag, resets branches)
 #   --reset            Emergency reset: clean up release leftovers, align all
 #                      module versions to develop, remove dangling tags
@@ -61,6 +71,12 @@ DEPLOY_DOCS=false
 SKIP_TO_UPLOAD=false
 ROLLBACK=false
 RESET=false
+GATE_EXTRA_ARGS=""
+
+# Working dir for release-scoped scratch files (e.g. the test-results gate's
+# markdown report, read back later by the GitHub-release step). Created
+# unconditionally below and removed by the cleanup() trap on any exit path.
+RELEASE_TMP=""
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -97,6 +113,10 @@ while [[ $# -gt 0 ]]; do
     SKIP_TO_UPLOAD=true
     shift
     ;;
+  --accept-stale-run)
+    GATE_EXTRA_ARGS="--accept-stale-run"
+    shift
+    ;;
   --rollback)
     ROLLBACK=true
     shift
@@ -106,7 +126,7 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   --help)
-    sed -n '4,44p' "$0" | sed 's/^# //' | sed 's/^#//'
+    sed -n '4,48p' "$0" | sed 's/^# //' | sed 's/^#//'
     exit 0
     ;;
   *)
@@ -389,10 +409,91 @@ upload_bundle() {
   fi
 }
 
+# Gate the release on the decoupled test-results store (scripts/test_report.py,
+# see .superpowers/sdd/2026-08-13-test-results-store/): all required phases
+# (inmem/mongodb_rs/poppydb_rs/mongodb_single/poppydb_single) must have a
+# scope=complete record covering HEAD (or an allowlisted-diff ancestor of it)
+# with zero broken tests. Exit codes: 0 = gate passed, 1 = gate failed
+# (missing/broken phases - use --accept-stale-run to override), 3 = infra
+# error (store unreachable), treated as a hard, distinct abort below since
+# it is not a signal about test health at all. On success, stages+commits the
+# regenerated badges/*.json (only if they actually changed) so the release
+# tag carries badges matching what it just gated on.
+run_test_results_gate() {
+  log_step "Checking test-results store for HEAD"
+
+  local report_file="$RELEASE_TMP/test-report.md"
+  local gate_status=0
+  python3 scripts/test_report.py \
+    --target-commit "$(git rev-parse HEAD)" \
+    --markdown-out "$report_file" \
+    --badges-dir badges \
+    $GATE_EXTRA_ARGS || gate_status=$?
+
+  if [ "$gate_status" -eq 3 ]; then
+    log_error "Test-results store unreachable (infra error) - aborting release"
+    exit 1
+  elif [ "$gate_status" -ne 0 ]; then
+    log_error "Test-results gate failed. Run a full matrix (or use --accept-stale-run) first."
+    exit 1
+  fi
+
+  git add badges/tests.json badges/coverage.json 2>/dev/null || true
+  if ! git diff --cached --quiet; then
+    git commit -m "chore(release): update test/coverage badges" -q
+    log_success "Test/coverage badges updated"
+  else
+    log_info "Badges unchanged - nothing to commit"
+  fi
+
+  log_success "Test-results gate passed"
+}
+
+# Attach the test-results report to the GitHub release for $tag: create the
+# release if it doesn't exist yet, otherwise append the report to whatever
+# notes are already there (release:perform / prior manual edits). Entirely
+# best-effort - a missing/unauthenticated gh CLI, or gh itself failing, is
+# logged as a warning and must never fail the release at this point (upload +
+# git merge to master already happened).
+publish_github_release_notes() {
+  if ! command -v gh &>/dev/null; then
+    log_warn "gh CLI not found - skipping GitHub release notes"
+    return 0
+  fi
+  if ! gh auth status &>/dev/null; then
+    log_warn "gh CLI not authenticated - skipping GitHub release notes"
+    return 0
+  fi
+
+  local report_file="$RELEASE_TMP/test-report.md"
+  if [ ! -f "$report_file" ]; then
+    log_warn "No test-results report available - skipping GitHub release notes"
+    return 0
+  fi
+
+  if gh release view "$tag" >/dev/null 2>&1; then
+    local body
+    body=$(gh release view "$tag" --json body -q .body)
+    if ! printf '%s\n\n%s\n' "$body" "$(cat "$report_file")" | gh release edit "$tag" --notes-file -; then
+      log_warn "Failed to update GitHub release notes for $tag"
+      return 0
+    fi
+  else
+    if ! gh release create "$tag" --title "Morphium $tag" --notes-file "$report_file"; then
+      log_warn "Failed to create GitHub release $tag"
+      return 0
+    fi
+  fi
+  log_success "Test report attached to GitHub release $tag"
+}
+
 cleanup() {
   local exit_code=$?
   if [ -n "$BUNDLE_DIR" ] && [ -d "$BUNDLE_DIR" ]; then
     rm -rf "$BUNDLE_DIR"
+  fi
+  if [ -n "$RELEASE_TMP" ] && [ -d "$RELEASE_TMP" ]; then
+    rm -rf "$RELEASE_TMP"
   fi
   # Always return to the original branch on exit
   if [ -n "$ORIGINAL_BRANCH" ]; then
@@ -414,6 +515,10 @@ trap cleanup EXIT
 
 # Record starting branch early so cleanup trap can return here on any error
 ORIGINAL_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+
+# Scratch dir for this run (test-results gate report, read back by the
+# GitHub-release step); cleaned up by the cleanup() trap above.
+RELEASE_TMP=$(mktemp -d)
 
 # -----------------------------------------------------------------------------
 # Rollback handler
@@ -923,6 +1028,19 @@ if [ "$SKIP_TO_UPLOAD" != true ]; then
 fi
 
 # -----------------------------------------------------------------------------
+# Step 4b: Test-results gate
+# -----------------------------------------------------------------------------
+# Gates the release on the decoupled test-results store instead of the old
+# opt-in `--run-tests` (mvn clean test locally, never covering the real
+# inmem/mongodb_rs/poppydb_rs/mongodb_single/poppydb_single matrix). Runs
+# unconditionally in the default path now; --accept-stale-run is the escape
+# hatch for a deliberate release without full fresh coverage.
+
+if [ "$SKIP_TO_UPLOAD" != true ]; then
+  run_test_results_gate
+fi
+
+# -----------------------------------------------------------------------------
 # Step 5: Maven release:prepare (tag + version bump)
 # -----------------------------------------------------------------------------
 
@@ -1130,6 +1248,12 @@ rm -f release.properties pom.xml.releaseBackup 2>/dev/null || true
 for _module_dir in "${MODULE_DIRS[@]}"; do
   rm -f "${_module_dir}/pom.xml.releaseBackup" 2>/dev/null || true
 done
+
+# -----------------------------------------------------------------------------
+# Step 9b: Publish test report to the GitHub release
+# -----------------------------------------------------------------------------
+
+publish_github_release_notes
 
 # -----------------------------------------------------------------------------
 # Step 10: Deploy documentation (optional)

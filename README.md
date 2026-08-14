@@ -21,6 +21,8 @@ Available languages: English and [Deutsch](README.de.md)
 - 🚀 **Java 21+** — modern language baseline (pattern matching, sealed types)
 
 [![Maven Central](https://img.shields.io/maven-central/v/de.caluga/morphium.svg)](https://search.maven.org/artifact/de.caluga/morphium)
+[![Tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsboesebeck%2Fmorphium%2Fmaster%2Fbadges%2Ftests.json)](https://github.com/sboesebeck/morphium/releases)
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsboesebeck%2Fmorphium%2Fmaster%2Fbadges%2Fcoverage.json)](https://github.com/sboesebeck/morphium/releases)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 ## 🎯 Why Morphium?
