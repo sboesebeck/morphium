@@ -1116,22 +1116,47 @@ public class ReplicationManager {
                         // legitimate, caught-up primary).
                         refusingDestructiveResync.set(false);
 
-                        // Reseed lastAppliedSequence to this attempt's confirmed primary sequence
-                        // now that we are declaring success. recordPrimarySequenceAtRegistration()'s
-                        // own reseed (compareAndSet(0, primarySeq), fired earlier THIS cycle at
-                        // watch registration) only takes effect when lastAppliedSequence was still
-                        // exactly 0 at that moment - which it deliberately was NOT whenever this
-                        // cycle preserved a pre-existing local sequence for the destructive-resync
-                        // guard above (see triggerResync() - it no longer zeroes this field, so the
-                        // guard can compare the primary's regressed sequence against our real local
-                        // position). Without this, a resynced/shortcut-matched node would keep
-                        // reporting its OLD, pre-resync sequence downstream (the next resumeAfter
-                        // token, the election feed below) instead of its actual, now-current
-                        // position. Math.max rather than a blind set(): monotonic, matching every
-                        // other update to this field, and a safe no-op on the ordinary (never
-                        // regressed) path where the registration-time compareAndSet already applied
-                        // the same value.
-                        lastAppliedSequence.updateAndGet(current -> Math.max(current, lastKnownPrimarySequence.get()));
+                        // Adopt this attempt's confirmed primary sequence as our new base now that
+                        // we are declaring success (I-1, 2026-08-14 final review fix). A plain
+                        // set(), NOT Math.max(current, ...): change-stream sequences are
+                        // PRIMARY-LOCAL (see tryConsistencyShortcut's own javadoc on this) - the
+                        // OLD lastAppliedSequence (from whatever primary we last successfully
+                        // tracked, possibly a dead one with a much HIGHER counter than this brand
+                        // new/still-quiet primary) lives in a completely different, incomparable
+                        // number space from THIS primary's. Taking the max of two unrelated
+                        // counters is not "the safer of two options", it is meaningless - and
+                        // concretely harmful: it left this node believing it needed to resume
+                        // after a sequence number the new primary's own history could never
+                        // contain, so the very next reconnect always hit "resume window lost" ->
+                        // a dbHash mismatch (as soon as one real write happened) -> the D2 guard
+                        // above comparing the new primary's still-low counter against that stale
+                        // inherited high-water mark -> refusing an entirely LEGITIMATE resync,
+                        // unbounded on a quiet cluster (the new primary would need N more writes
+                        // before its counter ever caught up to the old primary's abandoned one).
+                        // "Having successfully synced against THIS primary, its base is my base."
+                        //
+                        // Two compositions this set() must not break, both verified safe:
+                        //
+                        // (1) The election feed just below must not regress. It doesn't:
+                        // ElectionManager#updateLogIndex is ITSELF monotonic-max internally
+                        // (`if (index >= lastLogIndex.get())`, a lower index is silently a no-op)
+                        // - so adopting a LOWER base here can at most make the value THIS method
+                        // reports go down, never the election's own recorded lastLogIndex. The
+                        // monotonic guarantee Task 1 relies on lives in ElectionManager, by
+                        // design, precisely so a primary-local counter reset on THIS side can
+                        // never regress it - see updateLogIndex's own javadoc.
+                        //
+                        // (2) Events buffered during the sync window are not lost. Every event
+                        // sitting in eventQueue right now was captured by the watch AFTER this
+                        // same registration (recordPrimarySequenceAtRegistration ran, and hence
+                        // lastKnownPrimarySequence was captured, at the START of this sync cycle -
+                        // strictly before any of those events could have arrived), so every
+                        // buffered event's own sequence number is >= lastKnownPrimarySequence.
+                        // Setting lastAppliedSequence to that lower bound now and then draining
+                        // the gate is safe: applyChangeEvent/applyBulkInserts advance it further
+                        // via their own per-event Math.max as each buffered (and all subsequent
+                        // live) event is applied - nothing regresses, nothing is skipped.
+                        lastAppliedSequence.set(lastKnownPrimarySequence.get());
 
                         // Success: open the gate. The batch processor now drains the events
                         // buffered during the snapshot (idempotent replay) and all subsequent live
