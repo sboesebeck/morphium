@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "commit": "45dd9e877be9fd847009a9b76cf54de637ab9acf",
+  "branch": "feature/test-results-store",
+  "timestamp": "2026-08-14T12:21:20Z",
+  "runner": "testrunner",
+  "scope": {
+    "complete": true,
+    "tags": null,
+    "testPattern": null
+  },
+  "phases": {
+    "inmem": {
+      "classes": 293,
+      "methods": 2056,
+      "passed": 2042,
+      "skipped": 14,
+      "broken": 0,
+      "duration_s": 2309,
+      "flaky": 0
+    }
+  }
+}
