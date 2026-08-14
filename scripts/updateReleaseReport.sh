@@ -123,6 +123,11 @@ else
       if git diff --cached --quiet; then
         echo "badges unchanged - nothing to publish"
       else
+        # Build the success message from what was actually staged (`git add`
+        # above), not a hardcoded list - coverage.json is optional (only
+        # written when a phase record carries coverage data), so claiming it
+        # was published when it wasn't would be a lie in the log.
+        PUBLISHED_FILES=$(git diff --cached --name-only -- badges/ | paste -sd+ -)
         git commit -q -m "badges: update for $TAG"
 
         n=0
@@ -137,10 +142,36 @@ else
           git fetch -q "$REMOTE" "$BRANCH"
           git rebase -q "FETCH_HEAD" || { git rebase --abort; echo "warning: badge rebase failed" >&2; exit 0; }
         done
-        echo "published badges/tests.json + badges/coverage.json to $REMOTE/$BRANCH for $TAG"
+        echo "published $PUBLISHED_FILES to $REMOTE/$BRANCH for $TAG"
       fi
     )
   fi
+fi
+
+# --- Owner-confirmed guard: if the aggregation found ZERO qualifying records
+# for the tag's commit, the rendered table is all "*missing*" rows - don't
+# touch the release notes in that case. Rationale: releases predating the
+# test-results store (or any tag nobody has published results for yet) would
+# otherwise get decorated with a permanently empty results table forever;
+# better to leave the notes untouched and let the first real entry appear
+# organically once qualifying runs actually exist. Badges are exempt from
+# this guard (see above) since they reflect *current* state, not history.
+#
+# Detection: inspect the rendered markdown table rather than parsing
+# test_report.py's stderr/exit code - exit 1 also fires for "gaps" where some
+# (not all) required phases are missing, which must still update the notes,
+# so the exit code alone can't distinguish "zero results" from "partial
+# results". The markdown is the one artifact both this script and
+# test_report.py agree on the shape of (see render_markdown()/selftest() in
+# test_report.py), so it's the more robust signal. A data row looks like
+# "| <phase> | ... |" with the phase name lowercase; the header row starts
+# with "| Phase" (capital P) and the separator row with "|---" - both are
+# filtered out by requiring a lowercase first table cell. Any surviving row
+# not containing "*missing*" means at least one phase qualified.
+QUALIFYING_ROWS=$(grep -E '^\| [a-z]' "$REPORT_MD" | { grep -v '\*missing\*' || true; })
+if [ -z "$QUALIFYING_ROWS" ]; then
+  echo "info: no qualifying test results for $TAG - leaving release notes untouched" >&2
+  exit 0
 fi
 
 # --- GitHub release notes (independently guarded): needs gh installed,
