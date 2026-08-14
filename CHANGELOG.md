@@ -87,6 +87,41 @@ analysis). The deduplication behavior is unchanged, only the log level.
 
 ### Fixed
 
+#### InMemoryDriver: MongoDB collation strength mapped to the wrong Java collator level
+MongoDB collation strength (1=primary..5=identical) was passed straight to
+`java.text.Collator.setStrength()`, whose constants are 0-3. Every level was silently shifted
+by one — `strength: 1` behaved as SECONDARY (diacritics significant) instead of PRIMARY — and
+`strength: 4`/`5` threw an `IllegalArgumentException` instead of working at all. The values are
+now mapped explicitly; Java has no quaternary level, so 4 and 5 both map to IDENTICAL, the
+closest level at least as strong as what mongo promises.
+
+#### PoppyDB: find fast path ignored the client's collation (#252 follow-up)
+The #252 fix wired the request's `collation` through the update/delete/count/distinct wire
+fast paths but missed `find`: a collation-aware find matched differently depending on which
+internal dispatch path the request happened to take. The collation now reaches the driver on
+both the single-shot and the cursor-window path, and the server-side find cursor carries it so
+`getMore` refills re-execute the query with the same collation as the first batch.
+
+#### InMemoryDriver: bulk-insert writeErrors pointed at the wrong batch positions, n overcounted
+The insert path removes failed documents from its working list between its three
+error-detection passes (oversize, duplicate against committed docs, intra-batch duplicate), so
+every `writeErrors.index` reported after an earlier removal referred to the shrunken working
+list — but clients resolve those indexes against the batch *they* sent. A parallel
+original-index list now keeps the reported indexes stable; removal is position-based, which
+also stops an equal-but-different document elsewhere in the batch from being dropped
+collaterally. In addition, `n` was computed as `batchSize - writeErrors.size()` on both the
+generic and the PoppyDB fast path — correct for unordered inserts only. An ordered insert
+stops at the first error, so the never-attempted tail was counted as inserted; both paths now
+derive the committed count from the first error's batch index.
+
+#### PoppyDB: commitTransaction/abortTransaction failures were swallowed
+A `commitTransaction`/`abortTransaction` that threw was only logged — the client received an
+unconditional `ok:1` and believed its transaction was committed. Failures are now answered as
+a mongo-shaped error (code 8 `UnknownError`, or the driver's mongo code if it attached one).
+Commit/abort without an active transaction remains a lenient `ok:1` no-op; a full per-session
+transaction state machine (txnNumber validation, `NoSuchTransaction`) is deliberately out of
+scope here.
+
 #### Write buffer: remove-by-query deleted only a single document
 `BufferedMorphiumWriterImpl.remove(Query, multiple, callback)` accepted the `multiple` flag but
 never passed it on to the queued `DeleteBulkRequest`, whose default is `multiple = false`. All
