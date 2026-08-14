@@ -121,6 +121,26 @@ public class FastPathOptionsTest {
     }
 
     @Test
+    public void insertDirect_orderedStopReportsActualInsertCount() throws Exception {
+        MorphiumId x = new MorphiumId();
+        List<Map<String, Object>> batch = List.of(
+            Doc.of("_id", x, "n", 0),
+            Doc.of("_id", new MorphiumId(), "n", 1),
+            Doc.of("_id", x, "n", 2),               // intra-batch duplicate -> ordered stop
+            Doc.of("_id", new MorphiumId(), "n", 3));
+
+        Map<String, Object> answer = handler().processInsertDirect(Doc.of(
+            "$db", db, "insert", coll, "documents", batch, "ordered", true));
+
+        assertEquals(2, countAll(), "ordered stops at the duplicate: only docs 0 and 1 are inserted");
+        assertEquals(2, ((Number) answer.get("n")).intValue(),
+            "n must count actually inserted documents - the never-attempted tail after an ordered stop is not inserted");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> we = (List<Map<String, Object>>) answer.get("writeErrors");
+        assertEquals(2, ((Number) we.get(0).get("index")).intValue());
+    }
+
+    @Test
     public void findDirect_honoursCollation() throws Exception {
         List<Map<String, Object>> seed = new ArrayList<>();
         seed.add(Doc.of("_id", new MorphiumId(), "name", "hello"));

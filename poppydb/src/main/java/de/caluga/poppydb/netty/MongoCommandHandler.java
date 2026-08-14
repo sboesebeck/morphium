@@ -2083,7 +2083,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             Map<String, Object> answer = Doc.of("ok", 1.0, "n", docs.size());
             if (writeErrors != null && !writeErrors.isEmpty()) {
                 answer.put("writeErrors", writeErrors);
-                answer.put("n", docs.size() - writeErrors.size());
+                answer.put("n", InMemoryDriver.insertedCountFromWriteErrors(docs.size(), ordered, writeErrors));
             }
             return answer;
         } catch (MorphiumDriverException e) {

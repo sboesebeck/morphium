@@ -3279,7 +3279,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         List<Map<String, Object>> writeErrors = insert(cmd.getDb(), cmd.getColl(), cmd.getDocuments(),
             cmd.getWriteConcern(), ordered);
         var m = prepareResult();
-        m.put("n", cmd.getDocuments().size() - writeErrors.size());
+        m.put("n", insertedCountFromWriteErrors(cmd.getDocuments().size(), ordered, writeErrors));
         if (writeErrors.size() != 0) {
             m.put("writeErrors", writeErrors);
         }
@@ -6673,6 +6673,39 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return insert(db, collection, objs, wc, true);
     }
 
+    /**
+     * Removes the working-list entries at the given (ascending) positions from both parallel
+     * lists, keeping objs and their original-batch-index list aligned. Position-based on purpose:
+     * removal by equality (the old removeAll) would also drop an equal-but-different document
+     * elsewhere in the batch.
+     */
+    private static void removeWorkingListPositions(List<Map<String, Object>> objs, List<Integer> origIdx,
+            List<Integer> positions) {
+        for (int i = positions.size() - 1; i >= 0; i--) {
+            int p = positions.get(i);
+            objs.remove(p);
+            origIdx.remove(p);
+        }
+    }
+
+    /**
+     * Number of documents an insert actually committed, derived from its writeErrors.
+     * batchSize - writeErrors.size() is only right for unordered inserts; an ordered insert
+     * stops at the first error, so everything after it was never attempted - the first error's
+     * (original-batch) index IS the number of documents inserted before it.
+     */
+    public static int insertedCountFromWriteErrors(int batchSize, boolean ordered, List<Map<String, Object>> writeErrors) {
+        if (writeErrors == null || writeErrors.isEmpty()) {
+            return batchSize;
+        }
+
+        if (ordered) {
+            return ((Number) writeErrors.get(0).get("index")).intValue();
+        }
+
+        return batchSize - writeErrors.size();
+    }
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     public List<Map<String, Object>> insert(String db, String collection, List<Map<String, Object>> objs,
                                             Map<String, Object> wc, boolean ordered) throws MorphiumDriverException {
@@ -6685,10 +6718,19 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             int errors = 0;
             objs = new ArrayList<>(objs);
             writeErrors = new ArrayList<>();
+            // Original batch position of each working-list entry, kept aligned with objs across
+            // every removal below. writeErrors.index must refer to the CLIENT's batch - indexing
+            // into the shrunken working list silently shifted every error reported after an
+            // earlier loop had already removed a document.
+            List<Integer> origIdx = new ArrayList<>(objs.size());
+
+            for (int i = 0; i < objs.size(); i++) {
+                origIdx.add(i);
+            }
 
             // BSON size gate (mongod parity, code 10334) - like the duplicate checks below:
             // ordered inserts throw, unordered ones report a per-document writeError
-            List<Map<String, Object>> oversized = new ArrayList<>();
+            List<Integer> oversizedPos = new ArrayList<>();
 
             for (int objIdx = 0; objIdx < objs.size(); objIdx++) {
                 MorphiumDriverException tooBig = documentTooLarge(objs.get(objIdx), false);
@@ -6698,13 +6740,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         throw tooBig;
                     }
 
-                    writeErrors.add(Doc.of("index", objIdx, "code", 10334, "errmsg", tooBig.getMessage()));
-                    oversized.add(objs.get(objIdx));
+                    writeErrors.add(Doc.of("index", origIdx.get(objIdx), "code", 10334, "errmsg", tooBig.getMessage()));
+                    oversizedPos.add(objIdx);
                     errors++;
                 }
             }
 
-            objs.removeAll(oversized);
+            removeWorkingListPositions(objs, origIdx, oversizedPos);
             // NO unique-index pre-check here anymore: CollectionIndexStore.onInsert (the loop
             // further down) is the single authority for uniqueness - committed-document conflicts
             // and intra-batch conflicts alike surface there as per-doc writeErrors, with mongod's
@@ -6731,7 +6773,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // path maintains it incrementally), and this loop never adds to it - so duplicates
             // BETWEEN documents of this same batch still only surface at onInsert below,
             // exactly as with the old snapshot-based check.
-            List<Map<String, Object>> idDuplicates = new ArrayList<>();
+            List<Integer> idDuplicatePos = new ArrayList<>();
             for (int objIdx = 0; objIdx < objs.size(); objIdx++) {
                 Map<String, Object> o = objs.get(objIdx);
                 if (o.get("_id") != null && indexStore.containsId(o.get("_id"))) {
@@ -6739,16 +6781,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         throw new MorphiumDriverException("Duplicate _id! " + o.get("_id"), null);
                     }
                     writeErrors.add(Doc.of(
-                        "index", objIdx,
+                        "index", origIdx.get(objIdx),
                         "code", 11000,
                         "errmsg", "E11000 duplicate key error collection: " + db + "." + collection + " dup key: { _id: " + o.get("_id") + " }"
                     ));
-                    idDuplicates.add(o);
+                    idDuplicatePos.add(objIdx);
                     continue;
                 }
                 o.putIfAbsent("_id", new ObjectId());
             }
-            objs.removeAll(idDuplicates);
+            removeWorkingListPositions(objs, origIdx, idDuplicatePos);
             // collectionData already retrieved above
             // Capped collections may evict existing documents to make room for the incoming
             // batch - those evictions must be reflected in the index store too, or evicted docs
@@ -6789,6 +6831,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 if (cappedInfo.containsKey("max")) {
                     while (!objs.isEmpty() && collectionData.size() + objs.size() > cappedInfo.get("max")) {
                         objs.remove(0);
+                        origIdx.remove(0);
                     }
                 }
                 // The old byte-capped trim of the incoming batch compared against
@@ -6825,7 +6868,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     indexStore.onInsert(o);
                 } catch (MorphiumDriverException ex) {
                     writeErrors.add(Doc.of(
-                        "index", objIdx,
+                        "index", origIdx.get(objIdx),
                         "code", ex.getMongoCode() == null ? 11000 : ex.getMongoCode(),
                         "errmsg", ex.getMessage()
                     ));
