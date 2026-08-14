@@ -26,6 +26,13 @@ import sys
 REQUIRED_PHASES = ["inmem", "mongodb_rs", "poppydb_rs",
                    "mongodb_single", "poppydb_single"]
 
+# Marks the report section for callers that splice it into a larger document
+# (updateReleaseReport.sh replaces everything between these markers in a
+# GitHub release body on every re-publish - the "living report"). Keep the
+# text stable: it is matched verbatim, not parsed.
+MARK_START = "<!-- morphium-test-report:start -->"
+MARK_END = "<!-- morphium-test-report:end -->"
+
 # paths that do not change the released artifact
 ALLOW = ["docs/*", "*.md", "branding/*", "mkdocs.yml", "LICENSE",
          ".gitignore", "scripts/*", "runtests.sh", "badges/*"]
@@ -127,7 +134,8 @@ def render_markdown(chosen, target):
     if annotate:
         lines += ["", "_Some results were produced on an earlier commit; only "
                   "test/doc/tooling files changed since (released artifact identical)._"]
-    return "\n".join(lines) + "\n", cov
+    body = "\n".join(lines) + "\n"
+    return MARK_START + "\n" + body + MARK_END + "\n", cov
 
 
 def write_badges(chosen, cov, badges_dir):
@@ -193,6 +201,11 @@ def selftest():
             badge = json.load(fh)
     assert badge["color"] == "red", "gap-state badge must be red"
     assert "1/5" in badge["message"], "gap-state badge must show the shortfall"
+    # Marker section: updateReleaseReport.sh splices on these markers verbatim,
+    # so both must appear, and appear exactly once, in the rendered markdown.
+    assert md.count(MARK_START) == 1, "start marker must appear exactly once"
+    assert md.count(MARK_END) == 1, "end marker must appear exactly once"
+    assert md.index(MARK_START) < md.index(MARK_END), "start marker must precede end marker"
     print("selftest OK")
 
 
