@@ -1013,17 +1013,25 @@ public class ElectionManager {
     }
 
     /**
-     * Update log index/term. Two production callers keep this fed with the real replication
-     * sequence, one per role:
+     * Update log index/term. Three production callers keep this fed with the real replication
+     * sequence:
      * <ul>
      *   <li><b>Leader:</b> {@link #sendHeartbeats()} calls this every heartbeat with
      *       {@code localSequenceSupplier}'s current value (wired by PoppyDB to
      *       {@code driver::getChangeStreamSequence}) and {@code currentTerm} - the same supplier
      *       already used for priority-takeover catch-up checks.</li>
-     *   <li><b>Follower:</b> {@code ReplicationManager}'s {@code onLogIndexUpdate} hook, wired by
-     *       PoppyDB in {@code startReplicationToLeader}, calls this after every applied batch
-     *       with {@code lastAppliedSequence} and this node's own {@code currentTerm} (substituted
-     *       for the term {@code ReplicationManager} passes, which it has no way to know).</li>
+     *   <li><b>Follower, live events:</b> {@code ReplicationManager}'s {@code onLogIndexUpdate}
+     *       hook, wired by PoppyDB in {@code startReplicationToLeader}, calls this after every
+     *       applied batch with {@code lastAppliedSequence} and this node's own {@code
+     *       currentTerm} (substituted for the term {@code ReplicationManager} passes, which it
+     *       has no way to know).</li>
+     *   <li><b>Follower, initial sync:</b> the same hook is also called once, immediately after
+     *       an initial sync (full snapshot or consistency-shortcut) completes, with the sequence
+     *       seeded at watch registration ({@code recordPrimarySequenceAtRegistration}). Without
+     *       this a freshly-synced node that then applies zero live events would never reach the
+     *       live-event call above and would keep reporting index {@code 0} to this class despite
+     *       holding real data - see that call site's comment in {@code ReplicationManager} for
+     *       the full mechanism.</li>
      * </ul>
      *
      * <p>Term is still passed through as {@code currentTerm} and stored in {@code lastLogTerm}
@@ -1039,12 +1047,23 @@ public class ElectionManager {
      * method exists to close (a once-elected, now-empty node carrying a high stale term at index
      * 0 outranking a real data-holding voter). Index-only comparison side-steps this entirely.
      *
+     * <p><b>Monotonic (max) index:</b> {@code index} is only ever raised, never lowered - a call
+     * with an {@code index} lower than the current value is a no-op. This is required, not just
+     * defensive: the initial-sync seed above can set a real, non-zero index before this node has
+     * applied or produced any live event of its own; the leader-side heartbeat feed
+     * ({@link #sendHeartbeats()}) reads the LOCAL driver's change-stream sequence, which initial
+     * sync deliberately runs under {@code suppressChangeStreamEvents()} and therefore never
+     * advances for synced data. Without monotonic semantics, the very next heartbeat after
+     * becoming leader (or the next call from either feed racing the other) would silently
+     * overwrite the seeded value back down to {@code 0}, reopening the empty-node-wipe bug for
+     * exactly the freshly-synced node the seed exists to protect.
+     *
      * <p>Thread-safety: called from two independent, unsynchronized threads - the leader's
      * heartbeat scheduler ({@link #sendHeartbeats()}) and the follower's replication batch
      * processor (via the {@code onLogIndexUpdate} hook wired in PoppyDB). Takes {@code
-     * stateLock} for the duration of the two writes so they can never interleave with each other
-     * or with {@link #handleVoteRequest}'s read of both fields (which already runs under the
-     * same lock).
+     * stateLock} for the duration of the read-compare-write so it can never interleave with
+     * itself or with {@link #handleVoteRequest}'s read of both fields (which already runs under
+     * the same lock).
      *
      * <p>Because both process state and this in-memory field reset to {@code 0} on restart, a
      * node whose local database was just cleared for a resync (e.g. mid-{@code
@@ -1056,8 +1075,10 @@ public class ElectionManager {
     public void updateLogIndex(long index, long term) {
         stateLock.lock();
         try {
-            lastLogIndex.set(index);
-            lastLogTerm.set(term);
+            if (index >= lastLogIndex.get()) {
+                lastLogIndex.set(index);
+                lastLogTerm.set(term);
+            }
         } finally {
             stateLock.unlock();
         }

@@ -1063,6 +1063,25 @@ public class ReplicationManager {
                         applying.set(true);
                         initialSyncComplete.set(true);
                         initialSyncLatch.countDown();
+
+                        // Seed the election layer's view of our replication position now that we
+                        // hold the primary's dataset (either path: full snapshot or consistency
+                        // shortcut both land here). lastAppliedSequence is already correct at this
+                        // point - recordPrimarySequenceAtRegistration() seeded it from the
+                        // primary's sequence at watch registration, before this snapshot even
+                        // started copying (see that method's javadoc). Without this call, a
+                        // freshly-synced node that then applies zero LIVE events would never reach
+                        // processBatch()'s onLogIndexUpdate call (it only fires when there is
+                        // something in eventQueue to drain) and would keep reporting index 0 to
+                        // ElectionManager despite actually holding real data - wrongly granting
+                        // votes to genuinely empty candidates as voter, and wrongly denied as
+                        // candidate. updateLogIndex()'s monotonic (max) semantics make this safe to
+                        // call unconditionally: it can only raise ElectionManager's view, never
+                        // regress it.
+                        long syncedSeq = lastAppliedSequence.get();
+                        if (onLogIndexUpdate != null && syncedSeq > 0) {
+                            onLogIndexUpdate.accept(syncedSeq, 0L);
+                        }
                         return;
                     } catch (Exception e) {
                         // Snapshot failed while the watch may still be healthy. Retry from within

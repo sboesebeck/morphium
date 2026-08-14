@@ -32,6 +32,14 @@ import static org.junit.jupiter.api.Assertions.*;
  * lastLogTerm} when indices differ, because that term is only a {@code currentTerm} stand-in
  * fed independently on each node - a once-elected, now-empty candidate can carry a higher stale
  * term than a data-holding voter, and a term-first comparison would wrongly grant it the vote.
+ *
+ * <p>{@link #updateLogIndexNeverLowersTheIndex} covers a third-round review finding:
+ * {@link ElectionManager#updateLogIndex} must use max (monotonic) semantics. Without it, a
+ * freshly-synced-then-silent node's seeded index (see {@code ReplicationManager}'s
+ * initial-sync-completion call site, and the dedicated integration test {@code
+ * InitialSyncElectionSeedTest}) would be silently regressed back to {@code 0} by the very next
+ * leader-side heartbeat tick (which reads the LOCAL driver's change-stream sequence - unrelated
+ * to, and possibly lower than, the synced position - see updateLogIndex's javadoc).
  */
 public class ElectionLogRecencyTest {
 
@@ -140,6 +148,51 @@ public class ElectionLogRecencyTest {
 
         assertTrue(response.isVoteGranted(),
                 "must grant vote to a candidate that is at least as up to date, even from an empty voter");
+    }
+
+    @Test
+    void voterSeededViaUpdateLogIndexDeniesEmptyCandidate() throws Exception {
+        // Direct-call variant (as opposed to deniesVoteFromEmptyCandidateWhenVoterHoldsData's
+        // production-wiring variant): confirms the seed-then-deny path also works when fed the
+        // way ReplicationManager's initial-sync-completion call site feeds it - a single
+        // updateLogIndex() call with no further live events.
+        ElectionConfig config = new ElectionConfig()
+                .setElectionTimeoutMinMs(60_000)
+                .setElectionTimeoutMaxMs(60_000);
+        ElectionManager voter = new ElectionManager("seeded-voter:27021", List.of("seeded-voter:27021", "candidate:27021"), config);
+        managers.add(voter);
+        voter.updateLogIndex(500, 0);
+        voter.start();
+
+        VoteRequest emptyCandidateRequest = new VoteRequest(
+                voter.getCurrentTerm() + 1, "empty-candidate:27021", 0, 0);
+        VoteResponse response = voter.handleVoteRequest(emptyCandidateRequest);
+
+        assertFalse(response.isVoteGranted(),
+                "a voter seeded via updateLogIndex (e.g. after an initial sync) must deny an empty candidate");
+    }
+
+    @Test
+    void updateLogIndexNeverLowersTheIndex() throws Exception {
+        ElectionConfig config = new ElectionConfig()
+                .setElectionTimeoutMinMs(60_000)
+                .setElectionTimeoutMaxMs(60_000);
+        ElectionManager manager = new ElectionManager("monotonic:27022", List.of("monotonic:27022"), config);
+        managers.add(manager);
+
+        manager.updateLogIndex(500, 3);
+        assertEquals(500, manager.getLastLogIndex(), "index must be set on the first call");
+
+        // Simulates the leader-side heartbeat feed reading the local driver's change-stream
+        // sequence (0, since initial sync runs under suppressChangeStreamEvents) right after the
+        // seed above - must not regress the already-known, higher index.
+        manager.updateLogIndex(0, 3);
+        assertEquals(500, manager.getLastLogIndex(),
+                "a lower index must never overwrite a higher one already recorded");
+
+        // A genuinely higher index must still win.
+        manager.updateLogIndex(600, 3);
+        assertEquals(600, manager.getLastLogIndex(), "a higher index must still advance the value");
     }
 
     @Test
