@@ -7,6 +7,13 @@
 # style of publishTestResults.sh (bash 3.2 compatible: no associative arrays,
 # no `local` outside functions where avoidable).
 #
+# Badges are published FIRST and unconditionally (they only need git push
+# rights to `origin`, not `gh`) - CI runners publishing results typically have
+# git push but no gh auth, and the badges must still refresh in that case. The
+# GitHub release notes section is a separate, independently-guarded step after
+# it: it needs `gh` installed and authenticated, and an existing release for
+# the tag; missing any of those only skips the notes step, never the badges.
+#
 # Entirely best-effort: every failure path warns to stderr and exits 0 - this
 # is called opportunistically after every publish (runtests.sh) and must
 # never turn a successful test-results publish into a failing script.
@@ -65,12 +72,86 @@ elif [ "$report_status" -ne 0 ] && [ "$report_status" -ne 1 ]; then
 fi
 # exit 0 or 1 both fine here - the report is informational, not a gate.
 
+# --- Badges (first, unconditional): publish badges/tests.json +
+# badges/coverage.json into the test-results store branch, so the README
+# badges (which point at raw.githubusercontent.com/.../test-results/badges/*)
+# stay live. This needs only `git push` rights to $REMOTE, not `gh` - it must
+# not be gated behind gh availability/auth. Same clone+push-retry pattern as
+# publishTestResults.sh.
+if [ ! -f "$BADGES_TMP/tests.json" ]; then
+  echo "warning: no tests.json badge produced - skipping badge publish" >&2
+else
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo "dry-run: would publish badges/tests.json to $REMOTE/$BRANCH:"
+    cat "$BADGES_TMP/tests.json"
+    echo
+    if [ -f "$BADGES_TMP/coverage.json" ]; then
+      echo "dry-run: would publish badges/coverage.json to $REMOTE/$BRANCH:"
+      cat "$BADGES_TMP/coverage.json"
+      echo
+    fi
+  else
+    BADGE_WORKDIR=$(mktemp -d "${TMPDIR:-/tmp}/morphium-badges.XXXXXX")
+    trap 'rm -rf "$WORKDIR" "$BADGE_WORKDIR"' EXIT
+    REMOTE_URL=$(git remote get-url "$REMOTE")
+
+    if git ls-remote --exit-code --heads "$REMOTE_URL" "$BRANCH" >/dev/null 2>&1; then
+      git clone -q --depth 1 --branch "$BRANCH" "$REMOTE_URL" "$BADGE_WORKDIR/store"
+    else
+      git init -q "$BADGE_WORKDIR/store"
+      (cd "$BADGE_WORKDIR/store" \
+        && git checkout -q --orphan "$BRANCH" \
+        && git remote add "$REMOTE" "$REMOTE_URL" \
+        && printf '%s\n' "# Morphium test results" "" \
+           "Append-only store of test-run records. One JSON file per run, written by" \
+           "scripts/publishTestResults.sh (see docs in the main branches). Do not edit." \
+           > README.md \
+        && git add README.md \
+        && git commit -q -m "chore: bootstrap test-results store")
+    fi
+
+    (
+      cd "$BADGE_WORKDIR/store"
+      mkdir -p badges
+      cp "$BADGES_TMP/tests.json" badges/tests.json
+      git add badges/tests.json
+      if [ -f "$BADGES_TMP/coverage.json" ]; then
+        cp "$BADGES_TMP/coverage.json" badges/coverage.json
+        git add badges/coverage.json
+      fi
+
+      if git diff --cached --quiet; then
+        echo "badges unchanged - nothing to publish"
+      else
+        git commit -q -m "badges: update for $TAG"
+
+        n=0
+        while ! git push -q "$REMOTE" "HEAD:refs/heads/$BRANCH" 2>/dev/null; do
+          n=$((n + 1))
+          if [ "$n" -gt 5 ]; then
+            echo "warning: badge push failed after 5 retries" >&2
+            exit 0
+          fi
+          # non-fast-forward: someone else pushed (a results record); rebase
+          # our badge commit on top and retry
+          git fetch -q "$REMOTE" "$BRANCH"
+          git rebase -q "FETCH_HEAD" || { git rebase --abort; echo "warning: badge rebase failed" >&2; exit 0; }
+        done
+        echo "published badges/tests.json + badges/coverage.json to $REMOTE/$BRANCH for $TAG"
+      fi
+    )
+  fi
+fi
+
+# --- GitHub release notes (independently guarded): needs gh installed,
+# authenticated, and an existing release for $TAG. Any of these missing only
+# skips this section - the badges above have already been refreshed.
 if ! command -v gh >/dev/null 2>&1; then
-  echo "warning: gh CLI not found - skipping release notes/badges update" >&2
+  echo "warning: gh CLI not found - skipping release notes update" >&2
   exit 0
 fi
 if ! gh auth status >/dev/null 2>&1; then
-  echo "warning: gh CLI not authenticated - skipping release notes/badges update" >&2
+  echo "warning: gh CLI not authenticated - skipping release notes update" >&2
   exit 0
 fi
 
@@ -127,72 +208,3 @@ else
   fi
   echo "updated release notes for $TAG"
 fi
-
-# --- Badges: publish badges/tests.json + badges/coverage.json into the
-# test-results store branch, so the README badges (which now point at
-# raw.githubusercontent.com/.../test-results/badges/*.json) stay live. Same
-# clone+push-retry pattern as publishTestResults.sh.
-if [ ! -f "$BADGES_TMP/tests.json" ]; then
-  echo "warning: no tests.json badge produced - skipping badge publish" >&2
-  exit 0
-fi
-
-if [ "$DRY_RUN" -eq 1 ]; then
-  echo "dry-run: would publish badges/tests.json to $REMOTE/$BRANCH:"
-  cat "$BADGES_TMP/tests.json"
-  echo
-  if [ -f "$BADGES_TMP/coverage.json" ]; then
-    echo "dry-run: would publish badges/coverage.json to $REMOTE/$BRANCH:"
-    cat "$BADGES_TMP/coverage.json"
-    echo
-  fi
-  exit 0
-fi
-
-BADGE_WORKDIR=$(mktemp -d "${TMPDIR:-/tmp}/morphium-badges.XXXXXX")
-trap 'rm -rf "$WORKDIR" "$BADGE_WORKDIR"' EXIT
-REMOTE_URL=$(git remote get-url "$REMOTE")
-
-if git ls-remote --exit-code --heads "$REMOTE_URL" "$BRANCH" >/dev/null 2>&1; then
-  git clone -q --depth 1 --branch "$BRANCH" "$REMOTE_URL" "$BADGE_WORKDIR/store"
-else
-  git init -q "$BADGE_WORKDIR/store"
-  (cd "$BADGE_WORKDIR/store" \
-    && git checkout -q --orphan "$BRANCH" \
-    && git remote add "$REMOTE" "$REMOTE_URL" \
-    && printf '%s\n' "# Morphium test results" "" \
-       "Append-only store of test-run records. One JSON file per run, written by" \
-       "scripts/publishTestResults.sh (see docs in the main branches). Do not edit." \
-       > README.md \
-    && git add README.md \
-    && git commit -q -m "chore: bootstrap test-results store")
-fi
-
-cd "$BADGE_WORKDIR/store"
-mkdir -p badges
-cp "$BADGES_TMP/tests.json" badges/tests.json
-git add badges/tests.json
-if [ -f "$BADGES_TMP/coverage.json" ]; then
-  cp "$BADGES_TMP/coverage.json" badges/coverage.json
-  git add badges/coverage.json
-fi
-
-if git diff --cached --quiet; then
-  echo "badges unchanged - nothing to publish"
-  exit 0
-fi
-git commit -q -m "badges: update for $TAG"
-
-n=0
-while ! git push -q "$REMOTE" "HEAD:refs/heads/$BRANCH" 2>/dev/null; do
-  n=$((n + 1))
-  if [ "$n" -gt 5 ]; then
-    echo "warning: badge push failed after 5 retries" >&2
-    exit 0
-  fi
-  # non-fast-forward: someone else pushed (a results record); rebase our
-  # badge commit on top and retry
-  git fetch -q "$REMOTE" "$BRANCH"
-  git rebase -q "FETCH_HEAD" || { git rebase --abort; echo "warning: badge rebase failed" >&2; exit 0; }
-done
-echo "published badges/tests.json + badges/coverage.json to $REMOTE/$BRANCH for $TAG"
