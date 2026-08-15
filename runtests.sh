@@ -14,7 +14,7 @@ LOGDIR="${MORPHIUM_TESTLOG:-test.log}"      # Override with env var for parallel
 # Multi-module layout: tests live in morphium-core
 TEST_MODULE="morphium-core"
 TEST_SRC="$TEST_MODULE/src/test/java"
-SUREFIRE_REPORTS="$TEST_MODULE/$SUREFIRE_REPORTS"
+SUREFIRE_REPORTS="$TEST_MODULE/${SUREFIRE_REPORTS:-target/surefire-reports}"
 
 cd $(dirname $0)
 # Ensure the temp directory exists
