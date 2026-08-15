@@ -58,7 +58,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
  * }</pre>
  */
 @Aspect
-@AutoConfiguration
+@AutoConfiguration(after = MorphiumAutoConfiguration.class)
 @ConditionalOnClass(name = "org.aspectj.lang.annotation.Aspect")
 @ConditionalOnBean(Morphium.class)
 public class MorphiumTransactionAspect {

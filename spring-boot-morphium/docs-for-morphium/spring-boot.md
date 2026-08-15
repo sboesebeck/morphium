@@ -54,7 +54,7 @@ pagination runtime.
 </dependency>
 ```
 
-In the Morphium reactor, `${project.version}` currently resolves to `6.3.0-SNAPSHOT`.
+In the Morphium reactor, `${project.version}` currently resolves to `6.3.2-SNAPSHOT`.
 This module follows Morphium's regular release versioning — it is versioned and
 released in lockstep with Morphium; there is no separate version line to track.
 
@@ -270,7 +270,7 @@ class ProductRepositoryTest {
 `InMemDriver` is Morphium's in-memory MongoDB emulation — tests run against it with no
 container and no external MongoDB, exactly like the core Morphium test suite.
 
-## Abgrenzung zu Spring Data MongoDB
+## Distinction from Spring Data MongoDB
 
 This module is **not** a replacement for, or a re-implementation of, Spring Data
 MongoDB, and does not aim to be API-compatible with it:
@@ -301,7 +301,7 @@ This page is an overview. The complete module documentation — installation, th
 property reference, repository usage, transactions, testing, and the detailed
 architecture comparison with Quarkus — lives in the module's own README:
 
-[`morphium-spring-boot-starter/README.md`](https://github.com/sboesebeck/morphium/tree/develop/morphium-spring-boot-starter/README.md)
+[`spring-boot-morphium/README.md`](https://github.com/sboesebeck/morphium/blob/develop/spring-boot-morphium/README.md)
 
 See also [Jakarta Data](jakarta-data.md) for the framework-agnostic repository runtime
 this module builds on, and [Quarkus Extension](quarkus-extension.md) for the

@@ -55,11 +55,11 @@ Add the starter to your `pom.xml`:
 <dependency>
     <groupId>de.caluga</groupId>
     <artifactId>morphium-spring-boot-starter</artifactId>
-    <version>6.3.0-SNAPSHOT</version>
+    <version>6.3.2-SNAPSHOT</version>
 </dependency>
 ```
 
-In the Morphium reactor, `${project.version}` currently resolves to `6.3.0-SNAPSHOT`.
+In the Morphium reactor, `${project.version}` currently resolves to `6.3.2-SNAPSHOT`.
 This module follows Morphium's regular release versioning -- there is no independent
 version to pin beyond the reactor version.
 
@@ -279,7 +279,7 @@ The `morphium-spring-boot-test` module provides a composite annotation:
 <dependency>
     <groupId>de.caluga</groupId>
     <artifactId>morphium-spring-boot-test</artifactId>
-    <version>6.3.0-SNAPSHOT</version>
+    <version>6.3.2-SNAPSHOT</version>
     <scope>test</scope>
 </dependency>
 ```
@@ -349,7 +349,7 @@ aspect, and the actuator health indicator. Every Jakarta Data feature documented
 return-type handling) applies unchanged once wired through this module -- there is no
 separate, Spring-specific feature set to learn.
 
-### Abgrenzung zu Spring Data MongoDB
+### Distinction from Spring Data MongoDB
 
 This module is **not** a replacement for or a re-implementation of Spring Data
 MongoDB, and does not aim to be API-compatible with it:
