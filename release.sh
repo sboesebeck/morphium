@@ -159,6 +159,16 @@ MODULE_DIRS=(morphium-core poppydb morphium-jakarta-data quarkus-morphium/runtim
 MODULE_ARTIFACT_IDS=(morphium poppydb morphium-jakarta-data quarkus-morphium quarkus-morphium-deployment quarkus-morphium-testing)
 MODULE_EXTRA_CLASSIFIERS=("" "cli" "" "" "" "")
 
+# Extension-module READMEs that pin the reactor's current SNAPSHOT version and
+# therefore need bumping when develop moves on (see
+# bump_module_readme_snapshots). Deliberately its own list rather than derived
+# from MODULE_DIRS: a module README lives at the EXTENSION root, not in the
+# published submodule directory, so quarkus-morphium has a single README serving
+# its three published submodules and MODULE_DIRS would point at three paths that
+# hold no README at all. Adding a new extension module here is what keeps its
+# README from rotting.
+MODULE_README_FILES=(morphium-jakarta-data/README.md quarkus-morphium/README.md)
+
 # All module pom.xml paths plus the root pom.xml, for git add/commit calls.
 # Note: MODULE_DIRS only lists directories that hold a *published* artifact
 # (see the registry comment above), so it does not cover every pom.xml that
@@ -297,6 +307,47 @@ bump_readme_versions() {
     log_success "README version snippets bumped to ${new_version} (${bumped})"
   else
     log_info "README version snippets already current - nothing to bump"
+  fi
+}
+
+# Bump the reactor SNAPSHOT version pinned inside the extension modules' own
+# READMEs to <new_snapshot>. Separate from bump_readme_versions() because the
+# two rot in opposite directions: a top-level README quotes the last RELEASE,
+# since that is what a user copies into their own pom, while a module README
+# documents the version the module currently carries INSIDE the reactor, which
+# is always a SNAPSHOT. The release-version substitution therefore never matches
+# in a module README - which is how quarkus-morphium/README.md came to still say
+# 6.3.0-SNAPSHOT a release after it was written.
+#
+# Called on develop after release:prepare has moved the reactor to the next
+# SNAPSHOT, so the bump rides along with that same push instead of landing a
+# release later.
+#
+# Same restraint as bump_readme_versions: only the machine-readable spots, never
+# a blanket X.Y.Z-SNAPSHOT replace, so prose naming a historic snapshot on
+# purpose keeps saying what its author meant. A module README that wants to be
+# kept in sync has to use one of these three shapes.
+bump_module_readme_snapshots() {
+  local new_snapshot="$1"
+  local file bumped=""
+
+  for file in "${MODULE_README_FILES[@]}"; do
+    [ -f "$file" ] || continue
+    sed -i.relbak -E \
+      -e "s#<version>[0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT</version>#<version>${new_snapshot}</version>#g" \
+      -e "s#currently [0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT#currently ${new_snapshot}#g" \
+      -e "s#[|] Morphium [|] [0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT#| Morphium | ${new_snapshot}#g" \
+      "$file"
+    rm -f "${file}.relbak"
+    git diff --quiet -- "$file" || bumped="${bumped:+$bumped }$file"
+  done
+
+  if [ -n "$bumped" ]; then
+    git add $bumped
+    git commit -m "Update module README snapshot versions to ${new_snapshot}" -q
+    log_success "Module README snapshots bumped to ${new_snapshot} (${bumped})"
+  else
+    log_info "Module README snapshots already current - nothing to bump"
   fi
 }
 
@@ -1226,6 +1277,7 @@ log_success "Merged to master"
 
 # Push develop (release:prepare already committed the next SNAPSHOT there)
 git checkout develop
+bump_module_readme_snapshots "$next_snapshot"
 git push origin develop || true
 
 # Return to original branch
