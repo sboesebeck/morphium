@@ -85,6 +85,20 @@ public class MorphiumTransactionAspect {
      * unchanged; if {@code pjp.proceed()} throws anything, calls
      * {@code abortTransaction()} and rethrows the original exception unchanged.
      *
+     * <p><b>REQUIRED propagation</b> (same semantics as quarkus-morphium's
+     * {@code MorphiumTransactionalInterceptor}): when a transaction is already active on
+     * this thread, the invocation simply joins it - no second {@code startTransaction()},
+     * and neither commit nor abort here, because the outermost advised call owns the
+     * transaction's outcome. This matters because all drivers reject a second
+     * {@code startTransaction()} with an {@code IllegalArgumentException}; without joining,
+     * one {@code @MorphiumTransactional} service calling another would abort the OUTER
+     * transaction and lose all of its work. No explicit nesting counter is needed:
+     * Morphium already tracks the active transaction per thread.
+     *
+     * <p><b>No rollback rules.</b> Unlike Spring's {@code @Transactional}, which by default
+     * rolls back on unchecked exceptions only, this aspect aborts on <i>any</i>
+     * {@code Throwable} - including checked exceptions and {@code Error}s.
+     *
      * @param pjp the join point representing the intercepted method invocation
      * @return whatever the advised method returned
      * @throws Throwable whatever the advised method threw, after the transaction has
@@ -93,6 +107,10 @@ public class MorphiumTransactionAspect {
     @Around("@annotation(de.caluga.morphium.spring.autoconfigure.MorphiumTransactional) || " +
             "@within(de.caluga.morphium.spring.autoconfigure.MorphiumTransactional)")
     public Object aroundTransactional(ProceedingJoinPoint pjp) throws Throwable {
+        // REQUIRED propagation: if a transaction is already active, just participate.
+        if (morphium.getTransaction() != null) {
+            return pjp.proceed();
+        }
         morphium.startTransaction();
         try {
             Object result = pjp.proceed();
