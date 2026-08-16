@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.quarkiverse.morphium</groupId>
+    <groupId>de.caluga</groupId>
     <artifactId>quarkus-morphium-showcase</artifactId>
     <version>1.1.2-SNAPSHOT</version>
     <packaging>jar</packaging>
@@ -45,25 +45,12 @@
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.version>3.32.3</quarkus.platform.version>
-        <quarkus-morphium.version>1.2.0</quarkus-morphium.version>
-        <morphium.version>6.2.5-SNAPSHOT</morphium.version>
+        <quarkus-morphium.version>6.3.1</quarkus-morphium.version>
+        <morphium.version>6.3.1</morphium.version>
         <compiler-plugin.version>3.13.0</compiler-plugin.version>
         <surefire-plugin.version>3.5.2</surefire-plugin.version>
         <lombok.version>1.18.42</lombok.version>
     </properties>
-
-    <!-- Resolve morphium / quarkus-morphium from the bundled local repo until they are
-         published to Maven Central (not yet available there). -->
-    <repositories>
-        <repository>
-            <id>local-bundled</id>
-            <url>file://${project.basedir}/lib/maven-repo</url>
-            <!-- checksumPolicy=ignore: the bundled artifacts are copied without .sha1/.md5
-                 sidecars, so do not fail the build on missing checksums. -->
-            <releases><enabled>true</enabled><checksumPolicy>ignore</checksumPolicy></releases>
-            <snapshots><enabled>true</enabled><checksumPolicy>ignore</checksumPolicy></snapshots>
-        </repository>
-    </repositories>
 
     <dependencyManagement>
         <dependencies>
@@ -94,7 +81,7 @@
 
         <!-- Morphium via Quarkus Extension (includes Morphium ORM transitively) -->
         <dependency>
-            <groupId>io.quarkiverse.morphium</groupId>
+            <groupId>de.caluga</groupId>
             <artifactId>quarkus-morphium</artifactId>
             <version>${quarkus-morphium.version}</version>
         </dependency>
@@ -134,7 +121,7 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>io.quarkiverse.morphium</groupId>
+            <groupId>de.caluga</groupId>
             <artifactId>quarkus-morphium-testing</artifactId>
             <version>${quarkus-morphium.version}</version>
             <scope>test</scope>
