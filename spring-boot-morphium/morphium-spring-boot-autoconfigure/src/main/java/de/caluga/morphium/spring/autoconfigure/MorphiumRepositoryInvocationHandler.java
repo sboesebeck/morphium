@@ -56,6 +56,17 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
             };
         }
 
+        // A default method carries its own implementation, so it must run as written instead
+        // of being analysed as a query. Handled here rather than in analyzeMethod() because
+        // InvocationHandler.invokeDefault needs the proxy instance, which the MethodHandler
+        // functional interface (args only) cannot carry - and handled BEFORE the derived-query
+        // check further down, since a default method is free to be named findBy*/countBy*.
+        // Without this, any default method ended in the "Unsupported repository method"
+        // UnsupportedOperationException at the bottom of analyzeMethod().
+        if (method.isDefault()) {
+            return InvocationHandler.invokeDefault(proxy, method, args);
+        }
+
         return handlers.computeIfAbsent(method, this::analyzeMethod).handle(args);
     }
 
@@ -162,6 +173,18 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
 
         String orderBySpec = getOrderBySpec(method);
 
+        // Regression fix: this handler never looked up dynamic Sort/Order/PageRequest/Limit
+        // parameters and always dispatched to the simple executeQuery overload -- a Page<T>
+        // method got a plain List back (ClassCastException at the proxy boundary) and a
+        // Sort<T> argument was silently dropped (wrong order, no error). Determine the four
+        // indices the same way buildJdqlHandler/buildFindHandler already do and always call
+        // the overload that takes them; it short-circuits back to the simple overload itself
+        // when all four indices are -1, so this is safe for the common case too.
+        int sortIdx = findParamIndex(method, Sort.class);
+        int orderIdx = findParamIndex(method, Order.class);
+        int pageRequestIdx = findParamIndex(method, PageRequest.class);
+        int limitIdx = findParamIndex(method, Limit.class);
+
         // Strip the "Async" suffix for parsing (e.g. "findByStatusAsync" -> "findByStatus"),
         // matching quarkus-morphium's MorphiumDataProcessor convention for derived-query
         // methods with a CompletionStage return type.
@@ -172,11 +195,13 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
         if (returnsAsync) {
             return args -> QueryMethodBridge.executeQueryAsync(
                     delegate, parseableName, args != null ? args : new Object[0],
-                    returnsSingle, returnsOptional, returnsBoolean, returnsStream, orderBySpec);
+                    returnsSingle, returnsOptional, returnsBoolean, returnsStream, orderBySpec,
+                    sortIdx, orderIdx, pageRequestIdx, limitIdx);
         }
         return args -> QueryMethodBridge.executeQuery(
                 delegate, parseableName, args != null ? args : new Object[0],
-                returnsSingle, returnsOptional, returnsBoolean, returnsStream, orderBySpec);
+                returnsSingle, returnsOptional, returnsBoolean, returnsStream, orderBySpec,
+                sortIdx, orderIdx, pageRequestIdx, limitIdx);
     }
 
     private MethodHandler buildJdqlHandler(Method method, Query queryAnno) {
@@ -187,6 +212,7 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
         int pageRequestIdx = findParamIndex(method, PageRequest.class);
         int limitIdx = findParamIndex(method, Limit.class);
 
+        boolean returnsAsync = CompletionStage.class.isAssignableFrom(method.getReturnType());
         boolean returnsSingle = isSingleReturn(method);
         boolean returnsCount = method.getReturnType() == long.class || method.getReturnType() == Long.class;
         boolean returnsBoolean = method.getReturnType() == boolean.class || method.getReturnType() == Boolean.class;
@@ -194,6 +220,23 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
         boolean returnsCursoredPage = CursoredPage.class.isAssignableFrom(method.getReturnType());
         boolean returnsStream = Stream.class.isAssignableFrom(method.getReturnType());
         String orderBySpec = getOrderBySpec(method);
+
+        // Regression fix: neither this method nor isSingleReturn(Method) excluded
+        // CompletionStage, so a `CompletionStage<List<T>>` method was analyzed as a
+        // single-entity query, ran synchronously on the caller's thread, and handed the
+        // entity itself to the proxy where a CompletionStage was expected --
+        // ClassCastException. Dispatch to the async bridge with the same parameters as
+        // the sync call, matching quarkus-morphium's convention (used already by
+        // buildDerivedQueryHandler) that a CompletionStage-returning query method
+        // resolves to a plain (non-single, non-Optional) result.
+        if (returnsAsync) {
+            return args -> JdqlMethodBridge.executeJdqlAsync(
+                    delegate, jdql, paramMapSpec,
+                    sortIdx, orderIdx, pageRequestIdx, limitIdx,
+                    args != null ? args : new Object[0],
+                    returnsSingle, returnsCount, returnsBoolean, returnsOptional,
+                    returnsCursoredPage, orderBySpec, returnsStream, null);
+        }
 
         return args -> JdqlMethodBridge.executeJdql(
                 delegate, jdql, paramMapSpec,
@@ -211,10 +254,23 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
         int pageRequestIdx = findParamIndex(method, PageRequest.class);
         int limitIdx = findParamIndex(method, Limit.class);
 
+        boolean returnsAsync = CompletionStage.class.isAssignableFrom(method.getReturnType());
         boolean returnsSingle = isSingleReturn(method);
         boolean returnsOptional = Optional.class.isAssignableFrom(method.getReturnType());
         boolean returnsCursoredPage = CursoredPage.class.isAssignableFrom(method.getReturnType());
         boolean returnsStream = Stream.class.isAssignableFrom(method.getReturnType());
+
+        // Regression fix: same CompletionStage gap as buildJdqlHandler above -- a
+        // `CompletionStage<List<T>>` @Find method ran synchronously and returned the
+        // entity/list directly instead of a CompletionStage, causing a
+        // ClassCastException at the proxy boundary.
+        if (returnsAsync) {
+            return args -> FindMethodBridge.executeFindAsync(
+                    delegate, conditionsSpec, orderBySpec,
+                    sortIdx, orderIdx, pageRequestIdx, limitIdx,
+                    args != null ? args : new Object[0],
+                    returnsSingle, returnsOptional, returnsCursoredPage, returnsStream);
+        }
 
         return args -> FindMethodBridge.executeFind(
                 delegate, conditionsSpec, orderBySpec,
@@ -225,6 +281,21 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
 
     private MethodHandler buildDeleteHandler(Method method) {
         String conditionsSpec = buildConditionsSpec(method);
+        Class<?> returnType = method.getReturnType();
+
+        // Regression fix: Jakarta Data 1.0 permits void, int, and long return types for
+        // @Delete methods -- the numeric variants must return the number of deleted
+        // entities. This used to always call the void bridge and return null, which blew
+        // up as a NullPointerException when the proxy tried to unbox null into a
+        // primitive long/int return value.
+        if (returnType == long.class || returnType == Long.class) {
+            return args -> FindMethodBridge.executeAnnotatedDeleteCounted(
+                    delegate, conditionsSpec, args != null ? args : new Object[0]);
+        }
+        if (returnType == int.class || returnType == Integer.class) {
+            return args -> (int) FindMethodBridge.executeAnnotatedDeleteCounted(
+                    delegate, conditionsSpec, args != null ? args : new Object[0]);
+        }
         return args -> {
             FindMethodBridge.executeAnnotatedDelete(
                     delegate, conditionsSpec, args != null ? args : new Object[0]);
@@ -289,6 +360,7 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
                 && !CursoredPage.class.isAssignableFrom(rt)
                 && !Iterable.class.isAssignableFrom(rt)
                 && !Optional.class.isAssignableFrom(rt)
+                && !CompletionStage.class.isAssignableFrom(rt)
                 && rt != long.class && rt != Long.class
                 && rt != boolean.class && rt != Boolean.class
                 && rt != void.class && rt != Void.class;
