@@ -155,9 +155,9 @@ done
 # (e.g. quarkus-morphium/integration-tests) should still list modules
 # explicitly here rather than glob-discovering directories, so such submodules
 # are simply never added to the arrays.
-MODULE_DIRS=(morphium-core poppydb morphium-jakarta-data quarkus-morphium/runtime quarkus-morphium/deployment quarkus-morphium/testing)
-MODULE_ARTIFACT_IDS=(morphium poppydb morphium-jakarta-data quarkus-morphium quarkus-morphium-deployment quarkus-morphium-testing)
-MODULE_EXTRA_CLASSIFIERS=("" "cli" "" "" "" "")
+MODULE_DIRS=(morphium-core poppydb morphium-jakarta-data quarkus-morphium/runtime quarkus-morphium/deployment quarkus-morphium/testing spring-boot-morphium/morphium-spring-boot-autoconfigure spring-boot-morphium/morphium-spring-boot-starter spring-boot-morphium/morphium-spring-boot-test)
+MODULE_ARTIFACT_IDS=(morphium poppydb morphium-jakarta-data quarkus-morphium quarkus-morphium-deployment quarkus-morphium-testing morphium-spring-boot-autoconfigure morphium-spring-boot-starter morphium-spring-boot-test)
+MODULE_EXTRA_CLASSIFIERS=("" "cli" "" "" "" "" "" "" "")
 
 # Extension-module READMEs that pin the reactor's current SNAPSHOT version and
 # therefore need bumping when develop moves on (see
@@ -184,7 +184,7 @@ MODULE_README_FILES=(morphium-jakarta-data/README.md quarkus-morphium/README.md)
 # it is listed here, so any pom missing from this array would silently be
 # version-bumped by Maven but NOT staged by the `git add "${ALL_POM_FILES[@]}"`
 # calls below — leaving it out of sync with the commit.
-ALL_POM_FILES=(pom.xml quarkus-morphium/pom.xml quarkus-morphium/integration-tests/pom.xml)
+ALL_POM_FILES=(pom.xml quarkus-morphium/pom.xml quarkus-morphium/integration-tests/pom.xml spring-boot-morphium/pom.xml)
 for _module_dir in "${MODULE_DIRS[@]}"; do
   ALL_POM_FILES+=("${_module_dir}/pom.xml")
 done
@@ -964,7 +964,7 @@ module_list=""
 for module_dir in "${MODULE_DIRS[@]}"; do
   module_list="${module_list:+$module_list, }$module_dir"
 done
-log_success "Multi-module structure: morphium-parent, quarkus-morphium-parent, ${module_list}"
+log_success "Multi-module structure: morphium-parent, quarkus-morphium-parent, morphium-spring-boot-parent, ${module_list}"
 fi
 
 # -----------------------------------------------------------------------------
@@ -1023,6 +1023,13 @@ if [ "$DRY_RUN" = true ]; then
   sign_file "${quarkus_parent_repo}/quarkus-morphium-parent-${version}.pom"
   checksum_file "${quarkus_parent_repo}/quarkus-morphium-parent-${version}.pom"
 
+  log_info "Adding morphium-spring-boot-parent..."
+  spring_parent_repo="${BUNDLE_DIR}/de/caluga/morphium-spring-boot-parent/${version}"
+  mkdir -p "$spring_parent_repo"
+  cp spring-boot-morphium/pom.xml "${spring_parent_repo}/morphium-spring-boot-parent-${version}.pom"
+  sign_file "${spring_parent_repo}/morphium-spring-boot-parent-${version}.pom"
+  checksum_file "${spring_parent_repo}/morphium-spring-boot-parent-${version}.pom"
+
   for i in "${!MODULE_DIRS[@]}"; do
     add_module_to_bundle \
       "${MODULE_DIRS[$i]}" \
@@ -1039,7 +1046,7 @@ if [ "$DRY_RUN" = true ]; then
   log_step "Dry run complete"
   echo ""
   echo "Would release version: $release_version"
-  echo "  Modules: morphium-parent, quarkus-morphium-parent, ${MODULE_ARTIFACT_IDS[*]}"
+  echo "  Modules: morphium-parent, quarkus-morphium-parent, morphium-spring-boot-parent, ${MODULE_ARTIFACT_IDS[*]}"
   echo "  From branch: $branch"
   echo ""
   echo "Bundle contents:"
@@ -1062,7 +1069,7 @@ if [ "$SKIP_TO_UPLOAD" != true ]; then
   echo "  Last release: $last_tag"
   echo "  Release version: $release_version (--${BUMP_TYPE})"
   echo "  Next development: $next_snapshot"
-  echo "  Modules: morphium-parent, quarkus-morphium-parent, ${MODULE_ARTIFACT_IDS[*]}"
+  echo "  Modules: morphium-parent, quarkus-morphium-parent, morphium-spring-boot-parent, ${MODULE_ARTIFACT_IDS[*]}"
   echo "  Branch: $branch"
   echo "  Auto-publish: $AUTO_PUBLISH"
   echo ""
@@ -1187,6 +1194,16 @@ if [ "$SKIP_TO_UPLOAD" != true ]; then
   sign_file "${quarkus_parent_repo}/quarkus-morphium-parent-${version}.pom"
   checksum_file "${quarkus_parent_repo}/quarkus-morphium-parent-${version}.pom"
 
+  # --- morphium-spring-boot-parent (POM-only, same special case as
+  # morphium-parent/quarkus-morphium-parent above) ---
+  log_info "Adding morphium-spring-boot-parent..."
+  spring_parent_repo="${BUNDLE_DIR}/de/caluga/morphium-spring-boot-parent/${version}"
+  mkdir -p "$spring_parent_repo"
+
+  cp spring-boot-morphium/pom.xml "${spring_parent_repo}/morphium-spring-boot-parent-${version}.pom"
+  sign_file "${spring_parent_repo}/morphium-spring-boot-parent-${version}.pom"
+  checksum_file "${spring_parent_repo}/morphium-spring-boot-parent-${version}.pom"
+
   # --- one block per registered module (see MODULE_DIRS/MODULE_ARTIFACT_IDS
   # /MODULE_EXTRA_CLASSIFIERS above); analogous to the former morphium/poppydb
   # copy-paste blocks, now driven by add_module_to_bundle() so a future module
@@ -1219,7 +1236,7 @@ if [ "$SKIP_TO_UPLOAD" != true ]; then
   (cd "$BUNDLE_DIR" && zip -q -r "$(pwd)/../bundle-${version}.jar" de/)
 
   log_success "Combined bundle: $bundle_file ($(du -h "$bundle_file" | cut -f1))"
-  log_info "  Contents: morphium-parent (pom), quarkus-morphium-parent (pom), ${MODULE_ARTIFACT_IDS[*]} (jar+sources+javadoc, plus extra classifiers where applicable)"
+  log_info "  Contents: morphium-parent (pom), quarkus-morphium-parent (pom), morphium-spring-boot-parent (pom), ${MODULE_ARTIFACT_IDS[*]} (jar+sources+javadoc, plus extra classifiers where applicable)"
 fi
 
 # -----------------------------------------------------------------------------

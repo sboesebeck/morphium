@@ -116,6 +116,14 @@
          dependencyManagement comment below); only the version property is
          centralized. -->
     <quarkus.version>3.32.3</quarkus.version>
+    <!-- Extension module property for spring-boot-morphium (M5-T5, moved
+         here from spring-boot-morphium/pom.xml per D1/B6, analogous to the
+         quarkus.version pattern above): a Spring Boot upgrade is a
+         single-line change here. The spring-boot-dependencies BOM *import*
+         itself stays in spring-boot-morphium/pom.xml (see I4 and the
+         dependencyManagement comment below); only the version property is
+         centralized. -->
+    <spring-boot.version>3.4.13</spring-boot.version>
   </properties>
   <build>
     <pluginManagement>
@@ -493,6 +501,7 @@
       <modules>
         <module>morphium-jakarta-data</module>
         <module>quarkus-morphium</module>
+        <module>spring-boot-morphium</module>
       </modules>
     </profile>
   </profiles>

@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>de.caluga</groupId>
+    <artifactId>morphium-spring-boot-parent</artifactId>
+    <version>6.3.2-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>morphium-spring-boot-autoconfigure</artifactId>
+  <name>Morphium Spring Boot – Autoconfigure</name>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-autoconfigure</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-aop</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-actuator-autoconfigure</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <!-- Generates META-INF/spring-configuration-metadata.json for
+         MorphiumProperties, so IDEs offer autocompletion/validation for
+         morphium.* keys in application.properties/.yml. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-configuration-processor</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>de.caluga</groupId>
+      <artifactId>morphium</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>de.caluga</groupId>
+      <artifactId>morphium-jakarta-data</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>jakarta.data</groupId>
+      <artifactId>jakarta.data-api</artifactId>
+    </dependency>
+
+    <!-- Test -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <!-- Aktiviert die im morphium-parent-pluginManagement bereits versionierte
+       source-/javadoc-jar-Erzeugung (Central-Pflicht) — analog zum Muster in
+       morphium/quarkus-morphium/runtime/pom.xml und morphium/morphium-jakarta-data/pom.xml.
+       maven-surefire-plugin braucht hier keine explizite Referenz: es ist Teil
+       des Default-Lifecycles für Packaging "jar" und übernimmt die im
+       Parent-pluginManagement hinterlegte Version automatisch. -->
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+      </plugin>
+      <!-- spring-boot-configuration-processor (declared as an optional
+           dependency above) is not picked up automatically from the plain
+           compile classpath on this toolchain (verified: the processor jar
+           IS on -classpath, yet javac produces no
+           META-INF/spring-configuration-metadata.json without an explicit
+           -processorpath — reproduced with a bare javac invocation using the
+           exact same classpath/compiler args Maven emits). Declaring the
+           annotation processor path explicitly is also what Spring Boot's
+           own official guide recommends, independent of this specific
+           symptom. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <annotationProcessorPaths>
+            <path>
+              <groupId>org.springframework.boot</groupId>
+              <artifactId>spring-boot-configuration-processor</artifactId>
+              <version>${spring-boot.version}</version>
+            </path>
+          </annotationProcessorPaths>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>
