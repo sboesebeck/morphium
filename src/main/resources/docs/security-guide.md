@@ -86,9 +86,9 @@ SSLContext mtlsCtx = SslHelper.createSslContext(
 SSLContext testCtx = SslHelper.createTrustAllSslContext();
 ```
 
-### MorphiumServer SSL Configuration
+### PoppyDB SSL Configuration
 
-MorphiumServer can accept SSL/TLS encrypted connections:
+PoppyDB (formerly MorphiumServer) can accept SSL/TLS encrypted connections:
 
 **Command Line:**
 ```bash
@@ -98,16 +98,16 @@ keytool -genkeypair -alias morphium -keyalg RSA -keysize 2048 \
   -dname "CN=localhost"
 
 # Start server with SSL
-java -jar morphium-server.jar -p 27018 \
+java -jar poppydb-cli.jar -p 27018 \
   --ssl --sslKeystore server.jks --sslKeystorePassword changeit
 ```
 
 **Programmatic:**
 ```java
-import de.caluga.morphium.server.MorphiumServer;
+import de.caluga.poppydb.PoppyDB;
 import de.caluga.morphium.driver.wire.SslHelper;
 
-MorphiumServer server = new MorphiumServer(27018, "localhost", 100, 10);
+PoppyDB server = new PoppyDB(27018, "localhost", 100, 10);
 
 // Configure SSL
 SSLContext sslContext = SslHelper.createServerSslContext(
@@ -127,6 +127,23 @@ mongosh "mongodb://localhost:27018" --tls --tlsCAFile server-cert.pem
 # Skip certificate verification (testing only)
 mongosh "mongodb://localhost:27018" --tls --tlsAllowInvalidCertificates
 ```
+
+### PoppyDB Authentication (SCRAM)
+
+Since 6.3.0, PoppyDB implements real server-side SCRAM-SHA-1/SCRAM-SHA-256 verification with
+users stored mongod-shaped in `admin.system.users`. Enforcement is opt-in via `--auth`;
+`--rootUser`/`--rootPassword` create the initial admin at startup (there is no localhost
+exception). Without `--auth` the server remains completely open — do not expose an
+unauthenticated PoppyDB to untrusted networks.
+
+```bash
+java -jar poppydb-cli.jar -p 27018 --auth --rootUser admin --rootPassword s3cr3t \
+  --ssl --sslKeystore server.jks --sslKeystorePassword changeit
+```
+
+Note that authorization is authentication-only for now: roles are stored but not evaluated,
+and `createRole` is not implemented. See the [PoppyDB documentation](poppydb.md#authentication-auth)
+for details, client examples and limitations.
 
 ## MONGODB-X509 Certificate Authentication
 
@@ -177,7 +194,7 @@ db.getSiblingDB("$external").createUser({
 
 ### InMemoryDriver Support
 
-The `InMemoryDriver` accepts MONGODB-X509 authentication and skips certificate validation (it has no real TLS layer). This allows running unit tests with `authMechanism=MONGODB-X509` without setting up actual certificates.
+The `InMemoryDriver` does **not** support MONGODB-X509 (it has no real TLS layer to derive an identity from) — since 6.3.0 the `authenticate` command fails honestly with code 18 `AuthenticationFailed` instead of pretending success. Username/password authentication against InMemoryDriver/PoppyDB is real, though: SCRAM-SHA-1/-256 are verified against users created via `createUser` (see [PoppyDB Authentication](#poppydb-authentication-scram) below).
 
 ## Network Security
 

@@ -72,5 +72,5 @@ Next steps
 
 Driver notes
 - Morphium uses its own wire‑protocol driver tailored to Morphium’s mapping.
-- SSL/TLS and MongoDB Atlas connections are supported since v6.0 (see [SSL/TLS Connections](ssl-tls.md)).
+- MongoDB Atlas is supported via `mongodb+srv://` (DNS SRV/TXT resolution, TLS enabled automatically); see the [SSL/TLS guide](./ssl-tls.md#mongodb-atlas-example).
 

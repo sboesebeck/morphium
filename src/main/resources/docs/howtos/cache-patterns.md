@@ -34,7 +34,22 @@ messaging.start();
 new MessagingCacheSynchronizer(messaging, morphium);
 ```
 When to use
-- Multi‑node deployments that need consistent caches after writes
+- Multi‑node deployments that need consistent caches after writes made *through Morphium*
+- Works on any backend/driver, including a standalone MongoDB or in‑memory driver — no replica set required
+- Blind spot: writes done outside Morphium's storage listener (other apps, mongosh, restores) don't trigger invalidation
+- Plus: it's a real message on a topic (`cacheSyncType`/`cacheSyncRecord`), not just a raw DB event — any other node or process that understands the message format can hook in and run extra, custom logic beyond clear/remove/update. Useful when cache‑clear logic is more involved than the built‑in strategies
+
+3b) Cluster‑wide synchronization via change streams
+- Watches the underlying collections directly instead of relying on Morphium's own write path
+```java
+new WatchingCacheSynchronizer(morphium); // no messaging setup needed
+```
+When to use
+- The cached collections can be written by processes other than this Morphium cluster (other services, admin tools, migrations) — this catches those writes too, `MessagingCacheSynchronizer` would not
+- You have a replica set available (Change Streams require one — same restriction as `messagingSettings().setUseChangeStream(true)`) and don't want to depend on messaging being healthy on every node
+- Not for standalone/single‑node MongoDB — falls back to nothing, since there's no oplog to watch
+
+Pick one, not both, unless you specifically want redundant coverage. See [Developer Guide § Cache Synchronization](../developer-guide.md#cache-synchronization) for the full comparison.
 
 4) TTL tuning and hot‑set sizing
 - Keep `@Cache.timeout` small enough to minimize staleness, large enough to reduce DB load

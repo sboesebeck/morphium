@@ -34,10 +34,141 @@
 | Backend | Throughput | Latency | vs MongoDB |
 |---------|------------|---------|------------|
 | **MongoDB** (3-node replica set) | 89 msgs/sec | 11.28 ms | 1x |
-| **MorphiumServer** | 223 msgs/sec | 4.47 ms | **2.5x faster** |
+| **PoppyDB** | 223 msgs/sec | 4.47 ms | **2.5x faster** |
 | **InMemory Driver** (direct) | 281 msgs/sec | 3.56 ms | **3.2x faster** |
 
-> **Key insight:** MorphiumServer is 2.5x faster than real MongoDB for messaging tests!
+> **Key insight:** PoppyDB is 2.5x faster than real MongoDB for messaging tests!
+
+These are **round-trip** numbers: complete ping-pongs (request out, response received).
+PoppyDB's edge here is latency — with less than half the per-message round-trip time, the
+same workload completes 2.5x faster.
+
+> **Re-measured 2026-08-07** (Morpheus `latency --headless`, 100 msg/s fixed rate, 5 sender
+> threads, 30 s measured after 10 s warmup, Mac Studio M1 Ultra client; PoppyDB = local
+> 3-node replica set, MongoDB = the 3-node homelab replica set): median RTT **2.4 ms**
+> against PoppyDB vs **5.7 ms** against MongoDB; averages 2.5 ms vs 7.9 ms — MongoDB's mean
+> carries a fat majority-fsync tail (p99 70–128 ms), PoppyDB's p99 stays under 5 ms. A
+> same-session A/B against the pre-optimization baseline attributes **8–18 % lower median
+> RTT** to the 2026-08 messaging optimizations (answers dispatched before the
+> `processed_by` write; non-exclusive messages processed straight from the change-stream
+> `fullDocument`): PoppyDB p50 2.89 → 2.42 ms, MongoDB p50 6.23 → 5.1–5.7 ms. Beware the
+> cold-start trap when reproducing: the very first run after server start measures JIT, not
+> the code — discard it (ours read 2× slower than the warm steady state). The table above
+> keeps the original serial-ping-pong figures; both setups measure the same path under
+> different load profiles, so compare within a vintage, not across.
+>
+> **Topology caveat for the 2026-08-07 run:** it is not like-for-like. PoppyDB ran locally
+> on the client machine while MongoDB was reached over the network (homelab, via VPN), so
+> the ratio carries a network component that is not attributable to the broker. See the
+> symmetric re-measurement below.
+
+> **Symmetric re-measurement 2026-08-11** — same Morpheus parameters (100 msg/s fixed rate,
+> 5 sender threads, 30 s after 10 s warmup), but with every known bias removed: the client
+> runs *inside* the homelab network on its own host (4 cores, no other load), and **both**
+> backends are separate processes on dedicated hosts at equal network distance — PoppyDB as
+> a 3-node replica set (`poppydb.fritz.box:17017-19`, no in-process advantage), MongoDB as
+> the 2-node homelab replica set (`mongo1/mongo2:27017`). Two consecutive runs, 3001 pings
+> each, zero loss:
+>
+> | | MongoDB (run 1 / 2) | PoppyDB (run 1 / 2) |
+> |---|---|---|
+> | p50 | 4.97 / 5.12 ms | **2.13 / 2.06 ms** |
+> | avg | 6.10 / 8.34 ms | 2.41 / 2.40 ms |
+> | min | 3.89 / 3.91 ms | 1.33 / 1.35 ms |
+> | p90 | 6.80 / 7.24 ms | 2.91 / 2.63 ms |
+> | p99 | 42.3 / 129.4 ms | **5.5 / 6.7 ms** |
+> | max | 86.0 / 214.6 ms | 40.8 / 55.4 ms |
+> | jitter | 1.28 / 1.55 ms | 0.54 / 0.52 ms |
+>
+> The ratio comes out at **2.34× and 2.49×**, confirming the ~2.5× of the earlier runs — the
+> asymmetric topology of 2026-08-07 did not manufacture the advantage. Two things the median
+> hides: the tail differs by an order of magnitude (MongoDB p99 42–129 ms at a mere 100 msg/s
+> on an idle cluster, PoppyDB under 7 ms), and jitter differs by 2.5–3×. For latency-critical
+> request/reply the tail is the more relevant figure.
+
+### Exclusive request/reply — the production profile (measured 2026-08-12)
+
+All numbers above ride the **broadcast (non-exclusive) path**: any listener may answer, no
+lock traffic. Production request/reply between services typically uses **exclusive** messages
+— exactly-once processing, which costs the responder side the full lock/claim machinery
+(claim write, re-fetch, `processed_by` mark, each majority-acked on MongoDB). Measured with
+Morpheus `latency --exclusive` against `pong --work 5` (5 ms simulated handler work, modeling
+a real consumer), same parameters as the symmetric run above (100 msg/s, 5 sender threads,
+30 s recorded after 10 s warmup, two consecutive runs, ~4,000 pings each, zero loss
+everywhere). Client: Mac Studio (M1 Ultra) on the same LAN segment, 0.5–0.6 ms ICMP RTT to
+both brokers — equal network distance, but a different client host than the 2026-08-11 run,
+so compare ratios, not absolutes, across the two sections. morphium 6.3.1 client (with the
+6.3.1 topic-filter and lock-callback fixes), PoppyDB 3-node RS on a 6.3.1-era build, MongoDB
+8.0.26 as the 2-data-node + arbiter homelab RS.
+
+| Profile | | MongoDB (run 1 / 2) | PoppyDB (run 1 / 2) |
+|---|---|---|---|
+| broadcast ping | p50 | 4.43 / 4.36 ms | 2.83 / 2.71 ms |
+| | p99 | 88.7 / 48.1 ms | 8.0 / 7.0 ms |
+| exclusive | p50 | 11.81 / 12.83 ms | **3.87 / 3.93 ms** |
+| | p99 | 807.8 / 1004.9 ms | **12.2 / 15.0 ms** |
+| exclusive + 5 ms work | p50 | 18.45 / 18.47 ms | **11.02 / 11.57 ms** |
+| | p99 | 726.0 / 2209.3 ms | **22.5 / 23.6 ms** |
+
+Three observations:
+
+- **The exclusive flag is nearly free on PoppyDB and expensive on MongoDB.** Going from
+  broadcast to exclusive costs PoppyDB ~1.1 ms at the median (claim round-trip against an
+  in-memory server); MongoDB pays ~8 ms — the claim/mark writes are majority-acked, so the
+  exclusive path stacks additional majority-commit cadences on top of the delivery floor.
+  Median ratio between the backends grows from ~1.6× (broadcast) to ~3.2× (exclusive).
+- **The exclusive tail on MongoDB is a different regime, not a bigger number.** At a mere
+  100 msg/s on an otherwise idle cluster, exclusive p99 lands at 0.7–2.2 **seconds** (p90 up
+  to 630 ms, max 2.7 s), and the tail is unstable between consecutive runs. PoppyDB's p99
+  stays at 22–24 ms with run-to-run stability. For burst-shaped incident patterns (callers
+  waiting hundreds of ms for tens of ms of work) the exclusive tail is the number to watch.
+- **The 5 ms simulated handler work adds more than 5 ms** (PoppyDB +7 ms, MongoDB +6 ms at
+  the median): a busy handler delays subsequent claims of the single consumer, so queueing
+  briefly appears even below nominal capacity. Real deployments spread this across more
+  consumers.
+
+Topology caveat: with 2 data nodes + arbiter, the majority commit needs *both* data nodes —
+a 3-data-node set can acknowledge with the faster secondary, which may soften (not remove)
+the MongoDB tails. The broadcast rows are consistent with the 2026-08-11 symmetric run
+above; the exclusive rows measure the same path that production sync request/reply uses.
+
+### Messaging One-Way Throughput (send → receipt, no replies)
+
+Measured 2026-08-06 with `MessagingOneWayThroughputBenchmark` (poppydb module, tag `manual`):
+5000 messages, 4 sender threads, one listening receiver, clock from first send to last
+receipt. Same 4-CPU test-runner LXC as the CI matrix; MongoDB is the 3-node homelab replica
+set on separate hosts, PoppyDB runs in-process.
+
+| Backend | Host | One-way throughput |
+|---------|------|--------------------|
+| **MongoDB** (3-node replica set, external hosts) | 4-CPU test runner | 868 msg/s |
+| **MongoDB** (3-node replica set, external hosts) | Mac Studio (M1 Ultra, 64GB) | 1100–1250 msg/s (2026-08-07) |
+| **PoppyDB** (in-process) | 4-CPU test runner | 769 msg/s |
+| **PoppyDB** (in-process) | MacBook Pro (M1 Max, 32GB) | 2101 msg/s |
+| **PoppyDB** (in-process) | Mac Studio (M1 Ultra, 64GB) | 4300–4900 msg/s (2026-08-07) |
+
+> **Honest reading:** one-way throughput is write-bound, and an in-process PoppyDB shares its
+> host's CPU with sender and receiver — on a small 4-core host it lands slightly *below* an
+> external replica set, while on a laptop-class CPU it is well above. PoppyDB's advantage is
+> round-trip latency (table above), not raw one-way throughput on constrained hardware. A
+> historic "~8K msg/s" one-way figure circulated in older READMEs; it most likely stemmed
+> from plain document-write throughput (compare the bulk-write numbers above), not from
+> messaging with a listening receiver, and is superseded by these measurements.
+>
+> The M1 Max and M1 Ultra rows are different machines — in-process throughput simply scales
+> with the host. An A/B run on the M1 Ultra on 2026-08-07 (baseline vs. the 2026-08
+> optimization round: O(1) duplicate-`_id` insert pre-check, dead messaging index removed,
+> `fullDocument` fast path) showed **no** significant change on this benchmark — with a
+> near-empty collection, throughput is bound by the per-collection write lock, exactly as
+> the write-concurrency plateau predicts. The same A/B against the MongoDB replica set
+> (Mac Studio client, 2026-08-07) is also flat: there the benchmark is sender-bound
+> (sendRate ≈ endToEndRate — four threads doing synchronous majority-acked inserts over the
+> network), and the receiver-side re-read the `fullDocument` fast path removes shows up as
+> delivery latency, not one-way throughput. Its effect belongs to the round-trip table
+> above — hence the re-measurement note there. What the optimization round *did* change:
+> insert cost no longer grows with collection size. Single-document inserts into a
+> collection pre-filled with 200K documents went from ~97 inserts/s (per-insert O(N) `_id`
+> scan) to ~205,000 inserts/s (O(1) index lookup) in the same A/B setup.
 
 ### $in Query: Indexed vs Non-Indexed
 
@@ -88,9 +219,9 @@ Both v5 and v6 use ChangeStream, but v6 has:
 
 ---
 
-## MorphiumServer for Testing
+## PoppyDB for Testing
 
-MorphiumServer provides a MongoDB-compatible server backed by InMemoryDriver:
+PoppyDB provides a MongoDB-compatible server backed by InMemoryDriver:
 
 | Feature | Benefit |
 |---------|---------|
@@ -103,7 +234,7 @@ MorphiumServer provides a MongoDB-compatible server backed by InMemoryDriver:
 
 ```bash
 # Start server
-mvn exec:java -Dexec.mainClass="de.caluga.morphium.server.MorphiumServerCLI" \
+mvn exec:java -Dexec.mainClass="de.caluga.poppydb.PoppyDBCLI" \
     -Dexec.args="-p 17017"
 
 # Connect Morphium
@@ -120,9 +251,9 @@ Morphium m = new Morphium(cfg);
 | Use Case | Recommendation |
 |----------|----------------|
 | Unit tests | InMemory Driver (fastest) |
-| Integration tests | MorphiumServer (realistic + fast) |
+| Integration tests | PoppyDB (realistic + fast) |
 | Load testing | Real MongoDB (production-like) |
-| CI/CD pipelines | MorphiumServer (no dependencies) |
+| CI/CD pipelines | PoppyDB (no dependencies) |
 
 ### InMemory Driver Limitations
 
@@ -162,7 +293,7 @@ Upgrading from v5.1.x to v6.x:
 - [ ] Update `Messaging` → `SingleCollectionMessaging`
 - [ ] Review messaging settings for optimal performance
 - [ ] Enable SSL/TLS for production (new in v6!)
-- [ ] Consider MorphiumServer for tests
+- [ ] Consider PoppyDB for tests
 
 See [Migration Guide v5→v6](./howtos/migration-v5-to-v6.md) for details.
 

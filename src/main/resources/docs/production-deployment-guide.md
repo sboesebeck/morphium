@@ -2,6 +2,13 @@
 
 Comprehensive guide for deploying Morphium applications in production environments.
 
+**Choosing a backend:** this guide assumes a real MongoDB deployment. If your workload is
+ephemeral messaging, caching, or session storage rather than durable system-of-record data,
+**[PoppyDB](./poppydb.md)** — Morphium's own wire-protocol-compatible server — is a supported,
+lighter-weight production option; see its
+[Production Deployment Playbook](./howtos/poppydb-deployment.md) for the PoppyDB-specific version
+of the checklist below (systemd unit, secrets handling, backup/restore, monitoring).
+
 ## Performance Baseline
 
 **Morphium Performance Advantage:**
@@ -51,20 +58,12 @@ cfg.authSettings().setMongoAdminUser(System.getenv("MONGO_ADMIN_USER"));
 cfg.authSettings().setMongoAdminPwd(System.getenv("MONGO_ADMIN_PWD"));
 ```
 
-**Network Security (SSL/TLS):**
-
-Morphium supports SSL/TLS encrypted connections since v6.0, including MongoDB Atlas and mutual TLS (mTLS) with MONGODB-X509 client certificate authentication.
-
+**Network Security:**
 ```java
-// Enable SSL/TLS (e.g. for MongoDB Atlas or any TLS-enabled deployment)
+// SSL/TLS and MongoDB Atlas (mongodb+srv://) are supported since v6.0/v6.2 —
+// see docs/ssl-tls.md for setup, including the Atlas example.
 cfg.connectionSettings().setUseSSL(true);
-
-// For custom CA certificates, use SslHelper:
-// SSLContext sslContext = SslHelper.createClientSslContext("/path/to/truststore.jks", "password");
-// cfg.connectionSettings().setSslContext(sslContext);
 ```
-
-See [SSL/TLS Connections](ssl-tls.md) for full configuration details including mTLS and MONGODB-X509.
 
 ### 3. Environment-Specific Configurations
 

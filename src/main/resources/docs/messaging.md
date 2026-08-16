@@ -9,7 +9,7 @@ Concepts
   - Exclusive (`Msg.setExclusive(true)`): exactly one listener processes the message (one‑of‑n); implemented using a lock collection
   - Non‑exclusive (default): every registered listener for the topic processes the message (broadcast)
 - Answers: listeners may return a `Msg` as response; senders can wait synchronously or asynchronously
-- Implementations: choose between Standard and Advanced; see [Messaging Implementations](./howtos/messaging-implementations.md) for differences and migration.
+- Implementations: choose between Standard, Advanced, and the beta Dual Channel implementation; see [Messaging Implementations](./howtos/messaging-implementations.md) for differences and migration.
 
 Setup
 ```java
@@ -113,6 +113,17 @@ messaging.addListenerForTopic("events", (m, msg) -> {
     return null;
 });
 ```
+
+**Change Stream Batch Size (since 6.2.5)**
+
+The `getMore` batch size of the messaging change stream is configurable via
+`cfg.driverSettings().setChangeStreamBatchSize(int)` (default `100`). The previous
+hardcoded value of `1` capped throughput at one event per network round-trip, which
+on high-latency links (e.g. an SSH/SOCKS tunnel) caused a busy stream to fall behind
+and deliver messages — including answers awaited by `sendAndAwaitAnswers()` — tens of
+seconds late. Raising the batch lets a single round-trip drain many backlogged events
+without adding latency at low traffic. See
+[Configuration Reference → Change Stream Batch Size](configuration-reference.md#change-stream-batch-size).
 
 ### InMemoryDriver Support
 Full messaging support with InMemoryDriver for testing:
@@ -353,4 +364,4 @@ Notes and best practices
 - Non‑exclusive messages are broadcast to all listeners of a topic
 - For delayed/scheduled handling, add your own not‑before timestamp field and have the listener re‑queue or skip until due; `Msg.timestamp` is used for ordering, not scheduling
 - For retries and DLQ, implement logic in listeners (inspect payload, track retry count, re‑queue or redirect to a DLQ topic)
-- For distributed cache synchronization, see [Caching Examples](./howtos/caching-examples.md) and [Cache Patterns](./howtos/cache-patterns.md); Morphium provides `MessagingCacheSynchronizer`.
+- For distributed cache synchronization, see [Caching Examples](./howtos/caching-examples.md) and [Cache Patterns](./howtos/cache-patterns.md); Morphium provides `MessagingCacheSynchronizer` (uses this messaging system) and `WatchingCacheSynchronizer` (uses Change Streams directly, no messaging needed) — see the [Developer Guide](./developer-guide.md#cache-synchronization) for which one to pick.

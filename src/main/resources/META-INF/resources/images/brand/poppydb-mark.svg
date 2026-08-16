@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192" role="img" aria-labelledby="title desc">
+  <title id="title">PoppyDB mark</title>
+  <desc id="desc">A geometric four-petal poppy representing replicated data.</desc>
+  <path fill="#F04444" d="M96 91C62 91 37 73 37 46c0-14 11-25 25-25 28 0 47 26 47 58v12H96Z"/>
+  <path fill="#F04444" d="M101 91c0-34 18-59 45-59 14 0 25 11 25 25 0 28-26 47-58 47h-12V91Z"/>
+  <path fill="#F04444" d="M101 101c34 0 59 18 59 45 0 14-11 25-25 25-28 0-47-26-47-58v-12h13Z"/>
+  <path fill="#F04444" d="M91 101c0 34-18 59-45 59-14 0-25-11-25-25 0-28 26-47 58-47h12v13Z"/>
+  <circle cx="96" cy="96" r="22" fill="#101828"/>
+  <circle cx="96" cy="96" r="7" fill="#F5A524"/>
+</svg>

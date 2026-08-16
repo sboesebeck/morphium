@@ -95,6 +95,39 @@ public boolean isTransactionInProgress()
 public MorphiumTransactionContext getTransactionContext()
 ```
 
+#### Per-Thread Behavior Overrides
+
+Morphium allows overriding certain global settings on a per-thread basis. This is useful for temporarily disabling caching or auto-values within a specific request or task.
+
+```java
+// Disable/enable auto-values for the current thread
+public void disableAutoValuesForThread()
+public void enableAutoValuesForThread()
+public boolean isAutoValuesEnabledForThread()
+
+// Disable/enable read cache for the current thread
+public void disableReadCacheForThread()
+public void enableReadCacheForThread()
+public boolean isReadCacheEnabledForThread()
+
+// Disable/enable write buffer for the current thread
+public void disableWriteBufferForThread()
+public void enableWriteBufferForThread()
+public boolean isWriteBufferEnabledForThread()
+
+// Disable/enable async writes for the current thread
+public void disableAsyncWritesForThread()
+public void enableAsyncWritesForThread()
+public boolean isAsyncWritesEnabledForThread()
+
+// Reset ALL per-thread overrides back to defaults (= follow global config)
+public void resetThreadLocalOverrides()
+```
+
+**Important:** These overrides are backed by `ThreadLocal` and are **not** automatically cleaned up. In thread-pool or virtual-thread environments, always call `resetThreadLocalOverrides()` at the end of a request or task to prevent state from leaking between threads.
+
+> **Future improvement:** Once `java.lang.ScopedValue` ([JEP 487](https://openjdk.org/jeps/487)) is finalized (currently in preview as of JDK 24), these thread-local overrides should be replaced with scoped values. Scoped values provide automatic cleanup at scope exit and are inherently safe with virtual threads — eliminating the need for manual `resetThreadLocalOverrides()` calls.
+
 ## Query API
 
 ### Query Interface
@@ -149,6 +182,28 @@ public void get(AsyncOperationCallback<T> callback)
 public MorphiumIterator<T> asIterable()
 public MorphiumIterator<T> asIterable(int windowSize)
 public MorphiumIterator<T> asIterable(int windowSize, int prefetch)
+
+// Stream API for functional processing (cursor-backed, lazy)
+public Stream<T> stream()
+public Stream<T> stream(int batchSize)
+```
+
+**Stream API (since 6.2.1):**
+
+`stream()` returns a `Stream<T>` backed by the MongoDB cursor — elements are fetched lazily, not loaded into memory all at once. Always use in try-with-resources to ensure cursor cleanup:
+
+```java
+try (Stream<User> s = morphium.createQueryFor(User.class)
+        .f("age").gte(18)
+        .sort("lastName")
+        .stream()) {
+    List<String> names = s.map(User::getLastName).toList();
+}
+
+// With explicit batch size (documents per cursor round-trip)
+try (Stream<User> s = query.stream(500)) {
+    long count = s.filter(u -> u.isActive()).count();
+}
 ```
 
 **Logical Operators:**
@@ -176,6 +231,23 @@ public List<Object> distinct(String field)
 // Complex query with raw MongoDB query
 public List<T> complexQuery(Map<String, Object> query)
 ```
+
+**Update Operations with arrayFilters (since 6.3.0):**
+
+Filtered positional updates (`$[<identifier>]` paths) are available on all update
+operations of a query — `set`, `inc`, `unset`, `push`, `pull`, ...:
+
+```java
+// Set every list element >= 90 to 100
+morphium.createQueryFor(Measurement.class)
+    .f(Measurement.Fields.sensor).eq("s1")
+    .setArrayFilters(Doc.of("elem", Doc.of("$gte", 90)))
+    .set("values.$[elem]", 100, false, true);
+```
+
+`setArrayFilters` accepts a `List<Map<String, Object>>` or varargs of filter documents;
+each document defines one `$[<identifier>]` placeholder. Paths containing `$` bypass
+property-name translation, so write the MongoDB field names in the path.
 
 ## Aggregation API
 
@@ -218,6 +290,21 @@ public Aggregator<T, R> sort(Map<String, Integer> sort)
 // Skip/Limit stages
 public Aggregator<T, R> skip(int skip)
 public Aggregator<T, R> limit(int limit)
+
+// Gap filling / window functions (since 6.3.0)
+public Aggregator<T, R> documents(List<Map<String, Object>> documents)   // $documents
+public Aggregator<T, R> densify(String field, Number step)               // $densify, "full" bounds
+public Aggregator<T, R> densify(String field, Number step, Object bounds)
+public Aggregator<T, R> densify(String field, Number step, Object bounds,
+                                String unit, List<String> partitionByFields)
+public Aggregator<T, R> fill(Map<String, Object> output)                 // $fill
+public Aggregator<T, R> fill(Map<String, Object> sortBy, Map<String, Object> output)
+public Aggregator<T, R> setWindowFields(Object partitionBy,              // $setWindowFields
+                                        Map<String, Object> sortBy,
+                                        Map<String, Object> output)
+
+// Escape hatch for any other stage
+public Aggregator<T, R> genericStage(String stageName, Object param)
 ```
 
 **Execution:**
@@ -446,29 +533,25 @@ Enables **optimistic locking**. Morphium automatically:
 
 The exception carries `getExpectedVersion()` (the version the caller held) for diagnostic and retry logic. See `docs/howtos/optimistic-locking.md` for a complete guide.
 
-**@AutoSequence**
-```java
-@AutoSequence(
-    name = ".",         // "." = derive sequence name from MongoDB field name (default)
-                        // or set an explicit name, e.g. name = "order_number"
-    startValue = 1,     // First value when sequence is created for the first time
-    inc = 1             // Step size between consecutive values
-)
-```
-
-Marks a field for **automatic sequence number assignment**. When a document is stored and the annotated field is unset (`null` for boxed types, `0` for primitives), Morphium assigns the next value from the named sequence. Fields with existing values are never overwritten.
-
-- Supported types: `long`, `Long`, `int`, `Integer`, `String`
-- **Batch optimisation**: `storeList()` allocates all required numbers in a single lock+increment round-trip via `SequenceGenerator.getNextBatch(int)` instead of one round-trip per document
-- Sequence generators are cached per Morphium instance and reused across calls
-
 **@Reference**
 ```java
 @Reference(
-    lazyLoading = false,    // Enable lazy loading
-    fieldName = "ref_field" // Custom field name
+    lazyLoading = false,    // Enable lazy loading via CGLib proxy
+    fieldName = "ref_field", // Custom field name in MongoDB
+    automaticStore = true,  // Auto-persist unreferenced objects on store
+    targetCollection = ".", // Override target collection (default: derived from type)
+    cascadeDelete = false,  // Delete referenced entities when parent is deleted
+    orphanRemoval = false   // Delete dereferenced entities on parent update
 )
 ```
+See `docs/howtos/references-and-relationships.md` for a comprehensive guide.
+
+**@CascadeAware**
+```java
+@CascadeAware // Required on entity classes using cascadeDelete or orphanRemoval
+```
+
+Marker annotation (analogous to `@Lifecycle`). Without `@CascadeAware`, cascade delete and orphan removal checks are skipped entirely for performance. Add this annotation to any `@Entity` class that has `@Reference(cascadeDelete = true)` or `@Reference(orphanRemoval = true)` fields.
 
 ### Index Annotations
 
@@ -658,35 +741,6 @@ Entity entity = mapper.unmarshall(Entity.class, bson);
 // JSON support
 String json = mapper.marshall(entity).toString();
 Entity entity = mapper.unmarshall(Entity.class, json);
-```
-
-### SequenceGenerator
-
-**Distributed Sequence Numbers:**
-```java
-// Create a sequence generator
-SequenceGenerator sg = new SequenceGenerator(morphium, "order_seq", 1 /* inc */, 1 /* startValue */);
-
-// Get next value (single)
-long next = sg.getNextValue();
-
-// Get a batch of values (bulk allocation — single lock cycle)
-long[] batch = sg.getNextBatch(1000);
-// returns [1, 2, 3, ..., 1000] for inc=1, startValue=1
-```
-
-`getNextBatch(int count)` reserves a contiguous block of `count` values in one atomic lock+increment+unlock round-trip. For bulk inserts of N records, this replaces N individual `getNextValue()` calls, reducing MongoDB round-trips from 5 x N to a constant 5.
-
-### DnsSrvResolver
-
-**DNS SRV Resolution (for MongoDB Atlas):**
-```java
-// Resolve SRV records (pure-Java, no JNDI)
-List<String> hosts = DnsSrvResolver.resolve("_mongodb._tcp.cluster0.abc123.mongodb.net");
-// returns ["shard-00-00.abc123.mongodb.net:27017", ...]
-
-// Get system DNS servers (respects /etc/resolv.conf on Linux/macOS, public fallbacks on Windows)
-List<InetAddress> servers = DnsSrvResolver.systemDnsServers();
 ```
 
 This API reference provides comprehensive documentation of all major Morphium APIs, including method signatures, parameters, and usage examples.

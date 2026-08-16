@@ -20,6 +20,7 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.cache.MorphiumCacheJCacheImpl;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.showcase.security.entity.JCacheReport;
+import io.quarkus.runtime.Startup;
 import io.quarkus.runtime.ShutdownEvent;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -41,8 +42,20 @@ import java.util.Map;
  * this showcase), this service constructs its own independent {@code Morphium}, backed by
  * {@code InMemDriver} against a separate database name, with
  * {@code MorphiumCacheJCacheImpl} as its cache.</p>
+ *
+ * <h3>Why {@code @Startup}</h3>
+ * <p>{@code @ApplicationScoped} beans are created lazily by default -- only on first actual
+ * use. Without {@code @Startup}, if nobody ever visits {@code /security} in a given run,
+ * {@code jcacheMorphium} is never constructed; the {@code @Observes ShutdownEvent} method
+ * below would then trigger its lazy creation as a side effect of merely being invoked during
+ * shutdown, calling {@code new Morphium(cfg)} -- which registers a JVM shutdown hook -- while
+ * shutdown is already in progress ({@code IllegalStateException: Shutdown in progress}).
+ * {@code @Startup} forces eager creation when the application starts, so the instance always
+ * exists (and its close() call during shutdown is always meaningful) regardless of whether the
+ * security demo page was ever visited.</p>
  */
 @ApplicationScoped
+@Startup
 public class JCacheService {
 
     private Morphium jcacheMorphium;

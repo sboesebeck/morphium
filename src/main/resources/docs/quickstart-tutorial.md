@@ -18,7 +18,7 @@
 <dependency>
     <groupId>de.caluga</groupId>
     <artifactId>morphium</artifactId>
-    <version>6.2.0-SNAPSHOT</version>
+    <version>6.1.1</version>
 </dependency>
 ```
 
@@ -297,7 +297,7 @@ You can now:
 
 **Continue with:**
 - [Write Your First Test](./first-test.md)
-- [Annotations in Detail](./developer-guide.md#annotations)
+- [Annotations in Detail](./api-reference.md#annotation-reference)
 - [Using Messaging](./messaging.md)
 
 ---

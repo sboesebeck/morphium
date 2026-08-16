@@ -19,7 +19,7 @@ Run the full suite against an external replica set:
 
 Notes:
 - Use `--restart` to wipe `test.log/` and start fresh.
-- Use `--exclude-tags server` to skip MorphiumServer-specific tests when you only want MongoDB.
+- Use `--exclude-tags server` to skip PoppyDB-specific tests when you only want MongoDB.
 - Use `--exclude-tags inmemory` if you want to avoid in-memory-only suites.
 
 ### InMemoryDriver (fast local)
@@ -36,37 +36,39 @@ Notes:
 
 ## Local Cluster (localhost)
 
-If you have a replica set running locally on `localhost:27017,localhost:27018,localhost:27019` (MongoDB or MorphiumServer), use:
+If you have a replica set running locally on `localhost:27017,localhost:27018,localhost:27019` (MongoDB or PoppyDB), use:
 
 ```bash
-./runtests.sh --morphiumserver-local --parallel 2 --restart
+./runtests.sh --poppydb --parallel 2 --restart
 ```
 
 This mode sets:
 - `--driver pooled`
 - `--uri mongodb://localhost:27017,localhost:27018,localhost:27019/morphium_tests`
 
-The runner performs a quick connectivity preflight. If the cluster is not reachable, either start it manually or let the runner auto-start MorphiumServer:
+The runner performs a quick connectivity preflight. If the cluster is not reachable, either start it manually or let the runner auto-start PoppyDB:
 
 ```bash
-./runtests.sh --morphiumserver-local --start-morphiumserver-local --parallel 2 --restart
+./runtests.sh --poppydb --start-poppydb-local --parallel 2 --restart
 ```
 
 To keep the locally started cluster running after the test run:
 
 ```bash
-./runtests.sh --morphiumserver-local --start-morphiumserver-local --keep-morphiumserver-local --parallel 2 --restart
+./runtests.sh --poppydb --start-poppydb-local --keep-poppydb-local --parallel 2 --restart
 ```
 
-When auto-start is used, MorphiumServer logs are written to `.morphiumserver-local/logs/`.
+Note: The old flags `--morphiumserver-local`, `--start-morphiumserver-local`, and `--keep-morphiumserver-local` are deprecated aliases and still work for backward compatibility.
 
-Note: `--start-morphiumserver-local` is idempotent. If something is already listening (MongoDB or another MorphiumServer), the runner will just use it.
+When auto-start is used, PoppyDB logs are written to `.poppydb-local/logs/`.
+
+Note: `--start-poppydb-local` is idempotent. If something is already listening (MongoDB or another PoppyDB), the runner will just use it.
 `--allow-existing-localhost-rs` is deprecated and has no effect.
 
 If you want to skip specific categories (e.g. if you’re testing “MongoDB compatibility” only), add excludes explicitly:
 
 ```bash
-./runtests.sh --morphiumserver-local --exclude-tags server --parallel 2 --restart
+./runtests.sh --poppydb --exclude-tags server --parallel 2 --restart
 ```
 
 ## Debugging Failures
@@ -85,3 +87,43 @@ If you run tests manually with Maven, it’s recommended to set an explicit DB a
 ```bash
 mvn -Pexternal -Dmorphium.driver=pooled -Dmorphium.uri=mongodb://... -Dmorphium.database=morphium_test_manual test
 ```
+
+## Headless VM Testing
+
+For running the full test matrix on a dedicated VM (e.g., Proxmox):
+
+### Setup
+
+1. Create Ubuntu 24.04 VM (4 CPU, 8 GB RAM minimum)
+2. Run provisioning: `sudo bash ci/setup-testvm.sh`
+3. Set API key: edit `/home/morphium-test/.claude_env`
+4. Update git remote if needed
+
+### Deploy scripts
+
+```bash
+./ci/deploy-to-vm.sh testrunner.fritz.box
+```
+
+### Run tests
+
+```bash
+ssh morphium-test@testrunner.fritz.box "~/run-morphium-tests.sh"
+```
+
+### View results
+
+Open `http://testrunner.fritz.box:8080/` in your browser.
+
+The test orchestration runs five phases in parallel (each against its own server):
+1. InMemDriver (in-process, no external deps)
+2. MongoDB Replica Set
+3. MongoDB Single Node
+4. PoppyDB Replica Set
+5. PoppyDB Single Node
+
+Failed tests are retried individually in a second pass: a test that passes on
+retry is reported as *flaky*, one that fails again as *broken*. Stale test
+databases are dropped automatically before each run.
+
+Claude Code analyzes failures and generates a detailed HTML report.

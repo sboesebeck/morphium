@@ -23,18 +23,27 @@ public class Product { ... }
 morphium.getCache().setValidCacheTime(Product.class, 120_000);
 ```
 
-3) Cross‑node cache synchronization
+3) Cross‑node cache synchronization — messaging‑driven
 ```java
 // Initialize messaging via factory and start it
 MorphiumMessaging messaging = morphium.createMessaging();
 messaging.start();
 
-// Attach synchronizer: clears caches on other nodes when writes occur
+// Attach synchronizer: clears caches on other nodes when writes occur *through Morphium*
 MessagingCacheSynchronizer sync = new MessagingCacheSynchronizer(messaging, morphium);
 
 // Optional: send a manual clear‑all
 sync.sendClearAllMessage("maintenance");
 ```
+
+3b) Cross‑node cache synchronization — watching (change‑stream‑driven)
+```java
+// Watches the cached collections directly via a MongoDB Change Stream — no
+// messaging setup needed, and it also catches writes made by other, non‑Morphium
+// processes. Requires a replica set (Change Streams need an oplog).
+WatchingCacheSynchronizer sync = new WatchingCacheSynchronizer(morphium);
+```
+See [Cache Patterns](./cache-patterns.md) and the [Developer Guide](../developer-guide.md#cache-synchronization) for guidance on which one to pick.
 
 4) Switch to JCache implementation
 ```java
@@ -72,5 +81,5 @@ Notes
   - `CLEAR_TYPE_CACHE`: clear entire type cache on write
   - `REMOVE_ENTRY_FROM_TYPE_CACHE`: remove single entry by ID
   - `UPDATE_ENTRY`: re‑read updated entries
-- Ensure messaging is running on all nodes if you want cluster cache synchronization.
+- Two synchronizer implementations exist: `MessagingCacheSynchronizer` (needs messaging running on all nodes, catches only writes made through Morphium) and `WatchingCacheSynchronizer` (needs a replica set, catches any write to the watched collection). Pick one per deployment — see [Cache Patterns](./cache-patterns.md).
 See also: [Cache Patterns](./cache-patterns.md), [Developer Guide](../developer-guide.md)
