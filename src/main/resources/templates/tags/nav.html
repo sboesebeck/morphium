@@ -63,6 +63,11 @@
             <span class="nav-icon-css icon-geo"></span>
             <span>Store Locator<span class="nav-hint">Geospatial Queries</span></span>
         </a>
+        <a href="/changestreams" class="{#if active == 'changestreams'}active{/if}"
+           data-keywords="ChangeStreamMonitor ChangeStreamEvent change stream watch realtime notification insert update replace delete resume token SSE server-sent events">
+            <span class="nav-icon-css icon-stream"></span>
+            <span>Change Streams<span class="nav-hint">ChangeStreamMonitor, Realtime</span></span>
+        </a>
 
         <div class="nav-section">Platform</div>
         <a href="/messaging" class="{#if active == 'messaging'}active{/if}"
@@ -84,6 +89,16 @@
            data-keywords="MicroProfile Health liveness readiness startup probe health check Kubernetes driver connection pool DriverStats monitoring">
             <span class="nav-icon-css icon-health"></span>
             <span>Health Checks<span class="nav-hint">MicroProfile Health</span></span>
+        </a>
+        <a href="/migration" class="{#if active == 'migration'}active{/if}"
+           data-keywords="MorphiumChangeUnit Execution RollbackExecution migration runner changelog distributed lock schema version database migration">
+            <span class="nav-icon-css icon-migration"></span>
+            <span>Migration Runner<span class="nav-hint">@MorphiumChangeUnit</span></span>
+        </a>
+        <a href="/security" class="{#if active == 'security'}active{/if}"
+           data-keywords="Encrypted encryption AESEncryptionProvider EncryptionKeyProvider field-level encryption ciphertext JCache JSR-107 MorphiumCacheJCacheImpl cache hit miss security">
+            <span class="nav-icon-css icon-security"></span>
+            <span>Security &amp; Caching<span class="nav-hint">@Encrypted, JCache</span></span>
         </a>
 
         <div class="nav-section">Resources</div>

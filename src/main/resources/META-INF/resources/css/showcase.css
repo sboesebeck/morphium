@@ -1688,6 +1688,9 @@ table tr:hover td {
 .icon-audit   { background-image: url("/images/icons/audit.svg"); }
 .icon-health  { background-image: url("/images/icons/health.svg"); }
 .icon-docs    { background-image: url("/images/icons/docs.svg"); }
+.icon-stream    { background-image: url("/images/icons/stream.svg"); }
+.icon-migration { background-image: url("/images/icons/migration.svg"); }
+.icon-security  { background-image: url("/images/icons/security.svg"); }
 
 /* ===========================================
    Navigation Hints
