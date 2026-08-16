@@ -5,27 +5,11 @@ WORKDIR /app
 
 # Copy pom.xml first for layer caching
 COPY pom.xml .
-
-# Create settings.xml from build secrets and download dependencies
-RUN --mount=type=secret,id=GITHUB_ACTOR \
-    --mount=type=secret,id=GITHUB_TOKEN \
-    mkdir -p /root/.m2 && \
-    echo "<settings><servers><server><id>github</id>" \
-         "<username>$(cat /run/secrets/GITHUB_ACTOR)</username>" \
-         "<password>$(cat /run/secrets/GITHUB_TOKEN)</password>" \
-         "</server></servers></settings>" > /root/.m2/settings.xml && \
-    mvn -B dependency:go-offline -DskipTests || true
+RUN mvn -B dependency:go-offline -DskipTests || true
 
 # Copy source and build
 COPY src src
-RUN --mount=type=secret,id=GITHUB_ACTOR \
-    --mount=type=secret,id=GITHUB_TOKEN \
-    mkdir -p /root/.m2 && \
-    echo "<settings><servers><server><id>github</id>" \
-         "<username>$(cat /run/secrets/GITHUB_ACTOR)</username>" \
-         "<password>$(cat /run/secrets/GITHUB_TOKEN)</password>" \
-         "</server></servers></settings>" > /root/.m2/settings.xml && \
-    mvn -B package -DskipTests
+RUN mvn -B package -DskipTests
 
 # Stage 2: Runtime
 FROM eclipse-temurin:21-jre

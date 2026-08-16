@@ -5,35 +5,43 @@
 [![Quarkus](https://img.shields.io/badge/Quarkus-3.32.3-blue)](https://quarkus.io)
 [![Java](https://img.shields.io/badge/Java-21%2B-orange)](https://adoptium.net)
 [![Jakarta Data](https://img.shields.io/badge/Jakarta%20Data-1.0-green)](https://jakarta.ee/specifications/data/1.0/)
-[![quarkus-morphium](https://img.shields.io/badge/quarkus--morphium-1.1.1-blue)](https://github.com/Bardioc1977/quarkus-morphium/releases/tag/v1.1.1)
-[![Live Demo](https://img.shields.io/badge/demo-morphium.kopp--cloud.de-blueviolet)](https://morphium.kopp-cloud.de)
-
-> **[Live Demo: morphium.kopp-cloud.de](https://morphium.kopp-cloud.de)**
->
-> Built with **Morphium 6.2.1** and **[quarkus-morphium Extension v1.1.1](https://github.com/Bardioc1977/quarkus-morphium/releases/tag/v1.1.1)**.
+[![quarkus-morphium](https://img.shields.io/badge/quarkus--morphium-6.3.1-blue)](https://central.sonatype.com/artifact/de.caluga/quarkus-morphium)
 
 An interactive demo application showcasing [Morphium](https://github.com/sboesebeck/morphium) ORM
 and **Jakarta Data 1.0** with [Quarkus](https://quarkus.io), [Qute](https://quarkus.io/guides/qute) templates
 and [HTMX](https://htmx.org).
 
-Built on the [quarkus-morphium v1.1.1](https://github.com/Bardioc1977/quarkus-morphium) extension.
+Built on the [quarkus-morphium](https://github.com/sboesebeck/morphium/tree/develop/quarkus-morphium)
+extension, part of the main Morphium repository since its 6.3.0 modularization. Both
+`de.caluga:quarkus-morphium` and `de.caluga:morphium` are published to Maven Central — no bundled
+jars, no GitHub Packages credentials, no fork required to build this showcase.
 
-### New in v1.1.1
+### New in 6.3.1
 
-- **Morphium 6.2.1** — built against upstream release (no fork SNAPSHOT required)
-- **JDQL `NOT BETWEEN` / `NOT (...)`** — extended query language support
-- **Optional health checks** — SmallRye Health no longer forced on consumers
+- **Migration Runner** -- `@MorphiumChangeUnit`/`@Execution`/`@RollbackExecution`, a changelog,
+  and a distributed lock so multiple instances never run the same migration concurrently
+- **Field-Level Encryption** -- `@Encrypted` transparently encrypts individual entity fields
+  before they hit MongoDB
+- **JCache (JSR-107) Integration** -- `MorphiumCacheJCacheImpl` as a drop-in alternative to the
+  default in-memory cache
+- **Change Streams** -- realtime insert/update/delete notifications via `ChangeStreamMonitor`,
+  streamed to the browser over Server-Sent Events
+- **`CursoredPage<T>`** -- keyset (cursor) pagination alongside the existing offset `Page<T>`
+- **`MorphiumId` JSON serialization** -- entities serialize their `@Id MorphiumId` field as a
+  plain 24-character hex string over REST, no custom serializer needed
+- **CDI transaction lifecycle events** -- `@MorphiumTxPhase(BEFORE_COMMIT/AFTER_COMMIT/AFTER_ROLLBACK)`
+  observers alongside `@MorphiumTransactional`
 
 <details>
-<summary>New in v1.1.0</summary>
+<summary>Earlier releases</summary>
 
-The showcase demonstrates all features added in quarkus-morphium v1.1.0:
+**quarkus-morphium v1.1.0** (pre-modularization fork, since merged into the main Morphium
+repository):
 
 - **GROUP BY + Aggregation** -- `SELECT department, COUNT(this), SUM(salary) GROUP BY department` with Java Record return types
 - **HAVING (AND/OR)** -- `HAVING COUNT(this) > :min OR SUM(salary) >= :threshold`
 - **Stream** -- cursor-backed `Stream<T>` for memory-efficient large result set processing
 - **Async** -- `CompletionStage<T>` for non-blocking repository queries
-- **Interactive demos** -- all new features runnable side-by-side on the `/jakarta-data` page
 </details>
 
 ---
@@ -163,13 +171,14 @@ standard Jakarta Data CRUD plus `morphium()` and `query()` as the escape hatch.
 ### Core
 - **Product Catalog** -- CRUD, `@Entity`, `@Embedded`, `@Version` (optimistic locking), `@Index`
 - **Blog System** -- `@Reference` between entities, `@CreationTime`, pagination, comments
-- **Banking** -- `@MorphiumTransactional` declarative transactions, CDI transaction events
+- **Banking** -- `@MorphiumTransactional` declarative transactions, CDI transaction lifecycle events
 
 ### Extended
 - **Analytics** -- Aggregation pipeline with `$group`, `$sort`, `$match`
 - **Audit Log** -- `@PreStore` / `@PostStore` lifecycle callbacks
 - **Store Locator** -- `2dsphere` index, `$near` geospatial queries
 - **Messaging** -- Morphium's built-in messaging system with SSE live updates
+- **Change Streams** -- realtime insert/update/delete notifications via `ChangeStreamMonitor`, streamed over SSE
 - **Polymorphism** -- Inheritance mapping, custom type mappers
 
 ### Jakarta Data
@@ -177,6 +186,12 @@ standard Jakarta Data CRUD plus `morphium()` and `query()` as the escape hatch.
 - **Query Builder** -- Fluent query API vs query derivation vs JDQL
 - **GROUP BY + HAVING** -- JDQL aggregation with Record return types, AND/OR combinators
 - **Stream + Async** -- Cursor-backed `Stream<T>` and `CompletionStage<T>` demos
+- **Pagination** -- Offset `Page<T>` and keyset `CursoredPage<T>` side by side
+- **`MorphiumId` JSON** -- a real JSON REST endpoint proving the `@Id` field serializes as a plain hex string
+
+### Platform
+- **Migration Runner** -- `@MorphiumChangeUnit`, changelog, distributed lock
+- **Security & Caching** -- `@Encrypted` field-level encryption, JCache (JSR-107) integration
 
 ### Advanced
 - **Bulk Import** -- `SequenceGenerator`, batch inserts, cursor-based iteration
@@ -197,13 +212,8 @@ mvn quarkus:dev
 
 Open [http://localhost:8080](http://localhost:8080) in your browser.
 
-> **Note:** The quarkus-morphium extension is resolved from
-> [GitHub Packages](https://github.com/Bardioc1977/quarkus-morphium/packages).
-> For local development, you can also build the extension from source:
-> ```bash
-> git clone https://github.com/Bardioc1977/quarkus-morphium.git
-> cd quarkus-morphium && mvn install -DskipTests && cd ..
-> ```
+`quarkus-morphium` and `morphium` are resolved directly from Maven Central -- no extra
+repository configuration, no credentials, no need to build the extension from source.
 
 ## Docker Quickstart
 
@@ -226,11 +236,6 @@ docker compose down -v
 ### Local build
 
 ```bash
-# Set GitHub credentials for Maven (quarkus-morphium resolution via GitHub Packages)
-export GITHUB_ACTOR=your-github-username
-export GITHUB_TOKEN=your-github-pat
-
-# Build and start
 docker compose -f docker-compose.yml -f docker-compose.build.yml up --build
 ```
 
@@ -250,7 +255,7 @@ Tests use Morphium's `InMemDriver` -- no Docker or MongoDB needed:
 mvn test
 ```
 
-67 tests covering all repositories, services, and query operators.
+92 tests covering all repositories, services, and query operators.
 
 ## Building
 
@@ -274,9 +279,9 @@ This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.
 
 ## Related Projects
 
-- **[Live Demo](https://morphium.kopp-cloud.de)** -- try the showcase online
-- [quarkus-morphium](https://github.com/Bardioc1977/quarkus-morphium) -- Quarkus extension for Morphium (with Jakarta Data 1.0)
-- [Bardioc1977/morphium](https://github.com/Bardioc1977/morphium) -- fork of Morphium used by this showcase
-- [sboesebeck/morphium](https://github.com/sboesebeck/morphium) -- upstream Morphium ORM
+- [sboesebeck/morphium](https://github.com/sboesebeck/morphium) -- Morphium ORM, including the
+  `quarkus-morphium` and `morphium-jakarta-data` modules this showcase depends on
+- [Bardioc1977/morphium](https://github.com/Bardioc1977/morphium) -- fork used for contributing
+  PRs upstream
 - [Quarkus](https://quarkus.io) -- supersonic, subatomic Java framework
 - [Jakarta Data 1.0](https://jakarta.ee/specifications/data/1.0/) -- the specification
