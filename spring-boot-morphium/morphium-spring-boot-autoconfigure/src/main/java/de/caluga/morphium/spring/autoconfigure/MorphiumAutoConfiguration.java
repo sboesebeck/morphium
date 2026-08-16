@@ -1,10 +1,7 @@
 package de.caluga.morphium.spring.autoconfigure;
 
-import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
-import de.caluga.morphium.annotations.Embedded;
-import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.config.CollectionCheckSettings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,9 +10,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Auto-configuration that creates the application's single {@link Morphium} bean from
@@ -65,12 +59,8 @@ public class MorphiumAutoConfiguration {
 
     /**
      * Builds and connects the application's {@link Morphium} instance from
-     * {@code properties}. Before connecting, it best-effort pre-registers every
-     * {@code @Entity}/{@code @Embedded} class found on the classpath via a
-     * {@code ClassGraph} scan, so Morphium can skip its own internal classpath scan at
-     * startup (see {@link #preRegisterEntities()}). It then builds a
-     * {@code MorphiumConfig} from {@code properties} (see {@link #buildConfig}) and
-     * connects with retry (see {@link #connectWithRetry}).
+     * {@code properties}: it builds a {@code MorphiumConfig} from {@code properties}
+     * (see {@link #buildConfig}) and connects with retry (see {@link #connectWithRetry}).
      *
      * <p>Only runs if no other {@code Morphium} bean is already defined in the context
      * ({@code @ConditionalOnMissingBean}) — see the class-level documentation for how
@@ -86,9 +76,6 @@ public class MorphiumAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public Morphium morphium(MorphiumProperties properties) {
-        // Pre-register entity type IDs from classpath scan to skip Morphium's internal ClassGraph scan
-        preRegisterEntities();
-
         MorphiumConfig cfg = buildConfig(properties);
         Morphium m = connectWithRetry(cfg, properties.getConnectRetries());
 
@@ -102,41 +89,6 @@ public class MorphiumAutoConfiguration {
                 m.getDriver().isReplicaSet());
 
         return m;
-    }
-
-    /**
-     * Scans the classpath for @Entity/@Embedded classes and pre-registers their type IDs.
-     * This skips Morphium's internal ClassGraph scan at startup.
-     * Best-effort: if scanning fails, Morphium falls back to its own ClassGraph scan.
-     */
-    private void preRegisterEntities() {
-        try {
-            io.github.classgraph.ScanResult scanResult = new io.github.classgraph.ClassGraph()
-                    .enableAnnotationInfo()
-                    .scan();
-            Map<String, String> typeIds = new HashMap<>();
-            try (scanResult) {
-                for (String annotationName : new String[]{Entity.class.getName(), Embedded.class.getName()}) {
-                    for (var ci : scanResult.getClassesWithAnnotation(annotationName)) {
-                        String cn = ci.getName();
-                        typeIds.put(cn, cn);
-                        var ai = ci.getAnnotationInfo(annotationName);
-                        if (ai != null) {
-                            var typeIdParam = ai.getParameterValues().getValue("typeId");
-                            if (typeIdParam instanceof String tid && !".".equals(tid)) {
-                                typeIds.put(tid, cn);
-                            }
-                        }
-                    }
-                }
-            }
-            if (!typeIds.isEmpty()) {
-                AnnotationAndReflectionHelper.registerTypeIds(typeIds);
-                log.info("Pre-registered {} entity type IDs, Morphium will skip ClassGraph scan", typeIds.size());
-            }
-        } catch (Exception e) {
-            log.debug("Entity pre-registration skipped, Morphium will use its own ClassGraph scan: {}", e.getMessage());
-        }
     }
 
     /**
