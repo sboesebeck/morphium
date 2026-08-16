@@ -84,7 +84,8 @@ public class BankResource {
                 .data("successMessage", success)
                 .data("errorMessage", error)
                 .data("lastOperation", lastOperation)
-                .data("lastMongoCommand", lastMongoCommand);
+                .data("lastMongoCommand", lastMongoCommand)
+                .data("lifecycleEvents", bankService.getTransactionLifecycleEvents());
     }
 
     private boolean isHtmx(HttpHeaders h) {
@@ -168,6 +169,57 @@ public class BankResource {
         bankService.seedData();
         if (isHtmx(headers)) return Response.ok(demoData("Sample data re-seeded.", null, null,
                 "morphium.storeList(wallets)", "db.wallets.insertMany([...])")).build();
+        return Response.seeOther(URI.create("/bank")).build();
+    }
+
+    /**
+     * Demonstrates the {@code @MorphiumTransactional} CDI transaction-lifecycle events
+     * (BEFORE_COMMIT, AFTER_COMMIT, AFTER_ROLLBACK) fired by
+     * {@link de.caluga.morphium.showcase.bank.TransactionLifecycleObserver}.
+     *
+     * <p>When {@code forceFailure} is set, {@link BankService#transferWithLifecycleDemo} throws
+     * before any write happens, so the transaction is aborted and {@code AFTER_ROLLBACK} fires
+     * with a real causing exception. Otherwise the transfer succeeds and {@code BEFORE_COMMIT} /
+     * {@code AFTER_COMMIT} fire in sequence.</p>
+     */
+    @POST
+    @Path("/lifecycle-demo")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Produces(MediaType.TEXT_HTML)
+    public Response lifecycleDemo(
+            @FormParam("from") String from,
+            @FormParam("to") String to,
+            @FormParam("amount") double amount,
+            @FormParam("forceFailure") boolean forceFailure,
+            @Context HttpHeaders headers) {
+        try {
+            var result = bankService.transferWithLifecycleDemo(from, to, amount,
+                    "Lifecycle-events demo", forceFailure);
+            if (isHtmx(headers)) {
+                return Response.ok(demoData(null, null, result,
+                        "@MorphiumTransactional: BEFORE_COMMIT \u2192 commit \u2192 AFTER_COMMIT",
+                        "startTransaction \u2192 updateOne \u00d7 2 \u2192 commitTransaction")).build();
+            }
+        } catch (IllegalStateException e) {
+            if (isHtmx(headers)) {
+                return Response.ok(demoData(null, "Rolled back: " + e.getMessage(), null,
+                        "@MorphiumTransactional: BEFORE_COMMIT-skipped \u2192 abort \u2192 AFTER_ROLLBACK",
+                        "startTransaction \u2192 (exception) \u2192 abortTransaction")).build();
+            }
+        }
+        return Response.ok(bank.data("active", "bank").data("docLinks", DOC_LINKS)).build();
+    }
+
+    /**
+     * Clears the in-memory transaction lifecycle event log
+     * (see {@link de.caluga.morphium.showcase.bank.TransactionLifecycleObserver}).
+     */
+    @POST
+    @Path("/lifecycle-demo/clear")
+    @Produces(MediaType.TEXT_HTML)
+    public Response clearLifecycleDemo(@Context HttpHeaders headers) {
+        bankService.clearTransactionLifecycleEvents();
+        if (isHtmx(headers)) return Response.ok(demoData(null, null, null, null, null)).build();
         return Response.seeOther(URI.create("/bank")).build();
     }
 }

@@ -289,6 +289,40 @@
     {/include}
 </div>
 
+<!-- Section 6b: MorphiumId JSON Serialization over REST -->
+<div class="learn-section">
+    <h2>Bonus: <code>MorphiumId</code> JSON Serialization over REST</h2>
+    <p>The <code>id</code> field above is typed <code>MorphiumId</code> &mdash; Morphium's own ObjectId
+    implementation, not a plain <code>String</code>. Without special handling, a generic JSON mapper
+    (Jackson or JSON-B) would introspect its bean getters and serialize it as a nested struct:</p>
+    {#include tags/code-block title="Without the extension (hypothetical)" lang="json"}
+    {#content}<span class="line">&#123; <span class="string">&quot;id&quot;</span>: &#123; <span class="string">&quot;pid&quot;</span>: 12345, <span class="string">&quot;counter&quot;</span>: 1, <span class="string">&quot;machineId&quot;</span>: 987, <span class="string">&quot;bytes&quot;</span>: <span class="string">&quot;...&quot;</span>, <span class="string">&quot;time&quot;</span>: 1700000000000 &#125;, <span class="string">&quot;name&quot;</span>: <span class="string">&quot;Laptop Pro 15&quot;</span> &#125;</span>{/content}
+    {/include}
+    <p><code>quarkus-morphium</code> 6.3.1 registers an automatic Jackson module
+    (<code>MorphiumIdJacksonModule</code>) and, if <code>quarkus-jsonb</code> is on the classpath instead
+    of/alongside Jackson, a JSON-B adapter (<code>MorphiumIdJsonbModule</code> /
+    <code>MorphiumIdJsonbAdapter</code>) that (de)serialize every <code>@Id MorphiumId</code> field as a
+    plain 24-character hex string &mdash; no code to write, no annotation to add:</p>
+    {#include tags/code-block title="Actual wire format (this app)" lang="json"}
+    {#content}<span class="line">&#123; <span class="string">&quot;id&quot;</span>: <span class="string">&quot;68a1c2f3e4d5a6b7c8d9e0f1&quot;</span>, <span class="string">&quot;name&quot;</span>: <span class="string">&quot;Laptop Pro 15&quot;</span> &#125;</span>{/content}
+    {/include}
+    <p>This showcase demonstrates it end-to-end with a small, dedicated JSON REST resource
+    (<code>de.caluga.morphium.showcase.api.MorphiumIdJsonResource</code>, reusing this same
+    <code>Product</code> entity unmodified) &mdash; try it live:</p>
+    {#include tags/code-block title="Try it" lang="bash"}
+    {#content}<span class="line"><span class="comment"># list -&gt; every id is a flat hex string</span></span>
+<span class="line">curl -s localhost:8080/api/morphium-id-json/products | jq <span class="string">'.[0].id'</span></span>
+<span class="line"></span>
+<span class="line"><span class="comment"># echo -&gt; hex string in the body round-trips through a real MorphiumId</span></span>
+<span class="line">curl -s -X POST localhost:8080/api/morphium-id-json/products/echo \</span>
+<span class="line">  -H <span class="string">'Content-Type: application/json'</span> \</span>
+<span class="line">  -d <span class="string">'{"id":"507f1f77bcf86cd799439011","name":"Echo","price":1.0,"stock":1}'</span> | jq .</span>{/content}
+    {/include}
+    <p>No <code>@JsonSerialize</code>/<code>@JsonDeserialize</code> annotation and no hand-written
+    (de)serializer for <code>MorphiumId</code> exists anywhere in this application &mdash; the extension
+    handles both Jackson and JSON-B automatically, for every entity, everywhere it's used.</p>
+</div>
+
 <!-- Section 7: Related Documentation -->
 <div class="learn-section">
     {#include tags/doc-links docLinks=docLinks /}

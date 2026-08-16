@@ -220,3 +220,94 @@
         Re-seed Data
     </button>
 </div>
+
+<!-- Transaction Lifecycle Events -->
+<div class="card">
+    <h3>Transaction Lifecycle Events <span class="tag tag-orange">@MorphiumTxPhase</span></h3>
+    <div class="demo-context">
+        <code>@MorphiumTransactional</code> fires CDI events at three points in the transaction
+        lifecycle: <code>BEFORE_COMMIT</code> (business method succeeded, about to commit),
+        <code>AFTER_COMMIT</code> (commit succeeded), and <code>AFTER_ROLLBACK</code> (aborted due
+        to an exception &mdash; carries the causing exception via <code>getFailure()</code>). Any
+        CDI bean can react to these with <code>@Observes @MorphiumTxPhase(...)</code>, decoupled
+        from the transactional service method itself. This showcase's
+        <code>TransactionLifecycleObserver</code> records each event below.
+    </div>
+    <form hx-post="/bank/lifecycle-demo" hx-target="#tab-content" hx-swap="innerHTML">
+        <div class="form-group">
+            <label>From Account</label>
+            <select name="from" required>
+                <option value="">-- Select source --</option>
+                {#if accounts}
+                {#for account in accounts}
+                <option value="{account.accountNumber}">{account.accountNumber} &mdash; {account.ownerName} ({account.balance} {account.currency})</option>
+                {/for}
+                {/if}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>To Account</label>
+            <select name="to" required>
+                <option value="">-- Select target --</option>
+                {#if accounts}
+                {#for account in accounts}
+                <option value="{account.accountNumber}">{account.accountNumber} &mdash; {account.ownerName} ({account.balance} {account.currency})</option>
+                {/for}
+                {/if}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Amount</label>
+            <input type="number" name="amount" step="0.01" value="10.00" required placeholder="0.00">
+        </div>
+        <div class="form-row" style="align-items:center; gap: 1rem;">
+            <button type="submit" name="forceFailure" value="false" class="btn btn-primary">
+                Transfer (commit &rarr; BEFORE_COMMIT + AFTER_COMMIT)
+            </button>
+            <button type="submit" name="forceFailure" value="true" class="btn btn-outline">
+                Force Rollback (&rarr; AFTER_ROLLBACK)
+            </button>
+        </div>
+    </form>
+
+    <h4 style="margin-top:1.5rem">Observed Events</h4>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Phase</th>
+                    <th>Detail</th>
+                </tr>
+            </thead>
+            <tbody>
+                {#if lifecycleEvents}
+                {#for event in lifecycleEvents}
+                <tr>
+                    <td><code>{event.timestamp}</code></td>
+                    <td>
+                        {#if event.phase == "AFTER_ROLLBACK"}
+                        <span class="tag tag-orange">{event.phase}</span>
+                        {#else if event.phase == "AFTER_COMMIT"}
+                        <span class="tag tag-green">{event.phase}</span>
+                        {#else}
+                        <span class="tag tag-blue">{event.phase}</span>
+                        {/if}
+                    </td>
+                    <td>{event.detail}</td>
+                </tr>
+                {/for}
+                {#else}
+                <tr><td colspan="3">No lifecycle events observed yet &mdash; trigger a transfer above.</td></tr>
+                {/if}
+            </tbody>
+        </table>
+    </div>
+    <div class="demo-actions">
+        <button class="btn btn-outline btn-sm"
+                hx-post="/bank/lifecycle-demo/clear" hx-target="#tab-content" hx-swap="innerHTML">
+            Clear Log
+        </button>
+    </div>
+</div>
+

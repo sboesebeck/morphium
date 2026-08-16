@@ -1,0 +1,129 @@
+<!-- Demo Tab: Change Streams -->
+
+<div class="demo-context">
+    This demo watches the <code>live_notes</code> collection via a MongoDB change stream. Create,
+    edit, or delete a note below &mdash; the live feed on the right updates in realtime, driven
+    purely by the change stream, not by the form submission itself.
+</div>
+
+{#include tags/under-the-hood lastOperation=lastOperation lastMongoCommand=lastMongoCommand /}
+
+{#if successMessage}
+<div class="alert alert-success">{successMessage}</div>
+{/if}
+{#if errorMessage}
+<div class="alert alert-error">{errorMessage}</div>
+{/if}
+
+<div class="card-grid">
+    <!-- Create Note Form -->
+    <div class="card">
+        <h3>Create a Note</h3>
+        <form hx-post="/changestreams/notes" hx-target="#tab-content" hx-swap="innerHTML">
+            <div class="form-group">
+                <label>Title</label>
+                <input type="text" name="title" required placeholder="e.g. Shopping list">
+            </div>
+            <div class="form-group">
+                <label>Content</label>
+                <input type="text" name="content" placeholder="Note content">
+            </div>
+            <div class="form-group">
+                <label>Author</label>
+                <input type="text" name="author" placeholder="e.g. alice">
+            </div>
+            <button type="submit" class="btn btn-primary">Create Note</button>
+        </form>
+    </div>
+
+    <!-- Live Feed -->
+    <div class="card">
+        <h3>Live Feed
+            <span class="tag {#if watching}tag-green{#else}tag-orange{/if}">
+                {#if watching}watching{#else}not watching{/if}
+            </span>
+            <span class="tag tag-blue">{subscriberCount} subscriber(s)</span>
+        </h3>
+        <div id="change-stream-feed" class="event-feed" style="max-height: 320px; overflow-y: auto; font-family: monospace; font-size: 0.85em;">
+            <div class="event-feed-placeholder">Connecting to <code>/changestreams/events</code>&hellip;</div>
+        </div>
+        <div class="demo-actions">
+            <button class="btn btn-outline btn-sm" hx-post="/changestreams/reset" hx-target="#tab-content" hx-swap="innerHTML">
+                Reset (delete all notes + clear history)
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Notes Table -->
+<div class="card">
+    <h3>Notes <span class="tag tag-blue">{count} document(s) in <code>live_notes</code></span></h3>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Content</th>
+                    <th>Author</th>
+                    <th>Created</th>
+                    <th>Updated</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {#for note in notes}
+                <tr>
+                    <td>{note.title}</td>
+                    <td>{note.content}</td>
+                    <td>{note.author}</td>
+                    <td><code>{note.createdAt}</code></td>
+                    <td><code>{note.updatedAt}</code></td>
+                    <td>
+                        <form style="display:inline" hx-post="/changestreams/notes/{note.id}/edit" hx-target="#tab-content" hx-swap="innerHTML">
+                            <input type="hidden" name="content" value="{note.content} (edited)">
+                            <button type="submit" class="btn btn-outline btn-sm">Edit</button>
+                        </form>
+                        <form style="display:inline" hx-post="/changestreams/notes/{note.id}/delete" hx-target="#tab-content" hx-swap="innerHTML">
+                            <button type="submit" class="btn btn-outline btn-sm">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {/for}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+(function() {
+    var feed = document.getElementById('change-stream-feed');
+    if (!feed) return;
+
+    var source = new EventSource('/changestreams/events');
+
+    source.addEventListener('change', function(e) {
+        var evt = JSON.parse(e.data);
+        var placeholder = feed.querySelector('.event-feed-placeholder');
+        if (placeholder) placeholder.remove();
+
+        var line = document.createElement('div');
+        line.className = 'event-feed-line';
+        var opColor = evt.operationType === 'insert' ? 'tag-green'
+            : evt.operationType === 'delete' ? 'tag-orange'
+            : 'tag-blue';
+        line.innerHTML = '<span class="tag ' + opColor + '">' + evt.operationType + '</span> ' +
+            '<code>' + (evt.documentId || '') + '</code> ' +
+            '<span style="color:#888">' + evt.receivedAt + '</span>';
+        feed.insertBefore(line, feed.firstChild);
+
+        // Keep the feed bounded on the client side too.
+        while (feed.children.length > 30) {
+            feed.removeChild(feed.lastChild);
+        }
+    });
+
+    source.onerror = function() {
+        // EventSource retries automatically; nothing to do here.
+    };
+})();
+</script>

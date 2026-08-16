@@ -26,6 +26,8 @@ import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Map;
 
+import static de.caluga.morphium.showcase.bank.TransactionLifecycleObserver.LifecycleLogEntry;
+
 /**
  * Service layer demonstrating Morphium's transactional support, atomic field operations, and
  * optimistic locking in a banking scenario.
@@ -60,6 +62,9 @@ public class BankService {
 
     @Inject
     Morphium morphium;
+
+    @Inject
+    TransactionLifecycleObserver transactionLifecycleObserver;
 
     /**
      * Result record for transfer operations, containing success status, a message, and the
@@ -308,5 +313,93 @@ public class BankService {
         createAccount("ACC-001", "Alice", 1000.00, "EUR");
         createAccount("ACC-002", "Bob", 500.00, "EUR");
         createAccount("ACC-003", "Charlie", 250.00, "EUR");
+    }
+
+    /**
+     * Demonstrates the {@code @MorphiumTransactional} lifecycle events by deliberately forcing a
+     * rollback: this method behaves exactly like {@link #transfer} but throws instead of returning
+     * a failure result once the withdrawal precondition is not met, so that
+     * {@link TransactionLifecycleObserver#onAfterRollback} fires with a real causing exception.
+     *
+     * <p>This is purely a showcase helper for the "force a rollback" demo button; it is not used by
+     * the regular transfer flow. See the "Transaction Lifecycle Events" panel on the Bank demo tab
+     * for the resulting observer log.</p>
+     *
+     * <p>Lifecycle sequence for a <strong>successful</strong> call:</p>
+     * <ol>
+     *   <li>{@code morphium.startTransaction()} (implicit, via {@code @MorphiumTransactional})</li>
+     *   <li>balance updates + audit record store()</li>
+     *   <li>{@code BEFORE_COMMIT} event fired -&gt; {@link TransactionLifecycleObserver#onBeforeCommit}</li>
+     *   <li>{@code morphium.commitTransaction()}</li>
+     *   <li>{@code AFTER_COMMIT} event fired -&gt; {@link TransactionLifecycleObserver#onAfterCommit}</li>
+     * </ol>
+     * <p>Lifecycle sequence when {@code forceFailure} is {@code true}:</p>
+     * <ol>
+     *   <li>{@code morphium.startTransaction()}</li>
+     *   <li>an {@link IllegalStateException} is thrown before any write happens</li>
+     *   <li>{@code morphium.abortTransaction()}</li>
+     *   <li>{@code AFTER_ROLLBACK} event fired (with the exception) -&gt;
+     *       {@link TransactionLifecycleObserver#onAfterRollback}</li>
+     *   <li>the exception is re-thrown by the interceptor</li>
+     * </ol>
+     *
+     * @param fromNumber   the source account number
+     * @param toNumber     the target account number
+     * @param amount       the amount to transfer (must be positive)
+     * @param description  a human-readable description of the transfer
+     * @param forceFailure if {@code true}, throws before performing any write so the transaction is
+     *                     guaranteed to roll back -- used to demonstrate {@code AFTER_ROLLBACK}
+     * @return a {@link TransferResult} describing the successful transfer (never returned when
+     *         {@code forceFailure} is {@code true} -- an exception is thrown instead)
+     * @throws IllegalStateException if {@code forceFailure} is {@code true}
+     */
+    @MorphiumTransactional
+    public TransferResult transferWithLifecycleDemo(String fromNumber, String toNumber, double amount,
+            String description, boolean forceFailure) {
+        if (forceFailure) {
+            // Thrown before any write -- @MorphiumTransactional aborts the transaction and fires
+            // AFTER_ROLLBACK with this exception as MorphiumTransactionEvent#getFailure().
+            throw new IllegalStateException("Forced failure for lifecycle-event demo (no funds were moved)");
+        }
+
+        var fromQuery = morphium.createQueryFor(Account.class)
+                .f(Account.Fields.accountNumber).eq(fromNumber);
+        morphium.inc(fromQuery, Account.Fields.balance, -amount);
+
+        var toQuery = morphium.createQueryFor(Account.class)
+                .f(Account.Fields.accountNumber).eq(toNumber);
+        morphium.inc(toQuery, Account.Fields.balance, amount);
+
+        Transfer transfer = Transfer.builder()
+                .fromAccount(fromNumber)
+                .toAccount(toNumber)
+                .amount(amount)
+                .description(description)
+                .status("COMPLETED")
+                .build();
+        morphium.store(transfer);
+
+        return new TransferResult(true,
+                "Transferred " + amount + " from " + fromNumber + " to " + toNumber
+                        + " (lifecycle events fired -- see log below)",
+                transfer);
+    }
+
+    /**
+     * Returns the transaction lifecycle events (BEFORE_COMMIT / AFTER_COMMIT / AFTER_ROLLBACK)
+     * observed so far, newest first. Backed by {@link TransactionLifecycleObserver}.
+     *
+     * @return the in-memory lifecycle event log
+     */
+    public List<LifecycleLogEntry> getTransactionLifecycleEvents() {
+        return transactionLifecycleObserver.recentEvents();
+    }
+
+    /**
+     * Clears the in-memory transaction lifecycle event log kept by {@link TransactionLifecycleObserver}.
+     * Used by the "Clear Log" showcase UI action.
+     */
+    public void clearTransactionLifecycleEvents() {
+        transactionLifecycleObserver.clear();
     }
 }

@@ -42,7 +42,7 @@
         {/include}
 
         {#include tags/tooltip color="orange" text="CDI Transaction Events" compat="all"}
-        {#tip}Quarkus CDI events fired before/after transaction commit or abort, enabling audit logging and side-effect decoupling.{/tip}
+        {#tip}Quarkus CDI events fired by the @MorphiumTransactional interceptor before/after transaction commit or abort: BEFORE_COMMIT, AFTER_COMMIT, AFTER_ROLLBACK. Observe with @Observes @MorphiumTxPhase(...) MorphiumTransactionEvent, enabling audit logging, outbox publishing, or side-effect decoupling. Import: de.caluga.morphium.quarkus.transaction.MorphiumTxPhase / MorphiumTransactionEvent (Quarkus extension){/tip}
         {/include}
     </div>
 </div>
@@ -315,7 +315,49 @@
     {/include}
 </div>
 
-<!-- Section 8: Related Documentation -->
+<!-- Section 8: Transaction Lifecycle Events -->
+<div class="learn-section">
+    <h2>Transaction Lifecycle Events</h2>
+    <p>The <code>@MorphiumTransactional</code> interceptor doesn't just start/commit/abort the
+    transaction &mdash; it also fires CDI events at each phase, so other beans can react without
+    coupling to the transactional service method:</p>
+    {#include tags/code-block title="AuditObserver.java — CDI Transaction Lifecycle Events" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.quarkus.transaction.*;</span>
+<span class="line"><span class="keyword">import</span> jakarta.enterprise.context.ApplicationScoped;</span>
+<span class="line"><span class="keyword">import</span> jakarta.enterprise.event.Observes;</span>
+<span class="line"></span>
+<span class="line"><span class="keyword">import static</span> de.caluga.morphium.quarkus.transaction.MorphiumTransactionEvent.Phase.*;<span class="code-callout">1</span></span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@ApplicationScoped</span></span>
+<span class="line"><span class="keyword">public class</span> <span class="type">AuditObserver</span> &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">void</span> beforeCommit(<span class="annotation">@Observes</span> <span class="annotation">@MorphiumTxPhase</span>(BEFORE_COMMIT) <span class="type">MorphiumTransactionEvent</span> e) &#123;<span class="code-callout">2</span></span>
+<span class="line">        <span class="comment">// fired after the business method returns, before commitTransaction()</span></span>
+<span class="line">    &#125;</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">void</span> afterCommit(<span class="annotation">@Observes</span> <span class="annotation">@MorphiumTxPhase</span>(AFTER_COMMIT) <span class="type">MorphiumTransactionEvent</span> e) &#123;<span class="code-callout">3</span></span>
+<span class="line">        <span class="comment">// e.g. publish a domain event now that the write is durable</span></span>
+<span class="line">    &#125;</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">void</span> afterRollback(<span class="annotation">@Observes</span> <span class="annotation">@MorphiumTxPhase</span>(AFTER_ROLLBACK) <span class="type">MorphiumTransactionEvent</span> e) &#123;<span class="code-callout">4</span></span>
+<span class="line">        log.warn(<span class="string">&quot;Transaction rolled back&quot;</span>, e.getFailure());<span class="code-callout">5</span></span>
+<span class="line">    &#125;</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> Static import of the <code>Phase</code> enum for readable qualifier usage: <code>BEFORE_COMMIT</code>, <code>AFTER_COMMIT</code>, <code>AFTER_ROLLBACK</code>.</div>
+        <div class="callout-item"><span class="code-callout">2</span> <code>@Observes @MorphiumTxPhase(BEFORE_COMMIT)</code> &mdash; fires once the annotated business method has returned normally, right before <code>morphium.commitTransaction()</code>.</div>
+        <div class="callout-item"><span class="code-callout">3</span> <code>AFTER_COMMIT</code> &mdash; fires only after the commit has actually succeeded. Safe point to trigger side effects that require durability (outbox publish, cache invalidation, ...).</div>
+        <div class="callout-item"><span class="code-callout">4</span> <code>AFTER_ROLLBACK</code> &mdash; fires after <code>abortTransaction()</code>, triggered by any exception thrown from the business method.</div>
+        <div class="callout-item"><span class="code-callout">5</span> <code>getFailure()</code> returns the causing <code>Exception</code> &mdash; non-null only for <code>AFTER_ROLLBACK</code>, always <code>null</code> for the other two phases.</div>
+    </div>
+    <p>This showcase's own <code>TransactionLifecycleObserver</code> (in the <code>bank</code>
+    package) observes all three phases and keeps an in-memory log rendered in the Demo tab &mdash;
+    try the &ldquo;Force Rollback&rdquo; button there to see <code>AFTER_ROLLBACK</code> fire with
+    a real exception.</p>
+</div>
+
+<!-- Section 9: Related Documentation -->
 <div class="learn-section">
     {#include tags/doc-links docLinks=docLinks /}
 </div>

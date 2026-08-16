@@ -1,10 +1,12 @@
 package de.caluga.morphium.showcase.query;
 
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.showcase.query.entity.Employee;
 import jakarta.data.Limit;
 import jakarta.data.Order;
 import jakarta.data.Sort;
+import jakarta.data.page.CursoredPage;
 import jakarta.data.page.Page;
 import jakarta.data.page.PageRequest;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -154,6 +156,41 @@ public class QueryComparisonService {
         return repository.findByDepartment(dept,
                 PageRequest.ofPage(page, size, true),
                 Order.by(Sort.desc("salary")));
+    }
+
+    // ========== Cursor (Keyset) Pagination ==========
+
+    /**
+     * Manual keyset pagination via the Morphium Query API — mirrors what
+     * {@code CursorHelper.applyCursorCondition} does internally for {@code CursoredPage<T>}:
+     * sort by (salary ASC, id ASC), and if a cursor (last seen salary/id) is given, add an
+     * {@code $or} condition anchored on it instead of {@code skip()}. Fetches {@code size + 1}
+     * rows so the caller can tell whether another page follows.
+     */
+    public List<Employee> findCursoredPageMorphium(String dept, Double afterSalary, String afterId, int size) {
+        var query = morphium.createQueryFor(Employee.class)
+                .f(Employee.Fields.department).eq(dept);
+        if (afterSalary != null && afterId != null) {
+            query.or(
+                    morphium.createQueryFor(Employee.class).f(Employee.Fields.salary).gt(afterSalary),
+                    morphium.createQueryFor(Employee.class)
+                            .f(Employee.Fields.salary).eq(afterSalary)
+                            .f(Employee.Fields.id).gt(new MorphiumId(afterId)));
+        }
+        return query.sort(Map.of(Employee.Fields.salary, 1, Employee.Fields.id, 1))
+                .limit(size + 1) // one extra row to determine hasNext, like CursorHelper does
+                .asList();
+    }
+
+    /**
+     * Jakarta Data equivalent: {@code CursoredPage<Employee>} via {@code @Find} + {@code @OrderBy}.
+     * The runtime builds the same keyset condition and extra-row fetch as
+     * {@link #findCursoredPageMorphium} internally (see {@code CursorHelper}), and exposes
+     * {@code hasNext()}/{@code hasPrevious()}/{@code nextPageRequest()}/{@code cursor(index)}
+     * directly on the returned page — no manual bookkeeping needed.
+     */
+    public CursoredPage<Employee> findCursoredPageJakartaData(String dept, PageRequest pageRequest) {
+        return repository.findCursoredByDepartment(dept, pageRequest);
     }
 
     // ========== Top N with @Find / @OrderBy ==========

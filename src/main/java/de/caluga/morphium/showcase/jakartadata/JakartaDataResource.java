@@ -239,6 +239,18 @@ public class JakartaDataResource {
                 result.put("jakartaResult", j);
                 result.put("match", m.size() == j.size());
             }
+            case "cursoredPage" -> {
+                result.put("morphiumCode", "query.f(Fields.department).eq(\"Engineering\")\n    .or(salary > lastSalary,\n        salary == lastSalary AND id > lastId)\n    .sort(Map.of(\"salary\", 1, \"id\", 1))\n    .limit(size + 1).asList()");
+                result.put("jakartaInterface", "@Find\n@OrderBy(\"salary\")\n@OrderBy(\"id\")\nCursoredPage<Employee> findCursoredByDepartment(\n    @By(\"department\") String dept,\n    PageRequest pageRequest);");
+                result.put("jakartaCode", "repository.findCursoredByDepartment(\n    \"Engineering\", PageRequest.ofSize(2))");
+                var m = comparisonService.findCursoredPageMorphium("Engineering", null, null, 2);
+                var j = comparisonService.findCursoredPageJakartaData("Engineering", jakarta.data.page.PageRequest.ofSize(2));
+                result.put("morphiumResult", m.stream().limit(2)
+                        .map(e -> e.getFirstName() + " ($" + (int) e.getSalary() + ")").toList());
+                result.put("jakartaResult", j.stream()
+                        .map(e -> e.getFirstName() + " ($" + (int) e.getSalary() + ")").toList());
+                result.put("match", Math.min(m.size(), 2) == j.stream().count());
+            }
             case "groupBy" -> {
                 result.put("morphiumCode", "agg.group(\"$department\")\n    .sum(\"count\", 1)\n    .sum(\"sum\", \"$salary\")\n    .end();\nagg.sort(Map.of(\"_id\", 1));\nagg.aggregate()");
                 result.put("jakartaInterface", "@Query(\"SELECT department, COUNT(this),\n    SUM(salary)\n    GROUP BY department\n    ORDER BY department ASC\")\nList<DeptStats> statsByDepartment();");

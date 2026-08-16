@@ -5,6 +5,7 @@ import de.caluga.morphium.data.MorphiumRepository;
 import de.caluga.morphium.showcase.query.entity.Employee;
 import jakarta.data.Limit;
 import jakarta.data.Order;
+import jakarta.data.page.CursoredPage;
 import jakarta.data.page.Page;
 import jakarta.data.page.PageRequest;
 import jakarta.data.repository.Find;
@@ -100,6 +101,20 @@ public interface EmployeeRepository extends MorphiumRepository<Employee, Morphiu
 
     // ---- Pagination & Sorting ----
     Page<Employee> findByDepartment(String department, PageRequest pageRequest, Order<Employee> order);
+
+    // ---- Cursor (keyset) Pagination ----
+
+    /**
+     * Cursor-based (keyset) pagination: the runtime turns the {@code @OrderBy} sort key into a
+     * MongoDB {@code $or} keyset condition anchored on the previous page's last row and fetches
+     * one extra row to compute {@code hasNext()}/{@code hasPrevious()} -- see {@code CursorHelper}.
+     * Stays stable and efficient under concurrent writes, unlike {@code skip}/{@code limit}
+     * offset pagination.
+     */
+    @Find
+    @OrderBy("salary")
+    @OrderBy("id")
+    CursoredPage<Employee> findCursoredByDepartment(@By("department") String department, PageRequest pageRequest);
 
     // ---- @Find / @By ----
 
