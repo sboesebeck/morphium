@@ -102,6 +102,7 @@ public class SecurityResource {
                 .data("jcacheReports", jCacheService.findAll())
                 .data("jcacheReportCount", jCacheService.count())
                 .data("jcacheSizes", jCacheService.cacheSizes())
+                .data("jcacheTiming", null)
                 .data("successMessage", success)
                 .data("errorMessage", error)
                 .data("lastOperation", lastOperation)
