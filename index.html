@@ -1831,6 +1831,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="spring-boot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spring Boot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2454,6 +2482,14 @@ any of the following. These are additional, opt-in modules built on top of the c
   Quarkus applications via a CDI producer, <code>@ConfigMapping</code>, <code>@MorphiumTransactional</code>, health
   checks, Dev Services, Dev UI, and build-time Jakarta Data repository generation via Gizmo
   - GraalVM native-image support and <code>MorphiumId</code> JSON (de)serialization out of the box
+  - Zero dependency from the core: build with <code>-DskipExtensions</code> for a core-only artifact
+- <strong><a href="spring-boot/">Spring Boot</a></strong> - Optional module integrating Morphium into
+  <a href="https://spring.io/projects/spring-boot">Spring Boot</a> applications via auto-configuration,
+  type-safe <code>@ConfigurationProperties</code> (<code>morphium.*</code>), <code>@MorphiumTransactional</code> via AspectJ, an
+  Actuator health indicator, and Jakarta Data <code>@Repository</code> interfaces backed by JDK dynamic
+  proxies at runtime (no build-time bytecode generation, unlike <code>quarkus-morphium</code>'s Gizmo
+  approach)
+  - No Docker/Testcontainers needed — all tests run against Morphium's <code>InMemDriver</code>
   - Zero dependency from the core: build with <code>-DskipExtensions</code> for a core-only artifact</p>
 <p>Minimum requirements
 - Java 21+
