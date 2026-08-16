@@ -41,14 +41,6 @@
       <artifactId>morphium</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- classgraph: Dependency-Deklaration bleibt bestehen (Entity-Pre-Scan in
-         MorphiumAutoConfiguration), die Versionsverwaltung übernimmt künftig
-         morphium-parent's dependencyManagement (siehe morphium/pom.xml) statt
-         einer eigenen Version hier. -->
-    <dependency>
-      <groupId>io.github.classgraph</groupId>
-      <artifactId>classgraph</artifactId>
-    </dependency>
     <dependency>
       <groupId>de.caluga</groupId>
       <artifactId>morphium-jakarta-data</artifactId>

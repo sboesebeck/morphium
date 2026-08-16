@@ -18,8 +18,7 @@ pagination runtime.
 
 - **Auto-configuration** — `MorphiumAutoConfiguration` creates the application's
   single `Morphium` bean from `morphium.*` properties, with connection retry on
-  transient failures (linear backoff) and a best-effort classpath pre-scan for
-  `@Entity`/`@Embedded` classes so Morphium can skip its own internal scan at startup.
+  transient failures (linear backoff).
 - **Type-safe configuration** — every setting lives under `morphium.*` as
   `@ConfigurationProperties`, with `spring-boot-configuration-processor`-generated
   metadata for IDE autocompletion.

@@ -505,8 +505,8 @@ A new optional module, `spring-boot-morphium`, integrates Morphium into
 [Spring Boot](https://spring.io/projects/spring-boot) applications: `MorphiumAutoConfiguration`
 creates the application's `Morphium` bean from `morphium.*` properties (type-safe
 `@ConfigurationProperties`, with `spring-boot-configuration-processor`-generated metadata for
-IDE autocompletion), connection retry with linear backoff on transient failures, and a
-best-effort classpath pre-scan for `@Entity`/`@Embedded` classes. Jakarta Data `@Repository`
+IDE autocompletion), and connection retry with linear backoff on transient failures.
+Jakarta Data `@Repository`
 interfaces (`CrudRepository`/`MorphiumRepository` from `morphium-jakarta-data`) are wired via
 `MorphiumRepositoryRegistrar` at Spring context-startup time, backed by a JDK dynamic proxy
 (`java.lang.reflect.Proxy`) per repository interface — in contrast to `quarkus-morphium`, which
