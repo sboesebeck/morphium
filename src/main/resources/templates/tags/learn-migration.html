@@ -1,0 +1,109 @@
+<!-- Learn Tab: Migration Runner -->
+
+<!-- Section 1: What Morphium Offers -->
+<div class="capability-section">
+    <h2>What Morphium Offers</h2>
+    <p>quarkus-morphium ships a lightweight, MongoDB-backed schema/data migration mechanism.
+    Annotate a class <code>@MorphiumChangeUnit</code>, mark one method <code>@Execution</code>,
+    and the extension discovers it at build time and (optionally) runs it automatically at
+    startup &mdash; recording success in a changelog collection and coordinating multiple
+    application instances via a distributed lock, so a rolling deployment never runs the same
+    migration twice concurrently.</p>
+</div>
+
+<!-- Section 2: The Challenge -->
+<div class="challenge-section">
+    <h2>The Challenge</h2>
+    <p>Schema/data migrations for a document database still need the same guarantees relational
+    migration tools provide: run exactly once, run in a defined order, survive a crash mid-run
+    without corrupting state, and never run twice concurrently when multiple application
+    instances start at the same time (a rolling Kubernetes deployment, for example).</p>
+</div>
+
+<!-- Section 2: Morphium Features with Tooltips -->
+<div class="learn-section">
+    <h2>Morphium Features Used</h2>
+    <div class="feature-tags-grid">
+        {#include tags/tooltip color="blue" text="@MorphiumChangeUnit" compat="all"}
+        {#tip}Class-level annotation marking a migration. Requires a unique, non-blank id() and an order() used to sort migrations before running them (zero-pad for readability once you have more than nine). Import: de.caluga.morphium.quarkus.migration.MorphiumChangeUnit{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="@Execution" compat="all"}
+        {#tip}Method-level annotation, exactly one required per change-unit class. The method takes either no arguments or a single Morphium parameter. Must be idempotent: the changelog is only written after this method returns, so a crash between the side effect and the changelog write re-runs it.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="@RollbackExecution" compat="all"}
+        {#tip}Optional method-level annotation, invoked automatically if @Execution throws. Its own failure is attached as a suppressed exception on the original migration failure rather than swallowed.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="purple" text="Distributed Lock" compat="all"}
+        {#tip}A single lock document (morphiumMigrationLock collection by default) with an owner and an expiry, acquired atomically via findAndModify. Multiple application instances starting concurrently coordinate through this lock instead of racing to run the same migration.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="Changelog" compat="all"}
+        {#tip}Every migration attempt is recorded in a changelog collection (morphiumChangeLog by default) with its state: EXECUTED, FAILED, or ROLLED_BACK. Already-executed migrations are skipped on subsequent runs.{/tip}
+        {/include}
+    </div>
+</div>
+
+<!-- Section 3: Prerequisites -->
+<div class="learn-section">
+    <h2>Prerequisites &amp; Key Concepts</h2>
+    <div class="card">
+        <ul class="prereq-list">
+            <li><strong>Automatic discovery, explicit execution.</strong> The Quarkus extension's
+            build-time processor scans for <code>@MorphiumChangeUnit</code> classes via
+            ClassGraph/Jandex and hands the list to the runner &mdash; no manual registration
+            needed. Whether they actually <em>run</em> at startup is controlled separately by
+            <code>quarkus.morphium.migration.migrate-at-start</code> (default <code>false</code>).</li>
+            <li><strong>Idempotency is your responsibility.</strong> The runner guarantees a
+            migration's <code>@Execution</code> method is not re-invoked once its changelog entry
+            is recorded as <code>EXECUTED</code> &mdash; but the method body itself must be safe to
+            run more than once in case of a crash between the side effect and that changelog write.</li>
+            <li><strong>Lock TTL, not a permanent hold.</strong> The distributed lock has a
+            configurable TTL (<code>lock-ttl-seconds</code>, default 60) and is renewed while a
+            migration runs; if a process crashes while holding it, the lock simply expires rather
+            than deadlocking every future deployment.</li>
+            <li><strong>This demo bypasses <code>migrate-at-start</code>.</strong> That property
+            only triggers a run once, automatically, at application boot. To let you trigger a run
+            on demand from this page, the demo constructs its own
+            <code>MorphiumMigrationRunner</code> and calls <code>execute(...)</code> directly
+            &mdash; exactly what the extension's own startup code does internally.</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Section 4: Entity + Migration Source Code -->
+<div class="learn-section">
+    <h2>The Migration</h2>
+    {#include tags/code-block title="AddArchivedFlagMigration.java" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.quarkus.migration.Execution;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.quarkus.migration.MorphiumChangeUnit;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.quarkus.migration.RollbackExecution;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@MorphiumChangeUnit</span>(id = <span class="string">&quot;001-add-archived-flag&quot;</span>, order = <span class="string">&quot;001&quot;</span>, author = <span class="string">&quot;showcase&quot;</span>)<span class="code-callout">1</span></span>
+<span class="line"><span class="keyword">public class</span> <span class="type">AddArchivedFlagMigration</span> &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Execution</span><span class="code-callout">2</span></span>
+<span class="line">    <span class="keyword">public void</span> execute(<span class="type">Morphium</span> morphium) &#123;</span>
+<span class="line">        <span class="keyword">var</span> query = morphium.createQueryFor(<span class="type">MigrationNote</span>.<span class="keyword">class</span>)</span>
+<span class="line">            .f(<span class="type">MigrationNote</span>.Fields.archived).eq(<span class="keyword">null</span>);</span>
+<span class="line">        query.set(<span class="type">MigrationNote</span>.Fields.archived, <span class="keyword">false</span>, <span class="keyword">false</span>, <span class="keyword">false</span>, <span class="keyword">null</span>);<span class="code-callout">3</span></span>
+<span class="line">    &#125;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@RollbackExecution</span><span class="code-callout">4</span></span>
+<span class="line">    <span class="keyword">public void</span> rollback(<span class="type">Morphium</span> morphium) &#123; <span class="comment">/* ... */</span> &#125;</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> A zero-padded, unique id and order; the author field is purely informational.</div>
+        <div class="callout-item"><span class="code-callout">2</span> Takes the live <code>Morphium</code> instance as its single parameter.</div>
+        <div class="callout-item"><span class="code-callout">3</span> Only documents still missing the field are matched &mdash; running this twice is a safe no-op.</div>
+        <div class="callout-item"><span class="code-callout">4</span> Invoked automatically if <code>execute()</code> throws.</div>
+    </div>
+</div>
+
+<!-- Section 5: Related Documentation -->
+<div class="learn-section">
+    {#include tags/doc-links docLinks=docLinks /}
+</div>

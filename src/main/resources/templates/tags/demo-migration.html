@@ -1,0 +1,106 @@
+<!-- Demo Tab: Migration Runner -->
+
+<div class="demo-context">
+    Five <code>MigrationNote</code> documents are seeded without the <code>archived</code> field
+    &mdash; simulating documents from an older schema version. Trigger the migration below to
+    backfill <code>archived = false</code> on all of them, then inspect the changelog that
+    records the run.
+</div>
+
+{#include tags/under-the-hood lastOperation=lastOperation lastMongoCommand=lastMongoCommand /}
+
+{#if successMessage}
+<div class="alert alert-success">{successMessage}</div>
+{/if}
+{#if errorMessage}
+<div class="alert alert-error">{errorMessage}</div>
+{/if}
+
+<div class="card-grid">
+    <div class="card">
+        <h3>Run Migrations
+            <span class="tag {#if lockHeld}tag-orange{#else}tag-green{/if}">
+                {#if lockHeld}lock held{#else}lock free{/if}
+            </span>
+        </h3>
+        <p>
+            <span class="tag tag-blue">{unmigratedCount} of {noteCount} note(s) still missing <code>archived</code></span>
+        </p>
+        <div class="demo-actions">
+            <button class="btn btn-primary" hx-post="/migration/run" hx-target="#tab-content" hx-swap="innerHTML">
+                Run Pending Migrations
+            </button>
+            <button class="btn btn-outline btn-sm" hx-post="/migration/reset" hx-target="#tab-content" hx-swap="innerHTML">
+                Reset Demo
+            </button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Changelog <span class="tag tag-blue">{changelogEntries.size()} entr(y/ies)</span></h3>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Change ID</th>
+                        <th>State</th>
+                        <th>Executed At</th>
+                        <th>Duration</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {#for entry in changelogEntries}
+                    <tr>
+                        <td><code>{entry.changeId}</code></td>
+                        <td>
+                            {#if entry.state == 'EXECUTED'}
+                            <span class="tag tag-green">{entry.state}</span>
+                            {#else if entry.state == 'FAILED'}
+                            <span class="tag tag-orange">{entry.state}</span>
+                            {#else}
+                            <span class="tag tag-blue">{entry.state}</span>
+                            {/if}
+                        </td>
+                        <td><code>{entry.executedAt}</code></td>
+                        <td>{entry.executionTimeMs}ms</td>
+                    </tr>
+                    {/for}
+                </tbody>
+            </table>
+            {#if changelogEntries.isEmpty()}
+            <p class="empty-state">No migrations have run yet.</p>
+            {/if}
+        </div>
+    </div>
+</div>
+
+<!-- Notes Table -->
+<div class="card">
+    <h3>Notes <span class="tag tag-blue">{noteCount} document(s) in <code>migration_notes</code></span></h3>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Archived</th>
+                    <th>Created</th>
+                </tr>
+            </thead>
+            <tbody>
+                {#for note in notes}
+                <tr>
+                    <td>{note.title}</td>
+                    <td>
+                        {#if note.archived == null}
+                        <span class="tag tag-orange">missing</span>
+                        {#else}
+                        <span class="tag tag-green">{note.archived}</span>
+                        {/if}
+                    </td>
+                    <td><code>{note.createdAt}</code></td>
+                </tr>
+                {/for}
+            </tbody>
+        </table>
+    </div>
+</div>
