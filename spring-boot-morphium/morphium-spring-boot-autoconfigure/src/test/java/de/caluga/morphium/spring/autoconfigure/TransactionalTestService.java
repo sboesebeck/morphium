@@ -14,9 +14,11 @@ import org.springframework.stereotype.Service;
 public class TransactionalTestService {
 
     private final Morphium morphium;
+    private final NestedTransactionalTestService nested;
 
-    public TransactionalTestService(Morphium morphium) {
+    public TransactionalTestService(Morphium morphium, NestedTransactionalTestService nested) {
         this.morphium = morphium;
+        this.nested = nested;
     }
 
     @MorphiumTransactional
@@ -28,5 +30,29 @@ public class TransactionalTestService {
     public void saveThenThrow(TestEntity entity) {
         morphium.store(entity);
         throw new IllegalStateException("forced failure to exercise abortTransaction()");
+    }
+
+    /**
+     * Outer transactional method calling a second {@code @MorphiumTransactional} bean.
+     * The inner call goes through the injected proxy (not {@code this}), so the aspect
+     * really does run twice - which is exactly the nesting case REQUIRED propagation has
+     * to survive. Without it, the inner {@code startTransaction()} throws and the outer
+     * transaction is aborted, losing {@code outer} as well.
+     */
+    @MorphiumTransactional
+    public void saveOuterThenNestedInner(TestEntity outer, TestEntity inner) {
+        morphium.store(outer);
+        nested.saveInner(inner);
+    }
+
+    /**
+     * Same nesting, but the inner method throws. The exception must propagate out of the
+     * outer method and the outer work must be rolled back - the inner call must not have
+     * committed anything on its own.
+     */
+    @MorphiumTransactional
+    public void saveOuterThenNestedInnerThrows(TestEntity outer, TestEntity inner) {
+        morphium.store(outer);
+        nested.saveInnerThenThrow(inner);
     }
 }

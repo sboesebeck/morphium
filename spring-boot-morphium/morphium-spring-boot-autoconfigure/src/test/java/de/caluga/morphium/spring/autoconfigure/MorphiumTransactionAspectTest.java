@@ -63,4 +63,33 @@ class MorphiumTransactionAspectTest {
         // document would still be present.
         assertEquals(0, morphium.createQueryFor(TestEntity.class).countAll());
     }
+
+    // ---- Review finding 6: nested @MorphiumTransactional lost the outer transaction ----
+
+    @Test
+    void nestedTransactionalCallJoinsTheOuterTransaction() {
+        // The inner call goes through a second proxied bean, so the aspect really runs twice.
+        // Without REQUIRED propagation the inner startTransaction() threw
+        // IllegalArgumentException ("transaction in progress"), that exception propagated into
+        // the outer advice's catch, and the outer transaction was aborted -- so NEITHER
+        // document survived. Both must be present now.
+        service.saveOuterThenNestedInner(
+                new TestEntity("outer", "active", 1),
+                new TestEntity("inner", "active", 2));
+
+        assertEquals(2, morphium.createQueryFor(TestEntity.class).countAll());
+    }
+
+    @Test
+    void nestedTransactionalRollsBackBothOnInnerFailure() {
+        // The inner method throws while joined to the outer transaction. The exception must
+        // reach the caller, and because the inner call neither committed nor aborted on its
+        // own, the outer advice's abort has to roll back the outer AND the inner write.
+        assertThrows(IllegalStateException.class,
+                () -> service.saveOuterThenNestedInnerThrows(
+                        new TestEntity("outer", "active", 1),
+                        new TestEntity("inner", "active", 2)));
+
+        assertEquals(0, morphium.createQueryFor(TestEntity.class).countAll());
+    }
 }
