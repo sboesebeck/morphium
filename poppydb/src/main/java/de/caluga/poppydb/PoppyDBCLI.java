@@ -601,11 +601,16 @@ public class PoppyDBCLI {
                 } else {
                     log.warn("PARTIAL RESTORE on startup: only {} of {} databases restored from the dump "
                             + "directory - failed dump files: {} (see errors above). Continuing startup "
-                            + "WITHOUT the failed databases!",
+                            + "WITHOUT the failed databases, and this node will NOT stand for election "
+                            + "until an authoritative sync has completed - otherwise it could become "
+                            + "primary and overwrite intact peers with its incomplete state.",
                             restored.getRestored(), restored.getTotal(), restored.getFailedFiles());
+                    srv.setLocalDataComplete(false);
                 }
             } catch (Exception e) {
-                log.error("Failed to restore from dump (starting fresh)", e);
+                log.error("Failed to restore from dump - this node will NOT stand for election until "
+                        + "an authoritative sync has completed", e);
+                srv.setLocalDataComplete(false);
             }
         }
 

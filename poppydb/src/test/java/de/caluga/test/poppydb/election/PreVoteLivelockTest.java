@@ -91,7 +91,7 @@ public class PreVoteLivelockTest {
                 return;
             }
             VoteResponse response = target.handleVoteRequest(request);
-            source.handleVoteResponse(peer, response);
+            source.handleVoteResponse(peer, request, response);
         }));
         source.setSendAppendEntries((peer, request) -> network.submit(() -> {
             if (peer.equals(N3) && !heartbeatsToN3.get()) {

@@ -110,6 +110,10 @@ public class PoppyDB {
     private boolean electionEnabled = false;
     private ElectionConfig electionConfig = null;
     private ElectionManager electionManager = null;
+    // Set by the startup restore: false means this node came up with only part of its data
+    // (#306 review, P1-2). Kept as a field because the restore runs before the election manager
+    // exists, and applied to it as soon as it does.
+    private volatile boolean localDataComplete = true;
     private ElectionNetworkClient electionNetworkClient = null;
 
     // SSL configuration
@@ -680,6 +684,11 @@ public class PoppyDB {
             electionManager = new ElectionManager(myAddress, hosts, electionConfig);
 
             // Set up leadership change callback
+            // A node that restored only part of its data must not win an election: restoring
+            // does not advance the change-stream sequence, so after a cluster-wide restart every
+            // node reports index 0 and the index-based restraint cannot separate an intact node
+            // from a gutted one. It would then overwrite the intact peers via their initial sync.
+            electionManager.setDataComplete(localDataComplete);
             electionManager.setOnLeadershipChange(this::onLeadershipChange);
             electionManager.setOnLeaderDiscovered(this::onLeaderDiscovered);
 
@@ -993,6 +1002,14 @@ public class PoppyDB {
             newReplicationManager.setOnLogIndexUpdate((index, term) ->
                     electionManager.updateLogIndex(index, electionManager.getCurrentTerm()));
         }
+        // Release of the partial-restore candidacy guard (#306 P1-2 follow-up): the guard used
+        // to be lifted only in static-mode startReplication() (after its synchronous
+        // waitForInitialSync) - this path, the one election mode actually takes, never lifted
+        // it, so a partially-restored node stayed barred from candidacy FOREVER even after a
+        // complete authoritative sync; when the primary later died, the cluster stayed without
+        // one. The completion hook fires exactly when an initial sync has COMPLETED (never on
+        // mere replication start - a guard released early would be no guard at all).
+        newReplicationManager.setOnInitialSyncComplete(this::releaseDataCompleteAfterSync);
         try {
             newReplicationManager.start();
             replicationManager = newReplicationManager;
@@ -1613,6 +1630,11 @@ public class PoppyDB {
                     authRequired, rootUser, rootPassword, sslEnabled ? internalSslContext : null);
             // Set this secondary's address for progress reporting
             replicationManager.setMyAddress(host + ":" + port);
+            // Same completion hook as the election path (startReplicationToLeader): the
+            // partial-restore guard is released by actual sync COMPLETION, wherever and
+            // whenever that happens - including a sync that finishes only after the bounded
+            // wait below has given up (#306 review, P1-2).
+            replicationManager.setOnInitialSyncComplete(this::releaseDataCompleteAfterSync);
             replicationManager.start();
 
             // Wait for initial sync (up to 30 seconds)
@@ -1690,6 +1712,39 @@ public class PoppyDB {
 
     public boolean isRunning() {
         return running;
+    }
+
+    /**
+     * Records whether the startup restore produced a complete local dataset. A node that is
+     * missing databases stays out of candidacy (it still votes) until an authoritative sync
+     * completes - otherwise it can become primary after a cluster-wide restart and push its
+     * incomplete state onto the intact nodes.
+     */
+    public void setLocalDataComplete(boolean complete) {
+        this.localDataComplete = complete;
+
+        if (electionManager != null) {
+            electionManager.setDataComplete(complete);
+        }
+    }
+
+    /** Whether this node currently considers its local dataset complete (see {@link #setLocalDataComplete}). */
+    public boolean isLocalDataComplete() {
+        return localDataComplete;
+    }
+
+    /**
+     * ReplicationManager's initial-sync-completion hook (#306 review, P1-2): an authoritative
+     * copy from the primary has fully replaced whatever the local restore produced, so a node
+     * held back for an incomplete restore may stand for election again. Idempotent - a resync
+     * completing later fires it again, harmlessly.
+     */
+    private void releaseDataCompleteAfterSync() {
+        if (!localDataComplete) {
+            log.info("Initial sync completed - local data is authoritative again, "
+                    + "this node may stand for election");
+            setLocalDataComplete(true);
+        }
     }
 
     public int getConnectionCount() {

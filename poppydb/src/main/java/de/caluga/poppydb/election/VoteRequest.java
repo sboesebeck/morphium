@@ -55,6 +55,18 @@ public class VoteRequest {
      */
     private boolean preVote;
 
+    /**
+     * Sender-local correlation id (#306 P1-3): identifies the (Pre)Vote round this request was
+     * sent for, so the sender can discard responses that answer an EARLIER round instead of
+     * crediting them to the current one - in a three-node set, one late grant from an old
+     * PreVote round plus the self-vote is already a "majority" and triggers a real election
+     * with its term bump. Deliberately NOT serialized ({@link #toMap()}): the response travels
+     * back on the same code path that sent the request (ElectionNetworkClient holds the
+     * request object and hands it to {@code handleVoteResponse} together with the response),
+     * so correlation never needs to cross the wire and the protocol stays untouched.
+     */
+    private long roundId;
+
     public VoteRequest() {
     }
 
@@ -121,6 +133,16 @@ public class VoteRequest {
 
     public VoteRequest setPreVote(boolean preVote) {
         this.preVote = preVote;
+        return this;
+    }
+
+    /** Sender-local round correlation id - see the field's javadoc; never on the wire. */
+    public long getRoundId() {
+        return roundId;
+    }
+
+    public VoteRequest setRoundId(long roundId) {
+        this.roundId = roundId;
         return this;
     }
 

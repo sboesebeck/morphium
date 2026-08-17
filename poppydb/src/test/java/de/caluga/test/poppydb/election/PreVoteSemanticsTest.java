@@ -211,7 +211,7 @@ public class PreVoteSemanticsTest {
         });
         // Old-node simulation: grant everything with a response that carries no PreVote
         // context - exactly what the old binary's handleVoteRequest returns.
-        candidate.setSendVoteRequest((peer, request) -> candidate.handleVoteResponse(peer,
+        candidate.setSendVoteRequest((peer, request) -> candidate.handleVoteResponse(peer, request,
                 new VoteResponse(request.getTerm(), true, peer)));
         candidate.start();
 

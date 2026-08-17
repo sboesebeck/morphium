@@ -148,6 +148,64 @@ analysis). The deduplication behavior is unchanged, only the log level.
 
 ### Fixed
 
+#### PoppyDB election: a vote could be granted without being durable, and a broken state file reset the node to term 0 (#306)
+`persistElectionState()` swallowed every write failure, yet the voter confirmed the vote (and
+a candidate its self-vote) anyway — despite the "votedFor must be durable before the response
+leaves" contract at exactly that call site. A crash after such a phantom persist lets the
+restarted node forget its vote and vote a second time in the same term: two leaders in one
+term, the one failure mode Raft's persistence rule exists to prevent. A failed persist now
+turns the grant into a denial (votedFor rolled back in memory too) and aborts a candidacy
+outright, term increment included — the node simply retries on the next election timeout.
+Relatedly, `loadPersistedState()` treated an *existing but unreadable* state file like a
+missing one and restarted at term 0, arguing PreVote makes that safe — which holds for term
+inflation, not for double voting: an unreadable file means the node may have voted at any
+term. The two cases are now distinguished: a missing file (first start, persistence newly
+enabled) still starts clean and participates normally, while an unreadable one keeps the node
+out of elections entirely (no votes, no PreVote grants, no candidacy — it still starts and
+serves data) until the operator restores the file or deliberately deletes it; the condition is
+logged on ERROR with those instructions and exposed as `stateFileUnreadable` in the election
+stats. The quarantine is also self-preserving: while it holds, nothing writes the state file —
+without that, the next higher-term heartbeat would run through `becomeFollower()` →
+`persistElectionState()` and overwrite the broken file with the made-up in-memory state,
+perfectly readable on the next restart, silently lifting the quarantine while the unknown
+earlier vote stays lost (the untouched file is also the operator's evidence). And "durable"
+now means durable across power/kernel failures too, not just JVM crashes: the state write
+fsyncs the tmp file before the atomic rename and the parent directory after it (directory
+fsync best-effort, since not every platform supports it). Bare term adoption stays best-effort
+by design: losing an adopted term to a crash costs no safety, because every grant re-persists
+both values or is denied.
+
+#### PoppyDB election: the partial-restore candidacy guard was never released in election mode (#306)
+A node that starts with an incomplete dump restore is barred from candidacy until an
+authoritative initial sync has replaced its local state (it would otherwise win a
+cluster-wide-restart election — where every node reports index 0 — and push its gutted
+dataset onto the intact peers). But the release of that guard lived only in the static-mode
+replication path (`startReplication()`, with its synchronous `waitForInitialSync`); election
+mode replicates through `startReplicationToLeader()`, which had no sync-completion hook at
+all. So the guarded node synced fine and then stayed barred forever: with an intact primary A
+and partially-restored B and C, everything worked until A died — then B and C refused every
+candidacy and the cluster stayed without a primary despite both holding full authoritative
+copies. `ReplicationManager` now exposes an `onInitialSyncComplete` hook, fired exactly when
+an initial sync completes (never on mere replication start — a guard released early would be
+no guard at all; idempotent, since a resync completing later fires it again), and both
+replication paths wire it to the release — which also fixes the static path's own gap of a
+sync finishing only after the bounded 30s wait had given up.
+
+#### PoppyDB election: vote responses from earlier rounds were credited to the current PreVote round (#306)
+`handleVoteResponse()` tallied every incoming grant into whatever round happened to be open —
+no round correlation, no request-type check. In a three-node set, the self-vote plus one
+grant straggling in from an *earlier* PreVote round already forms a "majority", starting a
+real election (term bump included) that no current peer agreed to — under network latency the
+livelock PreVote was built to end could return through this side door. Every outgoing batch
+of (Pre)Vote requests now carries a sender-local round id (never serialized: the response
+travels back on the same code path that sent the request, so `ElectionNetworkClient` simply
+hands the original request back with the answer), and responses whose request is not of the
+current round — or answers the wrong kind of request — are discarded. Higher response terms
+are still honored before correlation, from any round: discovering a higher term is
+authoritative cluster news whatever RPC delivered it. Within the current PreVote round, lower
+response terms remain deliberately acceptable — a voter whose term is behind may legitimately
+pre-grant, since PreVote adopts no terms on either side.
+
 #### InMemory dump restore: ORM-written documents made a whole database unrestorable (#306)
 On the customer acceptance environment, 4 of 8 databases could not be restored from freshly
 written dumps — exactly the ones containing ORM-written documents. Those carry a `class_name`,

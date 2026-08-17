@@ -211,7 +211,7 @@ public class ElectionLogRecencyTest {
         // runs BEFORE any PreVote probe is sent), so wire an always-granting peer: the guard's
         // hold-back below is then provably the guard's doing, and once the guard lifts, the
         // PreVote round passes immediately and candidacy proceeds.
-        restrained.setSendVoteRequest((peer, request) -> restrained.handleVoteResponse(peer,
+        restrained.setSendVoteRequest((peer, request) -> restrained.handleVoteResponse(peer, request,
                 new VoteResponse(request.getTerm(), true, peer)));
         restrained.start();
 

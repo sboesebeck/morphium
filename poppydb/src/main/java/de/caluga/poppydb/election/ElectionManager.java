@@ -45,6 +45,22 @@ public class ElectionManager {
     private final AtomicLong lastLogIndex = new AtomicLong(0);
     private final AtomicLong lastLogTerm = new AtomicLong(0);
 
+    // Set when a persisted election state file EXISTS but cannot be read (#306 P1-1). This is
+    // fundamentally different from a missing file: a missing file proves the node never voted
+    // (first start), while an unreadable one means the node may have voted at ANY term -
+    // restarting it at term 0 reopens the double-voting hole persistence exists to close
+    // (PreVote protects against term inflation, not against a second vote in the same term).
+    // While set, the node neither votes nor campaigns; the operator resolves it by restoring
+    // the file or deliberately deleting it (accepting a clean start) and restarting.
+    private volatile boolean stateFileUnreadable = false;
+
+    // Set to false while this node's local data is known to be incomplete (a partial restore,
+    // see PoppyDBCLI). Restoring does not advance the change-stream sequence, so after a full
+    // cluster restart every node reports index 0 and the index-based restraint below cannot
+    // tell an intact node from a gutted one - this flag can. Cleared again once an
+    // authoritative initial sync has given us a complete copy.
+    private volatile boolean dataComplete = true;
+
     // Candidacy restraint (D3, empty-node-wipe fix): highest lastLogIndex this process has ever
     // observed reported by ANY peer via AppendEntries/heartbeat traffic - the leader's own index
     // (advertised as prevLogIndex while we are a follower) or a follower's matchIndex (while we
@@ -64,6 +80,14 @@ public class ElectionManager {
     // the term or dethroning a healthy leader. Guarded by stateLock.
     private final Set<String> preVotesReceived = ConcurrentHashMap.newKeySet();
     private volatile boolean preVoteInProgress = false;
+
+    // Round correlation for vote traffic (#306 P1-3): every batch of outgoing (Pre)Vote
+    // requests - one PreVote round, or one real election - gets the next id stamped onto its
+    // requests (sender-local only, never serialized; see VoteRequest#roundId). A response is
+    // only credited to the tally if the request it answers carries the CURRENT id, so a grant
+    // straggling in from an earlier round can never combine with the self-vote into a fake
+    // majority. Guarded by stateLock.
+    private long voteRoundId = 0;
 
     // Priority takeover bookkeeping (leader only): what we learned from heartbeat responses
     private final Map<String, Integer> peerPriorities = new ConcurrentHashMap<>();
@@ -294,6 +318,28 @@ public class ElectionManager {
             return false;
         }
 
+        // #306 P1-1: an existing but unreadable state file means our own currentTerm/votedFor
+        // are unknown - campaigning would run on made-up state (see the field's comment).
+        if (stateFileUnreadable) {
+            log.warn("{} holding back candidacy: persisted election state exists but is unreadable - "
+                    + "restore or delete the state file and restart to re-enable elections", myAddress);
+            resetElectionTimer();
+            return false;
+        }
+
+        // A partially restored node must never win: restoring does not advance the
+        // change-stream sequence, so after a cluster-wide restart every node - intact or not -
+        // reports index 0, and the index comparison below cannot separate them. Such a node
+        // becoming primary would push its incomplete state onto the intact nodes through their
+        // initial sync. It still VOTES (see handleVoteRequest), because the intact nodes need
+        // its vote to reach a majority; it only refrains from winning itself.
+        if (!dataComplete) {
+            log.warn("{} holding back candidacy: local data is incomplete (partial restore) - "
+                    + "waiting for an authoritative sync before taking part in elections", myAddress);
+            resetElectionTimer();
+            return false;
+        }
+
         // Candidacy restraint (D3, empty-node-wipe fix; #306 point 3): we are empty (nothing
         // applied/produced this process lifetime) but have observed a peer that holds real
         // data. Starting an election now can only lose - handleVoteRequest's
@@ -352,9 +398,10 @@ public class ElectionManager {
 
             long term = currentTerm.get();
             VoteRequest request = new VoteRequest(term, myAddress, lastLogIndex.get(), lastLogTerm.get(),
-                    config.getElectionPriority()).setPreVote(true);
+                    config.getElectionPriority()).setPreVote(true).setRoundId(++voteRoundId);
 
-            log.debug("{} starting PreVote round at term {} ({} peers)", myAddress, term, peerAddresses.size());
+            log.debug("{} starting PreVote round {} at term {} ({} peers)",
+                    myAddress, voteRoundId, term, peerAddresses.size());
 
             // Re-arm the timer: if the round doesn't reach a majority, the next timeout simply
             // starts a fresh one.
@@ -387,6 +434,7 @@ public class ElectionManager {
         stateLock.lock();
         try {
             // Increment term and vote for self
+            String previousVotedFor = votedFor;
             long newTerm = currentTerm.incrementAndGet();
             state = ElectionState.CANDIDATE;
             votedFor = myAddress;
@@ -399,7 +447,23 @@ public class ElectionManager {
             votesReceived.clear();
             votesReceived.add(myAddress);
 
-            persistElectionState();
+            // The self-vote is a vote like any other (#306 P1-1): (newTerm, votedFor=self)
+            // must be durable BEFORE the first RequestVote leaves, or a crashed candidate can
+            // forget it campaigned and grant its vote to somebody else in the very same term.
+            // On failure the whole candidacy is rolled back - term included, since an
+            // unpersisted term increment would be forgotten by the same crash - and retried on
+            // the next election timeout like any other failed round.
+            if (!persistElectionState()) {
+                log.error("{} aborting candidacy at term {}: election state could not be persisted - "
+                        + "an unpersisted self-vote could be cast twice after a crash", myAddress, newTerm);
+                currentTerm.decrementAndGet();
+                state = ElectionState.FOLLOWER;
+                votedFor = previousVotedFor;
+                electionInProgress = false;
+                votesReceived.clear();
+                resetElectionTimer();
+                return;
+            }
 
             log.info("{} became CANDIDATE at term {}, starting election", myAddress, newTerm);
 
@@ -549,10 +613,14 @@ public class ElectionManager {
             return;
         }
 
+        // Fresh round id for the real election too (called under stateLock from
+        // becomeCandidate): any response still in flight for the PreVote round that led here
+        // must not be credited to this election's tally.
         VoteRequest request = new VoteRequest(term, myAddress, lastLogIndex.get(), lastLogTerm.get(),
-                config.getElectionPriority());
+                config.getElectionPriority()).setRoundId(++voteRoundId);
 
-        log.debug("{} requesting votes for term {} from {} peers", myAddress, term, peerAddresses.size());
+        log.debug("{} requesting votes for term {} from {} peers (round {})",
+                myAddress, term, peerAddresses.size(), voteRoundId);
 
         for (String peer : peerAddresses) {
             if (sendVoteRequest != null) {
@@ -582,6 +650,18 @@ public class ElectionManager {
     public VoteResponse handleVoteRequest(VoteRequest request) {
         stateLock.lock();
         try {
+            // #306 P1-1: our own currentTerm/votedFor are unknown (existing but unreadable
+            // state file) - we may already have voted in this or any term, so granting
+            // anything (a real vote, or a PreVote that leads to one) risks double voting.
+            // Denied before the PreVote dispatch so both request kinds are covered.
+            if (stateFileUnreadable) {
+                log.warn("{} denying {} to {}: persisted election state exists but is unreadable - "
+                        + "this node cannot know whether it already voted (restore or delete the "
+                        + "state file and restart to re-enable elections)",
+                        myAddress, request.isPreVote() ? "PreVote" : "vote", request.getCandidateId());
+                return new VoteResponse(currentTerm.get(), false, myAddress);
+            }
+
             // PreVote requests are answered read-only - they must never mutate term, votedFor
             // or the election timer on this side (#306).
             if (request.isPreVote()) {
@@ -664,7 +744,21 @@ public class ElectionManager {
 
             if (canVote && logOk && priorityOk) {
                 votedFor = request.getCandidateId();
-                persistElectionState();  // Raft: votedFor must be durable before the response leaves
+
+                // Raft: votedFor must be durable before the response leaves - and that is only
+                // true if the write actually succeeded (#306 P1-1). A grant backed by nothing
+                // is forgotten on crash, and the restarted node votes again in the same term:
+                // two leaders in one term. So a failed persist turns the grant into a denial;
+                // votedFor is rolled back so a later retry (from any candidate) starts clean
+                // in memory too instead of remembering a vote that was never given.
+                if (!persistElectionState()) {
+                    votedFor = null;
+                    log.error("{} denying vote to {} for term {}: votedFor could not be persisted, "
+                            + "an unpersisted vote could be cast twice after a crash",
+                            myAddress, request.getCandidateId(), requestTerm);
+                    return new VoteResponse(myTerm, false, myAddress);
+                }
+
                 resetElectionTimer();  // Reset timer since we're participating in election
 
                 log.info("{} granted vote to {} for term {} (candidate priority={})",
@@ -760,27 +854,59 @@ public class ElectionManager {
 
     /**
      * Handle vote response from a peer.
+     *
+     * @param peer        the peer that answered
+     * @param sentRequest the request this response answers - held by the sending side
+     *     (ElectionNetworkClient) and passed back in for round/type correlation (#306 P1-3);
+     *     its {@code roundId}/{@code preVote} tell which round and which kind of round the
+     *     response belongs to
+     * @param response    the peer's answer
      */
-    public void handleVoteResponse(String peer, VoteResponse response) {
+    public void handleVoteResponse(String peer, VoteRequest sentRequest, VoteResponse response) {
         stateLock.lock();
         try {
-            // Responses arriving while a PreVote round is open belong to that round: we are
-            // still FOLLOWER (PreVote never leaves it), so the CANDIDATE-only real-vote logic
-            // below could never see them. A stale PreVote grant can conversely never leak into
-            // a later real election: the real election runs at term+1, and the term filter
-            // below discards the PreVote-era response terms as stale.
-            if (preVoteInProgress && state != ElectionState.CANDIDATE) {
-                long responseTerm = response.getTerm();
-                long myTerm = currentTerm.get();
+            long responseTerm = response.getTerm();
+            long myTerm = currentTerm.get();
 
-                if (responseTerm > myTerm) {
-                    // We are behind - catch up (no timer reset, no campaigning) and abort the round.
-                    log.info("{} discovered higher term {} from PreVote response, updating from {}",
-                            myAddress, responseTerm, myTerm);
-                    becomeFollower(responseTerm, null, false);
+            // A higher term in ANY response - current round or stale - is authoritative news
+            // about the cluster and is honored BEFORE round correlation: Raft demands falling
+            // back to follower on discovering a higher term, whichever RPC delivered it. Timer
+            // handling mirrors the request side: only an actual campaigning candidate re-arms
+            // its timer here; a follower catching its term up mid-PreVote must not defer its
+            // own next candidacy (see becomeFollower's resetTimer javadoc).
+            if (responseTerm > myTerm) {
+                log.info("{} discovered higher term {} from vote response, updating from {}",
+                        myAddress, responseTerm, myTerm);
+                becomeFollower(responseTerm, null, state == ElectionState.CANDIDATE);
+                return;
+            }
+
+            // Round correlation (#306 P1-3): only a response answering a request of the
+            // CURRENT round may be tallied. Without this, every incoming grant used to be
+            // credited to whatever round happened to be open - in a three-node set the
+            // self-vote plus ONE grant straggling in from an earlier round is already a
+            // "majority", starting a real election (term bump included) that no current peer
+            // agreed to. sentRequest also carries the request TYPE, so a late answer to a real
+            // vote request can no longer masquerade as a PreVote confirmation (and vice versa
+            // - PreVote and real rounds never share a round id).
+            if (sentRequest == null || sentRequest.getRoundId() != voteRoundId) {
+                log.debug("{} discarding stale vote response from {} (answers round {}, current round is {})",
+                        myAddress, peer, sentRequest == null ? "unknown" : sentRequest.getRoundId(), voteRoundId);
+                return;
+            }
+
+            if (sentRequest.isPreVote()) {
+                if (!preVoteInProgress || state == ElectionState.CANDIDATE) {
+                    // The round is already decided (majority reached while later probes of the
+                    // same batch were still being sent/answered) - nothing left to tally.
+                    log.trace("{} ignoring PreVote response from {} (round already closed)", myAddress, peer);
                     return;
                 }
 
+                // NOTE deliberately NO lower-term discard here: a voter whose term is behind
+                // ours may legitimately pre-grant (PreVote adopts no terms on either side), so
+                // within the current round its response term being lower means nothing.
+                // Staleness is exactly what the round check above already rules out.
                 if (response.isVoteGranted()) {
                     preVotesReceived.add(peer);
                     log.debug("{} received PreVote grant from {} (total: {})", myAddress, peer, preVotesReceived.size());
@@ -791,23 +917,14 @@ public class ElectionManager {
                 return;
             }
 
-            // Ignore if not a candidate anymore
+            // Real vote response - only meaningful while the election it belongs to is live
             if (state != ElectionState.CANDIDATE) {
                 log.trace("{} ignoring vote response (not a candidate)", myAddress);
                 return;
             }
 
-            long responseTerm = response.getTerm();
-            long myTerm = currentTerm.get();
-
-            // If response has higher term, become follower
-            if (responseTerm > myTerm) {
-                log.info("{} discovered higher term {} from vote response, stepping down", myAddress, responseTerm);
-                becomeFollower(responseTerm, null);
-                return;
-            }
-
-            // Ignore votes from old terms
+            // Ignore votes from old terms (e.g. the network client's synthesized term-0 denial
+            // for an unreachable peer): a real grant echoes the campaign term.
             if (responseTerm < myTerm) {
                 log.trace("{} ignoring stale vote response (term {} < {})", myAddress, responseTerm, myTerm);
                 return;
@@ -1245,9 +1362,18 @@ public class ElectionManager {
     }
 
     /**
-     * Restore currentTerm/votedFor from the persistence file, if configured and present. A
-     * node without a state file (first start, or persistence newly enabled) starts clean at
-     * term 0 - that must keep working, so a missing or unreadable file is never fatal.
+     * Restore currentTerm/votedFor from the persistence file, if configured and present. Two
+     * very different "no usable state" cases (#306 P1-1):
+     * <ul>
+     *   <li><b>File missing</b> - first start, or persistence newly enabled. The node has
+     *       provably never voted, so a clean start at term 0 is correct and harmless.</li>
+     *   <li><b>File exists but is unreadable</b> - the node HAS persisted state at some point
+     *       and may have voted at any term. Resetting to term 0 here would let it vote a
+     *       second time in a term it already voted in (double voting - PreVote only guards
+     *       against term inflation, not against that). The node still starts and serves data,
+     *       but {@link #stateFileUnreadable} keeps it out of elections entirely until an
+     *       operator restores the file or deliberately deletes it (accepting a clean start).</li>
+     * </ul>
      */
     private void loadPersistedState() {
         if (!isPersistenceEnabled()) {
@@ -1271,26 +1397,50 @@ public class ElectionManager {
             log.info("{} restored persisted election state from {}: term={}, votedFor={}",
                     myAddress, path, term, votedFor);
         } catch (Exception e) {
-            // A corrupt state file must not keep the node from starting - Raft-wise a clean
-            // term-0 restart is safe here because PreVote keeps a term-behind node from
-            // disrupting the cluster while it catches its term back up.
-            log.warn("{} failed to load persisted election state from {} - starting clean at term 0 ({})",
+            stateFileUnreadable = true;
+            log.error("{} persisted election state at {} EXISTS but cannot be read ({}) - this node "
+                    + "will neither vote nor stand for election, because it cannot know whether it "
+                    + "already voted (a term-0 restart could double-vote). The node still starts and "
+                    + "serves data. To re-enable elections: restore the file from a backup, or delete "
+                    + "it to deliberately start clean at term 0, then restart this node.",
                     myAddress, path, e.toString());
-            currentTerm.set(0);
-            votedFor = null;
         }
     }
 
     /**
      * Persist currentTerm/votedFor, as Raft requires, at every point they change (term
      * adoption, self-vote on candidacy, granting a vote). Called under stateLock. Written
-     * atomically (tmp file + move) so a crash mid-write leaves the previous state intact; an
-     * I/O failure is logged but never takes the node down - a node that later restarts at a
-     * stale/zero term is exactly what PreVote makes non-disruptive.
+     * atomically (tmp file + move) so a crash mid-write leaves the previous state intact.
+     *
+     * <p>#306 P1-1: the result is not advisory. The two callers for whom durability is the
+     * whole point - granting a vote ({@link #handleVoteRequest}) and the self-vote of a
+     * candidacy ({@link #becomeCandidate}) - roll their vote back and answer/abort with a
+     * denial when this returns {@code false}: an unpersisted vote is forgotten by a crash and
+     * can then be cast a second time in the same term (two leaders in one term). Bare term
+     * adoption ({@link #becomeFollower}) stays best-effort: losing an adopted term to a crash
+     * costs no safety (votedFor is null for the new term until a grant, and every grant
+     * re-persists both values or is denied), and PreVote keeps the term-behind restart
+     * non-disruptive.
+     *
+     * @return true if the state is durable (or persistence is not configured - nothing was
+     *         promised), false if the write failed
      */
-    private void persistElectionState() {
+    private boolean persistElectionState() {
         if (!isPersistenceEnabled()) {
-            return;
+            return true;
+        }
+
+        // Quarantine guard (#306 P1-1 follow-up): while the existing state file is unreadable,
+        // NOTHING may write it. A higher-term heartbeat runs becomeFollower() ->
+        // persistElectionState(), and writing here would replace the broken file with the
+        // made-up in-memory state - perfectly readable on the next restart, silently lifting
+        // the quarantine while the unknown earlier vote stays lost. The broken file is also
+        // the operator's evidence of what happened; it must survive untouched until the
+        // operator restores or deliberately deletes it.
+        if (stateFileUnreadable) {
+            log.debug("{} not persisting election state: the existing state file is unreadable and is "
+                    + "preserved untouched for the operator (see the startup ERROR)", myAddress);
+            return false;
         }
 
         Path path = Path.of(config.getStatePersistencePath());
@@ -1312,17 +1462,62 @@ public class ElectionManager {
                 props.store(out, "PoppyDB election state (Raft currentTerm/votedFor) - managed by ElectionManager");
             }
 
+            // "Durable" has to hold across power/kernel failures too, not just JVM crashes
+            // (#306 P2): force the tmp file's bytes to storage BEFORE the rename makes them the
+            // authoritative state, and force the parent directory afterwards so the rename
+            // itself (a directory-metadata operation) is on disk as well. The directory fsync
+            // is best-effort: opening a directory for fsync is not supported on every platform
+            // (e.g. Windows), and a failed directory sync must not turn an otherwise-persisted
+            // vote into a denial on those platforms.
+            try (java.nio.channels.FileChannel ch = java.nio.channels.FileChannel.open(tmp,
+                    java.nio.file.StandardOpenOption.WRITE)) {
+                ch.force(true);
+            }
+
             try {
                 Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (java.nio.file.AtomicMoveNotSupportedException e) {
                 Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING);
             }
+
+            if (path.getParent() != null) {
+                try (java.nio.channels.FileChannel dir = java.nio.channels.FileChannel.open(path.getParent(),
+                        java.nio.file.StandardOpenOption.READ)) {
+                    dir.force(true);
+                } catch (Exception e) {
+                    log.debug("{} could not fsync election state directory {} ({}) - rename durability "
+                            + "depends on the platform's rename semantics", myAddress, path.getParent(), e.toString());
+                }
+            }
+
+            return true;
         } catch (Exception e) {
             log.error("{} failed to persist election state to {}: {}", myAddress, path, e.toString());
+            return false;
         }
     }
 
     // ==================== Callbacks ====================
+
+    /**
+     * Marks whether this node's local data is complete. A node that restored only part of its
+     * databases must not become primary (it would overwrite intact peers via their initial
+     * sync), so it stays out of candidacy until an authoritative sync completes. Voting is
+     * unaffected - a cluster-wide restart still needs this node's vote to reach a majority.
+     */
+    public void setDataComplete(boolean complete) {
+        boolean was = this.dataComplete;
+        this.dataComplete = complete;
+
+        if (was != complete) {
+            log.info("{} data completeness changed to {}", myAddress, complete ? "COMPLETE" : "INCOMPLETE");
+        }
+    }
+
+    /** Whether this node considers its local data complete enough to stand for election. */
+    public boolean isDataComplete() {
+        return dataComplete;
+    }
 
     /**
      * Supplies this node's current replication sequence (change stream token) while it is leader.
@@ -1661,6 +1856,7 @@ public class ElectionManager {
         stats.put("priorityTakeoverEnabled", config.isPriorityTakeoverEnabled());
         stats.put("preVoteInProgress", preVoteInProgress);
         stats.put("statePersistenceEnabled", isPersistenceEnabled());
+        stats.put("stateFileUnreadable", stateFileUnreadable);
         if (state == ElectionState.LEADER) {
             stats.put("leaseExpiryMs", Math.max(0, leaseExpiryTime - System.currentTimeMillis()));
             stats.put("leaderSinceMs", System.currentTimeMillis() - leaderSince);

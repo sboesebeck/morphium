@@ -69,7 +69,7 @@ public class PriorityTakeoverTest {
         manager.setPeerSequenceSupplier(peer -> acked.get());
 
         manager.setSendVoteRequest((peer, request) ->
-                manager.handleVoteResponse(peer, new VoteResponse(request.getTerm(), true, peer)));
+                manager.handleVoteResponse(peer, request, new VoteResponse(request.getTerm(), true, peer)));
         manager.setSendAppendEntries((peer, request) ->
                 manager.handleAppendEntriesResponse(peer, new AppendEntriesResponse(request.getTerm(), true)
                         .setFollowerId(peer).setPriority(peerPriority)));

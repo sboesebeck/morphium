@@ -9,6 +9,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -16,8 +19,18 @@ import static org.junit.jupiter.api.Assertions.*;
  * #306 point 5: Raft requires currentTerm and votedFor to survive restarts. During the ACC
  * incident a node came back at term 0 (no persistence) and contributed to the term churn.
  * The state lives in a small properties file (conventionally next to the dump directory),
- * written atomically on every term/votedFor change; a node WITHOUT a state file - or with a
- * corrupt one - must still start cleanly at term 0 (PreVote makes that non-disruptive).
+ * written atomically on every term/votedFor change; a node WITHOUT a state file (first start,
+ * or persistence newly enabled) must still start cleanly at term 0.
+ *
+ * <p>#306 P1-1 sharpens the durability contract in two ways covered below:
+ * <ul>
+ *   <li>a vote (and a candidacy's self-vote) may only be confirmed once the state has actually
+ *       been written - a swallowed persist failure lets a crashed node forget its vote and vote
+ *       a second time in the same term, i.e. two leaders in one term;</li>
+ *   <li>a state file that EXISTS but cannot be read is not the same as a missing one: the node
+ *       may have voted at any term, so it must stay out of elections entirely instead of
+ *       resetting to term 0 (PreVote protects against term inflation, not double voting).</li>
+ * </ul>
  */
 public class ElectionStatePersistenceTest {
 
@@ -84,24 +97,150 @@ public class ElectionStatePersistenceTest {
     }
 
     @Test
-    void nodeWithoutStateFileStartsCleanly() {
+    void nodeWithoutStateFileStartsCleanly() throws Exception {
         Path stateFile = tempDir.resolve("never-written.properties");
 
         ElectionManager manager = node(persistingConfig(stateFile));
 
         assertEquals(0, manager.getCurrentTerm(), "no state file means a clean start at term 0");
         assertEquals(ElectionState.FOLLOWER, manager.getState());
+
+        // The missing-file case is the harmless one (first start, persistence newly enabled):
+        // the node has provably never voted, so it takes part in elections normally - unlike
+        // the existing-but-unreadable case below.
+        VoteResponse granted = manager.handleVoteRequest(new VoteRequest(7, "candidate:27017", 0, 0));
+        assertTrue(granted.isVoteGranted(), "a first-start node (no state file) must vote normally");
     }
 
     @Test
-    void corruptStateFileStartsCleanly() throws Exception {
+    void unreadableStateFileBlocksElectionParticipation() throws Exception {
+        // The file EXISTS but cannot be parsed - this node may have voted at ANY term, so
+        // "reset to term 0 and carry on" reopens the double-voting hole persistence exists to
+        // close (#306 P1-1: PreVote covers term inflation, not a second vote in the same term).
+        // The node must start (serving data is fine) but stay out of elections entirely.
         Path stateFile = tempDir.resolve("corrupt.properties");
         Files.writeString(stateFile, "currentTerm=not-a-number\n");
 
         ElectionManager manager = node(persistingConfig(stateFile));
+        assertEquals(ElectionState.FOLLOWER, manager.getState(), "the node itself must still start");
 
-        assertEquals(0, manager.getCurrentTerm(), "a corrupt state file must not prevent a clean start");
-        assertEquals(ElectionState.FOLLOWER, manager.getState());
+        VoteResponse real = manager.handleVoteRequest(new VoteRequest(7, "candidate:27017", 0, 0));
+        assertFalse(real.isVoteGranted(),
+                "a node whose existing election state file is unreadable may already have voted in this "
+                        + "term - it must not vote (again) until an operator resolves the file");
+
+        VoteResponse pre = manager.handleVoteRequest(
+                new VoteRequest(7, "candidate:27017", 0, 0).setPreVote(true));
+        assertFalse(pre.isVoteGranted(), "PreVote probes must be denied for the same reason");
+    }
+
+    @Test
+    void heartbeatMustNotOverwriteAnUnreadableStateFile() throws Exception {
+        // The quarantine must not be self-defeating: after an unreadable file is detected, a
+        // heartbeat with a higher term used to run becomeFollower() -> persistElectionState(),
+        // OVERWRITING the broken file with the made-up in-memory state. After the next restart
+        // the file reads fine, the node re-enters elections automatically - and the unknown
+        // earlier vote is gone. While quarantined, the file must be left untouched (it is the
+        // operator's evidence) and the quarantine must survive restarts.
+        Path stateFile = tempDir.resolve("corrupt-quarantine.properties");
+        String corruptContent = "currentTerm=not-a-number\n";
+        Files.writeString(stateFile, corruptContent);
+
+        ElectionManager manager = node(persistingConfig(stateFile));
+
+        // Heartbeats themselves stay welcome (the node keeps following and serving data)...
+        manager.handleAppendEntries(AppendEntriesRequest.heartbeat(5, "leader:27017", 10, 1, 10));
+        assertEquals(5, manager.getCurrentTerm(), "the node still follows the leader in memory");
+
+        // ...but the term adoption they trigger must not have touched the quarantined file.
+        assertEquals(corruptContent, Files.readString(stateFile),
+                "a quarantined (unreadable) state file must never be overwritten with made-up "
+                        + "in-memory state - that silently lifts the quarantine on the next restart");
+
+        manager.stop();
+        ElectionManager restarted = node(persistingConfig(stateFile));
+        VoteResponse response = restarted.handleVoteRequest(new VoteRequest(9, "candidate:27017", 0, 0));
+        assertFalse(response.isVoteGranted(),
+                "the quarantine must still hold after a restart - only the operator resolves it");
+    }
+
+    @Test
+    void unreadableStateFileBlocksCandidacy() throws Exception {
+        Path stateFile = tempDir.resolve("corrupt-candidate.properties");
+        Files.writeString(stateFile, "currentTerm=not-a-number\n");
+
+        ElectionConfig config = new ElectionConfig()
+                .setElectionTimeoutMinMs(100)
+                .setElectionTimeoutMaxMs(150)
+                .setPersistState(true)
+                .setStatePersistencePath(stateFile.toString());
+        ElectionManager manager = new ElectionManager("persist-node:27017",
+                List.of("persist-node:27017", "candidate:27017", "other:27017"), config);
+        managers.add(manager);
+
+        AtomicInteger requestsSent = new AtomicInteger();
+        manager.setSendVoteRequest((peer, request) -> requestsSent.incrementAndGet());
+        manager.start();
+
+        Thread.sleep(1000);   // many election timeouts
+
+        assertEquals(0, requestsSent.get(),
+                "a node whose existing election state file is unreadable must not campaign either - "
+                        + "its own currentTerm is unknown, so any campaign runs on made-up state");
+    }
+
+    @Test
+    void voteIsDeniedWhenVotedForCannotBePersisted() throws Exception {
+        // "Raft: votedFor must be durable before the response leaves" - so when the write
+        // fails, the response must be a denial, not a grant backed by nothing (#306 P1-1: a
+        // crash after a swallowed persist failure lets this node vote twice in the same term).
+        // The parent of the state path is a regular FILE, so every write attempt fails.
+        Path blocker = tempDir.resolve("blocker");
+        Files.writeString(blocker, "not a directory");
+        Path stateFile = blocker.resolve("state.properties");
+
+        ElectionManager manager = node(persistingConfig(stateFile));
+
+        VoteResponse response = manager.handleVoteRequest(new VoteRequest(7, "candidate:27017", 0, 0));
+        assertFalse(response.isVoteGranted(),
+                "a vote whose votedFor could not be made durable must be denied - a granted-but-"
+                        + "unpersisted vote is forgotten on crash and enables double voting in the same term");
+    }
+
+    @Test
+    void candidacyIsAbortedWhenStateCannotBePersisted() throws Exception {
+        // The same durability rule applies to the candidate's own self-vote: without a durable
+        // (term, votedFor=self) record, a crashed candidate can grant its vote to somebody else
+        // in the very term it campaigned in.
+        Path blocker = tempDir.resolve("blocker-candidate");
+        Files.writeString(blocker, "not a directory");
+        Path stateFile = blocker.resolve("state.properties");
+
+        ElectionConfig config = new ElectionConfig()
+                .setElectionTimeoutMinMs(100)
+                .setElectionTimeoutMaxMs(150)
+                .setPersistState(true)
+                .setStatePersistencePath(stateFile.toString());
+        ElectionManager manager = new ElectionManager("persist-node:27017",
+                List.of("persist-node:27017", "candidate:27017", "other:27017"), config);
+        managers.add(manager);
+
+        CountDownLatch becameLeader = new CountDownLatch(1);
+        manager.setOnLeadershipChange(isLeader -> {
+            if (isLeader) {
+                becameLeader.countDown();
+            }
+        });
+        // Every peer would grant everything - only the persist failure stands between this
+        // node and leadership.
+        manager.setSendVoteRequest((peer, request) -> manager.handleVoteResponse(peer, request,
+                new VoteResponse(request.getTerm(), true, peer)));
+        manager.start();
+
+        assertFalse(becameLeader.await(1500, TimeUnit.MILLISECONDS),
+                "a node that cannot persist its self-vote must not win an election");
+        assertEquals(0, manager.getCurrentTerm(),
+                "the aborted candidacy must also roll the un-persistable term increment back");
     }
 
     @Test

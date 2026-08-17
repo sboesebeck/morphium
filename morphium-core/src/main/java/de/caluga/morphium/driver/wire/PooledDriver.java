@@ -861,15 +861,17 @@ public class PooledDriver extends DriverBase {
     }
 
     private void startConnectionWaiter() {
-            // A revive re-enters startHeartbeat(), so this can run more than once per driver -
-            // and every extra waiter spawns its own connection-creator threads on signalAll.
-            if (connectionWaiter != null && connectionWaiter.isAlive()) {
-                return;
-            }
+        // A revive re-enters startHeartbeat(), so this can run more than once per driver - and
+        // every extra waiter spawns its own connection-creator threads on signalAll. The
+        // reference has to be STORED, not just checked: without the assignment below the field
+        // stayed null and this guard never fired.
+        if (connectionWaiter != null && connectionWaiter.isAlive()) {
+            return;
+        }
 
         // thread to create new connections instantly if a thread is waiting
         // this thread pauses until waitCounterCondition.signalAll() is called
-        Thread.ofPlatform().name("ConnectionWaiter").start(() -> {
+        connectionWaiter = Thread.ofPlatform().name("ConnectionWaiter").start(() -> {
             while (running) {
                 try {
                     waitCounterLock.lock();

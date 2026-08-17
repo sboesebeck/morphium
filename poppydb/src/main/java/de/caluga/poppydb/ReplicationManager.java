@@ -277,6 +277,17 @@ public class ReplicationManager {
     // Callback to notify when log index is updated (for election consistency)
     private java.util.function.BiConsumer<Long, Long> onLogIndexUpdate;
 
+    // Fired every time an initial sync COMPLETES successfully (the gate-opening moment where
+    // initialSyncComplete flips true) - i.e. this node now holds an authoritative copy of the
+    // primary's dataset. Wired by PoppyDB to release the partial-restore candidacy guard
+    // (#306 P1-2 follow-up): the release must hang off actual sync COMPLETION, not off
+    // replication merely starting, and it must exist in the election path
+    // (startReplicationToLeader), which - unlike static-mode startReplication() - has no
+    // synchronous waitForInitialSync it could hook. May fire more than once per
+    // ReplicationManager lifetime (a resync closes and re-opens the gate); receivers must be
+    // idempotent.
+    private volatile Runnable onInitialSyncComplete;
+
     // RS-internal connection security, set once via setInternalConnectionSecurity() before
     // start() - see docs/superpowers/specs/2026-08-05-poppydb-rs-internal-auth-tls-design.md.
     // Defaults (auth off, no SSL context) reproduce today's plaintext/unauthenticated behavior.
@@ -305,6 +316,14 @@ public class ReplicationManager {
      */
     public void setOnLogIndexUpdate(java.util.function.BiConsumer<Long, Long> callback) {
         this.onLogIndexUpdate = callback;
+    }
+
+    /**
+     * Set the callback fired on every successful initial-sync completion (see the field's
+     * comment). Call before {@link #start()}; the callback must be idempotent.
+     */
+    public void setOnInitialSyncComplete(Runnable callback) {
+        this.onInitialSyncComplete = callback;
     }
 
     /**
@@ -1352,6 +1371,18 @@ public class ReplicationManager {
                         applying.set(true);
                         initialSyncComplete.set(true);
                         initialSyncLatch.countDown();
+
+                        // An authoritative copy has fully arrived - the one moment the
+                        // completion hook exists for (see the field's comment). Guarded so a
+                        // callback failure cannot kill the sync thread.
+                        Runnable syncCompleteHook = onInitialSyncComplete;
+                        if (syncCompleteHook != null) {
+                            try {
+                                syncCompleteHook.run();
+                            } catch (Exception e) {
+                                log.warn("onInitialSyncComplete callback failed: {}", e.getMessage(), e);
+                            }
+                        }
 
                         // Seed the election layer's view of our replication position now that we
                         // hold the primary's dataset (either path: full snapshot or consistency
