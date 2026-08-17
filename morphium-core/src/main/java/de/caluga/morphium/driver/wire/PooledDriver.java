@@ -272,6 +272,7 @@ public class PooledDriver extends DriverBase {
     // Package-private: PooledDriverHeartbeatResilienceTest asserts that a dead heartbeat is
     // revived rather than left dead (a dead heartbeat means no topology discovery at all).
     volatile ScheduledFuture<?> heartbeat;
+    private volatile Thread connectionWaiter;
     // Use ReentrantLock + Condition instead of synchronized + wait/notify
     // to avoid pinning carrier threads when using virtual threads
     private final ReentrantLock waitCounterLock = new ReentrantLock();
@@ -860,6 +861,12 @@ public class PooledDriver extends DriverBase {
     }
 
     private void startConnectionWaiter() {
+            // A revive re-enters startHeartbeat(), so this can run more than once per driver -
+            // and every extra waiter spawns its own connection-creator threads on signalAll.
+            if (connectionWaiter != null && connectionWaiter.isAlive()) {
+                return;
+            }
+
         // thread to create new connections instantly if a thread is waiting
         // this thread pauses until waitCounterCondition.signalAll() is called
         Thread.ofPlatform().name("ConnectionWaiter").start(() -> {
@@ -1526,6 +1533,10 @@ public class PooledDriver extends DriverBase {
                         throw new MorphiumDriverException("No primary node found - not connected yet?");
                     }
 
+                    // Also while waiting, not just on entry: the heartbeat can die mid-wait, and
+                    // then nothing would ever set primaryNode for this caller.
+                    reviveHeartbeatIfDead();
+
                     try {
                         Thread.sleep(100);
                     } catch (InterruptedException e) {
@@ -1545,14 +1556,27 @@ public class PooledDriver extends DriverBase {
      * permanent one - the client keeps failing with "No primary node found" until it is
      * restarted, which is what #304 reported from production.
      */
-    private synchronized void reviveHeartbeatIfDead() {
-        if (!running || (heartbeat != null && !heartbeat.isDone())) {
+    private void reviveHeartbeatIfDead() {
+        // Lock-free fast path: this runs on every primary lookup that finds no primary yet, i.e.
+        // on every thread at once during a failover - taking the instance monitor (shared with
+        // startHeartbeat/removeFromHostSeed) there would serialize exactly the moment that needs
+        // to stay parallel. Only a genuinely dead heartbeat is worth synchronizing for.
+        ScheduledFuture<?> current = heartbeat;
+
+        if (!running || (current != null && !current.isDone())) {
             return;
         }
 
-        log.warn("Heartbeat was no longer running - restarting topology discovery");
-        heartbeat = null;
-        startHeartbeat();
+        synchronized (this) {
+            // Re-check under the lock: another thread may have revived it in the meantime.
+            if (!running || (heartbeat != null && !heartbeat.isDone())) {
+                return;
+            }
+
+            log.warn("Heartbeat was no longer running - restarting topology discovery");
+            heartbeat = null;
+            startHeartbeat();
+        }
     }
 
     @Override

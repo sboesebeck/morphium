@@ -192,6 +192,17 @@ public class PriorityTakeoverTest {
     void testPeerPrioritiesAreExposedInStats() throws Exception {
         ElectionManager manager = leaderWithPeer(takeoverConfig().setPriorityTakeoverEnabled(false), 100, 0, 0);
 
+        // A peer's priority only becomes known once its first heartbeat response has been
+        // handled, and that runs on the election scheduler - independently of the leadership
+        // callback leaderWithPeer() waits for. Asserting straight away is a race that only
+        // shows up on a loaded machine, so wait for the response to land.
+        long until = System.currentTimeMillis() + 10_000;
+
+        while (System.currentTimeMillis() < until
+                && !Map.of(PEER, 100).equals(manager.getStats().get("peerPriorities"))) {
+            Thread.sleep(25);
+        }
+
         Map<String, Object> stats = manager.getStats();
         assertEquals(false, stats.get("priorityTakeoverEnabled"));
         assertEquals(Map.of(PEER, 100), stats.get("peerPriorities"));
