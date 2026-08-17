@@ -10,6 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### `usersInfo` — `db.getUsers()` now works against PoppyDB
+Listing users in mongosh failed with "no such command: 'usersInfo'": the in-memory driver
+implemented `createUser`/`updateUser`/`dropUser`, but not the command every user-listing helper
+sends. It reads the same `admin.system.users` documents and answers in mongod's shape,
+supporting the argument forms mongod takes (`1`, a name, a `{user, db}` document, a list of
+those) plus `forAllDBs`. Stored credentials stay out of the answer unless `showCredentials` is
+requested — listing users must not hand out password material — while the available SCRAM
+mechanisms are always reported, since clients need them to authenticate. An unknown user
+yields an empty list rather than an error, as mongod does.
+
 #### Decoupled test-results store, release report and badges
 Test runs (full CI phases as well as partial developer runs) can now publish a JSON record
 of their results to the append-only `test-results` orphan branch via

@@ -1651,7 +1651,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         names.addAll(Set.of("serverStatus", "bulkWrite", "saslStart", "saslContinue", "createUser", "updateUser",
-                "dropUser", "registerMessagingCollection", "unregisterMessagingSubscriber", "dbHash", "validate"));
+                "dropUser", "usersInfo", "registerMessagingCollection", "unregisterMessagingSubscriber", "dbHash",
+                "validate"));
         return names;
     }
 
@@ -1667,6 +1668,113 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     private int authNotImplemented(String commandName, int code, String codeName, String detail) {
         return errorResult(code, codeName, commandName + " is not supported by InMemoryDriver/PoppyDB: " + detail);
+    }
+
+    /**
+     * {@code usersInfo} - what {@code db.getUsers()} and {@code db.getUser(name)} send. Reads the
+     * documents {@code createUser} stored in {@code admin.system.users} and projects them into the
+     * shape mongod answers with.
+     *
+     * <p>Accepts the argument forms mongod does: {@code 1} (all users of the database the command
+     * was issued against), a plain name, a {@code {user, db}} document, or a list of either; plus
+     * {@code forAllDBs} to cross database boundaries. An unknown user is not an error - the users
+     * array simply comes back empty.
+     *
+     * <p>{@code credentials} (the SCRAM salts and stored keys) are omitted unless
+     * {@code showCredentials} is requested, exactly as mongod does - listing users must not hand
+     * out password material by default. The mechanisms themselves are reported either way, since
+     * a client needs to know what a user can authenticate with.
+     */
+    @SuppressWarnings("unchecked")
+    private int usersInfoInternal(Map<String, Object> cmdMap) {
+        String requestDb = (String) cmdMap.get("$db");
+        Object argument = cmdMap.get("usersInfo");
+        boolean showCredentials = Boolean.TRUE.equals(cmdMap.get("showCredentials"));
+        boolean forAllDBs = Boolean.TRUE.equals(cmdMap.get("forAllDBs"));
+
+        // Selectors are the (db, user) pairs asked for; empty means "every user in scope".
+        List<String> wantedIds = new ArrayList<>();
+        boolean allInScope = false;
+
+        for (Object entry : argument instanceof List ? (List<Object>) argument : List.of(argument == null ? 1 : argument)) {
+            if (entry instanceof Map) {
+                Map<String, Object> spec = (Map<String, Object>) entry;
+                Object user = spec.get("user");
+                Object db = spec.get("db");
+
+                if (user == null) {
+                    return errorResult(2, "BadValue", "UserName must contain a field named: user");
+                }
+
+                wantedIds.add(de.caluga.morphium.driver.inmem.auth.UserDocuments
+                        .userId(db == null ? requestDb : db.toString(), user.toString()));
+            } else if (entry instanceof String) {
+                wantedIds.add(de.caluga.morphium.driver.inmem.auth.UserDocuments
+                        .userId(requestDb, (String) entry));
+            } else {
+                // Numeric 1 (or anything else mongod treats as "all")
+                allInScope = true;
+            }
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>();
+
+        try {
+            List<Map<String, Object>> users = getCollection(USERS_DB, USERS_COLLECTION);
+            java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(USERS_DB, USERS_COLLECTION);
+            lock.readLock().lock();
+
+            try {
+                for (Map<String, Object> doc : users) {
+                    if (allInScope) {
+                        if (!forAllDBs && !requestDb.equals(doc.get("db"))) {
+                            continue;
+                        }
+                    } else if (!wantedIds.contains(String.valueOf(doc.get("_id")))) {
+                        continue;
+                    }
+
+                    result.add(projectUserDocument(doc, showCredentials));
+                }
+            } finally {
+                lock.readLock().unlock();
+            }
+        } catch (MorphiumDriverException e) {
+            return errorResult(1, "InternalError", "could not read users: " + e.getMessage());
+        }
+
+        int requestId = commandNumber.incrementAndGet();
+        addResult(requestId, prepareResult(Doc.of("users", result, "ok", 1.0)));
+        return requestId;
+    }
+
+    /** Copies a stored user document into the mongod-shaped answer of {@code usersInfo}. */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> projectUserDocument(Map<String, Object> doc, boolean showCredentials) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("_id", doc.get("_id"));
+        out.put("user", doc.get("user"));
+        out.put("db", doc.get("db"));
+
+        if (doc.get("customData") != null) {
+            out.put("customData", doc.get("customData"));
+        }
+
+        out.put("roles", doc.get("roles") == null ? new ArrayList<>() : doc.get("roles"));
+
+        Object credentials = doc.get("credentials");
+
+        if (credentials instanceof Map) {
+            out.put("mechanisms", new ArrayList<>(((Map<String, Object>) credentials).keySet()));
+        } else {
+            out.put("mechanisms", new ArrayList<>());
+        }
+
+        if (showCredentials && credentials != null) {
+            out.put("credentials", credentials);
+        }
+
+        return out;
     }
 
     private Map<String, Object> findUserDocument(String authDb, String user) {
@@ -2415,6 +2523,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         if (commandName.equals("dropUser")) {
             return dropUserInternal(cmdMap);
+        }
+
+        if (commandName.equals("usersInfo")) {
+            return usersInfoInternal(cmdMap);
         }
 
         // serverStatus and the top-level bulkWrite (MongoDB 8.0 shape) have no typed command
