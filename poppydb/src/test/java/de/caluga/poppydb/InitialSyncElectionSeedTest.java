@@ -123,9 +123,24 @@ public class InitialSyncElectionSeedTest {
 
         // No write happens on the primary after this point in this test - the secondary applies
         // zero live events. Before this fix, ElectionManager's lastLogIndex would still be 0 here.
+        //
+        // Bounded await instead of an instant assert (CI flake on the loaded testrunner,
+        // 2026-08-17, "lastLogIndex=0, lastAppliedSequence=1"): the production guarantee is
+        // "within one flush tick of the position becoming known", NOT "before waitForInitialSync
+        // returns" - in the losing interleaving the sync thread counts the latch down first and
+        // the registration seed lands (CAS + self-report) moments later on the watch thread.
+        // The window is a few thread switches wide; two seconds is orders of magnitude beyond
+        // both it and the flush-tick fallback that reconciles it.
+        long deadline = System.currentTimeMillis() + 2_000;
+
+        while (electionManager.getLastLogIndex() == 0 && System.currentTimeMillis() < deadline) {
+            Thread.sleep(10);
+        }
+
         assertTrue(electionManager.getLastLogIndex() > 0,
                 "a freshly-synced node must report a non-zero replication position to "
-                        + "ElectionManager even without applying any live event afterward "
+                        + "ElectionManager (within one flush tick) even without applying any live "
+                        + "event afterward "
                         + "(got lastLogIndex=" + electionManager.getLastLogIndex() + ", "
                         + "ReplicationManager lastAppliedSequence=" + rm.getLastAppliedSequence() + ")");
     }
