@@ -55,8 +55,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     public final static String NAME = "StandardMessaging";
     private static final Logger log = LoggerFactory.getLogger(SingleCollectionMessaging.class);
     private final StatusInfoListener statusInfoListener = new StatusInfoListener();
-    private String statusInfoListenerName = "morphium.status_info";
-    private boolean statusInfoListenerEnabled = true;
+    // volatile: the setters run on application threads while the messaging thread reads both
+    // fields when it installs the status-info listener in run().
+    private volatile String statusInfoListenerName = "morphium.status_info";
+    private volatile boolean statusInfoListenerEnabled = true;
     private Morphium morphium;
     private volatile boolean running = true;
     private int pause = 100;
@@ -66,10 +68,12 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     private String hostname;
 
     private final Map<String, Long> pauseMessages = new ConcurrentHashMap<>();
-    // Written only via clone-and-swap (never mutated in place) and declared volatile: the
-    // poll thread iterates the current map lock-free (rebuildMainCsIfFilterStale /
-    // buildMainCsPipeline), so in-place put/remove/clear would race that iteration.
-    private volatile Map<String, List<MessageListener>> listenerByName = new HashMap<>();
+    // The poll thread iterates this map lock-free (rebuildMainCsIfFilterStale /
+    // buildMainCsPipeline), so both the map and the per-topic lists must tolerate concurrent
+    // mutation while being iterated - hence ConcurrentHashMap + CopyOnWriteArrayList. The
+    // former clone-and-swap was an unsynchronized read-modify-write: two writers cloning the
+    // same map made the later swap drop the other's listener.
+    private final Map<String, CopyOnWriteArrayList<MessageListener>> listenerByName = new ConcurrentHashMap<>();
     private ParticipantAnnouncer participantAnnouncer;
     private String queueName;
     private String lockCollectionName = null;
@@ -188,7 +192,6 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         }
 
         // listeners = new CopyOnWriteArrayList<>();
-        // listenerByName = new HashMap<>();
         requestPoll.set(1);
     }
 
@@ -371,11 +374,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
     @Override
     public void setStatusInfoListenerName(String statusInfoListenerName) {
-        Map<String, List<MessageListener>> c = new HashMap<>(listenerByName);
-        c.remove(this.statusInfoListenerName);
+        removeStatusInfoListener(this.statusInfoListenerName);
         this.statusInfoListenerName = statusInfoListenerName;
-        c.put(statusInfoListenerName, Arrays.asList(statusInfoListener));
-        listenerByName = c;
+        installStatusInfoListener();
     }
 
     @Override
@@ -413,15 +414,39 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     public void setStatusInfoListenerEnabled(boolean statusInfoListenerEnabled) {
         this.statusInfoListenerEnabled = statusInfoListenerEnabled;
 
-        if (statusInfoListenerEnabled && !listenerByName.containsKey(statusInfoListenerName)) {
-            Map<String, List<MessageListener>> c = new HashMap<>(listenerByName);
-            c.put(statusInfoListenerName, Arrays.asList(statusInfoListener));
-            listenerByName = c;
-        } else if (!statusInfoListenerEnabled) {
-            Map<String, List<MessageListener>> c = new HashMap<>(listenerByName);
-            c.remove(statusInfoListenerName);
-            listenerByName = c;
+        if (statusInfoListenerEnabled) {
+            installStatusInfoListener();
+        } else {
+            removeStatusInfoListener(statusInfoListenerName);
         }
+    }
+
+    /**
+     * Installs the status-info listener under the current status-info name. Adds it to whatever
+     * is registered under that name instead of replacing the entry: replacing would silently
+     * drop an application listener that happens to use the same name, skipping it would leave
+     * status queries unanswered.
+     */
+    private void installStatusInfoListener() {
+        listenerByName.compute(statusInfoListenerName, (k, listeners) -> {
+            if (listeners == null) {
+                listeners = new CopyOnWriteArrayList<>();
+            }
+
+            listeners.addIfAbsent(statusInfoListener);
+            return listeners;
+        });
+    }
+
+    /**
+     * Counterpart of {@link #installStatusInfoListener()} - removes only the status-info
+     * listener, so application listeners registered under the same name survive.
+     */
+    private void removeStatusInfoListener(String name) {
+        listenerByName.computeIfPresent(name, (k, listeners) -> {
+            listeners.remove(statusInfoListener);
+            return listeners.isEmpty() ? null : listeners;
+        });
     }
 
     @Override
@@ -1010,9 +1035,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         setName("Msg " + id);
 
         if (statusInfoListenerEnabled) {
-            Map<String, List<MessageListener>> c = new HashMap<>(listenerByName);
-            c.put(statusInfoListenerName, Arrays.asList(statusInfoListener));
-            listenerByName = c;
+            installStatusInfoListener();
         }
 
         // Register with PoppyDB for optimizations if connected
@@ -1337,7 +1360,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             log.debug("Messaging " + id + " stopped!");
         }
 
-        listenerByName = new HashMap<>();
+        listenerByName.clear();
     }
 
     @Override
@@ -1747,8 +1770,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         List<MessageRejectedException> rejections = new ArrayList<>();
         List<MessageListener> lst = new ArrayList<>();
 
-        if (listenerByName.get(msg.getTopic()) != null) {
-            lst.addAll(listenerByName.get(msg.getTopic()));
+        var topicListeners = listenerByName.get(msg.getTopic());
+
+        if (topicListeners != null) {
+            lst.addAll(topicListeners);
         }
 
         for (MessageListener l : lst) {
@@ -2117,33 +2142,30 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
     @Override
     public void addListenerForTopic(String n, MessageListener l) {
-        if (listenerByName.get(n) == null) {
-            HashMap<String, List<MessageListener>> c = (HashMap) ((HashMap) listenerByName).clone();
-            c.put(n, new ArrayList<>());
-            listenerByName = c;
-        }
+        // compute() and not computeIfAbsent()+add(): the add has to happen under the map's
+        // per-key lock, otherwise a concurrent removeListenerForTopic could drop the (now
+        // empty) entry between the lookup and the add, and l would land in an orphaned list.
+        listenerByName.compute(n, (k, listeners) -> {
+            if (listeners == null) {
+                listeners = new CopyOnWriteArrayList<>();
+            }
 
-        if (listenerByName.get(n).contains(l)) {
-            log.error("cowardly refusing to add already registered listener for name " + n);
-        } else {
-            listenerByName.get(n).add(l);
-        }
+            if (!listeners.addIfAbsent(l)) {
+                log.error("cowardly refusing to add already registered listener for name " + n);
+            }
+
+            return listeners;
+        });
 
         requestPoll.incrementAndGet();
     }
 
     @Override
     public void removeListenerForTopic(String n, MessageListener l) {
-        if (listenerByName.get(n) == null) {
-            return;
-        }
-
-        HashMap<String, List<MessageListener>> c = (HashMap) ((HashMap) listenerByName).clone();
-        c.get(n).remove(l);
-        if (c.get(n).isEmpty()) {
-            c.remove(n);
-        }
-        listenerByName = c;
+        listenerByName.computeIfPresent(n, (k, listeners) -> {
+            listeners.remove(l);
+            return listeners.isEmpty() ? null : listeners;
+        });
     }
 
     @Override
@@ -2215,7 +2237,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         if (participantAnnouncer != null) {
             participantAnnouncer.shutdown();
         }
-        listenerByName = new HashMap<>();
+        listenerByName.clear();
         waitingForAnswers.clear();
         processing.clear();
         requestPoll.set(0);

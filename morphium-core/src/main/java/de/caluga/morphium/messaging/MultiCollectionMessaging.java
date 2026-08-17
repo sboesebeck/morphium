@@ -24,6 +24,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 
 import org.apache.commons.lang3.SystemUtils;
@@ -1595,8 +1596,14 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             lockCollectionToTopic.put(getLockCollectionName(n), n);
             ensureSharedLockMonitor();
         }
-        monitorsByTopic.putIfAbsent(n, new ArrayList<>());
-        monitorsByTopic.get(n).add(Map.of(MType.monitor, cm, MType.listener, l));
+        monitorsByTopic.compute(n, (k, entries) -> {
+            if (entries == null) {
+                entries = new CopyOnWriteArrayList<>();
+            }
+
+            entries.add(Map.of(MType.monitor, cm, MType.listener, l));
+            return entries;
+        });
         return Map.of(MType.monitor, cm, MType.listener, l);
     }
 
@@ -1653,23 +1660,37 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
     @Override
     public void removeListenerForTopic(String topic, MessageListener l) {
-        int idx = -1;
-
-        for (var cm : monitorsByTopic.get(topic)) {
-            idx++;
-
-            if (cm.get(MType.listener) == l) {
-                break;
+        // The whole lookup-and-remove runs under the map's per-key lock: a concurrent
+        // registration must not add to a list that is about to be dropped as empty. The
+        // monitor is terminated afterwards - that is a network operation and has no business
+        // running inside a ConcurrentHashMap mapping function.
+        AtomicReference<Map<MType, Object>> removed = new AtomicReference<>();
+        AtomicBoolean topicDropped = new AtomicBoolean();
+        monitorsByTopic.computeIfPresent(topic, (k, entries) -> {
+            for (var entry : entries) {
+                if (entry.get(MType.listener) == l) {
+                    removed.set(entry);
+                    break;
+                }
             }
+
+            if (removed.get() != null) {
+                entries.remove(removed.get());
+            }
+
+            if (entries.isEmpty()) {
+                topicDropped.set(true);
+                return null;
+            }
+
+            return entries;
+        });
+
+        if (removed.get() != null) {
+            ((ChangeStreamMonitor) removed.get().get(MType.monitor)).terminate();
         }
 
-        if (idx >= 0) {
-            var entry = monitorsByTopic.get(topic).get(idx);
-            ((ChangeStreamMonitor) entry.get(MType.monitor)).terminate();
-            monitorsByTopic.get(topic).remove(idx);
-        }
-        if (monitorsByTopic.get(topic).isEmpty()) {
-            monitorsByTopic.remove(topic);
+        if (topicDropped.get()) {
             lockCollectionToTopic.remove(getLockCollectionName(topic));
         }
     }

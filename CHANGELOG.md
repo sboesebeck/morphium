@@ -121,6 +121,38 @@ analysis). The deduplication behavior is unchanged, only the log level.
 
 ### Fixed
 
+#### Messaging listener registration could silently drop listeners (and throw an NPE)
+`SingleCollectionMessaging` and `DualChannelMessaging` published their topic→listener map
+lock-free to the poll thread, which is why it was only ever written by clone-and-swap on a
+`volatile` field. That read-modify-write was unsynchronized, though: two writers cloning the
+same map made the later swap discard the other's entry. The visible symptom was an NPE in
+`addListenerForTopic` when a just-created entry vanished between the `contains()` check and
+the `add()` — the flaky `MessagingRequeueEventTest`, where the application thread registers
+its listener while the freshly started messaging thread installs the status-info listener as
+its first action in `run()`. The silent variant is worse and was never diagnosed as such: no
+exception, the listener is simply gone and its messages are never delivered. Any application
+registering listeners from more than one thread, or registering right after `start()`, could
+hit it. The map is now a `ConcurrentHashMap` of `CopyOnWriteArrayList`s mutated under the
+map's per-key lock, so concurrent registration composes and the lock-free iteration in the
+poll thread stays safe without the clone-and-swap discipline that was easy to violate.
+One deliberate behaviour change came out of this: installing the status-info listener now
+*adds* it to whatever is registered under its name instead of replacing that entry, and
+disabling it removes only the status-info listener instead of the whole topic — an
+application listener that happens to use the status-info name is no longer silently thrown
+away on `start()`, and `isStatusInfoListenerEnabled()` can no longer report `true` while no
+status listener is installed. `setStatusInfoListenerName()` is in exchange no longer atomic —
+it now removes under the old name and installs under the new one in two steps, so a status
+query hitting the nanosecond-wide gap between them goes unanswered.
+
+#### `MultiCollectionMessaging.removeListenerForTopic()` removed the wrong listener
+The lookup walked the topic's entries with an index that kept counting when no match was
+found, so removing a listener that was never registered for that topic silently evicted the
+*last* one instead — including terminating its change stream monitor, leaving the topic
+subscribed-but-deaf. Removing from a topic with no listeners at all threw an NPE. The lookup
+now matches by identity or does nothing, and — like the listener maps in the other two
+messaging implementations — runs under the map's per-key lock with a `CopyOnWriteArrayList`
+behind it, so a concurrent registration cannot land in an entry that is about to be dropped.
+
 #### PoppyDB: a restarted empty node could wipe the whole replica set
 Reproduced kill chain: kill one node of a 3-node RS, restart it empty (fresh data dir), and it
 could both win the next election and cause the surviving, data-bearing followers to drop their
