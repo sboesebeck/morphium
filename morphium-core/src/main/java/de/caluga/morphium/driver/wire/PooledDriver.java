@@ -124,7 +124,9 @@ public class PooledDriver extends DriverBase {
         Thread.ofPlatform().name("MCon-", 0).factory());
 
     private final AtomicInteger lastSecondaryNode = new AtomicInteger(0);
-    private final Map<String, Thread> hostThreads = new ConcurrentHashMap<>();
+    // Package-private: the heartbeat's per-host bookkeeping is asserted on directly by
+    // PooledDriverRediscoveryTest - a stale entry here silently disables discovery for that host.
+    final Map<String, Thread> hostThreads = new ConcurrentHashMap<>();
     private int serverSelectionTimeout = 2000;
 
     // Stats caching
@@ -267,7 +269,9 @@ public class PooledDriver extends DriverBase {
         }
     }
 
-    private volatile ScheduledFuture<?> heartbeat;
+    // Package-private: PooledDriverHeartbeatResilienceTest asserts that a dead heartbeat is
+    // revived rather than left dead (a dead heartbeat means no topology discovery at all).
+    volatile ScheduledFuture<?> heartbeat;
     // Use ReentrantLock + Condition instead of synchronized + wait/notify
     // to avoid pinning carrier threads when using virtual threads
     private final ReentrantLock waitCounterLock = new ReentrantLock();
@@ -327,7 +331,7 @@ public class PooledDriver extends DriverBase {
      * - "server.example.com:27018" -> "server.example.com:27018"
      * - "SERVER.example.com:27017" -> "server.example.com:27017" (case-insensitive)
      */
-    private String normalizeHostKey(String hostPort) {
+    String normalizeHostKey(String hostPort) {
         if (hostPort == null) return null;
         // Normalize to lowercase for case-insensitive hostname matching
         // This prevents pool exhaustion when MongoDB reports hostnames with different
@@ -573,304 +577,349 @@ public class PooledDriver extends DriverBase {
     protected synchronized void startHeartbeat() {
         if (heartbeat == null) {
             heartbeat = executor.scheduleWithFixedDelay(() -> {
-                // check every host in pool if available
-                // create NEW Connection to host -> if error, remove host from connectionPool
-                // send HelloCommand to host
-                // process helloCommand (primary etc)
-
-                // Cleanup dead borrowed connections - connections that are no longer connected
-                // but still tracked as borrowed (can happen on network errors, timeouts, etc.)
+                // A ScheduledExecutorService silently cancels a periodic task for good as soon as
+                // one execution throws - and a dead heartbeat means no discovery ever again, which
+                // is exactly how clients stayed stuck on "No primary node found" (#304). Nothing
+                // in here may escape, Errors included (creating platform threads below can fail
+                // with OutOfMemoryError under load).
                 try {
-                    List<Integer> deadBorrowedPorts = new ArrayList<>();
-                    Map<String, Integer> hostsToDecrement = new HashMap<>();
+                    heartbeatCycle();
+                } catch (Throwable e) {
+                    long now = System.currentTimeMillis();
 
-                    for (var bcEntry : new ArrayList<>(borrowedConnections.entrySet())) {
-                        ConnectionContainer cc = bcEntry.getValue();
-                        if (cc == null || cc.getCon() == null || !cc.getCon().isConnected()) {
-                            deadBorrowedPorts.add(bcEntry.getKey());
-                            // Use borrowedFromHost for correct counter decrement (not getConnectedTo which may have changed)
-                            if (cc != null && cc.getBorrowedFromHost() != null) {
-                                hostsToDecrement.merge(cc.getBorrowedFromHost(), 1, Integer::sum);
-                            }
-                        }
+                    if (now - lastHeartbeatFailureLogMs > 60_000) {
+                        lastHeartbeatFailureLogMs = now;
+                        log.error("Heartbeat cycle failed - retrying on the next cycle", e);
                     }
-
-                    // Remove dead entries and decrement counters atomically per-entry.
-                    // Only decrement when remove() actually returned the entry — another thread
-                    // (releaseConnection) may have already handled it.
-                    for (int port : deadBorrowedPorts) {
-                        ConnectionContainer removed = borrowedConnections.remove(port);
-                        if (removed != null) {
-                            String hostKey = removed.getBorrowedFromHost();
-                            if (hostKey != null) {
-                                Host h = hosts.get(hostKey);
-                                if (h == null) {
-                                    String hostOnly = hostKey.split(":")[0];
-                                    h = hosts.get(hostOnly);
-                                }
-                                if (h != null) {
-                                    h.decrementBorrowedConnections();
-                                }
-                            }
-                            if (removed.getCon() != null) {
-                                try { removed.getCon().close(); } catch (Exception ignore) {}
-                            }
-                            stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                        }
-                    }
-
-                    if (!deadBorrowedPorts.isEmpty()) {
-                        log.warn("Cleaned up {} dead borrowed connections", deadBorrowedPorts.size());
-                        markStatsDirty();
-                    }
-                } catch (Exception e) {
-                    log.debug("Error during borrowed connection cleanup", e);
-                }
-
-                reseedIfAllHostsEvicted();
-
-                for (var entry : hosts.entrySet()) {
-                    var hst = entry.getKey();
-                    var host = entry.getValue();
-                    BlockingQueue<ConnectionContainer> connectionPoolForHost = host.getConnectionPool();
-
-                    if (connectionPoolForHost != null) {
-                        try {
-                            // checking for lifetime of connections
-                            var len = connectionPoolForHost.size();
-
-                            for (int i = 0; i < len; i++) {
-                                var connection = connectionPoolForHost.poll(1, TimeUnit.MILLISECONDS);
-
-                                if (connection == null)
-                                    break;
-                                host.incrementInternalInUseConnections();
-
-                                try {
-                                    long now = System.currentTimeMillis();
-
-                                    if ((connection.getLastUsed() < now - getMaxConnectionIdleTime())
-                                            || connection.getCreated() < now - getMaxConnectionLifetime()) {
-                                        log.debug("connection to host:{} too long idle {}ms or just too old {}ms -> remove",
-                                                  connection.getCon().getConnectedToHost(), getMaxConnectionIdleTime(),
-                                                  getMaxConnectionLifetime());
-
-                                        try {
-                                            connection.getCon().close();
-                                        } catch (Exception e) {
-                                            // swallow
-                                        }
-                                        stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                                        markStatsDirty();
-                                    } else {
-                                        // Use offer() with timeout to prevent lock convoy
-                                        try {
-                                            if (!connectionPoolForHost.offer(connection, 100, TimeUnit.MILLISECONDS)) {
-                                                log.warn("Could not return connection to pool within timeout - closing");
-                                                try { connection.getCon().close(); } catch (Exception ignored) {}
-                                                stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                                                markStatsDirty();
-                                            }
-                                        } catch (InterruptedException e) {
-                                            Thread.currentThread().interrupt();
-                                            try { connection.getCon().close(); } catch (Exception ignored) {}
-                                            stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                                            markStatsDirty();
-                                        }
-                                    }
-                                } finally {
-                                    host.decrementInternalInUseConnections();
-                                }
-                            }
-                        } catch (Throwable e) {
-                        }
-                    }
-
-                    if (hostThreads.containsKey(hst))
-                        continue;
-
-                    Thread t = Thread.ofPlatform().name("HeartbeatCheck-" + hst).start(() -> {
-
-                        try {
-                            ConnectionContainer container = null;
-
-                            if (host.getConnectionPool() == null) {
-                                log.warn("No connectionPool for host {} creating new ConnectionContainer", hst);
-                                container = new ConnectionContainer(new SingleMongoConnection());
-                            } else {
-                                container = host.getConnectionPool().poll(1, TimeUnit.MILLISECONDS);
-                            }
-
-                            if (container != null) {
-                                host.incrementInternalInUseConnections();
-                                boolean containerDisposed = false;
-                                try {
-                                    long start = System.currentTimeMillis();
-                                    HelloResult result;
-
-                                    if (!container.getCon().isConnected()) {
-                                        // Connection was closed — discard it and let createNewConnection
-                                        // (below) create a fresh one. Trying to reconnect a closed
-                                        // SingleMongoConnection causes "Socket is closed" errors because
-                                        // the old socket state leaks into the new connect() attempt.
-                                        try { container.getCon().close(); } catch (Exception ignored) {}
-                                        stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                                        markStatsDirty();
-                                        containerDisposed = true;
-                                    } else {
-                                        // Bounded hello: a frozen/partitioned host must fail the
-                                        // heartbeat check within ~a heartbeat, not after maxWaitTime.
-                                        // Otherwise eviction (MAX_FAILURES) takes minutes and all
-                                        // in-flight operations stay stuck on dead connections.
-                                        result = container.getCon().getHelloResult(false,
-                                                Math.max(2000, getHeartbeatFrequency()));
-
-                                        long dur = System.currentTimeMillis() - start;
-
-                                        PingStats newStats = host.getPingStats().updateWith(dur);
-                                        host.setPingStats(newStats);
-                                        host.resetFailures();
-
-                                        // Use record patterns to update fastest host
-                                        updateFastestHost(hst, newStats);
-                                        // container.touch();
-                                        handleHelloResult(result, String.format("%s:%d", getHost(hst), getPortFromHost(hst)));
-
-                                        if (hosts.containsKey(hst)
-                                                && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) {
-                                            // Use offer() with timeout to prevent lock convoy
-                                            try {
-                                                if (!host.getConnectionPool().offer(container, 100, TimeUnit.MILLISECONDS)) {
-                                                    log.warn("Could not return connection to pool within timeout - closing");
-                                                    try { container.getCon().close(); } catch (Exception ignored) {}
-                                                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                                                    markStatsDirty();
-                                                }
-                                            } catch (InterruptedException e) {
-                                                Thread.currentThread().interrupt();
-                                                try { container.getCon().close(); } catch (Exception ignored) {}
-                                                stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                                                markStatsDirty();
-                                            }
-                                        } else {
-                                            container.getCon().close();
-                                            stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                                            markStatsDirty();
-                                        }
-                                        containerDisposed = true;
-                                    }
-                                } finally {
-                                    host.decrementInternalInUseConnections();
-                                    // If getHelloResult()/connect() threw an exception, the container
-                                    // was polled from the pool but never returned or closed — close it
-                                    // to prevent connection leak (it's not in borrowedConnections either).
-                                    if (!containerDisposed && container.getCon() != null) {
-                                        try { container.getCon().close(); } catch (Exception ignored) {}
-                                        stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                                        markStatsDirty();
-                                    }
-                                }
-                            }
-
-                            BlockingQueue<ConnectionContainer> queue = host.getConnectionPool();
-
-                            int wait = host.getWaitCounter();
-                            int loopCounter = 0;
-
-                            while (getHostSeed().contains(hst) && queue != null
-                                    && loopCounter < getMaxConnectionsPerHost() &&
-                                    ((queue.size() < wait
-                                      && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost())
-                                     || getTotalConnectionsToHost(hst) < getMinConnectionsPerHost())) {
-                                // log.info("Creating new connection to {}", hst);
-                                loopCounter++;
-                                // log.debug("Creating connection to {} - totalConnections to host is {}", hst,
-                                // getTotalConnectionsToHost(hst));
-                                createNewConnection(hst);
-                            }
-
-                            // log.info("Finished connection creation");
-                        } catch (Throwable e) {
-                            // full stacktrace only on the first failure - a host that is down
-                            // for a while would otherwise flood the log every heartbeat
-                            lastConnectFailure = e;
-                            Host failedHost = hosts.get(normalizeHostKey(hst));
-                            if (failedHost == null || failedHost.getFailures() == 0) {
-                                log.error("Could not create connection to host {}", hst, e);
-                            } else {
-                                log.warn("Still cannot connect to host {} ({} consecutive failures): {}",
-                                         hst, failedHost.getFailures(), e.getMessage());
-                            }
-                            onConnectionError(hst);
-                        } finally {
-                            hostThreads.remove(hst);
-                        }
-                    });
-                    hostThreads.put(hst, t);
                 }
             }, 0, getHeartbeatFrequency(), TimeUnit.MILLISECONDS);
-            // thread to create new connections instantly if a thread is waiting
-            // this thread pauses until waitCounterCondition.signalAll() is called
-            Thread.ofPlatform().name("ConnectionWaiter").start(() -> {
-                while (running) {
-                    try {
-                        waitCounterLock.lock();
-                        try {
-                            waitCounterCondition.await();
-                        } finally {
-                            waitCounterLock.unlock();
-                        }
-
-                        for (String hst : getHostSeed()) {
-                            String normalizedHst = normalizeHostKey(hst);
-                            try {
-                                if (hosts.get(normalizedHst) == null) continue;
-
-                                // Calculate how many new connections we need
-                                int waitCount = getWaitCounterForHost(normalizedHst);
-                                int poolSize = hosts.get(normalizedHst).getConnectionPool().size();
-                                int totalConnections = getTotalConnectionsToHost(normalizedHst);
-                                int maxConnections = getMaxConnectionsPerHost();
-
-                                // Number of connections to create (limited by max and available capacity)
-                                int needed = Math.min(waitCount - poolSize, maxConnections - totalConnections);
-
-                                if (needed > 0 && hosts.containsKey(normalizedHst)) {
-                                    // Create connections in parallel for burst scenarios
-                                    int parallelCreators = Math.min(needed, 10); // Cap at 10 parallel creators
-                                    final String host = normalizedHst;
-
-                                    for (int i = 0; i < parallelCreators; i++) {
-                                        Thread.ofPlatform().name("ConnectionCreator-" + i).start(() -> {
-                                            try {
-                                                // Each creator can create multiple connections
-                                                while (running && hosts.containsKey(host)
-                                                        && hosts.get(host).getConnectionPool().size() < getWaitCounterForHost(host)
-                                                        && getTotalConnectionsToHost(host) < getMaxConnectionsPerHost()) {
-                                                    createNewConnection(host);
-                                                }
-                                            } catch (Exception e) {
-                                                log.debug("Connection creator finished: {}", e.getMessage());
-                                            }
-                                        });
-                                    }
-                                }
-                            } catch (Exception e) {
-                                log.error("Could not create connection to {}", normalizedHst, e);
-                                // removing connections, probably all broken now
-                                onConnectionError(normalizedHst);
-                            }
-                        }
-                    } catch (Throwable e) {
-                        log.error("error", e);
-                        stats.get(DriverStatsKey.ERRORS).incrementAndGet();
-                    }
-                }
-            });
-        } else {
-            // log.debug("Heartbeat already scheduled...");
+            startConnectionWaiter();
         }
     }
+
+    /** Throttles the heartbeat-failure log so a persistent failure cannot flood it every cycle. */
+    private volatile long lastHeartbeatFailureLogMs = 0;
+
+    private void heartbeatCycle() {
+        // check every host in pool if available
+        // create NEW Connection to host -> if error, remove host from connectionPool
+        // send HelloCommand to host
+        // process helloCommand (primary etc)
+
+        // Cleanup dead borrowed connections - connections that are no longer connected
+        // but still tracked as borrowed (can happen on network errors, timeouts, etc.)
+        try {
+            List<Integer> deadBorrowedPorts = new ArrayList<>();
+            Map<String, Integer> hostsToDecrement = new HashMap<>();
+
+            for (var bcEntry : new ArrayList<>(borrowedConnections.entrySet())) {
+                ConnectionContainer cc = bcEntry.getValue();
+                if (cc == null || cc.getCon() == null || !cc.getCon().isConnected()) {
+                    deadBorrowedPorts.add(bcEntry.getKey());
+                    // Use borrowedFromHost for correct counter decrement (not getConnectedTo which may have changed)
+                    if (cc != null && cc.getBorrowedFromHost() != null) {
+                        hostsToDecrement.merge(cc.getBorrowedFromHost(), 1, Integer::sum);
+                    }
+                }
+            }
+
+            // Remove dead entries and decrement counters atomically per-entry.
+            // Only decrement when remove() actually returned the entry — another thread
+            // (releaseConnection) may have already handled it.
+            for (int port : deadBorrowedPorts) {
+                ConnectionContainer removed = borrowedConnections.remove(port);
+                if (removed != null) {
+                    String hostKey = removed.getBorrowedFromHost();
+                    if (hostKey != null) {
+                        Host h = hosts.get(hostKey);
+                        if (h == null) {
+                            String hostOnly = hostKey.split(":")[0];
+                            h = hosts.get(hostOnly);
+                        }
+                        if (h != null) {
+                            h.decrementBorrowedConnections();
+                        }
+                    }
+                    if (removed.getCon() != null) {
+                        try { removed.getCon().close(); } catch (Exception ignore) {}
+                    }
+                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                }
+            }
+
+            if (!deadBorrowedPorts.isEmpty()) {
+                log.warn("Cleaned up {} dead borrowed connections", deadBorrowedPorts.size());
+                markStatsDirty();
+            }
+        } catch (Exception e) {
+            log.debug("Error during borrowed connection cleanup", e);
+        }
+
+        reseedIfAllHostsEvicted();
+
+        for (var entry : hosts.entrySet()) {
+            var hst = entry.getKey();
+            var host = entry.getValue();
+            BlockingQueue<ConnectionContainer> connectionPoolForHost = host.getConnectionPool();
+
+            if (connectionPoolForHost != null) {
+                try {
+                    // checking for lifetime of connections
+                    var len = connectionPoolForHost.size();
+
+                    for (int i = 0; i < len; i++) {
+                        var connection = connectionPoolForHost.poll(1, TimeUnit.MILLISECONDS);
+
+                        if (connection == null)
+                            break;
+                        host.incrementInternalInUseConnections();
+
+                        try {
+                            long now = System.currentTimeMillis();
+
+                            if ((connection.getLastUsed() < now - getMaxConnectionIdleTime())
+                                    || connection.getCreated() < now - getMaxConnectionLifetime()) {
+                                log.debug("connection to host:{} too long idle {}ms or just too old {}ms -> remove",
+                                          connection.getCon().getConnectedToHost(), getMaxConnectionIdleTime(),
+                                          getMaxConnectionLifetime());
+
+                                try {
+                                    connection.getCon().close();
+                                } catch (Exception e) {
+                                    // swallow
+                                }
+                                stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                markStatsDirty();
+                            } else {
+                                // Use offer() with timeout to prevent lock convoy
+                                try {
+                                    if (!connectionPoolForHost.offer(connection, 100, TimeUnit.MILLISECONDS)) {
+                                        log.warn("Could not return connection to pool within timeout - closing");
+                                        try { connection.getCon().close(); } catch (Exception ignored) {}
+                                        stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                        markStatsDirty();
+                                    }
+                                } catch (InterruptedException e) {
+                                    Thread.currentThread().interrupt();
+                                    try { connection.getCon().close(); } catch (Exception ignored) {}
+                                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                    markStatsDirty();
+                                }
+                            }
+                        } finally {
+                            host.decrementInternalInUseConnections();
+                        }
+                    }
+                } catch (Throwable e) {
+                }
+            }
+
+            // Self-healing claim check: an entry whose thread is no longer alive is
+            // leftover bookkeeping, not a check in flight. Skipping on it forever is how
+            // a host silently dropped out of discovery for good (#304).
+            Thread runningCheck = hostThreads.get(hst);
+
+            if (runningCheck != null) {
+                if (runningCheck.isAlive()) {
+                    continue;
+                }
+
+                hostThreads.remove(hst, runningCheck);
+            }
+
+            Thread t = Thread.ofPlatform().name("HeartbeatCheck-" + hst).unstarted(() -> {
+
+                try {
+                    ConnectionContainer container = null;
+
+                    if (host.getConnectionPool() == null) {
+                        log.warn("No connectionPool for host {} creating new ConnectionContainer", hst);
+                        container = new ConnectionContainer(new SingleMongoConnection());
+                    } else {
+                        container = host.getConnectionPool().poll(1, TimeUnit.MILLISECONDS);
+                    }
+
+                    if (container != null) {
+                        host.incrementInternalInUseConnections();
+                        boolean containerDisposed = false;
+                        try {
+                            long start = System.currentTimeMillis();
+                            HelloResult result;
+
+                            if (!container.getCon().isConnected()) {
+                                // Connection was closed — discard it and let createNewConnection
+                                // (below) create a fresh one. Trying to reconnect a closed
+                                // SingleMongoConnection causes "Socket is closed" errors because
+                                // the old socket state leaks into the new connect() attempt.
+                                try { container.getCon().close(); } catch (Exception ignored) {}
+                                stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                markStatsDirty();
+                                containerDisposed = true;
+                            } else {
+                                // Bounded hello: a frozen/partitioned host must fail the
+                                // heartbeat check within ~a heartbeat, not after maxWaitTime.
+                                // Otherwise eviction (MAX_FAILURES) takes minutes and all
+                                // in-flight operations stay stuck on dead connections.
+                                result = container.getCon().getHelloResult(false,
+                                        Math.max(2000, getHeartbeatFrequency()));
+
+                                long dur = System.currentTimeMillis() - start;
+
+                                PingStats newStats = host.getPingStats().updateWith(dur);
+                                host.setPingStats(newStats);
+                                host.resetFailures();
+
+                                // Use record patterns to update fastest host
+                                updateFastestHost(hst, newStats);
+                                // container.touch();
+                                handleHelloResult(result, String.format("%s:%d", getHost(hst), getPortFromHost(hst)));
+
+                                if (hosts.containsKey(hst)
+                                        && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) {
+                                    // Use offer() with timeout to prevent lock convoy
+                                    try {
+                                        if (!host.getConnectionPool().offer(container, 100, TimeUnit.MILLISECONDS)) {
+                                            log.warn("Could not return connection to pool within timeout - closing");
+                                            try { container.getCon().close(); } catch (Exception ignored) {}
+                                            stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                            markStatsDirty();
+                                        }
+                                    } catch (InterruptedException e) {
+                                        Thread.currentThread().interrupt();
+                                        try { container.getCon().close(); } catch (Exception ignored) {}
+                                        stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                        markStatsDirty();
+                                    }
+                                } else {
+                                    container.getCon().close();
+                                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                    markStatsDirty();
+                                }
+                                containerDisposed = true;
+                            }
+                        } finally {
+                            host.decrementInternalInUseConnections();
+                            // If getHelloResult()/connect() threw an exception, the container
+                            // was polled from the pool but never returned or closed — close it
+                            // to prevent connection leak (it's not in borrowedConnections either).
+                            if (!containerDisposed && container.getCon() != null) {
+                                try { container.getCon().close(); } catch (Exception ignored) {}
+                                stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                markStatsDirty();
+                            }
+                        }
+                    }
+
+                    BlockingQueue<ConnectionContainer> queue = host.getConnectionPool();
+
+                    int wait = host.getWaitCounter();
+                    int loopCounter = 0;
+
+                    while (getHostSeed().contains(hst) && queue != null
+                            && loopCounter < getMaxConnectionsPerHost() &&
+                            ((queue.size() < wait
+                              && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost())
+                             || getTotalConnectionsToHost(hst) < getMinConnectionsPerHost())) {
+                        // log.info("Creating new connection to {}", hst);
+                        loopCounter++;
+                        // log.debug("Creating connection to {} - totalConnections to host is {}", hst,
+                        // getTotalConnectionsToHost(hst));
+                        createNewConnection(hst);
+                    }
+
+                    // log.info("Finished connection creation");
+                } catch (Throwable e) {
+                    // full stacktrace only on the first failure - a host that is down
+                    // for a while would otherwise flood the log every heartbeat
+                    lastConnectFailure = e;
+                    Host failedHost = hosts.get(normalizeHostKey(hst));
+                    if (failedHost == null || failedHost.getFailures() == 0) {
+                        log.error("Could not create connection to host {}", hst, e);
+                    } else {
+                        log.warn("Still cannot connect to host {} ({} consecutive failures): {}",
+                                 hst, failedHost.getFailures(), e.getMessage());
+                    }
+                    onConnectionError(hst);
+                } finally {
+                    // Two-arg remove: never drop another cycle's claim, only our own.
+                    hostThreads.remove(hst, Thread.currentThread());
+                }
+            });
+            // Claim BEFORE starting: a check against a host that refuses connections
+            // finishes in microseconds, and with the claim written afterwards its own
+            // remove could run first - leaving an entry nobody ever clears again (#304).
+            hostThreads.put(hst, t);
+
+            try {
+                t.start();
+            } catch (Throwable e) {
+                hostThreads.remove(hst, t);
+                throw e;
+            }
+        }
+    }
+
+    private void startConnectionWaiter() {
+        // thread to create new connections instantly if a thread is waiting
+        // this thread pauses until waitCounterCondition.signalAll() is called
+        Thread.ofPlatform().name("ConnectionWaiter").start(() -> {
+            while (running) {
+                try {
+                    waitCounterLock.lock();
+                    try {
+                        waitCounterCondition.await();
+                    } finally {
+                        waitCounterLock.unlock();
+                    }
+
+                    for (String hst : getHostSeed()) {
+                        String normalizedHst = normalizeHostKey(hst);
+                        try {
+                            if (hosts.get(normalizedHst) == null) continue;
+
+                            // Calculate how many new connections we need
+                            int waitCount = getWaitCounterForHost(normalizedHst);
+                            int poolSize = hosts.get(normalizedHst).getConnectionPool().size();
+                            int totalConnections = getTotalConnectionsToHost(normalizedHst);
+                            int maxConnections = getMaxConnectionsPerHost();
+
+                            // Number of connections to create (limited by max and available capacity)
+                            int needed = Math.min(waitCount - poolSize, maxConnections - totalConnections);
+
+                            if (needed > 0 && hosts.containsKey(normalizedHst)) {
+                                // Create connections in parallel for burst scenarios
+                                int parallelCreators = Math.min(needed, 10); // Cap at 10 parallel creators
+                                final String host = normalizedHst;
+
+                                for (int i = 0; i < parallelCreators; i++) {
+                                    Thread.ofPlatform().name("ConnectionCreator-" + i).start(() -> {
+                                        try {
+                                            // Each creator can create multiple connections
+                                            while (running && hosts.containsKey(host)
+                                                    && hosts.get(host).getConnectionPool().size() < getWaitCounterForHost(host)
+                                                    && getTotalConnectionsToHost(host) < getMaxConnectionsPerHost()) {
+                                                createNewConnection(host);
+                                            }
+                                        } catch (Exception e) {
+                                            log.debug("Connection creator finished: {}", e.getMessage());
+                                        }
+                                    });
+                                }
+                            }
+                        } catch (Exception e) {
+                            log.error("Could not create connection to {}", normalizedHst, e);
+                            // removing connections, probably all broken now
+                            onConnectionError(normalizedHst);
+                        }
+                    }
+                } catch (Throwable e) {
+                    log.error("error", e);
+                    stats.get(DriverStatsKey.ERRORS).incrementAndGet();
+                }
+            }
+        });
+    }
+
     private int getWaitCounterForHost(String hst) {
         Host host = hosts.get(normalizeHostKey(hst));
         if (host == null) {
@@ -1452,6 +1501,10 @@ public class PooledDriver extends DriverBase {
     @Override
     public MongoConnection getPrimaryConnection(WriteConcern wc) throws MorphiumDriverException {
         if (primaryNode == null) {
+            // Discovery must be able to resume from every state (#304): if the heartbeat is gone,
+            // waiting for it below would wait forever - nothing else ever sets primaryNode.
+            reviveHeartbeatIfDead();
+
             // Race-free: connect() returns after scheduling heartbeat, but primary discovery happens async.
             // Also handles short windows during primary failover where primaryNode is cleared temporarily.
             long start = System.currentTimeMillis();
@@ -1484,6 +1537,22 @@ public class PooledDriver extends DriverBase {
         }
 
         return borrowConnection(primaryNode);
+    }
+
+    /**
+     * Restarts the heartbeat if its scheduled task is no longer running. Nothing but the
+     * heartbeat sets {@code primaryNode}, so a dead one turns a temporary outage into a
+     * permanent one - the client keeps failing with "No primary node found" until it is
+     * restarted, which is what #304 reported from production.
+     */
+    private synchronized void reviveHeartbeatIfDead() {
+        if (!running || (heartbeat != null && !heartbeat.isDone())) {
+            return;
+        }
+
+        log.warn("Heartbeat was no longer running - restarting topology discovery");
+        heartbeat = null;
+        startHeartbeat();
     }
 
     @Override
@@ -1858,6 +1927,9 @@ public class PooledDriver extends DriverBase {
         }
 
         heartbeat = null;
+        // Per-host check bookkeeping is meaningless once the heartbeat is gone - leaving it
+        // behind would make a re-used driver instance skip every host it still lists (#304).
+        hostThreads.clear();
 
         if (executor != null) {
             executor.shutdown();

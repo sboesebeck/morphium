@@ -121,6 +121,25 @@ analysis). The deduplication behavior is unchanged, only the log level.
 
 ### Fixed
 
+#### PooledDriver: a client could stay stuck on "No primary node found" forever after a replica-set restart sequence (#304)
+Nine service instances kept failing every operation for 30+ minutes after their PoppyDB
+replica set had been restarted node by node, and only an application restart brought them
+back — while other instances of the same services recovered on their own. Nothing but the
+heartbeat ever sets `primaryNode`, so anything that stops the heartbeat from probing turns a
+temporary outage into a permanent one, and two independent defects could do exactly that.
+First, the heartbeat's whole cycle ran unguarded inside `scheduleWithFixedDelay`, which
+cancels a periodic task for good the moment one execution throws — one unexpected failure
+(creating a platform thread can fail with an `Error` under load) and discovery was over.
+Second, the per-host check registered its bookkeeping entry *after* starting the thread,
+while the thread removes its own entry when it finishes: against a host that refuses
+connections the check completes in microseconds, so its removal could run before the
+registration, leaving an entry that no later cycle ever clears — and every later cycle skips
+a host it believes is already being checked. The cycle is now wrapped so nothing escapes it,
+the claim is written before the thread starts (and removed again if the start fails), a stale
+claim whose thread is no longer alive heals itself on the next cycle, `close()` clears the
+bookkeeping, and asking for the primary restarts a heartbeat that is no longer scheduled —
+so discovery can resume from every state, which is what a driver must guarantee.
+
 #### InMemoryDriver/PoppyDB: index buckets leaked every deleted document whose indexed array or sub-document had been updated (#303)
 A PoppyDB message bus ran its 12 GB heap over the watermark and rejected all writes for ~36h;
 the dump showed a single `CollectionIndexStore` retaining 10.5 GB in 34,859 long-deleted
