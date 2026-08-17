@@ -56,13 +56,14 @@
     "mvn install"                    -> builds core + PoppyDB + all extensions
     "mvn install -DskipExtensions"    -> builds only core + PoppyDB (no Docker,
                                           no Quarkus/Spring download needed).
-                                          Skips BOTH extension modules currently
+                                          Skips ALL extension modules currently
                                           in the "extensions" profile below:
-                                          morphium-jakarta-data AND quarkus-morphium,
-                                          not just quarkus-morphium. quarkus-morphium
-                                          depends on morphium-jakarta-data, so this
-                                          reactor could not build one without the
-                                          other even if it tried to.
+                                          morphium-jakarta-data, quarkus-morphium,
+                                          AND spring-boot-morphium. quarkus-morphium
+                                          and spring-boot-morphium both depend on
+                                          morphium-jakarta-data, so this reactor
+                                          could not build one without the others
+                                          even if it tried to.
   -->
   <modules>
     <module>morphium-core</module>
