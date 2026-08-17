@@ -180,6 +180,8 @@ max-bson-size = 16777216
 #users-file = /etc/poppydb/users.json
 #dump-dir = /var/lib/poppydb/data
 #dump-interval = 300
+#replay-buffer = 256m
+#event-queue-budget = 256m
 ```
 
 Load it explicitly, or drop it at one of the default search paths:
@@ -268,17 +270,31 @@ Practical tips:
 2. Start at least one node, write the test data you need, then bring additional members online—they will clone the existing data automatically.
 3. Keep in mind that this is still meant for testing: persistence and durability are unchanged.
 
-**Known limitation - the vote's Raft log check is currently dead code.** Elections compare
-candidates' replicated-log state (`lastLogIndex`/`lastLogTerm`) per the Raft paper, so a node
-behind on data should lose a vote against a more caught-up peer. In this implementation nothing
-ever calls `ElectionManager.updateLogIndex(...)` - `ReplicationManager` reports progress through
-a separate hook that nothing wires to it - so that state stays `0` on every node forever and the
-check is vacuously true for every candidate. Elections are in practice decided purely by term +
-priority + heartbeat timing, never by log freshness. The concrete, currently-accepted consequence
-is the users-file version gate's mid-resync caveat below; more generally, a node whose local data
-was just wiped for a resync is exactly as electable as a fully caught-up peer for the short window
-before its own sync completes. Pre-existing, tracked as a follow-up, not something to rely on
-being fixed.
+**Log-recency voting, PreVote and candidacy restraint.** Elections compare the candidates'
+replication position per Raft: a node that is behind loses the vote against a more caught-up
+peer, and the denial is logged (`denied vote to <peer> (candidate log behind: candidateIndex=0
+< myIndex=422831)`). `ReplicationManager` reports its position to the election layer whenever
+it can have changed - including right after the initial sync seeds it - so a freshly synced
+node does not report 0 and lock itself out.
+
+Two mechanisms build on that:
+
+- **PreVote.** Before a real election, a node asks a majority whether they *would* grant it a
+  vote - without incrementing any term and without leaving the follower state. A node whose log
+  is behind never passes that probe, so it cannot inflate terms or dethrone a healthy primary
+  by campaigning. Without this, an empty node restarted during a rolling upgrade could keep a
+  cluster leaderless indefinitely: it could never win, but every attempt forced the primary to
+  step down.
+- **Candidacy restraint.** A node that is still syncing, or whose replication position is 0
+  while peers advertise higher ones, does not start elections at all - it could not win anyway.
+
+The PreVote probe rides on the existing `requestVote` command and carries the sender's
+*current* term, so a node older than 6.3.2 reads it as an ordinary same-term request: harmless,
+and its answer still counts toward the majority. **Rolling upgrades therefore work in both
+directions**, mixed clusters included. For a rolling restart, restarting the highest-priority
+node last is still the tidier order - nothing breaks otherwise, that is what these mechanisms
+are for, but it keeps a freshly started, still-syncing node with a priority advantage out of
+the critical path.
 
 ### Programmatic Replica Set Configuration
 
@@ -326,6 +342,21 @@ therefore enforces the same unique constraints and expires TTL documents like th
 
 ### Replication buffer sizing
 
+Two buffers are bounded by bytes as well as by entry count, because every buffered event
+retains its full document - bulk writes of large documents otherwise pin gigabytes of heap:
+
+| Option | Default | Bounds |
+|---|---|---|
+| `--replay-buffer` | `256m` | the change-stream replay buffer backing replication resume |
+| `--event-queue-budget` | `256m` | the secondary's queue of events waiting to be applied |
+
+`0` disables the byte bound and leaves only the count limit. They behave differently on
+overflow, deliberately: the replay buffer evicts its oldest events (a consumer that falls too
+far behind simply re-syncs), while the event queue applies backpressure to the watch reader -
+its events have not been applied yet, so dropping one would be silent data loss on that
+secondary.
+
+
 A secondary that falls behind (network partition, GC pause, slow disk) resumes from its
 last-applied position once it reconnects — but only if the primary's replay buffer still covers
 the gap. If too much has been written while the secondary was disconnected, the primary signals
@@ -362,6 +393,26 @@ PoppyDB can periodically dump all databases to disk and restore them on startup.
 - On startup: If dump files exist in the configured directory, they are automatically restored.
 - During runtime: If `--dump-interval` is set, databases are dumped periodically.
 - On shutdown: A final dump is performed to capture all changes.
+
+The startup restore runs **before** the node joins the replica set, so it never takes part in
+an election while its data is still incomplete. Each dump file is restored on its own: a
+single broken file can no longer abort the rest, and the log always ends with a summary -
+`INFO` when everything came back, an unmissable `WARN` naming the failed files and the
+restored/total counts when it did not. A partially restored node keeps running, so that
+warning is the only thing telling you it did:
+
+    PARTIAL RESTORE on startup: only 6 of 8 databases restored ... Continuing startup WITHOUT
+    the failed databases!
+
+Dumps written before 6.3.2 remain readable - they are read as UTF-8 with a fallback for the
+platform default encoding they were written under, and raw newlines inside string values are
+preserved. Keep old dumps and try them; a restore attempt is cheap and the log says exactly
+what worked.
+
+When a dump directory is configured, the node also persists its Raft term and vote to
+`<dump-dir>/election-state.properties` and reads it back on startup - without it a restarted
+node returns at term 0 and adds to term churn during rolling restarts. A missing or unreadable
+file is never fatal; the node then simply starts clean.
 
 **Quick Start with Persistence:**
 
@@ -698,11 +749,12 @@ only a strictly higher version triggers a new apply. Known exception: the gate r
 replicated meta document, so a node elected primary while still mid-resync — after its local
 `admin.system.version` has been cleared for the resync but before the primary's snapshot has
 landed — sees no meta document and re-applies its own file regardless of version. This is
-possible because nothing currently stops such a node from winning the election in the first
-place — the vote's Raft log check is dead code (see [Replica Set
-Behavior](#replica-set-behavior-experimental) above), so a mid-resync node with an empty local
-log is exactly as electable as a fully caught-up peer. Pre-existing, tracked as a follow-up, not
-a property of the version gate itself.
+possible when such a node wins the election in the first place. Since 6.3.2 that is much
+harder: log-recency voting, PreVote and candidacy restraint (see [Replica Set
+Behavior](#replica-set-behavior-experimental) above) keep a mid-resync node with an empty local
+log out of elections rather than treating it as equally electable. The window is not provably
+gone in every interleaving, so the caveat stays documented - but it is no longer the wide-open
+door it was when the log check had no effect at all.
 
 **Rotation flow:** edit the file (bump `version`), roll out the new file to every node, then
 rolling-restart (or just let the next election re-run the leadership hook, in election mode).

@@ -148,6 +148,27 @@ analysis). The deduplication behavior is unchanged, only the log level.
 
 ### Fixed
 
+#### InMemory dump restore: ORM-written documents made a whole database unrestorable (#306)
+On the customer acceptance environment, 4 of 8 databases could not be restored from freshly
+written dumps — exactly the ones containing ORM-written documents. Those carry a `class_name`,
+which made the restore path run them through the entity-aware `ObjectMapperImpl`
+deserialization: any entity field of a dump-marked type (`Date`, `UUID`, `byte[]`, ids) that
+was *absent* from a document handed `null` to the restore type mapper and NPE'd the entire
+database ("Parsing failed … 'd' is null") — and even without absent fields, entity resolution
+would have replaced the stored document maps with entity objects and dropped their
+`class_name`. The restore now converts the dump payload at the dump boundary itself, without
+any entity resolution: documents stay plain maps (`class_name` preserved as an ordinary
+field), and only the `{class_name, value}` marker maps the dump writer emits are turned back
+into `Date`/`UUID`/`byte[]`/ids. Id markers are read tolerantly — both the
+`org.bson.types.ObjectId` form that every existing dump on production machines contains and
+the `de.caluga.morphium.driver.MorphiumId` form are accepted, and both restore as
+`MorphiumId`, matching what the wire path delivers. The wire and store paths are untouched
+(the store legitimately holds both id types; the translation happens only at the dump
+boundary). Restore failures now name the offending field path and marker type instead of a
+bare "Parsing failed", and `ObjectMapperImpl` itself no longer hands `null` to custom field
+mappers for absent fields (the standard null handling applies instead) and wraps mapper
+failures with the field name, field type and entity class.
+
 #### PoppyDB replication: a freshly-synced node could report log index 0 forever (seed race)
 On a loaded host, a secondary whose initial sync finished fast (consistency shortcut, tiny
 dataset) could permanently report replication position 0 to the election layer despite holding

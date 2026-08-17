@@ -753,10 +753,127 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             json = new String(raw, StandardCharsets.ISO_8859_1);
         }
 
-        ObjectMapperImpl mapper = new ObjectMapperImpl();
-        registerRestoreTypeMappers(mapper);
-        InMemDumpContainer cnt = mapper.deserialize(InMemDumpContainer.class, json);
-        setDatabase(cnt.getDb(), cnt.getData());
+        // The dump is parsed as PLAIN JSON and converted back at the dump boundary
+        // (restoreDumpValue) - deliberately NOT through the entity-aware ObjectMapperImpl.
+        // The store holds plain document maps; the previous restore resolved every document
+        // that carried a class_name (i.e. everything the ORM ever wrote) into an entity
+        // instance, which corrupted the store and NPE'd inside the restore type mappers for
+        // any entity field of a marked type (Date/UUID/byte[]/id) that was absent from the
+        // document ("Parsing failed ... 'd' is null", #306 follow-up).
+        Map<String, Object> root;
+
+        try {
+            root = (Map<String, Object>) new JSONParser().parse(json);
+        } catch (ParseException e) {
+            int pos = e.getPosition();
+            int from = Math.max(0, pos - 40);
+            int to = Math.min(json.length(), pos + 40);
+            throw new RuntimeException("Dump restore failed: invalid JSON at position " + pos + " (" + e + ")"
+                + (from < to ? " - context: ..." + json.substring(from, to).replaceAll("[\\r\\n\\t]", " ") + "..." : ""), e);
+        }
+
+        String db = root.get("db") == null ? null : root.get("db").toString();
+        Object dataObj = root.get("data");
+
+        if (db == null || !(dataObj instanceof Map)) {
+            throw new RuntimeException("Dump restore failed: dump container is missing "
+                + (db == null ? "the 'db' name" : "the 'data' map") + " - not a morphium dump?");
+        }
+
+        Map<String, List<Map<String, Object>>> data = new HashMap<>();
+
+        for (Map.Entry<String, Object> coll : ((Map<String, Object>) dataObj).entrySet()) {
+            if (!(coll.getValue() instanceof List)) {
+                throw new RuntimeException("Dump restore failed: collection '" + coll.getKey() + "' is not a list but "
+                    + (coll.getValue() == null ? "null" : coll.getValue().getClass().getName()));
+            }
+
+            List<Map<String, Object>> docs = new ArrayList<>();
+            int i = 0;
+
+            for (Object o : (List<?>) coll.getValue()) {
+                Object doc = restoreDumpValue(o, coll.getKey() + "[" + i++ + "]");
+
+                if (!(doc instanceof Map)) {
+                    throw new RuntimeException("Dump restore failed: document " + coll.getKey() + "[" + (i - 1)
+                        + "] is not a document but " + (doc == null ? "null" : doc.getClass().getName()));
+                }
+
+                docs.add((Map<String, Object>) doc);
+            }
+
+            data.put(coll.getKey(), docs);
+        }
+
+        setDatabase(db, data);
+    }
+
+    /**
+     * Converts a parsed dump-JSON value back into the driver's storage types. The
+     * {@code {class_name, value}} marker maps written by {@link #writeDumpJson(Object, Writer)}
+     * (and by the ObjectId type mapper of the {@code dump(Morphium, ...)} path) become
+     * Date/UUID/byte[]/MorphiumId again. Ids are read tolerantly: BOTH marker forms are
+     * accepted - {@code org.bson.types.ObjectId} (the form every existing dump contains) and
+     * {@code de.caluga.morphium.driver.MorphiumId} - and both restore as {@link MorphiumId},
+     * which is what the wire path (BsonDecoder) delivers and what queries compare against.
+     * Anything else stays a plain map/list - in particular a document-level {@code class_name}
+     * written by the ORM is kept as an ordinary field and must NOT trigger entity resolution:
+     * the store contains documents, not entity objects.
+     */
+    @SuppressWarnings("unchecked")
+    private Object restoreDumpValue(Object val, String path) {
+        if (val instanceof Map) {
+            Map<String, Object> m = (Map<String, Object>) val;
+            Object cn = m.get("class_name");
+
+            if (cn instanceof String && m.containsKey("value") && m.size() == 2) {
+                Object v = m.get("value");
+
+                try {
+                    switch ((String) cn) {
+                        case "org.bson.types.ObjectId":
+                        case "de.caluga.morphium.driver.MorphiumId":
+                            return new MorphiumId(v.toString());
+
+                        case "java.util.Date":
+                            return new Date(v instanceof Number ? ((Number) v).longValue() : Long.parseLong(v.toString()));
+
+                        case "java.util.UUID":
+                            return UUID.fromString(v.toString());
+
+                        case "[B":
+                            return Base64.getDecoder().decode(v.toString());
+
+                        default:
+                            break; // no marker type - a document that happens to have these two fields
+                    }
+                } catch (RuntimeException e) {
+                    throw new RuntimeException("Dump restore failed at '" + path + "': cannot restore a value of type "
+                        + cn + " from " + v, e);
+                }
+            }
+
+            Map<String, Object> ret = new LinkedHashMap<>();
+
+            for (Map.Entry<String, Object> e : m.entrySet()) {
+                ret.put(e.getKey(), restoreDumpValue(e.getValue(), path + "." + e.getKey()));
+            }
+
+            return ret;
+        }
+
+        if (val instanceof List) {
+            List<Object> ret = new ArrayList<>(((List<?>) val).size());
+            int i = 0;
+
+            for (Object o : (List<?>) val) {
+                ret.add(restoreDumpValue(o, path + "[" + i++ + "]"));
+            }
+
+            return ret;
+        }
+
+        return val;
     }
 
     public void restoreFromFile(File f) throws IOException, ParseException {
@@ -1033,58 +1150,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // numbers, booleans
             out.write(o.toString());
         }
-    }
-
-    /**
-     * Registers the type mappers that turn the class_name-marked maps written by
-     * {@link #writeDumpJson(Object, Writer)} back into the driver's storage types on restore.
-     * ObjectId markers deliberately restore as {@link MorphiumId}: that is what the wire
-     * protocol decodes ids to (BsonDecoder) and what queries and deletes compare against -
-     * restoring them as Strings (the pre-#306 behavior) made documents unfindable by id after
-     * a server restart.
-     */
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    private void registerRestoreTypeMappers(ObjectMapperImpl mapper) {
-        mapper.registerCustomMapperFor(ObjectId.class, (MorphiumTypeMapper) new MorphiumTypeMapper<Object>() {
-            @Override
-            public Object marshall(Object o) {
-                return getObjectIdTypeMapper().marshall((ObjectId) o);
-            }
-            @Override
-            public Object unmarshall(Object d) {
-                return new MorphiumId(((Map <?, ? >) d).get("value").toString());
-            }
-        });
-        mapper.registerCustomMapperFor(Date.class, new MorphiumTypeMapper<Date>() {
-            @Override
-            public Object marshall(Date o) {
-                return Doc.of("class_name", "java.util.Date", "value", o.getTime());
-            }
-            @Override
-            public Date unmarshall(Object d) {
-                return new Date(((Number) ((Map <?, ? >) d).get("value")).longValue());
-            }
-        });
-        mapper.registerCustomMapperFor(UUID.class, new MorphiumTypeMapper<UUID>() {
-            @Override
-            public Object marshall(UUID o) {
-                return Doc.of("class_name", "java.util.UUID", "value", o.toString());
-            }
-            @Override
-            public UUID unmarshall(Object d) {
-                return UUID.fromString(((Map <?, ? >) d).get("value").toString());
-            }
-        });
-        mapper.registerCustomMapperFor(byte[].class, new MorphiumTypeMapper<byte[]>() {
-            @Override
-            public Object marshall(byte[] o) {
-                return Doc.of("class_name", "[B", "value", Base64.getEncoder().encodeToString(o));
-            }
-            @Override
-            public byte[] unmarshall(Object d) {
-                return Base64.getDecoder().decode(((Map <?, ? >) d).get("value").toString());
-            }
-        });
     }
 
     @Override

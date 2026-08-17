@@ -1110,13 +1110,6 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     continue;
                 }
 
-                MorphiumTypeMapper fieldMapper = customMappers.get(fldType);
-
-                if (fieldMapper != null) {
-                    fld.set(ret, fieldMapper.unmarshall(valueFromDb));
-                    continue;
-                }
-
                 if (fld.isAnnotationPresent(Aliases.class) && valueFromDb == null) {
                     Aliases al = fld.getAnnotation(Aliases.class);
 
@@ -1126,6 +1119,24 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                             break;
                         }
                     }
+                }
+
+                MorphiumTypeMapper fieldMapper = customMappers.get(fldType);
+
+                // A custom mapper must never be handed a null value: a field that is absent
+                // from the document would NPE inside the mapper ("Parsing failed ... 'd' is
+                // null", #306). Null falls through to the standard null handling below, which
+                // keeps the default value or sets null just like for unmapped field types.
+                if (fieldMapper != null && valueFromDb != null) {
+                    try {
+                        fld.set(ret, fieldMapper.unmarshall(valueFromDb));
+                    } catch (Exception e) {
+                        throw new RuntimeException("Deserialization failed for field '" + f + "' (type "
+                            + fldType.getName() + ") of " + cls.getName()
+                            + ": custom mapper could not unmarshall value " + valueFromDb, e);
+                    }
+
+                    continue;
                 }
 
                 if (fld.isAnnotationPresent(AdditionalData.class)) {
