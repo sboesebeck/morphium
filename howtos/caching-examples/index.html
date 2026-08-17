@@ -2157,7 +2157,7 @@
 </span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">MessagingCacheSynchronizer</span><span class="w"> </span><span class="n">sync</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MessagingCacheSynchronizer</span><span class="p">(</span><span class="n">messaging</span><span class="p">,</span><span class="w"> </span><span class="n">morphium</span><span class="p">);</span>
 </span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
 </span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="c1">// Optional: send a manual clear‑all</span>
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="n">sync</span><span class="p">.</span><span class="na">sendClearAllMessage</span><span class="p">(</span><span class="s">&quot;maintenance&quot;</span><span class="p">);</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="n">sync</span><span class="p">.</span><span class="na">sendClearAllMessage</span><span class="p">(</span><span class="s">"maintenance"</span><span class="p">);</span>
 </span></code></pre></div></p>
 <p>3b) Cross‑node cache synchronization — watching (change‑stream‑driven)
 <div class="language-java highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1">// Watches the cached collections directly via a MongoDB Change Stream — no</span>

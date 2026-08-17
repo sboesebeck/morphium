@@ -3080,7 +3080,7 @@ directed messages and answers — the second cursor is what actually gives <code
 its capacity edge over Standard, not the per-topic split, and this isolates just that one mechanism
 on top of an otherwise unmodified Standard core.</p>
 <p>Enable it with a one-line config change:</p>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">messagingSettings</span><span class="p">().</span><span class="na">setMessagingImplementation</span><span class="p">(</span><span class="s">&quot;DualChannelMessaging&quot;</span><span class="p">);</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">messagingSettings</span><span class="p">().</span><span class="na">setMessagingImplementation</span><span class="p">(</span><span class="s">"DualChannelMessaging"</span><span class="p">);</span>
 </span></code></pre></div>
 <p>Measured on MongoDB under sustained overload: <strong>+9% throughput and ~33% lower p50 latency than
 Standard</strong>, without <code>MultiCollectionMessaging</code>'s runaway-RTT failure mode under overload. On
