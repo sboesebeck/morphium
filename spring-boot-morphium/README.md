@@ -45,7 +45,7 @@ for Java -- with full **Jakarta Data 1.0** repository support.
 |---|---|
 | Java | 21 |
 | Spring Boot | 3.4.x |
-| Morphium | 6.2.2 ([sboesebeck/morphium](https://github.com/sboesebeck/morphium)) |
+| Morphium | 6.3.2-SNAPSHOT (built in lockstep as part of the [sboesebeck/morphium](https://github.com/sboesebeck/morphium) reactor) |
 
 ## Installation
 
@@ -59,8 +59,8 @@ Add the starter to your `pom.xml`:
 </dependency>
 ```
 
-In the Morphium reactor, `${project.version}` currently resolves to `6.3.2-SNAPSHOT`.
-This module follows Morphium's regular release versioning -- there is no independent
+The Morphium reactor's `${project.version}` is currently 6.3.2-SNAPSHOT. This module
+follows Morphium's regular release versioning -- there is no independent
 version to pin beyond the reactor version.
 
 > **Note:** Until published to Maven Central, build the reactor locally:
