@@ -780,11 +780,21 @@ public class ReplicationFailClosedTest {
         assertTrue(poll(10_000, () -> primaryA.getDriver().count(DB, COLL, Doc.of(), null, null) == 0),
             "churn delete must land on the primary");
         insertFixedDocs(primaryA, DOCS, "chk");
+        // The primary's writes are done synchronously above, so this is the sequence the
+        // follower has to reach for the churn to be fully applied.
+        long primarySeqAfterChurn = primaryA.getDriver().getChangeStreamSequence();
 
-        assertTrue(poll(30_000, () -> localCount() == DOCS),
-            "follower must reconverge to the re-inserted batch (got " + localCount() + ")");
-        assertTrue(poll(5_000, () -> rm.getLastAppliedSequence() > 0),
-            "lastAppliedSequence must have advanced past 0");
+        // Waiting on localCount() alone does NOT establish that: it is already true while the
+        // churn is still unapplied, because the follower then simply still holds the FIRST
+        // batch - same count, wrong state. Capturing n there yields the un-inflated 20 (the
+        // later adoption assertion then compares 20 < 20), or freezes the follower mid-churn
+        // so a deleted document is lost for good and the final convergence can never reach
+        // 2*DOCS. Both failure modes were seen on the loaded CI runner.
+        assertTrue(poll(30_000, () -> rm.getLastAppliedSequence() >= primarySeqAfterChurn
+                && localCount() == DOCS),
+            "follower must fully apply the churn before N is captured (primary seq="
+                + primarySeqAfterChurn + ", applied=" + rm.getLastAppliedSequence()
+                + ", count=" + localCount() + ")");
         long n = rm.getLastAppliedSequence(); // the OLD primary's high, churn-inflated counter
 
         primaryA.getDriver().setChangeStreamHistoryLimit(2);
