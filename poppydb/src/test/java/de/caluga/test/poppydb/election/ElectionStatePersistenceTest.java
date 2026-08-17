@@ -135,6 +135,59 @@ public class ElectionStatePersistenceTest {
     }
 
     @Test
+    void emptyStateFileIsQuarantinedNotTreatedAsTermZero() throws Exception {
+        // Properties.load() happily parses an EMPTY (e.g. truncated-to-nothing) file, and a
+        // getProperty default would turn it into "term 0, never voted" - the exact reset the
+        // unreadable-file quarantine exists to prevent. An existing file that lost its content
+        // is as suspicious as one that cannot be parsed.
+        Path stateFile = tempDir.resolve("empty.properties");
+        Files.writeString(stateFile, "");
+
+        ElectionManager manager = node(persistingConfig(stateFile));
+
+        VoteResponse response = manager.handleVoteRequest(new VoteRequest(7, "candidate:27017", 0, 0));
+        assertFalse(response.isVoteGranted(),
+                "an existing but EMPTY state file must be quarantined like an unparsable one - "
+                        + "treating it as term 0 reopens the double-voting hole");
+    }
+
+    @Test
+    void truncatedStateFileMissingVotedForIsQuarantined() throws Exception {
+        // A partially preserved file that kept its currentTerm line but lost the votedFor line
+        // parses fine - but the node may have voted in that very term. The persisted schema is
+        // mandatory: every write contains currentTerm, votedFor (explicitly empty when null)
+        // and a checksum, so a file missing any of them is not OUR complete write.
+        Path stateFile = tempDir.resolve("truncated.properties");
+        Files.writeString(stateFile, "currentTerm=7\n");
+
+        ElectionManager manager = node(persistingConfig(stateFile));
+
+        VoteResponse response = manager.handleVoteRequest(new VoteRequest(7, "other:27017", 0, 0));
+        assertFalse(response.isVoteGranted(),
+                "a state file with currentTerm but without votedFor/checksum is an incomplete write "
+                        + "- the vote for term 7 may already be gone, it must not be re-granted");
+    }
+
+    @Test
+    void tamperedStateFileFailsChecksumAndIsQuarantined() throws Exception {
+        // Full roundtrip, then flip the persisted term: the checksum no longer matches, so the
+        // file must be treated as unreadable instead of trusted.
+        Path stateFile = tempDir.resolve("tampered.properties");
+
+        ElectionManager first = node(persistingConfig(stateFile));
+        assertTrue(first.handleVoteRequest(new VoteRequest(7, "candidate:27017", 0, 0)).isVoteGranted());
+        first.stop();
+
+        String content = Files.readString(stateFile);
+        Files.writeString(stateFile, content.replace("currentTerm=7", "currentTerm=3"));
+
+        ElectionManager restarted = node(persistingConfig(stateFile));
+        VoteResponse response = restarted.handleVoteRequest(new VoteRequest(7, "other:27017", 0, 0));
+        assertFalse(response.isVoteGranted(),
+                "a state file whose checksum does not match its content must be quarantined");
+    }
+
+    @Test
     void heartbeatMustNotOverwriteAnUnreadableStateFile() throws Exception {
         // The quarantine must not be self-defeating: after an unreadable file is detected, a
         // heartbeat with a higher term used to run becomeFollower() -> persistElectionState(),

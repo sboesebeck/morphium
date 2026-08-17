@@ -171,9 +171,15 @@ perfectly readable on the next restart, silently lifting the quarantine while th
 earlier vote stays lost (the untouched file is also the operator's evidence). And "durable"
 now means durable across power/kernel failures too, not just JVM crashes: the state write
 fsyncs the tmp file before the atomic rename and the parent directory after it (directory
-fsync best-effort, since not every platform supports it). Bare term adoption stays best-effort
-by design: losing an adopted term to a crash costs no safety, because every grant re-persists
-both values or is denied.
+fsync best-effort, since not every platform supports it). The persisted state also carries a
+mandatory schema now — `currentTerm`, an *explicitly empty* `votedFor` when no vote is held,
+and a CRC32 checksum over both — and a file missing any key or failing the checksum is
+quarantined like an unparsable one: `Properties.load()` happily parses an empty or truncated
+file, and the old `getProperty("currentTerm", "0")` default would have quietly turned "file
+lost its content" (possibly including the votedFor line for a term whose vote is already
+given away) into "term 0, never voted". Bare term adoption stays best-effort by design:
+losing an adopted term to a crash costs no safety, because every grant re-persists both
+values or is denied.
 
 #### PoppyDB election: the partial-restore candidacy guard was never released in election mode (#306)
 A node that starts with an incomplete dump restore is barred from candidacy until an
@@ -185,11 +191,19 @@ mode replicates through `startReplicationToLeader()`, which had no sync-completi
 all. So the guarded node synced fine and then stayed barred forever: with an intact primary A
 and partially-restored B and C, everything worked until A died — then B and C refused every
 candidacy and the cluster stayed without a primary despite both holding full authoritative
-copies. `ReplicationManager` now exposes an `onInitialSyncComplete` hook, fired exactly when
-an initial sync completes (never on mere replication start — a guard released early would be
-no guard at all; idempotent, since a resync completing later fires it again), and both
-replication paths wire it to the release — which also fixes the static path's own gap of a
-sync finishing only after the bounded 30s wait had given up.
+copies. `ReplicationManager` now exposes an `onInitialSyncComplete` hook wired by both
+replication paths to the release — which also fixes the static path's own gap of a sync
+finishing only after the bounded 30s wait had given up. The hook's firing point is
+deliberately *not* the gate-opening moment: "initial sync complete" there only means the
+snapshot is copied, while the change events buffered during it (up to 100k) are still queued
+— a guard released that early hands candidacy back to a node that is measurably behind, and
+if the primary dies inside that window the node can win the election while its stop()-time
+flush only applies a single further batch. The sync thread therefore only *arms* the
+notification and the batch processor fires it once the backlog has actually drained — and
+only while that manager is still running: a superseded `ReplicationManager`'s sync thread can
+outlive `stop()` by design (bounded 5s join) and complete its snapshot against a primary that
+no longer leads, so a stopped manager never fires, and the receiving side additionally
+ignores completions from any manager instance that is no longer the current one.
 
 #### PoppyDB election: vote responses from earlier rounds were credited to the current PreVote round (#306)
 `handleVoteResponse()` tallied every incoming grant into whatever round happened to be open —

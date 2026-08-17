@@ -1007,9 +1007,13 @@ public class PoppyDB {
         // waitForInitialSync) - this path, the one election mode actually takes, never lifted
         // it, so a partially-restored node stayed barred from candidacy FOREVER even after a
         // complete authoritative sync; when the primary later died, the cluster stayed without
-        // one. The completion hook fires exactly when an initial sync has COMPLETED (never on
-        // mere replication start - a guard released early would be no guard at all).
-        newReplicationManager.setOnInitialSyncComplete(this::releaseDataCompleteAfterSync);
+        // one. The completion hook fires only once an initial sync has COMPLETED and its
+        // buffered backlog has drained (see ReplicationManager#maybeFireSyncCompleteNotify) -
+        // never on mere replication start, since a guard released early would be no guard at
+        // all. The callback is bound to THIS manager instance so a superseded manager firing
+        // late cannot release the guard on the strength of a stale sync.
+        newReplicationManager.setOnInitialSyncComplete(
+                () -> releaseDataCompleteAfterSync(newReplicationManager));
         try {
             newReplicationManager.start();
             replicationManager = newReplicationManager;
@@ -1633,8 +1637,10 @@ public class PoppyDB {
             // Same completion hook as the election path (startReplicationToLeader): the
             // partial-restore guard is released by actual sync COMPLETION, wherever and
             // whenever that happens - including a sync that finishes only after the bounded
-            // wait below has given up (#306 review, P1-2).
-            replicationManager.setOnInitialSyncComplete(this::releaseDataCompleteAfterSync);
+            // wait below has given up (#306 review, P1-2). Instance-bound like there.
+            ReplicationManager staticModeManager = replicationManager;
+            staticModeManager.setOnInitialSyncComplete(
+                    () -> releaseDataCompleteAfterSync(staticModeManager));
             replicationManager.start();
 
             // Wait for initial sync (up to 30 seconds)
@@ -1735,13 +1741,29 @@ public class PoppyDB {
 
     /**
      * ReplicationManager's initial-sync-completion hook (#306 review, P1-2): an authoritative
-     * copy from the primary has fully replaced whatever the local restore produced, so a node
-     * held back for an incomplete restore may stand for election again. Idempotent - a resync
-     * completing later fires it again, harmlessly.
+     * copy from the primary has fully replaced whatever the local restore produced - snapshot
+     * AND the backlog buffered during it (the hook only fires once both are done, see
+     * {@code ReplicationManager#maybeFireSyncCompleteNotify}) - so a node held back for an
+     * incomplete restore may stand for election again. Idempotent - a resync completing later
+     * fires it again, harmlessly.
+     *
+     * <p>{@code source} is the manager the callback was registered on. A superseded manager
+     * must not release the guard (its sync ran against a primary that may no longer lead), so
+     * anything other than the CURRENT manager is ignored. Deliberately an unsynchronized
+     * volatile read, not the PoppyDB monitor: this runs on the manager's batch thread, and
+     * {@code stop()} - which waits on that very thread - is called under the monitor;
+     * taking it here could deadlock shutdown. The primary defense against a stale manager is
+     * its own running-flag gate in {@code maybeFireSyncCompleteNotify}; this check is the
+     * belt to that suspenders.
      */
-    private void releaseDataCompleteAfterSync() {
+    private void releaseDataCompleteAfterSync(ReplicationManager source) {
+        if (source != replicationManager) {
+            log.debug("Ignoring initial-sync completion from a superseded ReplicationManager");
+            return;
+        }
+
         if (!localDataComplete) {
-            log.info("Initial sync completed - local data is authoritative again, "
+            log.info("Initial sync completed (backlog drained) - local data is authoritative again, "
                     + "this node may stand for election");
             setLocalDataComplete(true);
         }

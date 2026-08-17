@@ -1390,10 +1390,35 @@ public class ElectionManager {
         try (InputStream in = Files.newInputStream(path)) {
             Properties props = new Properties();
             props.load(in);
-            long term = Long.parseLong(props.getProperty("currentTerm", "0"));
-            String voted = props.getProperty("votedFor");
+
+            // Mandatory schema (#306 P1-1 follow-up): every write of ours contains ALL THREE
+            // keys - currentTerm, votedFor (explicitly empty when null) and a checksum over
+            // both. Properties.load() parses an empty or truncated file without complaint, and
+            // a getProperty default would quietly turn "file lost its content" into "term 0,
+            // never voted" - the exact reset the quarantine exists to prevent. A file missing
+            // any key, or failing the checksum, is not a complete write of ours and is
+            // quarantined like an unparsable one.
+            String termProp = props.getProperty("currentTerm");
+            String votedProp = props.getProperty("votedFor");
+            String checksumProp = props.getProperty("checksum");
+
+            if (termProp == null || votedProp == null || checksumProp == null) {
+                throw new IllegalStateException("incomplete state file: mandatory key(s) missing ("
+                        + (termProp == null ? "currentTerm " : "")
+                        + (votedProp == null ? "votedFor " : "")
+                        + (checksumProp == null ? "checksum" : "").trim() + ")");
+            }
+
+            long term = Long.parseLong(termProp.trim());
+            String voted = votedProp.isEmpty() ? null : votedProp;
+
+            if (!checksumProp.equals(stateChecksum(term, voted))) {
+                throw new IllegalStateException("state file checksum mismatch (stored " + checksumProp
+                        + ", computed " + stateChecksum(term, voted) + ")");
+            }
+
             currentTerm.set(term);
-            votedFor = (voted == null || voted.isEmpty()) ? null : voted;
+            votedFor = voted;
             log.info("{} restored persisted election state from {}: term={}, votedFor={}",
                     myAddress, path, term, votedFor);
         } catch (Exception e) {
@@ -1425,6 +1450,18 @@ public class ElectionManager {
      * @return true if the state is durable (or persistence is not configured - nothing was
      *         promised), false if the write failed
      */
+    /**
+     * Integrity checksum over the two persisted values (CRC32 of {@code term|votedFor}).
+     * Detects truncated or tampered state files that still parse as valid Properties - see
+     * the mandatory-schema comment in {@link #loadPersistedState()}.
+     */
+    private static String stateChecksum(long term, String votedFor) {
+        java.util.zip.CRC32 crc = new java.util.zip.CRC32();
+        crc.update((term + "|" + (votedFor == null ? "" : votedFor))
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        return Long.toHexString(crc.getValue());
+    }
+
     private boolean persistElectionState() {
         if (!isPersistenceEnabled()) {
             return true;
@@ -1445,11 +1482,12 @@ public class ElectionManager {
 
         Path path = Path.of(config.getStatePersistencePath());
         Properties props = new Properties();
+        // Mandatory schema, mirrored by loadPersistedState(): all three keys are ALWAYS
+        // written - votedFor explicitly empty (not omitted) when null - so a file missing any
+        // of them is provably not a complete write of ours and gets quarantined on load.
         props.setProperty("currentTerm", Long.toString(currentTerm.get()));
-
-        if (votedFor != null) {
-            props.setProperty("votedFor", votedFor);
-        }
+        props.setProperty("votedFor", votedFor == null ? "" : votedFor);
+        props.setProperty("checksum", stateChecksum(currentTerm.get(), votedFor));
 
         try {
             if (path.getParent() != null) {

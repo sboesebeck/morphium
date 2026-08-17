@@ -288,6 +288,16 @@ public class ReplicationManager {
     // idempotent.
     private volatile Runnable onInitialSyncComplete;
 
+    // Arms the completion notification (#306 review follow-up): the gate-opening moment only
+    // means "snapshot copied, apply gate open" - the events buffered in eventQueue during the
+    // snapshot (up to 100k) are NOT applied yet, and a guard released before they are would be
+    // released onto a node that is still measurably behind. So the sync success block only
+    // ARMS this flag; the batch processor fires the callback once the queue has actually
+    // drained (and only while running - a stopped manager's late sync thread can arm it, but
+    // nothing will ever fire it, which is exactly right for a superseded manager).
+    // Package-visible for tests.
+    final AtomicBoolean syncCompleteNotifyPending = new AtomicBoolean(false);
+
     // RS-internal connection security, set once via setInternalConnectionSecurity() before
     // start() - see docs/superpowers/specs/2026-08-05-poppydb-rs-internal-auth-tls-design.md.
     // Defaults (auth off, no SSL context) reproduce today's plaintext/unauthenticated behavior.
@@ -606,6 +616,7 @@ public class ReplicationManager {
             // ElectionManager within one tick instead of never. updateLogIndex is
             // monotonic-max, so re-reporting the same value every tick is a harmless no-op.
             reportLogIndexToElection();
+            maybeFireSyncCompleteNotify();
             return;
         }
 
@@ -613,6 +624,7 @@ public class ReplicationManager {
 
         if (batch.isEmpty()) {
             reportLogIndexToElection();
+            maybeFireSyncCompleteNotify();
             return;
         }
 
@@ -620,11 +632,60 @@ public class ReplicationManager {
 
         // Notify about log index update for election consistency
         reportLogIndexToElection();
+        maybeFireSyncCompleteNotify();
 
         // Immediately report progress after processing batch for faster write concern acknowledgment
         if (immediateProgressReporting) {
             reportProgressToPrimary();
         }
+    }
+
+    /**
+     * Fires the armed initial-sync-completion notification once it is actually TRUE end to
+     * end - see {@link #syncCompleteNotifyPending}. Called from the batch processor thread
+     * only. Package-visible for tests.
+     */
+    void maybeFireSyncCompleteNotify() {
+        if (!syncCompleteNotifyPending.get()) {
+            return;
+        }
+
+        // All three must hold before the armed notification may fire:
+        // - running: a stopped (superseded) manager's late sync thread can still ARM the flag,
+        //   but its sync ran against a primary that may no longer lead - nothing may fire it;
+        // - initialSyncComplete: a resync in between closed the gate again - wait for it;
+        // - empty queue: the backlog buffered during the snapshot must actually be APPLIED,
+        //   or the "authoritative copy" the receiver acts on is still measurably behind.
+        if (!running.get() || !initialSyncComplete.get() || !eventQueue.isEmpty()) {
+            return;
+        }
+
+        if (!syncCompleteNotifyPending.compareAndSet(true, false)) {
+            return;
+        }
+
+        Runnable hook = onInitialSyncComplete;
+
+        if (hook != null) {
+            try {
+                hook.run();
+            } catch (Exception e) {
+                log.warn("onInitialSyncComplete callback failed: {}", e.getMessage(), e);
+            }
+        }
+    }
+
+    /**
+     * Test seam: puts an event into the apply queue exactly like the watch callback does,
+     * without a live change stream.
+     */
+    void enqueueEventForTest(Map<String, Object> event) throws InterruptedException {
+        eventQueue.put(new QueuedEvent(event, 0));
+    }
+
+    /** Test seam: drops all buffered events, as if the batch processor had applied them. */
+    void clearEventQueueForTest() {
+        eventQueue.clear();
     }
 
     /**
@@ -1372,17 +1433,16 @@ public class ReplicationManager {
                         initialSyncComplete.set(true);
                         initialSyncLatch.countDown();
 
-                        // An authoritative copy has fully arrived - the one moment the
-                        // completion hook exists for (see the field's comment). Guarded so a
-                        // callback failure cannot kill the sync thread.
-                        Runnable syncCompleteHook = onInitialSyncComplete;
-                        if (syncCompleteHook != null) {
-                            try {
-                                syncCompleteHook.run();
-                            } catch (Exception e) {
-                                log.warn("onInitialSyncComplete callback failed: {}", e.getMessage(), e);
-                            }
-                        }
+                        // Arm the completion notification - do NOT fire it here (#306 review
+                        // follow-up): "sync complete" at this point only means the snapshot is
+                        // copied and the apply gate is open; the events buffered during the
+                        // snapshot are still in eventQueue. The batch processor fires the
+                        // callback once that backlog has drained (see
+                        // maybeFireSyncCompleteNotify), and only while this manager is still
+                        // running - firing from THIS thread would also break stop()'s
+                        // documented invariant that the sync thread never calls back into
+                        // PoppyDB (whose monitor stop() holds while joining this thread).
+                        syncCompleteNotifyPending.set(true);
 
                         // Seed the election layer's view of our replication position now that we
                         // hold the primary's dataset (either path: full snapshot or consistency
