@@ -6,6 +6,7 @@ import org.bson.types.ObjectId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -80,7 +81,7 @@ public final class IndexKey {
         List<Object> normalized = new ArrayList<>(values.size());
         boolean containsList = false;
         for (Object v : values) {
-            normalized.add(normalizeIdValue(v));
+            normalized.add(freeze(normalizeIdValue(v)));
             containsList |= v instanceof List;
         }
         return new IndexKey(Collections.unmodifiableList(normalized), containsList);
@@ -135,7 +136,7 @@ public final class IndexKey {
         boolean[] sawMidPathList = new boolean[1];
         boolean containsList = false;
         for (String field : def.fields()) {
-            Object value = extractValue(doc, field, sawMidPathList);
+            Object value = freeze(extractValue(doc, field, sawMidPathList));
             values.add(value);
             containsList |= value instanceof List;
         }
@@ -166,6 +167,46 @@ public final class IndexKey {
         }
 
         return current == null ? MISSING : normalizeIdValue(current);
+    }
+
+    /**
+     * Snapshots mutable container values so a key's content - and with it its hash - can never
+     * change after the key has been filed as a {@code HashMap} key in an index bucket map.
+     *
+     * <p>The driver mutates documents <em>in place</em>: {@code $push}/{@code $addToSet} append
+     * to the very {@code List} instance stored in the document, and a dotted-path {@code $set}
+     * writes into the nested {@code Map}. Keeping those live instances inside the key (as this
+     * class did until #303) makes every already-filed key unreachable the moment the document is
+     * updated: {@code byKey.get(oldKey)} either misses the bin or fails {@code equals} against
+     * the mutated stored key, so the bucket - and the document in it - can never be removed
+     * again. On a message bus, where every message gets a {@code processed_by} push before it is
+     * deleted, that leaks the full payload of every processed message.
+     *
+     * <p>The copy is deep, because nested containers are mutated the same way. For the common
+     * scalar-valued index this costs one {@code instanceof} check per extraction.
+     */
+    private static Object freeze(Object v) {
+        if (v instanceof List<?> list) {
+            List<Object> copy = new ArrayList<>(list.size());
+
+            for (Object element : list) {
+                copy.add(freeze(element));
+            }
+
+            return Collections.unmodifiableList(copy);
+        }
+
+        if (v instanceof Map<?, ?> map) {
+            Map<Object, Object> copy = new LinkedHashMap<>();
+
+            for (Map.Entry<?, ?> e : map.entrySet()) {
+                copy.put(e.getKey(), freeze(e.getValue()));
+            }
+
+            return Collections.unmodifiableMap(copy);
+        }
+
+        return v;
     }
 
     /**
@@ -306,13 +347,15 @@ public final class IndexKey {
                     + " values but the index only has " + fields.size() + " fields: " + fields);
         }
         List<Object> values = new ArrayList<>(fields.size());
-        // Same normalization as of()/extract() - stored keys hold the normalized form, so a
-        // synthetic bound built from a raw query value (e.g. a MorphiumId) MUST normalize too,
-        // or the bound sorts outside the real key range and the range scan silently returns a
-        // wrong (possibly empty, possibly inverted) slice. All three key-construction paths go
-        // through normalizeIdValue so they cannot drift.
+        // Same normalization AND freezing as of()/extract() - stored keys hold the normalized,
+        // frozen form, so a synthetic bound built from a raw query value (e.g. a MorphiumId, or
+        // a list whose runtime class the comparator's type-name fallback would order against
+        // the frozen stored keys) MUST go through both too, or the bound sorts outside the real
+        // key range and the range scan silently returns a wrong (possibly empty, possibly
+        // inverted) slice. All three key-construction paths share these two steps so they
+        // cannot drift.
         for (Object v : prefixValues) {
-            values.add(normalizeIdValue(v));
+            values.add(freeze(normalizeIdValue(v)));
         }
 
         for (int i = prefixValues.size(); i < fields.size(); i++) {

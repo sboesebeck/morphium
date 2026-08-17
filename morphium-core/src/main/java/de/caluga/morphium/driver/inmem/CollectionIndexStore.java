@@ -330,6 +330,24 @@ public class CollectionIndexStore {
     }
 
     /**
+     * Total number of document references currently held across every index bucket - diagnostics
+     * only. A document indexed by N indexes counts N times. A store whose collection has been
+     * emptied must report 0; anything else means some removal no-opped and the documents are
+     * leaked (see #303).
+     */
+    int totalIndexedEntries() {
+        int total = 0;
+
+        for (IndexEntry entry : indexesByName.values()) {
+            for (List<Map<String, Object>> bucket : entry.byKey.values()) {
+                total += bucket.size();
+            }
+        }
+
+        return total;
+    }
+
+    /**
      * True if a document with {@code id} as its {@code _id} is currently registered in the
      * built-in unique {@code _id_} index - a single O(1) hash lookup, no scan. {@code id} is
      * normalized the same way stored keys are (see {@link IndexKey#of}), so a

@@ -121,6 +121,23 @@ analysis). The deduplication behavior is unchanged, only the log level.
 
 ### Fixed
 
+#### InMemoryDriver/PoppyDB: index buckets leaked every deleted document whose indexed array or sub-document had been updated (#303)
+A PoppyDB message bus ran its 12 GB heap over the watermark and rejected all writes for ~36h;
+the dump showed a single `CollectionIndexStore` retaining 10.5 GB in 34,859 long-deleted
+documents. The cause was an index key that keeps changing after it has been filed: `IndexKey`
+stored the document's own `List`/`Map` instance as the key's value while `equals`/`hashCode`
+are content-based, and the driver mutates documents in place — `$push`/`$addToSet` append to
+that very list, a dotted-path `$set` writes into that very map. The key is a `HashMap` key in
+the bucket map, so the moment the document is updated, the filed key no longer matches: the
+lookup either misses the bin or fails `equals` against the mutated stored key, removal
+silently no-ops, and the bucket keeps the document forever. Messaging is the perfect trigger —
+every message is inserted with an empty `processed_by` list (part of five of `Msg`'s indexes)
+and gets a push on it before being deleted, so every processed message leaked its full
+payload. Keys now snapshot mutable container values deeply when they are extracted, which
+keeps hash, `equals` and the comparator consistent for the key's whole lifetime. Note this was
+*not* the reference-identity removal suspected in the issue: every caller of `onRemove` passes
+the live document, and the bucket iteration that compares by identity is never even reached.
+
 #### Messaging listener registration could silently drop listeners (and throw an NPE)
 `SingleCollectionMessaging` and `DualChannelMessaging` published their topic→listener map
 lock-free to the poll thread, which is why it was only ever written by clone-and-swap on a
