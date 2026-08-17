@@ -40,7 +40,9 @@ public class ReplicationManager {
     private final InMemoryDriver localDriver;
     private final String primaryHost;
     private final int primaryPort;
-    private final AtomicBoolean running = new AtomicBoolean(false);
+    // Package-visible so ReplicationEventQueueByteBudgetTest can exercise the byte-budget
+    // backpressure without a live replication connection - the wait loop keys off this flag.
+    final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicBoolean connected = new AtomicBoolean(false);
     private final AtomicLong eventsApplied = new AtomicLong(0);
     private final AtomicLong lastEventTime = new AtomicLong(0);
@@ -219,7 +221,35 @@ public class ReplicationManager {
     // Bounded so a stalled batch processor applies backpressure to the watch callback
     // (via put()) instead of buffering replication events until OOM.
     private static final int EVENT_QUEUE_CAPACITY = 100_000;
-    private final BlockingQueue<Map<String, Object>> eventQueue = new LinkedBlockingQueue<>(EVENT_QUEUE_CAPACITY);
+    private final BlockingQueue<QueuedEvent> eventQueue = new LinkedBlockingQueue<>(EVENT_QUEUE_CAPACITY);
+
+    /**
+     * A queued replication event plus its estimated size, measured exactly once at enqueue time
+     * (see {@link InMemoryDriver#estimateBsonSize}) so the byte accounting adds and subtracts
+     * the very same value at every queue mutation site.
+     */
+    private record QueuedEvent(Map<String, Object> event, long estimatedBytes) {}
+
+    // Byte budget for eventQueue (estimated bytes; 0 = off - PoppyDB opts in with a 256m
+    // default, --event-queue-budget). The count capacity alone does not bound memory: every
+    // queued event retains its full document, so 100k ~300KB bulk-export events blow any heap
+    // (same failure family as the replay-buffer incident, commit 88acb76b0). Unlike the replay
+    // buffer, overflow must NOT evict here - queued events are not yet applied, dropping one is
+    // silent data loss on this secondary. Instead the budget extends the existing count
+    // backpressure to bytes: the producer (watch callback) blocks in enqueueReplicationEvent()
+    // until the consumer's drain frees budget.
+    private volatile long eventQueueByteBudget = 0;
+    // Estimated bytes currently queued (sum of QueuedEvent.estimatedBytes). Maintained at every
+    // queue mutation site: enqueue adds after a successful put, every drain subtracts the exact
+    // per-event values it removed - so the counter converges to the queue's true content even
+    // across a resync discard racing the producer.
+    private final AtomicLong eventQueueBytes = new AtomicLong();
+    // Monotonic count of enqueues that had to wait on the byte budget (diagnostic, in getStats()).
+    private final AtomicLong eventQueueBytePressureCount = new AtomicLong();
+    // Rate limit for the byte-backpressure WARN log (at most one per minute).
+    private volatile long lastBytePressureWarnAt = 0;
+    // Monitor for byte-budget waits: the producer waits here, releaseEventQueueBytes() notifies.
+    private final Object eventQueueByteLock = new Object();
     // volatile: written by start()/stop(), read by the watch-callback thread in
     // requestFlush() with no happens-before edge between them
     private volatile ScheduledExecutorService batchProcessor;
@@ -286,6 +316,40 @@ public class ReplicationManager {
         this.authUser = authUser;
         this.authPassword = authPassword;
         this.internalSslContext = internalSslContext;
+    }
+
+    /**
+     * Byte budget for the replication event queue (estimated bytes, see
+     * {@link InMemoryDriver#estimateBsonSize}; 0 = off, only the count capacity applies).
+     * Enforced as backpressure on the producer, never by dropping queued events - see
+     * {@link #enqueueReplicationEvent}. Safe to call on a running manager: raising or
+     * disabling the budget wakes a currently blocked producer.
+     */
+    public void setEventQueueByteBudget(long bytes) {
+        if (bytes < 0) {
+            throw new IllegalArgumentException("eventQueueByteBudget must be >= 0 (0 = disabled)");
+        }
+
+        this.eventQueueByteBudget = bytes;
+
+        synchronized (eventQueueByteLock) {
+            eventQueueByteLock.notifyAll();
+        }
+    }
+
+    /** Current event-queue byte budget; 0 = byte bound disabled. */
+    long getEventQueueByteBudget() {
+        return eventQueueByteBudget;
+    }
+
+    /** Estimated bytes currently held by the event queue (diagnostic). */
+    long getEventQueueBytes() {
+        return eventQueueBytes.get();
+    }
+
+    /** Number of enqueues that had to wait on the byte budget (diagnostic). */
+    long getEventQueueBytePressureCount() {
+        return eventQueueBytePressureCount.get();
     }
 
     /**
@@ -408,6 +472,97 @@ public class ReplicationManager {
     }
 
     /**
+     * Enqueue a replication event from the watch callback. Blocks (backpressure to the watch
+     * reader, never to the initial-sync snapshot - see the gate comment in processBatch())
+     * while the queue is at its count capacity ({@code LinkedBlockingQueue.put}) or over its
+     * byte budget. Two deliberate properties of the byte wait:
+     * <ul>
+     * <li>an event larger than the whole budget is admitted whenever the queue holds no bytes,
+     *     so it can never block forever (the byte analogue of the replay buffer's
+     *     {@code size > 1} guard);</li>
+     * <li>the wait is a timed loop re-checking {@code running}, so a {@link #stop()} that never
+     *     interrupts this thread still gets out - and an interrupt propagates exactly like the
+     *     count path's {@code put()}.</li>
+     * </ul>
+     * Package-visible for tests.
+     */
+    void enqueueReplicationEvent(Map<String, Object> data) throws InterruptedException {
+        long size = InMemoryDriver.estimateBsonSize(data);
+
+        if (eventQueueByteBudget > 0) {
+            boolean waited = false;
+
+            synchronized (eventQueueByteLock) {
+                // Wait while admitting would exceed the budget AND the queue still holds bytes
+                // - a queue at 0 bytes always admits, even an event above the whole budget.
+                // Re-read the budget each round so setEventQueueByteBudget() takes effect on a
+                // waiting producer.
+                while (running.get() && eventQueueByteBudget > 0 && eventQueueBytes.get() > 0
+                        && eventQueueBytes.get() + size > eventQueueByteBudget) {
+                    if (!waited) {
+                        waited = true;
+                        eventQueueBytePressureCount.incrementAndGet();
+                        long now = System.currentTimeMillis();
+
+                        if (now - lastBytePressureWarnAt > 60_000) {
+                            lastBytePressureWarnAt = now;
+                            log.warn("Replication event queue byte budget ({} bytes) exhausted - blocking the "
+                                    + "watch reader until the apply side frees budget (bulk writes of large "
+                                    + "documents, or initial sync still running?)", eventQueueByteBudget);
+                        }
+                    }
+
+                    eventQueueByteLock.wait(100);
+                }
+            }
+        }
+
+        eventQueue.put(new QueuedEvent(data, size));
+        // Adding after the (possibly count-blocked) put keeps the invariant that the counter
+        // only ever accounts events that actually made it into the queue; any drain racing us
+        // subtracts this event's exact size, so the counter converges to the queue content.
+        eventQueueBytes.addAndGet(size);
+    }
+
+    /**
+     * Drain up to {@code max} queued events, releasing their bytes from the budget (waking a
+     * producer blocked in {@link #enqueueReplicationEvent}). The single consumer-side drain
+     * point, used by processBatch(). Package-visible for tests.
+     */
+    List<Map<String, Object>> drainBatch(int max) {
+        List<QueuedEvent> drained = new ArrayList<>(max);
+        eventQueue.drainTo(drained, max);
+        List<Map<String, Object>> batch = new ArrayList<>(drained.size());
+
+        if (!drained.isEmpty()) {
+            releaseEventQueueBytes(drained);
+
+            for (QueuedEvent qe : drained) {
+                batch.add(qe.event());
+            }
+        }
+
+        return batch;
+    }
+
+    /** Subtract the removed events' bytes from the accounting and wake a blocked producer. */
+    private void releaseEventQueueBytes(List<QueuedEvent> removed) {
+        long freed = 0;
+
+        for (QueuedEvent qe : removed) {
+            freed += qe.estimatedBytes();
+        }
+
+        if (freed != 0) {
+            eventQueueBytes.addAndGet(-freed);
+
+            synchronized (eventQueueByteLock) {
+                eventQueueByteLock.notifyAll();
+            }
+        }
+    }
+
+    /**
      * Process queued events in batches for better performance.
      */
     private void processBatch() {
@@ -425,8 +580,7 @@ public class ReplicationManager {
             return;
         }
 
-        List<Map<String, Object>> batch = new ArrayList<>(BATCH_SIZE);
-        eventQueue.drainTo(batch, BATCH_SIZE);
+        List<Map<String, Object>> batch = drainBatch(BATCH_SIZE);
 
         if (batch.isEmpty()) {
             return;
@@ -1765,10 +1919,11 @@ public class ReplicationManager {
                         // Update staleness tracker - we received a response
                         lastWatchResponseTime.set(System.currentTimeMillis());
                         // Queue for batch processing instead of immediate application.
-                        // Use put() so a full queue blocks the watch callback (backpressure)
+                        // enqueueReplicationEvent() blocks the watch callback (backpressure)
+                        // when the queue is at its count capacity or over its byte budget,
                         // rather than dropping events or growing without bound.
                         try {
-                            eventQueue.put(data);
+                            enqueueReplicationEvent(data);
                             // Apply it now instead of waiting out the flush tick. Without this the
                             // batch processor only ran on its fixed BATCH_FLUSH_INTERVAL_MS
                             // schedule, so a single write that a write concern waits on paid the
@@ -1952,7 +2107,7 @@ public class ReplicationManager {
      * allowed to proceed) - see the reseed at the "not (or no longer) refusing" point in
      * {@link #startInitialSyncOnce()}.
      */
-    private void triggerResync(long fromSequence) {
+    void triggerResync(long fromSequence) {
         long n = resyncCount.incrementAndGet();
         long now = System.currentTimeMillis();
         long previous = lastResyncTimestamp.getAndSet(now);
@@ -1968,7 +2123,13 @@ public class ReplicationManager {
         initialSyncStarted.set(false);  // allow startInitialSyncOnce() to launch a new snapshot
         watchLive.set(false);
         lastReportedSequence.set(0);
-        eventQueue.clear();             // discard events buffered for the lost window
+        // Discard events buffered for the lost window. Drain-and-release instead of clear() so
+        // the byte accounting stays exact (each queued event's bytes are subtracted
+        // individually, converging with a producer that adds its bytes only after a successful
+        // put) and a producer blocked on the byte budget is woken.
+        List<QueuedEvent> discarded = new ArrayList<>();
+        eventQueue.drainTo(discarded);
+        releaseEventQueueBytes(discarded);
     }
 
     /**
@@ -2313,6 +2474,9 @@ public class ReplicationManager {
         stats.put("myAddress", myAddress);
         stats.put("eventQueueSize", eventQueue.size());
         stats.put("eventQueueCapacity", EVENT_QUEUE_CAPACITY);
+        stats.put("eventQueueBytes", eventQueueBytes.get());
+        stats.put("eventQueueByteBudget", eventQueueByteBudget);
+        stats.put("eventQueueBytePressureCount", eventQueueBytePressureCount.get());
         // How many events behind the secondary is, based on the primary's sequence at the most
         // recent watch registration (Task 2b's exchange - see getLastKnownPrimarySequence()).
         // Clamped to 0: once live events keep flowing past that registration-time snapshot,

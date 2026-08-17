@@ -57,6 +57,11 @@ class ConfigInspector {
         } catch (IllegalArgumentException e) {
             errors.add(e.getMessage());
         }
+        try {
+            opts.eventQueueBudgetBytes();
+        } catch (IllegalArgumentException e) {
+            errors.add(e.getMessage());
+        }
         if (opts.maxConnections < 1) {
             errors.add("max-connections must be >= 1, got: " + opts.maxConnections);
         }
@@ -182,6 +187,14 @@ class ConfigInspector {
         // file, so the key keeps its raw input form (a percentage resolves against max heap).
         try {
             sb.append("# replay-buffer resolved: ").append(opts.replayBufferBytes()).append(" bytes\n");
+        } catch (IllegalArgumentException e) {
+            // invalid value - validate() reports it, nothing to resolve here
+        }
+
+        appendKey(sb, opts, "event-queue-budget", opts.eventQueueBudget);
+
+        try {
+            sb.append("# event-queue-budget resolved: ").append(opts.eventQueueBudgetBytes()).append(" bytes\n");
         } catch (IllegalArgumentException e) {
             // invalid value - validate() reports it, nothing to resolve here
         }

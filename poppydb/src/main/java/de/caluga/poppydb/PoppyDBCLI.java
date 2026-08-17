@@ -306,6 +306,12 @@ public class PoppyDBCLI {
                     idx += 2;
                     break;
 
+                case "--event-queue-budget":
+                    opts.eventQueueBudget = value(effectiveArgs, idx);
+                    opts.sources.put("event-queue-budget", src);
+                    idx += 2;
+                    break;
+
                 case "--log-level":
                     opts.logLevel = value(effectiveArgs, idx);
                     opts.sources.put("log-level", src);
@@ -502,6 +508,18 @@ public class PoppyDBCLI {
         log.info("Replay buffer byte budget: {} ({} bytes{})", opts.replayBuffer, replayBufferBytes,
             replayBufferBytes == 0 ? ", byte cap off" : "");
 
+        long eventQueueBudgetBytes;
+
+        try {
+            eventQueueBudgetBytes = opts.eventQueueBudgetBytes();
+        } catch (IllegalArgumentException e) {
+            throw new ConfigException(e.getMessage(), e);
+        }
+
+        srv.setEventQueueByteBudget(eventQueueBudgetBytes);
+        log.info("Replication event queue byte budget: {} ({} bytes{})", opts.eventQueueBudget,
+            eventQueueBudgetBytes, eventQueueBudgetBytes == 0 ? ", byte cap off" : "");
+
         // Configure replica set - election is always enabled for multi-node replica sets
         boolean enableElection = !opts.rsName.isEmpty() && hosts.size() > 1;
         if (enableElection) {
@@ -614,6 +632,10 @@ public class PoppyDBCLI {
         System.out.println("  --replay-buffer <size>     : Byte budget for the change-stream replay buffer backing replication resume.");
         System.out.println("                               Fixed size with k/m/g suffix (e.g. 512m, 1g) or percent of max heap (e.g. 5%),");
         System.out.println("                               0 = byte cap off (default: 256m; the 100000-event count limit always applies)");
+        System.out.println("  --event-queue-budget <size>: Byte budget for a secondary's replication event queue (same size syntax as");
+        System.out.println("                               --replay-buffer). Never drops events - the change-stream reader blocks until");
+        System.out.println("                               the apply side frees budget (backpressure, like the queue's count capacity).");
+        System.out.println("                               0 = byte cap off (default: 256m; the 100000-event count capacity always applies)");
         System.out.println("  --memory-reject <percent>  : Reject document-creating writes (code 146 ExceededMemoryLimit) above this");
         System.out.println("                               heap percentage; updates/deletes/TTL keep working (default: 90, 100 = off)");
         System.out.println("  --max-bson-size <bytes>    : BSON document size limit, enforced like mongod (code 10334 BSONObjectTooLarge,");

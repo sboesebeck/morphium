@@ -215,4 +215,36 @@ public class PoppyDBCLIParseTest {
         ConfigInspector.Result result = ConfigInspector.validate(opts);
         assertThat(result.errors()).anyMatch(e -> e.contains("lots"));
     }
+
+    // --- event-queue-budget (byte backpressure for the secondary's replication event queue) ---
+
+    @Test
+    void eventQueueBudgetDefaultsTo256mAndIsParsedFromCli() {
+        ServerOptions defaults = PoppyDBCLI.parse(new String[0], 0);
+        assertThat(defaults.eventQueueBudget).isEqualTo("256m");
+        assertThat(defaults.sourceOf("event-queue-budget")).isEqualTo(ServerOptions.Source.DEFAULT);
+
+        ServerOptions opts = PoppyDBCLI.parse(new String[] {"--event-queue-budget", "64m"}, 0);
+        assertThat(opts.eventQueueBudget).isEqualTo("64m");
+        assertThat(opts.sourceOf("event-queue-budget")).isEqualTo(ServerOptions.Source.CLI);
+    }
+
+    @Test
+    void eventQueueBudgetUsesTheSharedSizeParser() {
+        long heap = 1024L * 1024 * 1024; // pretend 1 GB max heap
+        assertThat(ServerOptions.parseByteSize("event-queue-budget", "64m", heap)).isEqualTo(64L * 1024 * 1024);
+        assertThat(ServerOptions.parseByteSize("event-queue-budget", "5%", heap)).isEqualTo(heap / 20);
+        assertThat(ServerOptions.parseByteSize("event-queue-budget", "0", heap)).isZero();
+        assertThatThrownBy(() -> ServerOptions.parseByteSize("event-queue-budget", "lots", heap))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("event-queue-budget")
+            .hasMessageContaining("lots");
+    }
+
+    @Test
+    void eventQueueBudgetInvalidValueIsReportedByValidate() {
+        ServerOptions opts = PoppyDBCLI.parse(new String[] {"--event-queue-budget", "plenty"}, 0);
+        ConfigInspector.Result result = ConfigInspector.validate(opts);
+        assertThat(result.errors()).anyMatch(e -> e.contains("plenty"));
+    }
 }

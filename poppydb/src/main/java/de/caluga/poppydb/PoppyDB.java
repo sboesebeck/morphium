@@ -231,6 +231,35 @@ public class PoppyDB {
     /** Default replay-buffer byte budget (estimated bytes) - overridable via --replay-buffer. */
     static final long REPLICATION_REPLAY_BUFFER_BYTES = 256L * 1024 * 1024;
 
+    /** Default event-queue byte budget (estimated bytes) - overridable via --event-queue-budget. */
+    static final long REPLICATION_EVENT_QUEUE_BYTES = 256L * 1024 * 1024;
+
+    // Effective event-queue byte budget, applied to every ReplicationManager this node creates
+    // when it (re-)becomes a secondary - the RM is replaced on every leader change, so the value
+    // must survive here rather than on any single RM instance.
+    private volatile long eventQueueByteBudget = REPLICATION_EVENT_QUEUE_BYTES;
+
+    /**
+     * Byte budget for a secondary's replication event queue (estimated bytes, 0 = off) - see
+     * ReplicationManager.setEventQueueByteBudget. Unlike the replay buffer's budget this never
+     * discards events (they are not applied yet - dropping one would be silent data loss);
+     * instead the change-stream reader blocks until the apply side frees budget, exactly like
+     * the queue's count capacity. Applied to the current ReplicationManager (if any) and to
+     * every one created later.
+     */
+    public void setEventQueueByteBudget(long bytes) {
+        if (bytes < 0) {
+            throw new IllegalArgumentException("eventQueueByteBudget must be >= 0 (0 = disabled)");
+        }
+
+        this.eventQueueByteBudget = bytes;
+        ReplicationManager rm = replicationManager;
+
+        if (rm != null) {
+            rm.setEventQueueByteBudget(bytes);
+        }
+    }
+
     /**
      * Replay-buffer byte budget (estimated bytes, 0 = off) - see
      * InMemoryDriver.setChangeStreamHistoryByteBudget. Evicting for bytes has the same
@@ -941,6 +970,7 @@ public class PoppyDB {
 
         // Start replication from new leader
         ReplicationManager newReplicationManager = new ReplicationManager(driver, leaderHost, leaderPort);
+        newReplicationManager.setEventQueueByteBudget(eventQueueByteBudget);
         newReplicationManager.carryOverLastAppliedSequence(carriedLastAppliedSequence, carriedSource);
         newReplicationManager.setInternalConnectionSecurity(
                 authRequired, rootUser, rootPassword, sslEnabled ? internalSslContext : null);
@@ -1556,6 +1586,7 @@ public class PoppyDB {
             log.info("Starting replication from primary {}:{}", pHost, pPort);
 
             replicationManager = new ReplicationManager(driver, pHost, pPort);
+            replicationManager.setEventQueueByteBudget(eventQueueByteBudget);
             replicationManager.setInternalConnectionSecurity(
                     authRequired, rootUser, rootPassword, sslEnabled ? internalSslContext : null);
             // Set this secondary's address for progress reporting

@@ -10,6 +10,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### PoppyDB: byte budget for the secondary-side replication event queue (`--event-queue-budget`)
+The queue a secondary buffers incoming change events in before applying them was count-capped
+(100k events) but unbounded by bytes — with ~300KB bulk-export messages on a busy message bus,
+100k queued events blow any heap, the same failure family as the replay-buffer incident the
+`--replay-buffer` budget fixed. Unlike the replay buffer, evicting is not an option here:
+queued events have not been applied yet, dropping one would be silent data loss on that
+secondary. The byte budget therefore extends the queue's existing count backpressure to bytes:
+once the estimated queued bytes (same `estimateBsonSize` estimate as the replay buffer) would
+exceed the budget, the change-stream reader blocks until the apply side drains — exactly the
+semantics the count capacity always had, including during initial sync (the snapshot runs on
+its own thread and connections, so blocking the watch reader cannot deadlock it). An event
+larger than the whole budget is always admitted into an empty queue, so it can never block
+forever. Configured via `--event-queue-budget` / config key `event-queue-budget` with the same
+size syntax as `--replay-buffer` (`k`/`m`/`g`, percent of max heap, `0` = byte cap off;
+default 256m); replication stats report `eventQueueBytes`, `eventQueueByteBudget` and
+`eventQueueBytePressureCount` (how often the reader had to wait).
+
 #### `usersInfo` — `db.getUsers()` now works against PoppyDB
 Listing users in mongosh failed with "no such command: 'usersInfo'": the in-memory driver
 implemented `createUser`/`updateUser`/`dropUser`, but not the command every user-listing helper
