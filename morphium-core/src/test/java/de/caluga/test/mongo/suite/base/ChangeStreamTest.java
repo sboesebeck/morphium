@@ -161,6 +161,13 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                     } catch (InterruptedException e) {
                     }
 
+                    // Re-check after the sleep: the watch has already ended by the time run is
+                    // cleared, so a write slipped in here would raise `written` without the
+                    // change stream ever counting it.
+                    if (!run.get()) {
+                        break;
+                    }
+
                     log.info("Writing...");
 
 
@@ -219,6 +226,10 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                     if (System.currentTimeMillis() - start > 26000) {
                         log.error("Error - took too long!");
                         run.set(false);
+                    }
+
+                    if (!run.get()) {
+                        break;
                     }
 
                     log.info("Setting to value " + i);
