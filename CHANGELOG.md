@@ -148,6 +148,57 @@ analysis). The deduplication behavior is unchanged, only the log level.
 
 ### Fixed
 
+#### PoppyDB election: PreVote stops empty/syncing nodes from dethroning a healthy primary (#306)
+A rolling upgrade on a 3-node replica set ended in a permanent leaderless livelock: a freshly
+restarted, still-empty node could never *win* an election — the log-recency vote veto worked —
+but it kept *campaigning* every election timeout, each campaign bumping the term, and every
+higher-term RequestVote forced the healthy primary to step down (~15 terms/min, primary
+flapping, finally no writable primary at all). This is Raft's textbook "disruptive server"
+problem: the vote veto prevents the wrong winner, not the disruption. The election now
+implements PreVote (Raft §4.2.3/§9.6): before any real election, the node asks its peers
+"would you grant me a vote?" *without touching any term*; only a pre-granted majority starts
+the real election. The PreVote answer is strictly read-only on the responder (no term
+adoption, no votedFor, no timer reset) and applies the same log-recency, term and priority
+checks as a real vote — so an empty or log-behind candidate fails the round every time and
+retries forever without inflating a single term. Three companion changes close the remaining
+gaps: **leader stickiness** — a voter that is the leader with a live lease, or heard a leader
+heartbeat within the last minimum election timeout, ignores higher-term (Pre)Vote requests
+*without adopting their term* (the term adoption on denial was exactly the dethroning lever,
+and this also shields new nodes from old, PreVote-unaware campaigners during rolling
+upgrades); **candidacy restraint hardening** — a peer's advertised log index is now recorded
+even from heartbeats rejected as stale-term, so a node whose own term got inflated can no
+longer blind itself to the existence of data-bearing peers (pre-PreVote, a candidate rejected
+all heartbeats as stale and thus never learned it should hold back); and **term/votedFor
+persistence** — Raft-required, opt-in via `morphiumserver.electionStatePath` (a properties
+file written atomically on every term/votedFor change), because a node that came back at
+`term=0` during the incident added to the churn; a node without (or with a corrupt) state
+file still starts cleanly, which PreVote now makes safe. Wire-compatible with old nodes: the
+PreVote probe rides as an extra `preVote` field on the existing `requestVote` command,
+carrying the sender's *current* term, so an old node misreads it as a harmless same-term vote
+request and its plain grant/deny counts toward the PreVote majority — a new node in an old
+cluster is never blocked.
+
+#### PoppyDB: restore-on-startup silently aborted on the first broken dump file, starting the node near-empty (#306)
+During a rolling upgrade, a node whose shutdown had correctly dumped all 8 databases came back
+with only 2 of them: `restoreAllFromDirectory` looped over the dump files without any per-file
+error handling, so the first file that failed to parse threw straight out of the loop — the
+databases already restored stayed, everything after the broken file was silently skipped, and
+the node joined the replica set as a near-empty (and, per #306, election-disrupting) member.
+The failure was invisible three times over: the loop never logged which file broke, the
+summary line lived *after* the call and thus never appeared, and the CLI's catch logged only
+`e.getMessage()` — which for the actual `RuntimeException("Parsing failed")` says nothing, and
+for an NPE is literally `null`. Losing 6 databases because 1 file is broken is the wrong
+trade for a startup restore, so each dump file is now restored under its own try/catch: a
+broken file is logged on ERROR with its name and full stack trace, all remaining dumps are
+still attempted, and a summary line is *always* emitted — INFO (`Restored N of N`) when
+complete, an unmissable WARN with restored/total counts and the failed file names when
+partial. `PoppyDB.restoreFromDump()` now returns that result instead of a bare count, and the
+CLI uses it to log its own PARTIAL-RESTORE warning (with stack traces in the residual failure
+path) rather than treating any non-exception as success. Note the restore itself always ran
+synchronously *before* `start()` wires up replication and election — the suspected race with
+the ElectionManager did not exist; the node joined empty purely because the aborted loop
+reported nothing.
+
 #### PooledDriver: a client could stay stuck on "No primary node found" forever after a replica-set restart sequence (#304)
 Nine service instances kept failing every operation for 30+ minutes after their PoppyDB
 replica set had been restarted node by node, and only an application restart brought them

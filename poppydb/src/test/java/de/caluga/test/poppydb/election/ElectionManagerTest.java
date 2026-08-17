@@ -193,16 +193,23 @@ public class ElectionManagerTest {
         AtomicInteger deniedCount = new AtomicInteger(0);
         AtomicInteger grantedCount = new AtomicInteger(0);
 
-        // Fires (once per peer) inside becomeCandidate() -> requestVotes(): the node has
-        // started its own election. Capture the denial count and state as they were at that
-        // exact moment (the callback runs under the state lock, so state is stably CANDIDATE
-        // here) - asserting on live state afterwards would race the barrage-driven demotion.
+        // Fires (once per peer) as soon as the node starts its own election round. Since
+        // PreVote (#306), the FIRST outgoing vote request of a round is the PreVote probe,
+        // sent while still FOLLOWER (PreVote deliberately never leaves that state - the term
+        // increment and CANDIDATE transition only happen after a pre-granted majority). The
+        // invariant this test protects is unchanged: the node STARTS ITS OWN election round
+        // while denials are still arriving - the positive, latching signal is still the
+        // sendVoteRequest callback. Capture the denial count and the request as they were at
+        // that exact moment (the callback runs under the state lock) - asserting on live state
+        // afterwards would race the barrage-driven updates.
         CountDownLatch candidacyLatch = new CountDownLatch(1);
         AtomicInteger denialsAtCandidacy = new AtomicInteger(-1);
         AtomicReference<ElectionState> stateAtCandidacy = new AtomicReference<>();
+        AtomicReference<VoteRequest> firstOutgoingRequest = new AtomicReference<>();
         manager.setSendVoteRequest((peer, req) -> {
             denialsAtCandidacy.compareAndSet(-1, deniedCount.get());
             stateAtCandidacy.compareAndSet(null, manager.getState());
+            firstOutgoingRequest.compareAndSet(null, req);
             candidacyLatch.countDown();
         });
 
@@ -243,8 +250,14 @@ public class ElectionManagerTest {
 
         assertTrue(becameCandidate,
                 "Node should have started its own election despite continuous lower-priority vote requests");
-        assertEquals(ElectionState.CANDIDATE, stateAtCandidacy.get(),
-                "vote requests must have been sent from CANDIDATE state");
+        // Since PreVote (#306) an election round opens with a PreVote probe sent from FOLLOWER
+        // state - reaching CANDIDATE (and bumping the term) requires a pre-granted majority,
+        // which this test's silent peers never provide. The pre-#306 assertion (first request
+        // sent from CANDIDATE state) is therefore intentionally inverted.
+        assertEquals(ElectionState.FOLLOWER, stateAtCandidacy.get(),
+                "the opening PreVote probe must be sent from FOLLOWER state (no term bump before a pre-granted majority)");
+        assertTrue(firstOutgoingRequest.get().isPreVote(),
+                "the first outgoing request of an election round must be a PreVote probe");
         // Sanity: the barrage was actually in flight BEFORE candidacy - otherwise this test
         // would pass for the wrong reason (e.g. a broken sender thread, or denials so sparse
         // the timer was never contested). >= 3 leaves ample slack: at a 30ms cadence against a

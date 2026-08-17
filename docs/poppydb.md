@@ -389,10 +389,14 @@ PoppyDB server = new PoppyDB(27017, "localhost", 100, 10);
 server.setDumpDirectory(new File("/var/morphium/data"));
 server.setDumpIntervalMs(300000); // 5 minutes
 
-// Restore previous state before starting
+// Restore previous state before starting - a broken dump file is skipped (logged with
+// stack trace), the remaining databases are still restored; check the result for completeness
 try {
-    int restored = server.restoreFromDump();
-    System.out.println("Restored " + restored + " databases");
+    var restored = server.restoreFromDump();
+    System.out.println("Restored " + restored.getRestored() + " of " + restored.getTotal() + " databases");
+    if (!restored.isComplete()) {
+        System.err.println("PARTIAL restore, failed dump files: " + restored.getFailedFiles());
+    }
 } catch (Exception e) {
     System.out.println("Starting fresh: " + e.getMessage());
 }

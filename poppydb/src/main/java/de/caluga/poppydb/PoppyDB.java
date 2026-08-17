@@ -665,6 +665,17 @@ public class PoppyDB {
             primary = false;
             primaryHost = null;
 
+            // Raft requires currentTerm/votedFor to survive a restart - a node coming back at
+            // term 0 is what turned the ACC rolling upgrade into term churn (#306). A server
+            // that persists its data at all should persist this too, so default the state file
+            // next to the dump directory unless an operator configured a path explicitly.
+            if (dumpDirectory != null && electionConfig.getStatePersistencePath() == null) {
+                electionConfig.setStatePersistencePath(
+                        new File(dumpDirectory, "election-state.properties").getAbsolutePath());
+                electionConfig.setPersistState(true);
+                log.info("Election state persisted to {}", electionConfig.getStatePersistencePath());
+            }
+
             // Create election manager with priority-aware config
             electionManager = new ElectionManager(myAddress, hosts, electionConfig);
 
@@ -1651,17 +1662,17 @@ public class PoppyDB {
         return count;
     }
 
-    public int restoreFromDump() throws IOException {
+    /**
+     * Restore all databases from the configured dump directory. Broken dump files no longer
+     * abort the restore (#306): the driver skips them (logging each on ERROR with stack trace)
+     * and always emits a summary line. The returned result exposes restored/total so callers
+     * can tell a partial restore from success instead of treating any non-exception as "done".
+     */
+    public InMemoryDriver.DirectoryRestoreResult restoreFromDump() throws IOException {
         if (dumpDirectory == null) {
             throw new IOException("Dump directory not configured");
         }
-        try {
-            int count = driver.restoreAllFromDirectory(dumpDirectory);
-            log.info("Restored {} databases from {}", count, dumpDirectory.getAbsolutePath());
-            return count;
-        } catch (org.json.simple.parser.ParseException e) {
-            throw new IOException("Failed to parse dump file", e);
-        }
+        return driver.restoreAllFromDirectoryResult(dumpDirectory);
     }
 
     // Status methods

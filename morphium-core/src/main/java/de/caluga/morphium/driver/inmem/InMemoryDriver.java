@@ -830,29 +830,97 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     /**
-     * Restore all databases from a directory.
-     * @param dir Directory containing .morphium.gz dump files
-     * @return Number of databases restored
+     * Outcome of {@link #restoreAllFromDirectoryResult(File)}: how many dump files were found,
+     * how many were actually restored, and which files failed. Callers must treat
+     * {@code !isComplete()} as a partial restore, never as success (#306).
      */
-    public int restoreAllFromDirectory(File dir) throws IOException, ParseException {
+    public static final class DirectoryRestoreResult {
+        private final int total;
+        private final int restored;
+        private final List<String> failedFiles;
+
+        public DirectoryRestoreResult(int total, int restored, List<String> failedFiles) {
+            this.total = total;
+            this.restored = restored;
+            this.failedFiles = List.copyOf(failedFiles);
+        }
+
+        /** Number of dump files found in the directory. */
+        public int getTotal() {
+            return total;
+        }
+
+        /** Number of databases successfully restored. */
+        public int getRestored() {
+            return restored;
+        }
+
+        /** File names (not paths) of the dump files that failed to restore. */
+        public List<String> getFailedFiles() {
+            return failedFiles;
+        }
+
+        /** True when every dump file found was restored (also true for an empty directory). */
+        public boolean isComplete() {
+            return restored == total;
+        }
+    }
+
+    /**
+     * Restore all databases from a directory.
+     * <p>
+     * A broken dump file must never abort the whole restore (#306: a mid-loop exception silently
+     * left 6 of 8 production databases unrestored). Each file is restored under its own
+     * try/catch: failures are logged on ERROR with the file name and full stack trace, the
+     * remaining dumps are still attempted, and a summary line is ALWAYS emitted - INFO when
+     * complete, an unmissable WARN with restored/total counts when partial.
+     *
+     * @param dir Directory containing .morphium.gz dump files
+     * @return result with total/restored counts and the list of failed files
+     */
+    public DirectoryRestoreResult restoreAllFromDirectoryResult(File dir) throws IOException {
         if (!dir.exists() || !dir.isDirectory()) {
             log.warn("Dump directory does not exist or is not a directory: {}", dir.getAbsolutePath());
-            return 0;
+            return new DirectoryRestoreResult(0, 0, List.of());
         }
 
         File[] dumpFiles = dir.listFiles((d, name) -> name.endsWith(".morphium.gz"));
         if (dumpFiles == null || dumpFiles.length == 0) {
             log.info("No dump files found in {}", dir.getAbsolutePath());
-            return 0;
+            return new DirectoryRestoreResult(0, 0, List.of());
         }
 
-        int count = 0;
+        int restored = 0;
+        List<String> failed = new ArrayList<>();
         for (File dumpFile : dumpFiles) {
             log.info("Restoring from {}", dumpFile.getAbsolutePath());
-            restoreFromFile(dumpFile);
-            count++;
+            try {
+                restoreFromFile(dumpFile);
+                restored++;
+            } catch (Exception e) {
+                failed.add(dumpFile.getName());
+                log.error("Failed to restore dump file {} - skipping it and continuing with the remaining dumps",
+                        dumpFile.getAbsolutePath(), e);
+            }
         }
-        return count;
+
+        if (failed.isEmpty()) {
+            log.info("Restored {} of {} databases from {}", restored, dumpFiles.length, dir.getAbsolutePath());
+        } else {
+            log.warn("PARTIAL RESTORE: only {} of {} databases restored from {} - failed dump files: {}",
+                    restored, dumpFiles.length, dir.getAbsolutePath(), failed);
+        }
+        return new DirectoryRestoreResult(dumpFiles.length, restored, failed);
+    }
+
+    /**
+     * Restore all databases from a directory.
+     * @param dir Directory containing .morphium.gz dump files
+     * @return Number of databases restored - callers that need to detect a PARTIAL restore
+     *         should use {@link #restoreAllFromDirectoryResult(File)} instead
+     */
+    public int restoreAllFromDirectory(File dir) throws IOException, ParseException {
+        return restoreAllFromDirectoryResult(dir).getRestored();
     }
 
     private MorphiumTypeMapper<ObjectId> getObjectIdTypeMapper() {

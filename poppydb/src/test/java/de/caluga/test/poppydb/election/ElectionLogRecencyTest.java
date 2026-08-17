@@ -206,6 +206,13 @@ public class ElectionLogRecencyTest {
         ElectionManager restrained = new ElectionManager("restrained:27023",
                 List.of("restrained:27023", "data-peer:27023"), config);
         managers.add(restrained);
+        // Since PreVote (#306), candidacy additionally requires a pre-granted majority before
+        // the CANDIDATE transition. This test is about the D3 candidacy-restraint guard (which
+        // runs BEFORE any PreVote probe is sent), so wire an always-granting peer: the guard's
+        // hold-back below is then provably the guard's doing, and once the guard lifts, the
+        // PreVote round passes immediately and candidacy proceeds.
+        restrained.setSendVoteRequest((peer, request) -> restrained.handleVoteResponse(peer,
+                new VoteResponse(request.getTerm(), true, peer)));
         restrained.start();
 
         // Simulate this node observing AppendEntries traffic from a leader that reports a real,
@@ -223,10 +230,13 @@ public class ElectionLogRecencyTest {
                 "empty node must hold back candidacy while a data-bearing peer is known, not race to CANDIDATE");
 
         // Once its own index catches up (sync completed - Task 1's seed makes this prompt), the
-        // guard must no longer apply and candidacy becomes eligible again on the very next timeout.
+        // guard must no longer apply and candidacy becomes eligible again on the very next
+        // timeout. With the always-granting peer above, the node passes both the PreVote round
+        // and the real election, so CANDIDATE is a transient state on the way to LEADER - poll
+        // for "left FOLLOWER" instead of racing the CANDIDATE->LEADER transition.
         restrained.updateLogIndex(10, restrained.getCurrentTerm());
-        awaitCondition("restrained becomes CANDIDATE once its own index is no longer 0", 1000,
-                () -> restrained.getState() == ElectionState.CANDIDATE);
+        awaitCondition("restrained starts an election (leaves FOLLOWER) once its own index is no longer 0", 1000,
+                () -> restrained.getState() != ElectionState.FOLLOWER);
     }
 
     @Test

@@ -580,13 +580,25 @@ public class PoppyDBCLI {
                 log.info("Periodic dumps every {} seconds", opts.dumpIntervalSec);
             }
 
+            // Restore runs synchronously here, BEFORE srv.start() wires up replication and
+            // election - the node never joins the replica set with its restore still pending.
+            // A partial restore (#306: broken dump file) must be unmissable in the startup log,
+            // never mistaken for success: the node continues WITHOUT the failed databases, but
+            // the per-file ERRORs (driver) and this WARN document exactly what is missing.
             try {
-                int restored = srv.restoreFromDump();
-                if (restored > 0) {
-                    log.info("Restored {} databases from previous dump", restored);
+                var restored = srv.restoreFromDump();
+                if (restored.isComplete()) {
+                    if (restored.getTotal() > 0) {
+                        log.info("Restored {} databases from previous dump", restored.getRestored());
+                    }
+                } else {
+                    log.warn("PARTIAL RESTORE on startup: only {} of {} databases restored from the dump "
+                            + "directory - failed dump files: {} (see errors above). Continuing startup "
+                            + "WITHOUT the failed databases!",
+                            restored.getRestored(), restored.getTotal(), restored.getFailedFiles());
                 }
             } catch (Exception e) {
-                log.warn("Failed to restore from dump (starting fresh): {}", e.getMessage());
+                log.error("Failed to restore from dump (starting fresh)", e);
             }
         }
 

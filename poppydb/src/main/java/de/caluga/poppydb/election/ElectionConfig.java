@@ -117,16 +117,24 @@ public class ElectionConfig {
     private int priorityTakeoverStepDownSecs = Integer.getInteger("morphiumserver.priorityTakeoverStepDownSecs", 10);
 
     /**
-     * Whether to persist election state (term, votedFor) to disk.
-     * Required for correctness across restarts in production.
-     * Default: false (for easier testing)
+     * Whether to persist election state (currentTerm, votedFor) to disk, as Raft requires
+     * (#306: a node restarting at term 0 contributed to the term churn during the ACC
+     * incident).
+     * Default: false for tests/embedded use, but automatically true when a persistence path is
+     * configured via the "morphiumserver.electionStatePath" system property - so an operator
+     * can enable it without any code wiring. Can also be forced on via
+     * "morphiumserver.electionStatePersist" (which then still needs a path to take effect).
      */
-    private boolean persistState = false;
+    private boolean persistState = System.getProperty("morphiumserver.electionStatePath") != null
+            || Boolean.getBoolean("morphiumserver.electionStatePersist");
 
     /**
-     * Path to persist election state if persistState is true.
+     * Path of the FILE the election state is persisted to (a small properties file, written
+     * atomically). Convention: place it next to the dump directory, e.g.
+     * {@code <dumpDir>/election-state.properties}.
+     * Default: the "morphiumserver.electionStatePath" system property, or null (no persistence).
      */
-    private String statePersistencePath = null;
+    private String statePersistencePath = System.getProperty("morphiumserver.electionStatePath");
 
     // Getters and setters
 
