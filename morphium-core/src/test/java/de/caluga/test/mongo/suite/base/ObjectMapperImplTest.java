@@ -142,8 +142,11 @@ public class ObjectMapperImplTest {
 
         String s = Utils.toJsonString(dbo);
         System.out.println("Marshalling was: " + s);
-        // With new behavior, null values are serialized as explicit nulls (not omitted)
-        assertTrue((MultiDriverTestBase.stringWordCompare(s, "{ \"float_data\" : null, \"dval\" : 0.0, \"double_data\" : null, \"str_value\" : \"This \" is $ test\", \"long_data\" : null, \"binary_data\" : null, \"counter\" : 12345, \"int_data\" : null } ")), () -> String.valueOf("String creation failed?" + s));
+        // With new behavior, null values are serialized as explicit nulls (not omitted).
+        // The quote inside str_value MUST come out escaped (#306): this assertion used to
+        // expect it raw, which is invalid JSON - and pinned exactly the defect that made every
+        // dump of real data unparseable.
+        assertTrue((MultiDriverTestBase.stringWordCompare(s, "{ \"float_data\" : null, \"dval\" : 0.0, \"double_data\" : null, \"str_value\" : \"This \\\" is $ test\", \"long_data\" : null, \"binary_data\" : null, \"counter\" : 12345, \"int_data\" : null } ")), () -> String.valueOf("String creation failed?" + s));
         o = OM.deserialize(UncachedObject.class, dbo);
         log.info("Text is: " + o.getStrValue());
     }

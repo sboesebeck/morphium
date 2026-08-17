@@ -200,6 +200,175 @@ public class InMemDumpRoundtripTest {
     }
 
     @Test
+    public void bsonObjectIdsFromTheWirePathSurviveRoundtrip(@TempDir Path tmp) throws Exception {
+        // The wire decoder hands the store raw org.bson.types.ObjectId instances, not
+        // MorphiumId - so every document written by a real client through PoppyDB carries an
+        // _id of that type. A dump/restore that only handles MorphiumId leaves exactly the
+        // documents unrestorable that a production node actually holds (#306 follow-up).
+        org.bson.types.ObjectId oid = new org.bson.types.ObjectId();
+
+        List<Map<String, Object>> docs = new ArrayList<>();
+        docs.add(Doc.of("_id", oid, "v", "written through the wire path"));
+
+        List<Map<String, Object>> restored = roundtrip(tmp, docs);
+        assertEquals(1, restored.size(), "the document must survive the roundtrip at all");
+
+        Object id = restored.get(0).get("_id");
+        assertNotNull(id, "restored _id must not be null");
+        assertEquals(oid.toHexString(), id.toString(),
+                "the id value must survive regardless of which id type it is restored as");
+    }
+
+    @Test
+    public void entityDocumentsWithBsonObjectIdsSurviveRoundtrip(@TempDir Path tmp) throws Exception {
+        // A document stored through the ORM carries a class_name, which makes the restore
+        // resolve it as an entity - and the entity's id field is a MorphiumId while the wire
+        // decoder put an org.bson.types.ObjectId in the document. That mismatch is what makes
+        // a production dump unrestorable (#306 follow-up).
+        org.bson.types.ObjectId oid = new org.bson.types.ObjectId();
+
+        List<Map<String, Object>> docs = new ArrayList<>();
+        docs.add(Doc.of("_id", oid,
+                "class_name", "de.caluga.test.mongo.suite.data.UncachedObject",
+                "counter", 42,
+                "str_value", "written through the wire path"));
+
+        List<Map<String, Object>> restored = roundtrip(tmp, docs);
+        Object id = restored.get(0).get("_id");
+        assertNotNull(id, "restored _id must not be null");
+        assertEquals(oid.toHexString(), id.toString(), "the id value must survive the roundtrip");
+    }
+
+    @Test
+    public void entityDocumentsWithMarkedTypesAndAbsentFieldsSurviveRoundtrip(@TempDir Path tmp) throws Exception {
+        // Entity-marked documents (class_name) with Date/UUID/byte[] values, and one where the
+        // entity's byte[] field (binary_data) is ABSENT: the entity-aware restore used to hand
+        // null to the byte[] restore mapper and NPE the whole database ("'d' is null", #306
+        // follow-up). The restore must keep the documents as plain maps - class_name included.
+        org.bson.types.ObjectId oid1 = new org.bson.types.ObjectId();
+        org.bson.types.ObjectId oid2 = new org.bson.types.ObjectId();
+        Date when = new Date(1723891234567L);
+        UUID uuid = UUID.fromString("123e4567-e89b-12d3-a456-426614174000");
+        byte[] bin = new byte[] {1, 2, 3, 4, 5};
+
+        List<Map<String, Object>> docs = new ArrayList<>();
+        docs.add(Doc.of("_id", oid1,
+                "class_name", "de.caluga.test.mongo.suite.data.UncachedObject",
+                "binary_data", bin, "when", when, "uuid", uuid));
+        // binary_data ABSENT although UncachedObject declares the field - this was the NPE
+        docs.add(Doc.of("_id", oid2,
+                "class_name", "de.caluga.test.mongo.suite.data.UncachedObject",
+                "counter", 7));
+
+        List<Map<String, Object>> restored = roundtrip(tmp, docs);
+
+        Map<String, Object> full = byId(restored, oid1.toHexString());
+        assertInstanceOf(MorphiumId.class, full.get("_id"),
+                "an ObjectId _id must restore as MorphiumId (wire path type), got: " + full.get("_id").getClass());
+        assertEquals("de.caluga.test.mongo.suite.data.UncachedObject", full.get("class_name"),
+                "class_name must survive as a plain document field - clients rely on it");
+        assertInstanceOf(byte[].class, full.get("binary_data"));
+        assertArrayEquals(bin, (byte[]) full.get("binary_data"));
+        assertEquals(when, full.get("when"));
+        assertEquals(uuid, full.get("uuid"));
+
+        Map<String, Object> sparse = byId(restored, oid2.toHexString());
+        assertEquals(7L, ((Number) sparse.get("counter")).longValue());
+        assertTrue(!sparse.containsKey("binary_data"), "an absent field must stay absent after restore");
+    }
+
+    /** Write a dump by hand the way the current writer formats it (gzip, UTF-8). */
+    private static File writeDump(Path tmp, String json) throws Exception {
+        File f = new File(tmp.toFile(), "handwritten.morphium.gz");
+        try (FileOutputStream fos = new FileOutputStream(f);
+            GZIPOutputStream gz = new GZIPOutputStream(fos)) {
+            gz.write(json.getBytes(StandardCharsets.UTF_8));
+        }
+        return f;
+    }
+
+    /**
+     * The exact shape of the customer dumps that could not be restored (#306 follow-up): an
+     * ORM-written document (class_name) whose _id is the pre-existing
+     * {@code org.bson.types.ObjectId} marker. Dumps like this already exist on production
+     * machines - they must be readable AFTER this fix without being rewritten.
+     */
+    @Test
+    public void existingDumpsWithObjectIdMarkerAreReadable(@TempDir Path tmp) throws Exception {
+        String hex = "6a83b2c1d4e5f60718293a4b";
+        String json = "{ \"_id\" : 1723891234567, \"db\" : \"acc_db\", \"data\" : { \"uncached_object\" : [ "
+                + "{ \"_id\" : { \"value\" : \"" + hex + "\", \"class_name\" : \"org.bson.types.ObjectId\" }, "
+                + "\"class_name\" : \"de.caluga.test.mongo.suite.data.UncachedObject\", "
+                + "\"counter\" : 42, \"str_value\" : \"orm written\" } ] } }";
+        File f = writeDump(tmp, json);
+
+        InMemoryDriver target = new InMemoryDriver();
+        target.restoreFromFile(f);
+
+        List<Map<String, Object>> docs = target.getDatabase("acc_db").get("uncached_object");
+        assertNotNull(docs, "the collection must be restored");
+        assertEquals(1, docs.size());
+        Map<String, Object> doc = docs.get(0);
+        assertInstanceOf(MorphiumId.class, doc.get("_id"),
+                "the ObjectId marker must restore as MorphiumId, got: " + doc.get("_id").getClass());
+        assertEquals(hex, doc.get("_id").toString());
+        assertEquals("de.caluga.test.mongo.suite.data.UncachedObject", doc.get("class_name"));
+        assertEquals(42L, ((Number) doc.get("counter")).longValue());
+        assertEquals("orm written", doc.get("str_value"));
+    }
+
+    /** The reader must also accept the MorphiumId marker form, not only the ObjectId one. */
+    @Test
+    public void dumpsWithMorphiumIdMarkerAreReadable(@TempDir Path tmp) throws Exception {
+        String hex = "6a83b2c1d4e5f60718293a4b";
+        String json = "{ \"_id\" : 1723891234567, \"db\" : \"mid_db\", \"data\" : { \"coll\" : [ "
+                + "{ \"_id\" : { \"value\" : \"" + hex + "\", \"class_name\" : \"de.caluga.morphium.driver.MorphiumId\" }, "
+                + "\"v\" : 1 } ] } }";
+        File f = writeDump(tmp, json);
+
+        InMemoryDriver target = new InMemoryDriver();
+        target.restoreFromFile(f);
+
+        Map<String, Object> doc = target.getDatabase("mid_db").get("coll").get(0);
+        assertInstanceOf(MorphiumId.class, doc.get("_id"));
+        assertEquals(hex, doc.get("_id").toString());
+    }
+
+    /**
+     * A subdocument that merely LOOKS like a marker (class_name + value, but no marker type)
+     * must stay a plain map - it is application data, not a dump marker.
+     */
+    @Test
+    public void nonMarkerClassNameValueMapsStayPlainMaps(@TempDir Path tmp) throws Exception {
+        Map<String, Object> lookalike = Doc.of("class_name", "com.example.SomeEmbedded", "value", 5L);
+
+        List<Map<String, Object>> docs = new ArrayList<>();
+        docs.add(Doc.of("_id", "lookalike", "sub", lookalike));
+
+        Map<String, Object> restored = byId(roundtrip(tmp, docs), "lookalike");
+        Object sub = restored.get("sub");
+        assertInstanceOf(Map.class, sub, "a non-marker class_name/value map must stay a map, got: "
+                + (sub == null ? "null" : sub.getClass()));
+        assertEquals("com.example.SomeEmbedded", ((Map<String, Object>) sub).get("class_name"));
+        assertEquals(5L, ((Map<String, Object>) sub).get("value"));
+    }
+
+    /** A broken marker must fail with a message naming the field path and the marker type. */
+    @Test
+    public void brokenMarkerFailureNamesFieldAndType(@TempDir Path tmp) throws Exception {
+        String json = "{ \"_id\" : 1, \"db\" : \"bad_db\", \"data\" : { \"coll\" : [ "
+                + "{ \"_id\" : { \"value\" : \"not-a-hex-id\", \"class_name\" : \"org.bson.types.ObjectId\" } } ] } }";
+        File f = writeDump(tmp, json);
+
+        InMemoryDriver target = new InMemoryDriver();
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> target.restoreFromFile(f));
+        assertTrue(ex.getMessage().contains("coll[0]._id"),
+                "the error must name the field path, got: " + ex.getMessage());
+        assertTrue(ex.getMessage().contains("org.bson.types.ObjectId"),
+                "the error must name the marker type, got: " + ex.getMessage());
+    }
+
+    @Test
     public void binaryDataSurvivesRoundtrip(@TempDir Path tmp) throws Exception {
         byte[] bin = new byte[256];
         for (int i = 0; i < bin.length; i++) {

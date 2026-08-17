@@ -118,8 +118,9 @@ public class ObjectMapperSerializationTest extends MultiDriverTestBase {
 
         String s = Utils.toJsonString(dbo);
         System.out.println("Marshalling was: " + s);
-        // With new behavior, null values are serialized as explicit nulls (not omitted)
-        assertTrue(stringWordCompare(s, "{ \"float_data\" : null, \"dval\" : 0.0, \"double_data\" : null, \"str_value\" : \"This \" is $ test\", \"long_data\" : null, \"binary_data\" : null, \"counter\" : 12345, \"int_data\" : null } "));
+        // With new behavior, null values are serialized as explicit nulls (not omitted).
+        // The quote inside str_value MUST come out escaped (#306) - see ObjectMapperImplTest.
+        assertTrue(stringWordCompare(s, "{ \"float_data\" : null, \"dval\" : 0.0, \"double_data\" : null, \"str_value\" : \"This \\\" is $ test\", \"long_data\" : null, \"binary_data\" : null, \"counter\" : 12345, \"int_data\" : null } "));
         o = om.deserialize(UncachedObject.class, dbo);
         log.info("Text is: {}", o.getStrValue());
     }
