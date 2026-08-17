@@ -153,7 +153,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             final var run = new AtomicBoolean(true);
             final var count = new AtomicInteger(0);
             final var written = new AtomicInteger(0);
-            Thread.ofPlatform().start(()-> {
+            Thread writer = Thread.ofPlatform().start(()-> {
                 Random r = new Random(System.currentTimeMillis());
                 while (run.get()) {
                     try {
@@ -176,6 +176,12 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             });
 
             run.set(false);
+            // Wait for the writer to actually finish (#308): it sleeps up to a second per round
+            // and stores once more after waking, so without this join it would still be calling
+            // store() while try-with-resources closes morphium - an NPE on a background thread
+            // that JUnit never sees - and `written` could still change while we compare it.
+            writer.join(5000);
+            assertFalse(writer.isAlive(), "writer thread must have finished before the assertions");
             // Allow more tolerance for replica sets with network latency
             log.info("Checking count: " + count.get() + " written: " + written.get());
             assertTrue(count.get() >= written.get() - 2 && count.get() <= written.get() + 1,
@@ -197,7 +203,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             final var count = new AtomicInteger(0);
             start = System.currentTimeMillis();
             long start = System.currentTimeMillis();
-            new Thread(()-> {
+            Thread updater = new Thread(()-> {
                 try {
                     Thread.sleep(2500);
                 } catch (InterruptedException e) {
@@ -232,7 +238,8 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                     }
                 }
                 log.info("Writing thread finished...");
-            }).start();
+            });
+            updater.start();
             log.info("Watching...");
             try {
                 morphium.watch(UncachedObject.class, true, evt-> {
@@ -249,6 +256,11 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             } catch (Exception e) {
                 log.info("Watch threw exception", e);
             }
+            // Same reason as in changeStreamInsertTest (#308): the updater sleeps up to 500ms
+            // per round and issues one more query after waking, so it must be finished before
+            // try-with-resources closes morphium underneath it.
+            updater.join(5000);
+            assertFalse(updater.isAlive(), "updater thread must have finished before morphium is closed");
             assertTrue(count.get() >= 50);
             assertFalse(run.get());
             log.info("Quitting");
