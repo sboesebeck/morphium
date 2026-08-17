@@ -4014,8 +4014,13 @@ preserved. Keep old dumps and try them; a restore attempt is cheap and the log s
 what worked.</p>
 <p>When a dump directory is configured, the node also persists its Raft term and vote to
 <code>&lt;dump-dir&gt;/election-state.properties</code> and reads it back on startup - without it a restarted
-node returns at term 0 and adds to term churn during rolling restarts. A missing or unreadable
-file is never fatal; the node then simply starts clean.</p>
+node returns at term 0 and adds to term churn during rolling restarts. A <em>missing</em> file is
+harmless (first start, or persistence newly enabled): the node simply starts clean at term 0.
+An <em>existing but unreadable or incomplete</em> file is different: the node may already have voted
+at any term, so it starts and serves data but stays out of elections entirely (no vote, no
+candidacy) until you either restore the file from a backup or delete it - deliberately
+accepting a clean start - and restart the node. Files written by pre-checksum builds are
+recognized and migrated automatically; only genuinely broken files trigger this quarantine.</p>
 <p><strong>Quick Start with Persistence:</strong></p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Start with persistence - dumps every 5 minutes</span>
 </span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>java<span class="w"> </span>-jar<span class="w"> </span>poppydb/target/poppydb-&lt;version&gt;-cli.jar<span class="w"> </span>-p<span class="w"> </span><span class="m">27017</span><span class="w"> </span><span class="se">\</span>
