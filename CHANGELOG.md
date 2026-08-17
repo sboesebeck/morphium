@@ -148,6 +148,30 @@ analysis). The deduplication behavior is unchanged, only the log level.
 
 ### Fixed
 
+#### PoppyDB replication: a freshly-synced node could report log index 0 forever (seed race)
+On a loaded host, a secondary whose initial sync finished fast (consistency shortcut, tiny
+dataset) could permanently report replication position 0 to the election layer despite holding
+the primary's complete dataset. Root cause is a race between two one-shot reporters on
+different threads: the watch's registration callback flipped `watchLive` — which is what
+releases the initial-sync thread — *before* recording the primary's sequence seed, so a sync
+that outran that gap re-based `lastAppliedSequence` from the still-stale (0) seed and its
+single end-of-sync election report read 0 and was skipped; when the seed then landed, nobody
+reported it anymore, because the only remaining reporter (`processBatch`) fires solely when
+live events are actually drained — a quiet primary means never. Recent sync speedups made the
+sync win this race often enough to surface as the CI-only `InitialSyncElectionSeedTest`
+failure. The consequence is severe since #306: its candidacy restraint treats index 0 as "empty
+node, must not campaign", so the raced node locked itself out of every election — if the other
+nodes fail, the cluster stays leaderless while the one node with the full data sits it out,
+the same damage class #306 closed, from the other side. Fixed structurally, not at one spot:
+the position now *catches up* instead of being reported exactly once — the registration seed
+reports itself when it lands after sync success (gated on `initialSyncComplete`, so a node
+that does not yet hold the data still never claims a position), the batch processor's flush
+tick reconciles the election view periodically even with nothing to drain (safe because
+`ElectionManager#updateLogIndex` is monotonic-max, so re-reporting can only ever raise), and
+the registration callback now records the seed *before* flipping `watchLive`, closing the race
+window at its source. `InitialSyncElectionSeedTest` gained a deterministic reproduction of the
+losing interleaving, so the regression no longer needs CI load to become visible.
+
 #### PoppyDB election: PreVote stops empty/syncing nodes from dethroning a healthy primary (#306)
 A rolling upgrade on a 3-node replica set ended in a permanent leaderless livelock: a freshly
 restarted, still-empty node could never *win* an election — the log-recency vote veto worked —

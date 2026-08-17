@@ -101,7 +101,9 @@ public class ReplicationManager {
     private volatile long watchCursorId = -1;
 
     // Initial sync state
-    private final AtomicBoolean initialSyncComplete = new AtomicBoolean(false);
+    // Package-visible so InitialSyncElectionSeedTest can put the manager into the exact
+    // post-sync state the losing interleaving produces (sync done, lastAppliedSequence still 0).
+    final AtomicBoolean initialSyncComplete = new AtomicBoolean(false);
     private final CountDownLatch initialSyncLatch = new CountDownLatch(1);
     // True when the most recently COMPLETED initial sync was satisfied by the consistency
     // shortcut (dbHash comparison against the primary, see tryConsistencyShortcut()) instead of
@@ -577,27 +579,58 @@ public class ReplicationManager {
         }
 
         if (eventQueue.isEmpty()) {
+            // Periodic catch-up half of the election log-index feed: even with nothing to
+            // drain, reconcile the election layer's view on every flush tick. A replication
+            // position that became known WITHOUT a live event to carry it (e.g. the
+            // registration seed landing only after the initial sync's own one-shot report
+            // already ran - see recordPrimarySequenceAtRegistration) then still reaches
+            // ElectionManager within one tick instead of never. updateLogIndex is
+            // monotonic-max, so re-reporting the same value every tick is a harmless no-op.
+            reportLogIndexToElection();
             return;
         }
 
         List<Map<String, Object>> batch = drainBatch(BATCH_SIZE);
 
         if (batch.isEmpty()) {
+            reportLogIndexToElection();
             return;
         }
 
         applyEventsInOrder(batch);
 
         // Notify about log index update for election consistency
-        long currentSeq = lastAppliedSequence.get();
-        if (onLogIndexUpdate != null && currentSeq > 0) {
-            // Term is 0 for now - will be updated when we receive term from leader
-            onLogIndexUpdate.accept(currentSeq, 0L);
-        }
+        reportLogIndexToElection();
 
         // Immediately report progress after processing batch for faster write concern acknowledgment
         if (immediateProgressReporting) {
             reportProgressToPrimary();
+        }
+    }
+
+    /**
+     * Push the current replication position to the election layer (wired by PoppyDB to
+     * {@link de.caluga.poppydb.election.ElectionManager#updateLogIndex}, whose monotonic-max
+     * semantics make repeated or out-of-date reports harmless no-ops). That monotonicity is
+     * what this method's design leans on: instead of reporting the position exactly ONCE at a
+     * place where it may not be known yet (the seed race between the initial-sync success
+     * block and the watch-registration seed, both racing on other threads), it is reported
+     * from every place the position can become known, plus periodically from the batch
+     * processor's flush tick as a net over the whole race class.
+     *
+     * <p>Gated on {@code initialSyncComplete}: before the sync gate opens this node does not
+     * hold the primary's dataset, and claiming a non-zero replication position then would
+     * recreate - from the other side - exactly the hazard the #306 empty-candidate restraint
+     * closed (an effectively-empty node taking part in elections as if it had the data).
+     */
+    private void reportLogIndexToElection() {
+        if (!initialSyncComplete.get()) {
+            return;
+        }
+        long currentSeq = lastAppliedSequence.get();
+        if (onLogIndexUpdate != null && currentSeq > 0) {
+            // Term is 0 for now - will be updated when we receive term from leader
+            onLogIndexUpdate.accept(currentSeq, 0L);
         }
     }
 
@@ -1334,10 +1367,16 @@ public class ReplicationManager {
                         // candidate. updateLogIndex()'s monotonic (max) semantics make this safe to
                         // call unconditionally: it can only raise ElectionManager's view, never
                         // regress it.
-                        long syncedSeq = lastAppliedSequence.get();
-                        if (onLogIndexUpdate != null && syncedSeq > 0) {
-                            onLogIndexUpdate.accept(syncedSeq, 0L);
-                        }
+                        //
+                        // This report is deliberately NOT the only one: on a loaded host this
+                        // thread can get here BEFORE the watch thread's registration callback has
+                        // seeded lastAppliedSequence (the sync is released by watchLive alone,
+                        // which that callback flips before recording the seed - and a fast
+                        // shortcut/tiny-dataset sync can outrun the gap). The read below then
+                        // sees 0 and reports nothing - which is fine, because the late-landing
+                        // seed reports itself (see recordPrimarySequenceAtRegistration) and the
+                        // batch processor's flush tick reconciles periodically as a net.
+                        reportLogIndexToElection();
                         return;
                     } catch (Exception e) {
                         // Snapshot failed while the watch may still be healthy. Retry from within
@@ -1373,6 +1412,7 @@ public class ReplicationManager {
     void setWatchLiveForTest(boolean live) {
         watchLive.set(live);
     }
+
 
     /**
      * True once the change-stream watch has registered with the primary (see {@code watchLive}'s
@@ -1903,11 +1943,22 @@ public class ReplicationManager {
             // stream captures every subsequent write, so the initial-sync snapshot can safely
             // start copying without losing writes that happen during the copy. Bump the
             // generation FIRST so a snapshot that captures the generation the instant it sees
-            // watchLive observes the value belonging to this watch (not a stale one).
+            // watchLive observes the value belonging to this watch (not a stale one). Record
+            // the primary's sequence BEFORE flipping watchLive: watchLive is what releases the
+            // initial-sync thread, and recording after the flip opened a race window in which
+            // a fast (shortcut/tiny-dataset) sync could run its ENTIRE cycle against the
+            // still-stale pre-registration sequence - reading 0 for the destructive-resync
+            // guard's primary side, re-basing lastAppliedSequence to 0 at success, and
+            // skipping its election seed (the CI-flaky InitialSyncElectionSeedTest leg; the
+            // catch-up report in recordPrimarySequenceAtRegistration is the net for any
+            // ordering this reorder cannot guarantee, e.g. a primary that never sends the
+            // sequence on the first watch). SingleMongoConnection.watch() stashes the
+            // "poppyPrimarySequence" metadata before invoking this callback, so the read is
+            // safe here.
             watchCmd.setRegistrationCallback(() -> {
                 watchGeneration.incrementAndGet();
-                watchLive.set(true);
                 recordPrimarySequenceAtRegistration(watchCmd);
+                watchLive.set(true);
             });
             cmd = watchCmd
                 .setCb(new DriverTailableIterationCallback() {
@@ -2054,8 +2105,12 @@ public class ReplicationManager {
      * sequence - exposed via {@link #getLastKnownPrimarySequence()} for callers such as a
      * replication-lag metric that need it regardless of whether it was actually used to seed the
      * resume point.
+     *
+     * <p>Package-private so the seed-race regression test ({@code InitialSyncElectionSeedTest})
+     * can drive the exact losing interleaving (initial sync declares success BEFORE this seed
+     * lands) deterministically, without depending on CI-load scheduling to hit it.
      */
-    private void recordPrimarySequenceAtRegistration(WatchCommand watchCmd) {
+    void recordPrimarySequenceAtRegistration(WatchCommand watchCmd) {
         Map<String, Object> metaData = watchCmd.getMetaData();
         Object raw = metaData == null ? null : metaData.get("poppyPrimarySequence");
         if (!(raw instanceof Number n)) {
@@ -2067,6 +2122,14 @@ public class ReplicationManager {
         if (lastAppliedSequence.compareAndSet(0, primarySeq)) {
             log.debug("Seeded lastAppliedSequence with primary sequence {} at watch registration "
                     + "(idle-window resume point)", primarySeq);
+            // Catch-up half of the initial-sync election seed (#306 follow-up): if the sync
+            // loop already declared success, its own one-shot report over there read a still-0
+            // lastAppliedSequence and was skipped - this seed landing is the moment the
+            // position actually becomes known, so report it from here. In the ordinary,
+            // non-racy order (seed lands at the START of a sync cycle, gate still closed)
+            // reportLogIndexToElection()'s initialSyncComplete gate keeps this silent - a node
+            // that does not hold the primary's dataset yet must not claim a position.
+            reportLogIndexToElection();
         }
     }
 

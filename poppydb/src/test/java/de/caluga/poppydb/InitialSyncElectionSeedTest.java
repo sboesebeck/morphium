@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
+import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.poppydb.election.ElectionManager;
 import de.caluga.poppydb.election.ElectionConfig;
@@ -127,5 +128,93 @@ public class InitialSyncElectionSeedTest {
                         + "ElectionManager even without applying any live event afterward "
                         + "(got lastLogIndex=" + electionManager.getLastLogIndex() + ", "
                         + "ReplicationManager lastAppliedSequence=" + rm.getLastAppliedSequence() + ")");
+    }
+
+    /**
+     * Deterministic reproduction of the CI-only failure of the test above: the initial-sync/
+     * registration-seed race, from the losing side. In production the watch's registration
+     * callback flips {@code watchLive} and only THEN records the primary's sequence
+     * ({@code recordPrimarySequenceAtRegistration}); the sync thread is released by
+     * {@code watchLive} alone, so on a loaded host it can complete its entire (shortcut-fast)
+     * cycle inside that gap - its one-shot election report then reads
+     * {@code lastAppliedSequence == 0} and is skipped. When the registration seed finally lands
+     * ({@code compareAndSet(0, primarySeq)} succeeds), the position is known but - before the
+     * fix - nobody reported it anymore: {@code processBatch()} only reports when live events
+     * are actually drained, so ElectionManager stayed at 0 forever and the #306 empty-candidate
+     * restraint permanently barred a fully-synced node from every election.
+     *
+     * <p>This test drives exactly that interleaving without any scheduling luck: it puts a bare
+     * (never started) ReplicationManager into the precise post-race state - sync declared
+     * complete, {@code lastAppliedSequence} still 0 - and then delivers the registration seed.
+     * The fix makes the seed itself push the now-known position to the election layer.
+     */
+    @Test
+    public void registrationSeedLandingAfterSyncCompletionStillReachesElection() throws Exception {
+        local = new InMemoryDriver();
+        local.connect();
+
+        ElectionConfig config = new ElectionConfig()
+                .setElectionTimeoutMinMs(60_000)
+                .setElectionTimeoutMaxMs(60_000);
+        ElectionManager electionManager = new ElectionManager(
+                "localhost:test-secondary", List.of("localhost:test-secondary"), config);
+
+        // Never started: state is driven directly, no primary involved.
+        rm = new ReplicationManager(local, "localhost", 1);
+        rm.setMyAddress("localhost:test-secondary");
+        rm.setOnLogIndexUpdate((index, term) ->
+                electionManager.updateLogIndex(index, electionManager.getCurrentTerm()));
+
+        // The losing interleaving's post-sync state: the sync loop's success block already ran
+        // (gate open, its one-shot report saw lastAppliedSequence == 0 and skipped), the
+        // registration seed has NOT landed yet.
+        rm.initialSyncComplete.set(true);
+
+        // Now the registration seed lands - after sync completion, as on the loaded CI runner.
+        WatchCommand watchCmd = new WatchCommand(null);
+        watchCmd.setMetaData("poppyPrimarySequence", 42L);
+        rm.recordPrimarySequenceAtRegistration(watchCmd);
+
+        assertTrue(electionManager.getLastLogIndex() == 42,
+                "a registration seed that lands AFTER the initial sync already declared success "
+                        + "must still reach ElectionManager - otherwise the node reports index 0 "
+                        + "forever and the #306 empty-candidate restraint permanently bars a "
+                        + "fully-synced node from every election "
+                        + "(got lastLogIndex=" + electionManager.getLastLogIndex() + ", "
+                        + "ReplicationManager lastAppliedSequence=" + rm.getLastAppliedSequence() + ")");
+    }
+
+    /**
+     * Guard for the opposite direction of the same fix: the ordinary, non-racy case is that the
+     * registration seed lands at the START of a sync cycle, long before the node actually holds
+     * the primary's dataset. The catch-up report must NOT fire then - a node claiming a non-zero
+     * replication position while (possibly still empty and) mid-sync would recreate, from the
+     * other side, exactly the hazard the #306 empty-candidate restraint closed.
+     */
+    @Test
+    public void registrationSeedBeforeSyncCompletionDoesNotClaimAPosition() throws Exception {
+        local = new InMemoryDriver();
+        local.connect();
+
+        ElectionConfig config = new ElectionConfig()
+                .setElectionTimeoutMinMs(60_000)
+                .setElectionTimeoutMaxMs(60_000);
+        ElectionManager electionManager = new ElectionManager(
+                "localhost:test-secondary", List.of("localhost:test-secondary"), config);
+
+        rm = new ReplicationManager(local, "localhost", 1);
+        rm.setMyAddress("localhost:test-secondary");
+        rm.setOnLogIndexUpdate((index, term) ->
+                electionManager.updateLogIndex(index, electionManager.getCurrentTerm()));
+
+        // Normal cycle start: initial sync NOT complete yet when the registration seed lands.
+        WatchCommand watchCmd = new WatchCommand(null);
+        watchCmd.setMetaData("poppyPrimarySequence", 42L);
+        rm.recordPrimarySequenceAtRegistration(watchCmd);
+
+        assertTrue(electionManager.getLastLogIndex() == 0,
+                "a registration seed arriving BEFORE the initial sync completed must not claim a "
+                        + "replication position - the node does not hold the primary's dataset yet "
+                        + "(got lastLogIndex=" + electionManager.getLastLogIndex() + ")");
     }
 }
