@@ -15,8 +15,14 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.io.Writer;
+import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.text.Collator;
@@ -720,23 +726,36 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public void restore(InputStream in) throws IOException, ParseException {
-        GZIPInputStream gzin = new GZIPInputStream(in);
-        BufferedInputStream bin = new BufferedInputStream(gzin);
-        BufferedReader br = new BufferedReader(new InputStreamReader(bin));
-        String l = null;
-        StringBuilder b = new StringBuilder();
+        byte[] raw;
 
-        while ((l = br.readLine()) != null) {
-            b.append(l);
+        try (GZIPInputStream gzin = new GZIPInputStream(in)) {
+            raw = gzin.readAllBytes();
         }
 
-        br.close();
+        // Dumps are written as UTF-8 (see dump()/dumpToFile()). Legacy dumps were written with
+        // the platform default charset (#306), so a dump that is not valid UTF-8 gets a
+        // tolerant second chance as ISO-8859-1 - that decodes every byte sequence and maps the
+        // typical legacy defaults (latin-1/latin-9/windows-1252) closely enough for umlauts.
+        // Decoding must REPORT malformed input instead of silently replacing characters with
+        // U+FFFD, or a legacy dump would be mojibake'd without anyone noticing.
+        // The content is decoded as a whole, NOT line by line: the previous readLine() loop
+        // silently deleted raw newlines that legacy dumps contain inside string values.
+        String json;
+
+        try {
+            json = StandardCharsets.UTF_8.newDecoder()
+                   .onMalformedInput(CodingErrorAction.REPORT)
+                   .onUnmappableCharacter(CodingErrorAction.REPORT)
+                   .decode(ByteBuffer.wrap(raw)).toString();
+        } catch (CharacterCodingException e) {
+            log.warn("Dump is not valid UTF-8 - assuming a legacy dump written with a platform "
+                     + "default charset, falling back to ISO-8859-1");
+            json = new String(raw, StandardCharsets.ISO_8859_1);
+        }
+
         ObjectMapperImpl mapper = new ObjectMapperImpl();
-        MorphiumTypeMapper<ObjectId> typeMapper = getObjectIdTypeMapper();
-        mapper.registerCustomMapperFor(ObjectId.class, typeMapper);
-        // log.info("Read in json: " + b);
-        InMemDumpContainer cnt = mapper.deserialize(InMemDumpContainer.class, b.toString());
-        // log.info("Restoring DB " + cnt.getDb() + " dump from " + new Date(cnt.getCreated()));
+        registerRestoreTypeMappers(mapper);
+        InMemDumpContainer cnt = mapper.deserialize(InMemDumpContainer.class, json);
         setDatabase(cnt.getDb(), cnt.getData());
     }
 
@@ -760,8 +779,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         d.setData(snapshotDatabase(db));
         d.setDb(db);
         Map<String, Object> ser = mapper.serialize(d);
-        OutputStreamWriter wr = new OutputStreamWriter(gzip);
-        Utils.writeJson(ser, wr);
+        OutputStreamWriter wr = new OutputStreamWriter(gzip, StandardCharsets.UTF_8);
+        writeDumpJson(ser, wr);
         wr.flush();
         gzip.finish();
         gzip.flush();
@@ -793,14 +812,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         try (FileOutputStream fos = new FileOutputStream(f);
             GZIPOutputStream gzip = new GZIPOutputStream(fos);
-            OutputStreamWriter wr = new OutputStreamWriter(gzip)) {
+            OutputStreamWriter wr = new OutputStreamWriter(gzip, StandardCharsets.UTF_8)) {
 
             InMemDumpContainer d = new InMemDumpContainer();
             d.setCreated(System.currentTimeMillis());
             d.setData(snapshot);
             d.setDb(db);
             Map<String, Object> ser = mapper.serialize(d);
-            Utils.writeJson(ser, wr);
+            writeDumpJson(ser, wr);
             wr.flush();
             gzip.finish();
         }
@@ -938,6 +957,134 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 return new ObjectId(((Map <?, ? >) d).get("value").toString());
             }
         };
+    }
+
+    /**
+     * JSON writer for dump files. Unlike the generic {@link Utils#writeJson}, this one must
+     * produce JSON that can be parsed back into the exact same storage types the driver holds:
+     * strings are escaped, and the non-JSON BSON value types a collection can contain (Date,
+     * UUID, ObjectId/MorphiumId, byte[]) are written as class_name-marked maps that
+     * {@link #registerRestoreTypeMappers(ObjectMapperImpl)} converts back on restore.
+     * Before #306 the dump used {@link Utils#writeJson}, which wrote strings unescaped and
+     * Date/UUID as bare unquoted toString() tokens - every dump of a database with real data
+     * (timestamps, text with quotes) was unparseable, and byte[]/ids silently changed type.
+     */
+    private static void writeDumpJson(Object o, Writer out) throws IOException {
+        if (o == null) {
+            out.write("null");
+        } else if (o instanceof String) {
+            Utils.writeEscapedJsonString((String) o, out);
+        } else if (o instanceof Date) {
+            out.write("{ \"class_name\" : \"java.util.Date\", \"value\" : " + ((Date) o).getTime() + " } ");
+        } else if (o instanceof UUID) {
+            out.write("{ \"class_name\" : \"java.util.UUID\", \"value\" : \"" + o + "\" } ");
+        } else if (o instanceof ObjectId || o instanceof MorphiumId) {
+            // keep the marker format the (pre-existing) ObjectId type mapper produces
+            out.write("{ \"value\" : \"" + o + "\", \"class_name\" : \"org.bson.types.ObjectId\" } ");
+        } else if (o instanceof byte[]) {
+            out.write("{ \"class_name\" : \"[B\", \"value\" : \""
+                      + Base64.getEncoder().encodeToString((byte[]) o) + "\" } ");
+        } else if (o instanceof Map) {
+            out.write("{ ");
+            boolean comma = false;
+
+            for (Map.Entry <?, ? > e : ((Map <?, ? >) o).entrySet()) {
+                if (comma) {
+                    out.write(", ");
+                }
+
+                comma = true;
+                Utils.writeEscapedJsonString(String.valueOf(e.getKey()), out);
+                out.write(" : ");
+                writeDumpJson(e.getValue(), out);
+            }
+
+            out.write(" } ");
+        } else if (o instanceof Collection) {
+            out.write(" [ ");
+            boolean comma = false;
+
+            for (Object obj : (Collection <?>) o) {
+                if (comma) {
+                    out.write(", ");
+                }
+
+                comma = true;
+                writeDumpJson(obj, out);
+            }
+
+            out.write("]");
+        } else if (o.getClass().isArray()) {
+            out.write(" [ ");
+            int length = Array.getLength(o);
+
+            for (int i = 0; i < length; i++) {
+                if (i > 0) {
+                    out.write(", ");
+                }
+
+                writeDumpJson(Array.get(o, i), out);
+            }
+
+            out.write("]");
+        } else if (o instanceof Enum) {
+            Utils.writeEscapedJsonString(((Enum <?>) o).name(), out);
+        } else {
+            // numbers, booleans
+            out.write(o.toString());
+        }
+    }
+
+    /**
+     * Registers the type mappers that turn the class_name-marked maps written by
+     * {@link #writeDumpJson(Object, Writer)} back into the driver's storage types on restore.
+     * ObjectId markers deliberately restore as {@link MorphiumId}: that is what the wire
+     * protocol decodes ids to (BsonDecoder) and what queries and deletes compare against -
+     * restoring them as Strings (the pre-#306 behavior) made documents unfindable by id after
+     * a server restart.
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private void registerRestoreTypeMappers(ObjectMapperImpl mapper) {
+        mapper.registerCustomMapperFor(ObjectId.class, (MorphiumTypeMapper) new MorphiumTypeMapper<Object>() {
+            @Override
+            public Object marshall(Object o) {
+                return getObjectIdTypeMapper().marshall((ObjectId) o);
+            }
+            @Override
+            public Object unmarshall(Object d) {
+                return new MorphiumId(((Map <?, ? >) d).get("value").toString());
+            }
+        });
+        mapper.registerCustomMapperFor(Date.class, new MorphiumTypeMapper<Date>() {
+            @Override
+            public Object marshall(Date o) {
+                return Doc.of("class_name", "java.util.Date", "value", o.getTime());
+            }
+            @Override
+            public Date unmarshall(Object d) {
+                return new Date(((Number) ((Map <?, ? >) d).get("value")).longValue());
+            }
+        });
+        mapper.registerCustomMapperFor(UUID.class, new MorphiumTypeMapper<UUID>() {
+            @Override
+            public Object marshall(UUID o) {
+                return Doc.of("class_name", "java.util.UUID", "value", o.toString());
+            }
+            @Override
+            public UUID unmarshall(Object d) {
+                return UUID.fromString(((Map <?, ? >) d).get("value").toString());
+            }
+        });
+        mapper.registerCustomMapperFor(byte[].class, new MorphiumTypeMapper<byte[]>() {
+            @Override
+            public Object marshall(byte[] o) {
+                return Doc.of("class_name", "[B", "value", Base64.getEncoder().encodeToString(o));
+            }
+            @Override
+            public byte[] unmarshall(Object d) {
+                return Base64.getDecoder().decode(((Map <?, ? >) d).get("value").toString());
+            }
+        });
     }
 
     @Override

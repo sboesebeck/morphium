@@ -199,6 +199,47 @@ synchronously *before* `start()` wires up replication and election — the suspe
 the ElectionManager did not exist; the node joined empty purely because the aborted loop
 reported nothing.
 
+#### InMemoryDriver/PoppyDB: dumps of any database with real data were unrestorable — "Parsing failed" (#306)
+The fault-tolerant restore above immediately surfaced the bug it had been hiding: on the
+customer acceptance environment 5 of 8 databases failed to restore with
+`RuntimeException: Parsing failed` — exactly the data-bearing ones, while the quasi-empty ones
+went through. The dump writer (`Utils.writeJson`) never produced parseable JSON for real
+content: strings were written verbatim (one quote, backslash or control character in a news
+text and the JSON is broken — json-simple: `Unexpected character (S) at position 60`), and
+`Date`/`UUID` values were written as bare unquoted `toString()` tokens (`Mon Aug 17 ...` —
+`Unexpected character (M) at position 40`), so a single timestamp field was enough to lose the
+whole database. On top, `byte[]` silently came back as a `List<Long>` and
+`MorphiumId`/`ObjectId` ids as plain `String`s — documents unfindable by id after a restart —
+and both sides of the roundtrip used the platform default charset (`new OutputStreamWriter(gzip)`
+/ `new InputStreamReader(bin)`), so a dump written under one default and read under another
+mojibake'd every umlaut without any error. Dumps are now written as UTF-8 with proper JSON
+string escaping, and Date/UUID/ObjectId/byte[] as `class_name`-marked maps the restore converts
+back into the exact storage types (ids restore as `MorphiumId`, which is what the wire protocol
+stores and queries compare against). The restore side reads UTF-8 strictly and falls back to
+ISO-8859-1 with a WARN for legacy dumps written under a non-UTF-8 platform default, and decodes
+the stream as a whole instead of the old `readLine()` join that silently deleted raw newlines
+inside string values. `Utils.writeJson` itself now escapes strings too (it also feeds
+`@Encrypted` field serialization and log output), and `ObjectMapperImpl.deserialize` includes
+the wrapped cause plus the JSON context around the parse position in its message — a bare
+"Parsing failed" through a `getMessage()`-only log line is how this bug stayed invisible in the
+first place. Honest limits for existing dump files: legacy dumps restore as far as they ever
+could — content whose strings contain quotes/backslashes or that carries `Date`/`UUID` values
+was written as structurally broken JSON by the old code and cannot be recovered; legacy dumps
+without those (plain text, numbers, ids) restore fine, now even with correct umlauts across
+platform-default changes and with raw newlines preserved.
+
+#### PoppyDB CLI: election-state persistence was silently inactive — dump directory was set after `configureReplicaSet()` (#306)
+The term/votedFor persistence introduced for the #306 election churn never engaged on the
+customer environment: no `election-state.properties`, not even the "Election state persisted
+to" log line. `configureReplicaSet()` is the place that derives the state-file path from the
+dump directory and bakes it into the `ElectionConfig`, but the CLI set the dump directory only
+afterwards, in the persistence/restore block — so the config never got a path and neither
+persisting nor loading ever ran. The CLI now sets the dump directory before configuring the
+replica set (the restore itself still runs synchronously before `start()`, unchanged), and
+`PoppyDB.setDumpDirectory()` logs an unmissable WARN when it is called after an
+election-enabled `configureReplicaSet()` without persistence, so embedded users cannot fall
+into the same silent ordering trap.
+
 #### PooledDriver: a client could stay stuck on "No primary node found" forever after a replica-set restart sequence (#304)
 Nine service instances kept failing every operation for 30+ minutes after their PoppyDB
 replica set had been restarted node by node, and only an application restart brought them

@@ -1443,6 +1443,17 @@ public class PoppyDB {
 
     public void setDumpDirectory(File dir) {
         this.dumpDirectory = dir;
+
+        // Ordering hazard (#306): configureReplicaSet() derives the election-state file path
+        // from the dump directory and bakes it into the ElectionManager's config. If the dump
+        // directory arrives only afterwards, term/votedFor persistence stays silently disabled
+        // - exactly what happened on the customer ACC environment. Make it loud.
+        if (dir != null && electionManager != null && electionConfig != null
+                && (!electionConfig.isPersistState() || electionConfig.getStatePersistencePath() == null)) {
+            log.warn("Dump directory was set AFTER configureReplicaSet() - election state "
+                     + "(currentTerm/votedFor) will NOT be persisted. Call setDumpDirectory() before "
+                     + "configureReplicaSet(), or set an explicit state persistence path in the ElectionConfig.");
+        }
     }
 
     public void setDumpIntervalMs(long intervalMs) {

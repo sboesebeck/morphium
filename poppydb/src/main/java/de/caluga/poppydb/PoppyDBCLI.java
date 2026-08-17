@@ -520,6 +520,14 @@ public class PoppyDBCLI {
         log.info("Replication event queue byte budget: {} ({} bytes{})", opts.eventQueueBudget,
             eventQueueBudgetBytes, eventQueueBudgetBytes == 0 ? ", byte cap off" : "");
 
+        // The dump directory has to be known BEFORE the replica set is configured: that is
+        // where the election-state file path (next to the dumps) is derived and put into the
+        // ElectionConfig the ElectionManager is built with (#306). Setting it later left the
+        // persistence silently disabled - term/votedFor were neither persisted nor loaded.
+        if (opts.dumpDir != null) {
+            srv.setDumpDirectory(new java.io.File(opts.dumpDir));
+        }
+
         // Configure replica set - election is always enabled for multi-node replica sets
         boolean enableElection = !opts.rsName.isEmpty() && hosts.size() > 1;
         if (enableElection) {
@@ -572,7 +580,6 @@ public class PoppyDBCLI {
 
         if (opts.dumpDir != null) {
             java.io.File dir = new java.io.File(opts.dumpDir);
-            srv.setDumpDirectory(dir);
             log.info("Persistence enabled: dump directory = {}", dir.getAbsolutePath());
 
             if (opts.dumpIntervalSec > 0) {

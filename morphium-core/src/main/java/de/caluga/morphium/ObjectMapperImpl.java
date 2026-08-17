@@ -974,7 +974,23 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 return (T) jsonParser.parse(jsonString);
             }
         } catch (Exception e) {
-            throw new RuntimeException("Parsing failed", e);
+            // The cause must be part of the message: many callers only log getMessage(), and a
+            // bare "Parsing failed" hides what actually went wrong (#306 cost a day that way).
+            StringBuilder msg = new StringBuilder("Parsing failed for ").append(cls.getName())
+            .append(" (json length ").append(jsonString.length()).append("): ").append(e);
+
+            if (e instanceof org.json.simple.parser.ParseException) {
+                int pos = ((org.json.simple.parser.ParseException) e).getPosition();
+                int from = Math.max(0, pos - 40);
+                int to = Math.min(jsonString.length(), pos + 40);
+
+                if (from < to) {
+                    msg.append(" - context around position ").append(pos).append(": ...")
+                    .append(jsonString.substring(from, to).replaceAll("[\\r\\n\\t]", " ")).append("...");
+                }
+            }
+
+            throw new RuntimeException(msg.toString(), e);
         }
     }
 
