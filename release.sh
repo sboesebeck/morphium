@@ -167,7 +167,7 @@ MODULE_EXTRA_CLASSIFIERS=("" "cli" "" "" "" "" "" "" "")
 # its three published submodules and MODULE_DIRS would point at three paths that
 # hold no README at all. Adding a new extension module here is what keeps its
 # README from rotting.
-MODULE_README_FILES=(morphium-jakarta-data/README.md quarkus-morphium/README.md)
+MODULE_README_FILES=(morphium-jakarta-data/README.md quarkus-morphium/README.md spring-boot-morphium/README.md)
 
 # All module pom.xml paths plus the root pom.xml, for git add/commit calls.
 # Note: MODULE_DIRS only lists directories that hold a *published* artifact
