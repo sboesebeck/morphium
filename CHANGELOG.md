@@ -148,6 +148,20 @@ analysis). The deduplication behavior is unchanged, only the log level.
 
 ### Fixed
 
+#### PoppyDB election: the state-file quarantine bricked every upgrade from a pre-checksum build (#306 follow-up)
+The mandatory three-key state-file schema (currentTerm, explicitly-empty votedFor, CRC32
+checksum) quarantined *every* file written by the immediately preceding builds — which wrote
+no checksum at all and omitted votedFor when null. On upgrade, all nodes of an RS therefore
+came up "holding back candidacy: persisted election state exists but is unreadable" at once:
+no candidate, no primary, every client failing with "No primary node found" (observed
+cluster-wide on the testrunner RS, 2026-08-17). A missing checksum *key* is now recognized as
+the legacy signature — checksum-era files are written atomically (tmp+move) and cannot lose
+single lines undetected, so "no checksum key" means an older build's complete write, not a
+truncation. Legacy files are restored (votedFor optional, exactly as the legacy writer
+produced them) and immediately rewritten in the current format, closing the unprotected
+window; empty files, files without currentTerm, checksum mismatches and checksum-era files
+missing votedFor are still quarantined as before.
+
 #### PoppyDB election: a vote could be granted without being durable, and a broken state file reset the node to term 0 (#306)
 `persistElectionState()` swallowed every write failure, yet the voter confirmed the vote (and
 a candidate its self-vote) anyway — despite the "votedFor must be durable before the response

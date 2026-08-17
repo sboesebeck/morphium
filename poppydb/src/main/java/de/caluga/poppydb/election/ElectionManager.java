@@ -1374,6 +1374,10 @@ public class ElectionManager {
      *       but {@link #stateFileUnreadable} keeps it out of elections entirely until an
      *       operator restores the file or deliberately deletes it (accepting a clean start).</li>
      * </ul>
+     *
+     * <p>A third case is neither: a <b>legacy pre-checksum file</b> (no {@code checksum} key)
+     * is a complete write of an older build and is accepted and immediately rewritten in the
+     * current format - see the inline comment for why it is distinguishable from truncation.
      */
     private void loadPersistedState() {
         if (!isPersistenceEnabled()) {
@@ -1391,25 +1395,59 @@ public class ElectionManager {
             Properties props = new Properties();
             props.load(in);
 
-            // Mandatory schema (#306 P1-1 follow-up): every write of ours contains ALL THREE
-            // keys - currentTerm, votedFor (explicitly empty when null) and a checksum over
-            // both. Properties.load() parses an empty or truncated file without complaint, and
-            // a getProperty default would quietly turn "file lost its content" into "term 0,
-            // never voted" - the exact reset the quarantine exists to prevent. A file missing
-            // any key, or failing the checksum, is not a complete write of ours and is
-            // quarantined like an unparsable one.
+            // Mandatory schema (#306 P1-1 follow-up): every checksum-era write of ours contains
+            // ALL THREE keys - currentTerm, votedFor (explicitly empty when null) and a
+            // checksum over both. Properties.load() parses an empty or truncated file without
+            // complaint, and a getProperty default would quietly turn "file lost its content"
+            // into "term 0, never voted" - the exact reset the quarantine exists to prevent. A
+            // file missing any key, or failing the checksum, is not a complete write of ours
+            // and is quarantined like an unparsable one.
             String termProp = props.getProperty("currentTerm");
             String votedProp = props.getProperty("votedFor");
             String checksumProp = props.getProperty("checksum");
 
-            if (termProp == null || votedProp == null || checksumProp == null) {
-                throw new IllegalStateException("incomplete state file: mandatory key(s) missing ("
-                        + (termProp == null ? "currentTerm " : "")
-                        + (votedProp == null ? "votedFor " : "")
-                        + (checksumProp == null ? "checksum" : "").trim() + ")");
+            // currentTerm is mandatory in EVERY format generation - a file without it (e.g. an
+            // empty one) is never a complete write of ours.
+            if (termProp == null) {
+                throw new IllegalStateException("incomplete state file: currentTerm missing");
             }
 
             long term = Long.parseLong(termProp.trim());
+
+            if (checksumProp == null) {
+                // Legacy pre-checksum write (up to e26d5ad98): currentTerm always present,
+                // votedFor only when non-null, no checksum. A missing checksum KEY is the
+                // legacy signature, not a truncation - checksum-era files are written
+                // atomically (tmp+move) and cannot lose single lines short of filesystem-level
+                // corruption, which their checksum then catches. Quarantining legacy files
+                // bricked a whole RS on upgrade (2026-08-17 testrunner incident: all three
+                // nodes with intact legacy state "holding back candidacy" -> no primary).
+                String legacyVoted = (votedProp == null || votedProp.isEmpty()) ? null : votedProp;
+                currentTerm.set(term);
+                votedFor = legacyVoted;
+                log.warn("{} restored LEGACY (pre-checksum) election state from {}: term={}, "
+                        + "votedFor={} - rewriting it in the current three-key format",
+                        myAddress, path, term, legacyVoted);
+
+                // One-time migration: rewrite immediately, or the file stays outside the
+                // checksum protection until the next term increase (becomeFollower only
+                // persists when the term actually changes). Safe without stateLock: start()
+                // runs single-threaded, the scheduler does not exist yet. Best-effort - the
+                // in-memory state is correct either way, and the vote-granting paths enforce
+                // durability themselves.
+                if (!persistElectionState()) {
+                    log.warn("{} could not rewrite the legacy election state file {} - it stays in "
+                            + "the legacy format and will be migrated on the next successful persist",
+                            myAddress, path);
+                }
+                return;
+            }
+
+            if (votedProp == null) {
+                throw new IllegalStateException(
+                        "incomplete state file: votedFor missing from a checksum-era write");
+            }
+
             String voted = votedProp.isEmpty() ? null : votedProp;
 
             if (!checksumProp.equals(stateChecksum(term, voted))) {

@@ -152,20 +152,82 @@ public class ElectionStatePersistenceTest {
     }
 
     @Test
-    void truncatedStateFileMissingVotedForIsQuarantined() throws Exception {
-        // A partially preserved file that kept its currentTerm line but lost the votedFor line
-        // parses fine - but the node may have voted in that very term. The persisted schema is
-        // mandatory: every write contains currentTerm, votedFor (explicitly empty when null)
-        // and a checksum, so a file missing any of them is not OUR complete write.
+    void truncatedNewFormatStateFileMissingVotedForIsQuarantined() throws Exception {
+        // A NEW-format file (checksum key present) that lost its votedFor line is provably not
+        // a complete write of ours: every checksum-era write contains all three keys, votedFor
+        // explicitly empty when null. The vote for term 7 may already be gone - quarantine.
         Path stateFile = tempDir.resolve("truncated.properties");
-        Files.writeString(stateFile, "currentTerm=7\n");
+        Files.writeString(stateFile, "currentTerm=7\nchecksum=deadbeef\n");
 
         ElectionManager manager = node(persistingConfig(stateFile));
 
         VoteResponse response = manager.handleVoteRequest(new VoteRequest(7, "other:27017", 0, 0));
         assertFalse(response.isVoteGranted(),
-                "a state file with currentTerm but without votedFor/checksum is an incomplete write "
-                        + "- the vote for term 7 may already be gone, it must not be re-granted");
+                "a checksum-era state file with currentTerm but without votedFor is an incomplete "
+                        + "write - the vote for term 7 may already be gone, it must not be re-granted");
+    }
+
+    @Test
+    void legacyStateFileWithoutChecksumIsAcceptedAndHonored() throws Exception {
+        // Written by the pre-checksum builds (e26d5ad98): currentTerm always, votedFor only
+        // when non-null, no checksum. Quarantining these bricked a whole RS on upgrade (every
+        // node "holding back candidacy" -> no primary, 2026-08-17 testrunner incident): all
+        // three nodes had perfectly intact legacy files and none was allowed to campaign.
+        // A missing checksum KEY is the legacy signature - unlike a truncated checksum-era
+        // file, which keeps its checksum key but fails verification.
+        Path stateFile = tempDir.resolve("legacy.properties");
+        Files.writeString(stateFile,
+                "#PoppyDB election state (Raft currentTerm/votedFor) - managed by ElectionManager\n"
+                        + "currentTerm=19\nvotedFor=candidate:27017\n");
+
+        ElectionManager manager = node(persistingConfig(stateFile));
+
+        assertEquals(19, manager.getCurrentTerm(), "the legacy term must be restored, not quarantined");
+        assertFalse(manager.handleVoteRequest(new VoteRequest(19, "other:27017", 0, 0)).isVoteGranted(),
+                "the legacy votedFor must be honored - the vote for term 19 is already given away");
+        assertTrue(manager.handleVoteRequest(new VoteRequest(19, "candidate:27017", 0, 0)).isVoteGranted(),
+                "the original candidate may be re-granted, proving the node is NOT quarantined");
+    }
+
+    @Test
+    void legacyStateFileWithOnlyCurrentTermIsAccepted() throws Exception {
+        // The legacy writer OMITTED votedFor when null (term adopted, no vote granted in it) -
+        // so "currentTerm only, no checksum" is a legitimate, complete legacy write, not a
+        // truncation. Refusing it reopens the upgrade brick for exactly the most common file
+        // content. (A checksum-era file cannot silently lose lines: it is written atomically
+        // via tmp+move, and any tampering fails its checksum.)
+        Path stateFile = tempDir.resolve("legacy-term-only.properties");
+        Files.writeString(stateFile, "currentTerm=7\n");
+
+        ElectionManager manager = node(persistingConfig(stateFile));
+
+        assertEquals(7, manager.getCurrentTerm());
+        assertTrue(manager.handleVoteRequest(new VoteRequest(7, "candidate:27017", 0, 0)).isVoteGranted(),
+                "no votedFor in a legacy file means no vote was granted in that term - voting must work");
+    }
+
+    @Test
+    void legacyStateFileIsRewrittenInNewFormatOnLoad() throws Exception {
+        // One-time migration: accepting the legacy format must not leave the file in it - the
+        // next write may be far away (becomeFollower only persists on a term INCREASE), and
+        // until then the file would stay outside the checksum protection on every restart.
+        Path stateFile = tempDir.resolve("legacy-migrate.properties");
+        Files.writeString(stateFile, "currentTerm=19\nvotedFor=candidate:27017\n");
+
+        ElectionManager manager = node(persistingConfig(stateFile));
+        assertEquals(19, manager.getCurrentTerm());
+
+        String rewritten = Files.readString(stateFile);
+        assertTrue(rewritten.contains("checksum="),
+                "a loaded legacy file must immediately be rewritten in the mandatory three-key format");
+        assertTrue(rewritten.contains("currentTerm=19"), "the migrated file must keep the restored term");
+
+        // The migrated file must roundtrip: a restart reads it as a normal new-format file.
+        manager.stop();
+        ElectionManager restarted = node(persistingConfig(stateFile));
+        assertEquals(19, restarted.getCurrentTerm(), "the migrated file must restore cleanly");
+        assertFalse(restarted.handleVoteRequest(new VoteRequest(19, "other:27017", 0, 0)).isVoteGranted(),
+                "votedFor must survive the migration roundtrip");
     }
 
     @Test
