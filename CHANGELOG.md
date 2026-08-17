@@ -148,6 +148,43 @@ analysis). The deduplication behavior is unchanged, only the log level.
 
 ### Fixed
 
+#### PoppyDB election: a failed retry-persist forgot a durably granted vote (#306 review round 2)
+The persist-failure rollback in `handleVoteRequest` reset `votedFor` to null unconditionally.
+On a *retry* from the candidate the node had already durably voted for (Raft standard: the
+response got lost, the candidate asks again), a transient persist failure therefore erased the
+earlier, still-durable vote from memory — and a *second* candidate asking next could be
+granted the same term: two votes in one term, two leaders. The rollback now restores the
+previous `votedFor` (the same pattern `becomeCandidate` already used), so a failed persist
+denies the retry without forgetting the vote that actually stands.
+
+#### PoppyDB election: a leader demoted by a straggling higher-term vote response went permanently silent (#306 review round 2)
+The higher-term check in `handleVoteResponse` runs before round correlation (correct — a
+higher term is authoritative whatever RPC carried it), but demoted with `resetTimer` only for
+candidates. A node that had already *won* (its election timer cancelled by `becomeLeader()`)
+ended up as a follower with neither heartbeats to receive nor an election timer to fire: if
+the higher-term peer never made contact (died, partitioned), the node never campaigned again.
+Every other leader-demotion path re-arms the timer; this one now does too.
+
+#### PoppyDB election: the partial-restore guard deadlocked peer-less nodes, and only the CLI ever armed it (#306 review round 2)
+Two halves. First, the guard's only release path is a completed initial sync *from a primary*
+— which a single-node replica set can never have: one broken dump file and the node held back
+candidacy forever, with no runtime override. A node without peers now skips the hold-back
+(there is no one to sync from and no intact peer a partial primary could overwrite), and the
+CLI's PARTIAL-RESTORE warning explains the manual way out (restore or delete the broken dump
+files, restart). Second, only `PoppyDBCLI` called `setLocalDataComplete(false)` — an embedder
+following the documented pattern (`restoreFromDump()`, check `isComplete()`, `start()`) booted
+a gutted node that still considered itself electable, recreating the empty-node-wipe after a
+cluster-wide restart. `restoreFromDump()` itself now drops the guard on a partial result.
+
+#### PoppyDB: the replication-manager field was assigned after start(), losing fast sync-complete notifications (#306 review round 2)
+The initial-sync completion notification is one-shot (`maybeFireSyncCompleteNotify` consumes
+its flag via CAS). On a fast sync — e.g. the consistency shortcut against a loopback peer —
+the batch processor could fire it before `startReplicationToLeader` assigned the new manager
+to the field; the receiver then discarded the release as coming from a superseded manager, and
+the partial-restore guard stayed stuck until some unrelated resync. The field is now assigned
+before `start()` (as the static-mode path already did), with the assignment rolled back if
+`start()` throws.
+
 #### PoppyDB election: the state-file quarantine bricked every upgrade from a pre-checksum build (#306 follow-up)
 The mandatory three-key state-file schema (currentTerm, explicitly-empty votedFor, CRC32
 checksum) quarantined *every* file written by the immediately preceding builds — which wrote

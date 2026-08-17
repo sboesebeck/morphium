@@ -1081,7 +1081,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * produce JSON that can be parsed back into the exact same storage types the driver holds:
      * strings are escaped, and the non-JSON BSON value types a collection can contain (Date,
      * UUID, ObjectId/MorphiumId, byte[]) are written as class_name-marked maps that
-     * {@link #registerRestoreTypeMappers(ObjectMapperImpl)} converts back on restore.
+     * {@link #restoreDumpValue} converts back on restore.
      * Before #306 the dump used {@link Utils#writeJson}, which wrote strings unescaped and
      * Date/UUID as bare unquoted toString() tokens - every dump of a database with real data
      * (timestamps, text with quotes) was unparseable, and byte[]/ids silently changed type.

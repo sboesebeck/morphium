@@ -359,6 +359,42 @@ public class ElectionStatePersistenceTest {
     }
 
     @Test
+    void persistFailureOnAVoteRetryMustNotForgetTheDurableVote() throws Exception {
+        // #306 review round 2, F1: the persist-failure rollback used to set votedFor=null
+        // unconditionally. On a RETRY from the candidate we already durably voted for (Raft
+        // standard: response lost, candidate re-asks; canVote is true via votedFor.equals),
+        // a transient persist failure then FORGOT the earlier, durable vote in memory - and a
+        // second candidate could be granted the same term next: two leaders in one term. The
+        // rollback must restore the PREVIOUS votedFor, exactly like becomeCandidate does.
+        Path stateDir = tempDir.resolve("retry-state");
+        Files.createDirectories(stateDir);
+        Path stateFile = stateDir.resolve("state.properties");
+
+        ElectionManager manager = node(persistingConfig(stateFile));
+        assertTrue(manager.handleVoteRequest(new VoteRequest(7, "candidate:27017", 0, 0)).isVoteGranted(),
+                "test setup: the first vote must be granted and persisted");
+
+        // Every further persist fails: the tmp file cannot be created in an unwritable dir.
+        // The durable state file itself is untouched and still says votedFor=candidate.
+        Files.setPosixFilePermissions(stateDir,
+                java.nio.file.attribute.PosixFilePermissions.fromString("r-xr-xr-x"));
+
+        try {
+            assertFalse(manager.handleVoteRequest(new VoteRequest(7, "candidate:27017", 0, 0)).isVoteGranted(),
+                    "an un-persistable retry is still denied (durability rule)");
+        } finally {
+            Files.setPosixFilePermissions(stateDir,
+                    java.nio.file.attribute.PosixFilePermissions.fromString("rwxr-xr-x"));
+        }
+
+        assertFalse(manager.handleVoteRequest(new VoteRequest(7, "other:27017", 0, 0)).isVoteGranted(),
+                "the vote for term 7 is still durably candidate's - it must not be re-granted to a "
+                        + "second candidate after a failed retry-persist (double vote, two leaders)");
+        assertTrue(manager.handleVoteRequest(new VoteRequest(7, "candidate:27017", 0, 0)).isVoteGranted(),
+                "the original candidate must still be re-grantable");
+    }
+
+    @Test
     void persistenceDisabledWritesNothing() throws Exception {
         Path stateFile = tempDir.resolve("disabled.properties");
         ElectionConfig config = new ElectionConfig()

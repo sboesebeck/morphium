@@ -411,8 +411,13 @@ what worked.
 
 When a dump directory is configured, the node also persists its Raft term and vote to
 `<dump-dir>/election-state.properties` and reads it back on startup - without it a restarted
-node returns at term 0 and adds to term churn during rolling restarts. A missing or unreadable
-file is never fatal; the node then simply starts clean.
+node returns at term 0 and adds to term churn during rolling restarts. A *missing* file is
+harmless (first start, or persistence newly enabled): the node simply starts clean at term 0.
+An *existing but unreadable or incomplete* file is different: the node may already have voted
+at any term, so it starts and serves data but stays out of elections entirely (no vote, no
+candidacy) until you either restore the file from a backup or delete it - deliberately
+accepting a clean start - and restart the node. Files written by pre-checksum builds are
+recognized and migrated automatically; only genuinely broken files trigger this quarantine.
 
 **Quick Start with Persistence:**
 

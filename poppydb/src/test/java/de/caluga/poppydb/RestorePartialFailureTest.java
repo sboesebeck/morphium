@@ -91,6 +91,30 @@ public class RestorePartialFailureTest {
                 "intact dumps must be restored despite the broken one");
         assertTrue(server.getDriver().listDatabases().contains("db_omega"),
                 "intact dumps must be restored despite the broken one");
+        // #306 review round 2: the guard must live in restoreFromDump() itself, not only in
+        // PoppyDBCLI - an embedder following docs/poppydb.md (restore, check isComplete(),
+        // start()) otherwise boots a gutted node with dataComplete=true, and after a
+        // cluster-wide restart that node can win the election and overwrite the intact peers
+        // via their initial sync (the exact empty-node-wipe the guard exists to close).
+        assertFalse(server.isLocalDataComplete(),
+                "a partial restore must drop the partial-restore candidacy guard in PoppyDB itself, "
+                        + "not rely on every caller to do it");
+    }
+
+    @Test
+    public void completeRestoreFromDumpKeepsTheNodeElectable(@TempDir Path tmp) throws Exception {
+        File dir = tmp.toFile();
+        createDump(dir, "db_alpha");
+        createDump(dir, "db_omega");
+
+        server = new PoppyDB(freePort(), "127.0.0.1", 20, 60);
+        server.setDumpDirectory(dir);
+
+        InMemoryDriver.DirectoryRestoreResult result = server.restoreFromDump();
+
+        assertTrue(result.isComplete());
+        assertTrue(server.isLocalDataComplete(),
+                "a complete restore must not touch the candidacy guard");
     }
 
     @Test

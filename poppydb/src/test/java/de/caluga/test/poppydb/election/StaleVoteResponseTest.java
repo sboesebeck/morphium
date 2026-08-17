@@ -138,4 +138,54 @@ public class StaleVoteResponseTest {
         assertEquals(ElectionState.LEADER, node.getState(),
                 "current-round grants must still win elections - correlation must not block normal operation");
     }
+
+    @Test
+    @Timeout(30)
+    void staleHigherTermResponseDemotingALeaderMustReArmTheElectionTimer() throws Exception {
+        // #306 review round 2, F2: the higher-term check runs BEFORE round correlation, so a
+        // straggling higher-term response can also hit a node that already became LEADER.
+        // becomeLeader() cancelled the election timer; becomeFollower(..., resetTimer) used to
+        // re-arm it only for state==CANDIDATE - a demoted LEADER ended up with neither
+        // heartbeats nor an election timer and never campaigned again.
+        ElectionManager node = node(150);
+
+        java.util.concurrent.atomic.AtomicBoolean demoted = new java.util.concurrent.atomic.AtomicBoolean();
+        java.util.concurrent.atomic.AtomicInteger requestsAfterDemotion =
+                new java.util.concurrent.atomic.AtomicInteger();
+        java.util.concurrent.CountDownLatch becameLeader = new java.util.concurrent.CountDownLatch(1);
+        node.setOnLeadershipChange(isLeader -> {
+            if (isLeader) {
+                becameLeader.countDown();
+            }
+        });
+        // Grant everything until leadership; afterwards only count what the node still sends.
+        node.setSendVoteRequest((peer, request) -> {
+            if (demoted.get()) {
+                requestsAfterDemotion.incrementAndGet();
+            } else {
+                node.handleVoteResponse(peer, request, new VoteResponse(request.getTerm(), true, peer));
+            }
+        });
+        node.start();
+        assertTrue(becameLeader.await(10, java.util.concurrent.TimeUnit.SECONDS),
+                "test setup: the node must first win an election");
+
+        demoted.set(true);
+        long higherTerm = node.getCurrentTerm() + 5;
+        node.handleVoteResponse(PEER_A, null, new VoteResponse(higherTerm, false, PEER_A));
+
+        assertEquals(ElectionState.FOLLOWER, node.getState(),
+                "a higher term in any response is authoritative - the leader must step down");
+        assertEquals(higherTerm, node.getCurrentTerm(), "and adopt the higher term");
+
+        // No heartbeats arrive (the term-7 'leader' never makes contact) - only a re-armed
+        // election timer gets this node campaigning again.
+        long until = System.currentTimeMillis() + 5000;
+        while (requestsAfterDemotion.get() == 0 && System.currentTimeMillis() < until) {
+            Thread.sleep(25);
+        }
+        assertTrue(requestsAfterDemotion.get() > 0,
+                "a leader demoted by a stale higher-term vote response has no heartbeats and, "
+                        + "without the re-armed timer, no election timeout either - a dead node");
+    }
 }

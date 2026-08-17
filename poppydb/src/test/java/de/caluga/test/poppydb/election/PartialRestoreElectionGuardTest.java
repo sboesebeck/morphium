@@ -118,6 +118,35 @@ public class PartialRestoreElectionGuardTest {
 
     @Test
     @Timeout(30)
+    public void singleNodeWithIncompleteDataStillBecomesLeader() throws Exception {
+        // #306 review round 2, F3: a peer-less node has no primary to sync from - the guard's
+        // ONLY release path - and no intact peer whose data a partial primary could overwrite.
+        // Holding it back is not safety, it is a permanent deadlock: a single-node RS with one
+        // broken dump file never serves as primary again, and no runtime command can lift the
+        // guard. With no peers, becoming primary with partial data is the only availability
+        // path there is.
+        ElectionConfig config = new ElectionConfig()
+                .setElectionTimeoutMinMs(100)
+                .setElectionTimeoutMaxMs(150);
+        ElectionManager manager = new ElectionManager("solo:27017", List.of("solo:27017"), config);
+        managers.add(manager);
+        manager.setDataComplete(false);
+
+        java.util.concurrent.CountDownLatch becameLeader = new java.util.concurrent.CountDownLatch(1);
+        manager.setOnLeadershipChange(isLeader -> {
+            if (isLeader) {
+                becameLeader.countDown();
+            }
+        });
+        manager.start();
+
+        assertTrue(becameLeader.await(10, java.util.concurrent.TimeUnit.SECONDS),
+                "a peer-less node must still elect itself with incomplete data - there is no one "
+                        + "to sync from (the guard could never be released) and no one to overwrite");
+    }
+
+    @Test
+    @Timeout(30)
     public void anIncompleteNodeStillVotes() throws Exception {
         // Denying votes as well would deadlock a cluster restart: the intact nodes need this
         // node's vote to reach a majority. It must only refrain from winning itself.

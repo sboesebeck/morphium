@@ -333,7 +333,13 @@ public class ElectionManager {
         // becoming primary would push its incomplete state onto the intact nodes through their
         // initial sync. It still VOTES (see handleVoteRequest), because the intact nodes need
         // its vote to reach a majority; it only refrains from winning itself.
-        if (!dataComplete) {
+        //
+        // EXCEPT with no peers (#306 review round 2): the guard's only release path is a
+        // completed initial sync FROM a primary - a peer-less node can never have one, so the
+        // hold-back would be a permanent deadlock (a single-node RS with one broken dump file
+        // never serves again, and no runtime command lifts the guard). There is also nothing
+        // the guard protects there: no intact peer whose data a partial primary could wipe.
+        if (!dataComplete && !peerAddresses.isEmpty()) {
             log.warn("{} holding back candidacy: local data is incomplete (partial restore) - "
                     + "waiting for an authoritative sync before taking part in elections", myAddress);
             resetElectionTimer();
@@ -743,16 +749,22 @@ public class ElectionManager {
             }
 
             if (canVote && logOk && priorityOk) {
+                String previousVotedFor = votedFor;
                 votedFor = request.getCandidateId();
 
                 // Raft: votedFor must be durable before the response leaves - and that is only
                 // true if the write actually succeeded (#306 P1-1). A grant backed by nothing
                 // is forgotten on crash, and the restarted node votes again in the same term:
                 // two leaders in one term. So a failed persist turns the grant into a denial;
-                // votedFor is rolled back so a later retry (from any candidate) starts clean
-                // in memory too instead of remembering a vote that was never given.
+                // votedFor is rolled back to its PREVIOUS value, not to null (#306 review
+                // round 2): on a RETRY from the candidate we already durably voted for
+                // (response lost, candidate re-asks - canVote is true via votedFor.equals), a
+                // null rollback would forget that earlier, durable vote in memory and let a
+                // SECOND candidate be granted the same term next - the exact double vote the
+                // durability rule exists to prevent. Same pattern as becomeCandidate's
+                // previousVotedFor rollback.
                 if (!persistElectionState()) {
-                    votedFor = null;
+                    votedFor = previousVotedFor;
                     log.error("{} denying vote to {} for term {}: votedFor could not be persisted, "
                             + "an unpersisted vote could be cast twice after a crash",
                             myAddress, request.getCandidateId(), requestTerm);
@@ -871,13 +883,20 @@ public class ElectionManager {
             // A higher term in ANY response - current round or stale - is authoritative news
             // about the cluster and is honored BEFORE round correlation: Raft demands falling
             // back to follower on discovering a higher term, whichever RPC delivered it. Timer
-            // handling mirrors the request side: only an actual campaigning candidate re-arms
-            // its timer here; a follower catching its term up mid-PreVote must not defer its
-            // own next candidacy (see becomeFollower's resetTimer javadoc).
+            // handling mirrors the request side: an actual campaigning candidate re-arms its
+            // timer here, while a follower catching its term up mid-PreVote must not defer its
+            // own next candidacy (see becomeFollower's resetTimer javadoc). A demoted LEADER
+            // must re-arm too (#306 review round 2): becomeLeader() cancelled its election
+            // timer, and the timer is one-shot - demoting it with resetTimer=false leaves the
+            // node with neither heartbeats nor a timer, so it would never campaign again (a
+            // dead node if the higher-term peer never makes contact). Every other
+            // leader-demotion path (handleAppendEntries, handleAppendEntriesResponse, lease
+            // expiry) re-arms; this straggler-response path must not be the exception.
             if (responseTerm > myTerm) {
                 log.info("{} discovered higher term {} from vote response, updating from {}",
                         myAddress, responseTerm, myTerm);
-                becomeFollower(responseTerm, null, state == ElectionState.CANDIDATE);
+                becomeFollower(responseTerm, null,
+                        state == ElectionState.CANDIDATE || state == ElectionState.LEADER);
                 return;
             }
 
@@ -1471,6 +1490,18 @@ public class ElectionManager {
     }
 
     /**
+     * Integrity checksum over the two persisted values (CRC32 of {@code term|votedFor}).
+     * Detects truncated or tampered state files that still parse as valid Properties - see
+     * the mandatory-schema comment in {@link #loadPersistedState()}.
+     */
+    private static String stateChecksum(long term, String votedFor) {
+        java.util.zip.CRC32 crc = new java.util.zip.CRC32();
+        crc.update((term + "|" + (votedFor == null ? "" : votedFor))
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        return Long.toHexString(crc.getValue());
+    }
+
+    /**
      * Persist currentTerm/votedFor, as Raft requires, at every point they change (term
      * adoption, self-vote on candidacy, granting a vote). Called under stateLock. Written
      * atomically (tmp file + move) so a crash mid-write leaves the previous state intact.
@@ -1488,18 +1519,6 @@ public class ElectionManager {
      * @return true if the state is durable (or persistence is not configured - nothing was
      *         promised), false if the write failed
      */
-    /**
-     * Integrity checksum over the two persisted values (CRC32 of {@code term|votedFor}).
-     * Detects truncated or tampered state files that still parse as valid Properties - see
-     * the mandatory-schema comment in {@link #loadPersistedState()}.
-     */
-    private static String stateChecksum(long term, String votedFor) {
-        java.util.zip.CRC32 crc = new java.util.zip.CRC32();
-        crc.update((term + "|" + (votedFor == null ? "" : votedFor))
-                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        return Long.toHexString(crc.getValue());
-    }
-
     private boolean persistElectionState() {
         if (!isPersistenceEnabled()) {
             return true;

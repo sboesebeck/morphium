@@ -1014,13 +1014,25 @@ public class PoppyDB {
         // late cannot release the guard on the strength of a stale sync.
         newReplicationManager.setOnInitialSyncComplete(
                 () -> releaseDataCompleteAfterSync(newReplicationManager));
+        // Assigned BEFORE start() (#306 review round 2): the sync-complete notification is
+        // one-shot (maybeFireSyncCompleteNotify CASes the flag), and on a fast sync (e.g. the
+        // consistency shortcut against loopback) the batch tick can fire it before a
+        // post-start() assignment lands - releaseDataCompleteAfterSync then sees
+        // source != replicationManager, discards the release, and the flag is already
+        // consumed: the guard stays stuck until some unrelated resync. The static-mode path
+        // (startReplication) already assigns before start() for the same reason.
+        replicationManager = newReplicationManager;
         try {
             newReplicationManager.start();
-            replicationManager = newReplicationManager;
             primaryHost = leaderId;
             log.info("Started replication from new leader {}", leaderId);
             scheduleReplicationLivenessProbe(leaderId, newReplicationManager);
         } catch (Exception e) {
+            // Roll the early assignment back before the shared failure handler runs - a
+            // dead-but-non-null manager left in the field would trip the same-leader guard
+            // above and block every retry until the next leader change (see
+            // handleReplicationStartFailure's comment).
+            replicationManager = null;
             handleReplicationStartFailure(leaderId, newReplicationManager, e, delayOnFailureMs);
         }
     }
@@ -1711,7 +1723,24 @@ public class PoppyDB {
         if (dumpDirectory == null) {
             throw new IOException("Dump directory not configured");
         }
-        return driver.restoreAllFromDirectoryResult(dumpDirectory);
+
+        InMemoryDriver.DirectoryRestoreResult result = driver.restoreAllFromDirectoryResult(dumpDirectory);
+
+        // The partial-restore candidacy guard lives HERE, not only in PoppyDBCLI (#306 review
+        // round 2): an embedder following docs/poppydb.md (restore, check isComplete(),
+        // start()) never calls setLocalDataComplete(false) itself - after a cluster-wide
+        // restart the gutted embedded node then reports index 0 like everyone else, wins the
+        // election and overwrites the intact peers via their initial sync, the exact
+        // empty-node-wipe the guard exists to close. Only ever degrades: a complete restore
+        // must not re-set true here, that could lift a guard some other code path dropped.
+        if (!result.isComplete()) {
+            log.warn("Partial restore ({}/{} databases) - this node will not stand for election "
+                    + "until an authoritative sync has completed",
+                    result.getRestored(), result.getTotal());
+            setLocalDataComplete(false);
+        }
+
+        return result;
     }
 
     // Status methods
