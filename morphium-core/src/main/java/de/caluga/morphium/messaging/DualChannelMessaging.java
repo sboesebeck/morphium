@@ -492,7 +492,7 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
     // How long to keep message IDs tracked (30 minutes - should exceed any realistic message TTL)
     private static final long MESSAGE_TRACKING_RETENTION_MS = 30 * 60 * 1000;
     private boolean handleChangeStreamEvent(ChangeStreamEvent evt) {
-        log.debug("CSE: {} incoming change stream event", this.id);
+        // log.debug("CSE: {} incoming change stream event", this.id);
         if (!running) {
             return false;
         }
@@ -501,7 +501,7 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
             // PoppyDB pushes synthetic "lock_released" events when a lock is deleted.
             // These have no documentKey/fullDocument - just trigger a re-poll.
             if ("lock_released".equals(evt.getOperationType())) {
-                log.debug("CSE: {}: lock_released event received, triggering re-poll", this.id);
+                // log.debug("CSE: {}: lock_released event received, triggering re-poll", this.id);
                 requestPoll.incrementAndGet();
                 return running;
             }
@@ -509,7 +509,7 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
             // Requeue update (processedBy cleared, see pipeline): the message is pending
             // again but update events carry no fullDocument - trigger a poll to pick it up.
             if ("update".equals(evt.getOperationType())) {
-                log.debug("CSE: {}: requeue update event received, triggering re-poll", this.id);
+                // log.debug("CSE: {}: requeue update event received, triggering re-poll", this.id);
                 requestPoll.incrementAndGet();
                 return running;
             }
@@ -520,9 +520,9 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
             // one line per change-stream event, far too chatty for production log levels.
             int totalEvents = changeStreamEventsReceived.incrementAndGet();
 
-            if (log.isDebugEnabled()) {
-                log.debug("CSE: {}: Change stream event #{} received, id={}", this.id, totalEvents, id);
-            }
+            // if (log.isDebugEnabled()) {
+            // log.debug("CSE: {}: Change stream event #{} received, id={}", this.id, totalEvents, id);
+            // }
 
             MorphiumId normalizedDocKeyId = null;
             if (id instanceof MorphiumId) {
@@ -625,10 +625,10 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
                         idsInProgress.add(messageId);
 
                         traceDecision(messageId, msg.get("in_answer_to"), "cs-event: queued for processing");
-                        log.debug("CSE: {}: Queued message {} for processing, queue size={}", id, messageId, processing.size());
+                        // log.debug("CSE: {}: Queued message {} for processing, queue size={}", id, messageId, processing.size());
                     } else {
                         traceDecision(messageId, msg.get("in_answer_to"), "cs-event: already in processing queue, skipped");
-                        log.debug("CHANGESTREAM DUPLICATE CAUGHT: Message {} already in processing queue", messageId);
+                        // log.debug("CHANGESTREAM DUPLICATE CAUGHT: Message {} already in processing queue", messageId);
                     }
                 }
             } else {
@@ -804,7 +804,7 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
 
         try {
             ChangeStreamMonitor fresh = new ChangeStreamMonitor(
-                    morphium, getCollectionName(), false, changeStreamMaxWait, changeStreamPipeline);
+                            morphium, getCollectionName(), false, changeStreamMaxWait, changeStreamPipeline);
             fresh.addListener(this::onMainCsEvent);
             // same wiring as the original monitor: catch up once the fresh watch is up
             fresh.addWatchEstablishedListener(requestPoll::incrementAndGet);
@@ -843,7 +843,7 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
      */
     public boolean changeStreamsLive() {
         return changeStreamMonitor != null && changeStreamMonitor.isStreamLive()
-            && lockChangeStreamMonitor != null && lockChangeStreamMonitor.isStreamLive();
+               && lockChangeStreamMonitor != null && lockChangeStreamMonitor.isStreamLive();
     }
 
     /**
@@ -866,8 +866,8 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
         if (now - lastMainThreadDeathLogMs < 30_000) return;
         lastMainThreadDeathLogMs = now;
         log.error("FATAL: main messaging thread for '{}' is no longer alive but running=true. " +
-                "Listeners will receive nothing until the application is restarted.",
-                getCollectionName());
+                  "Listeners will receive nothing until the application is restarted.",
+                  getCollectionName());
     }
 
     /**
@@ -926,17 +926,17 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
         // Broadcast answers (inAnswerTo set, no recipients) target the requester's waiter
         // whatever topic they carry - they bypass the topic clause (#283).
         broadcastRelevant.put("$or", Arrays.asList(
-            UtilsMap.of(topicField, UtilsMap.of("$in", new ArrayList<>(watchedTopics))),
-            UtilsMap.of(legacyTopicField, UtilsMap.of("$in", new ArrayList<>(watchedTopics))),
-            UtilsMap.of(inAnswerToField, UtilsMap.of("$ne", null))
-        ));
+                                              UtilsMap.of(topicField, UtilsMap.of("$in", new ArrayList<>(watchedTopics))),
+                                              UtilsMap.of(legacyTopicField, UtilsMap.of("$in", new ArrayList<>(watchedTopics))),
+                                              UtilsMap.of(inAnswerToField, UtilsMap.of("$ne", null))
+                              ));
         Map<String, Object> insertRelevant = new LinkedHashMap<>();
         insertRelevant.put("operationType", "insert");
         insertRelevant.put(senderField, UtilsMap.of("$ne", id));
         insertRelevant.put("$or", Arrays.asList(
-            broadcastRelevant,
-            UtilsMap.of(recipientsField, id)
-        ));
+                                           broadcastRelevant,
+                                           UtilsMap.of(recipientsField, id)
+                           ));
         // Requeue detection: clearing processedBy via a plain DB update makes a message
         // pending again but produces no insert event. The requeue signature is
         // updateDescription.updatedFields.processed_by set to an EMPTY array ($size 0) -
@@ -947,10 +947,10 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
         requeueRelevant.put("updateDescription.updatedFields." + processedByField, UtilsMap.of("$size", 0));
         Map<String, Object> relevanceMatch = new LinkedHashMap<>();
         relevanceMatch.put("$or", Arrays.asList(
-            UtilsMap.of("operationType", "lock_released"),
-            requeueRelevant,
-            insertRelevant
-        ));
+                                           UtilsMap.of("operationType", "lock_released"),
+                                           requeueRelevant,
+                                           insertRelevant
+                           ));
         pipeline.add(UtilsMap.of("$match", relevanceMatch));
         return pipeline;
     }
@@ -1019,9 +1019,9 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
         requeueRelevant.put("updateDescription.updatedFields." + processedByFieldName, UtilsMap.of("$size", 0));
         Map<String, Object> relevanceMatch = new LinkedHashMap<>();
         relevanceMatch.put("$or", Arrays.asList(
-            UtilsMap.of("operationType", "insert"),
-            requeueRelevant
-        ));
+                                           UtilsMap.of("operationType", "insert"),
+                                           requeueRelevant
+                           ));
         List<Map<String, Object>> pipeline = new ArrayList<>();
         pipeline.add(UtilsMap.of("$match", relevanceMatch));
 
@@ -1205,7 +1205,7 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
             } catch (Throwable t) {
                 if (dmDispatcherRunning) {
                     log.error("Unhandled throwable in DM dispatcher loop for '{}' — keeping thread alive",
-                            getDMCollectionName(), t);
+                              getDMCollectionName(), t);
                 }
             }
         }
@@ -1621,9 +1621,9 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
 
         final long tIndices = System.currentTimeMillis();
         log.warn("DualChannelMessaging (beta, #265) starting on queue '{}': ALL messaging "
-                + "participants on this queue must run DualChannelMessaging for DM/answer "
-                + "delivery to work - a legacy StandardMessaging node's answers to THIS "
-                + "instance's requests will time out (see class javadoc).", getCollectionName());
+                 + "participants on this queue must run DualChannelMessaging for DM/answer "
+                 + "delivery to work - a legacy StandardMessaging node's answers to THIS "
+                 + "instance's requests will time out (see class javadoc).", getCollectionName());
 
         dmDispatcherRunning = true;
         dmDispatcherThread = Thread.ofPlatform().name("msg-dm-" + id).start(this::dmDispatcherLoop);
@@ -1649,7 +1649,7 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
             readyLatch.countDown();
             long total = tDmCs - t0;
             String timings = String.format("registerPoppy=%dms ensureIndices=%dms mainAndLockCs=%dms dmCs=%dms total=%dms",
-                    tPoppy - t0, tIndices - tPoppy, tMainCs - tIndices, tDmCs - tMainCs, total);
+                                           tPoppy - t0, tIndices - tPoppy, tMainCs - tIndices, tDmCs - tMainCs, total);
 
             if (total > 10_000) {
                 log.warn("Messaging {} is now ready - SLOW startup: {}", id, timings);
@@ -1688,7 +1688,7 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
                     // Cleanup old message tracking entries to prevent unbounded memory growth
                     long cleanupTime = System.currentTimeMillis();
                     locallyProcessedMessageIds.entrySet().removeIf(entry ->
-                                              cleanupTime - entry.getValue() > MESSAGE_TRACKING_RETENTION_MS);
+                            cleanupTime - entry.getValue() > MESSAGE_TRACKING_RETENTION_MS);
 
                     // Poll when:
                     // 1. requestPoll > 0 (lock deleted / watch re-established, messages likely available)
@@ -1962,7 +1962,7 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
                 // operator can see what is happening instead of staring at a silent log.
                 if (running) {
                     log.error("Unhandled throwable in messaging main loop for '{}' — keeping thread alive",
-                            getCollectionName(), t);
+                              getCollectionName(), t);
                 }
             }
         }
@@ -2159,7 +2159,7 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
                     el.putIfAbsent("priority", 100);
                     el.putIfAbsent("timestamp", System.currentTimeMillis());
                     queueElements.add(new ProcessingQueueElement((Integer) el.get("priority"),
-                                      (Long) el.get("timestamp"), (MorphiumId) el.get("_id")));
+                            (Long) el.get("timestamp"), (MorphiumId) el.get("_id")));
                 }
             }
 
@@ -3209,9 +3209,9 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
     private void logAnswerTimeoutDiagnostics(Msg theMessage, long timeoutInMs) {
         try {
             Msg orig = morphium.createQueryFor(Msg.class, getCollectionName())
-                .f("_id").eq(theMessage.getMsgId()).get();
+                       .f("_id").eq(theMessage.getMsgId()).get();
             long answers = morphium.createQueryFor(Msg.class, getCollectionName())
-                .f(Msg.Fields.inAnswerTo).eq(theMessage.getMsgId()).countAll();
+                           .f(Msg.Fields.inAnswerTo).eq(theMessage.getMsgId()).countAll();
             String verdict;
 
             if (answers > 0) {
@@ -3225,14 +3225,14 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
             }
 
             log.error("answer timeout diagnostics for {}/{} after {}ms (instance {}): request={}, answers stored={} -> {}",
-                theMessage.getTopic(), theMessage.getMsgId(), timeoutInMs, getSenderId(),
-                orig == null ? "GONE" : "present, processedBy=" + orig.getProcessedBy(), answers, verdict);
+                      theMessage.getTopic(), theMessage.getMsgId(), timeoutInMs, getSenderId(),
+                      orig == null ? "GONE" : "present, processedBy=" + orig.getProcessedBy(), answers, verdict);
             // "answers stored=0" at exactly t=timeout can be a TTL artifact (answer TTL often
             // equals the await timeout) - the decision trace shows what THIS instance actually
             // did with the request and any answer to it, including the silent skip paths.
             List<String> decisions = getProcessingDecisions(theMessage.getMsgId());
             log.error("processing decision trace for {} ({} entries): {}",
-                theMessage.getMsgId(), decisions.size(), decisions.isEmpty() ? "NONE - no event or poll ever saw this id" : String.join(" | ", decisions));
+                      theMessage.getMsgId(), decisions.size(), decisions.isEmpty() ? "NONE - no event or poll ever saw this id" : String.join(" | ", decisions));
         } catch (Exception e) {
             log.error("answer timeout diagnostics failed", e);
         }

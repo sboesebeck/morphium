@@ -542,7 +542,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     // How long to keep message IDs tracked (30 minutes - should exceed any realistic message TTL)
     private static final long MESSAGE_TRACKING_RETENTION_MS = 30 * 60 * 1000;
     private boolean handleChangeStreamEvent(ChangeStreamEvent evt) {
-        log.debug("CSE: {} incoming change stream event", this.id);
+        // log.debug("CSE: {} incoming change stream event", this.id);
         if (!running) {
             return false;
         }

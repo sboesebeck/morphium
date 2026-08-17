@@ -148,14 +148,14 @@ public class SingleMongoConnection implements MongoConnection {
     private void extractX509SubjectDn(javax.net.ssl.SSLSocket sslSocket) {
         try {
             java.security.cert.Certificate[] localCerts =
-                    sslSocket.getSession().getLocalCertificates();
+                            sslSocket.getSession().getLocalCertificates();
             if (localCerts != null && localCerts.length > 0
                     && localCerts[0] instanceof java.security.cert.X509Certificate) {
                 java.security.cert.X509Certificate cert =
-                        (java.security.cert.X509Certificate) localCerts[0];
+                                (java.security.cert.X509Certificate) localCerts[0];
                 // RFC 2253 format: "CN=foo,O=bar,C=DE" – required by MongoDB Atlas
                 x509SubjectDn = cert.getSubjectX500Principal()
-                        .getName(javax.security.auth.x500.X500Principal.RFC2253);
+                                .getName(javax.security.auth.x500.X500Principal.RFC2253);
                 log.debug("X.509 client certificate subject DN: {}", x509SubjectDn);
             } else {
                 log.debug("No client certificate in TLS session – X.509 auth will rely on server-side DN extraction");
@@ -179,7 +179,7 @@ public class SingleMongoConnection implements MongoConnection {
         String subjectDn = (user != null && !user.isBlank()) ? user : x509SubjectDn;
 
         log.debug("Authenticating with MONGODB-X509, user='{}'",
-                subjectDn != null ? subjectDn : "<derived from TLS session>");
+                  subjectDn != null ? subjectDn : "<derived from TLS session>");
 
         X509AuthCommand cmd = new X509AuthCommand(this);
         cmd.setUser(subjectDn);
@@ -478,7 +478,7 @@ public class SingleMongoConnection implements MongoConnection {
                     continue;
                 } else if (running) {
                     log.warn("Connection error on {} (port {}), closing connection: {}",
-                            connectedTo, getSourcePort(), e.getMessage());
+                             connectedTo, getSourcePort(), e.getMessage());
                     close();
                     // Preserve MorphiumDriverNetworkException so NetworkCallHelper can retry
                     if (e instanceof MorphiumDriverNetworkException) {
@@ -625,7 +625,7 @@ public class SingleMongoConnection implements MongoConnection {
             if ((q.getFlags() & OpMsg.MORE_TO_COME) == 0) {
                 Map<String, Object> doc = q.getFirstDoc();
                 pendingReplies.put(q.getMessageId(),
-                    doc == null || doc.isEmpty() ? "?" : doc.keySet().iterator().next());
+                                   doc == null || doc.isEmpty() ? "?" : doc.keySet().iterator().next());
             }
         } catch (MorphiumDriverException e) {
             close();
@@ -695,11 +695,11 @@ public class SingleMongoConnection implements MongoConnection {
             // lastReadReplyOrigin names the command whose caller abandoned this reply without
             // closing the connection - the actual bug to hunt, this here is only the backstop
             log.error("Connection to {} out of sync: expected reply to request {}, got reply to {} "
-                + "(abandoned by command '{}') - closing connection",
-                connectedTo, requestId, reply.getResponseTo(), lastReadReplyOrigin);
+                      + "(abandoned by command '{}') - closing connection",
+                      connectedTo, requestId, reply.getResponseTo(), lastReadReplyOrigin);
             close();
             throw new MorphiumDriverNetworkException("Connection out of sync: expected reply to request "
-                + requestId + ", got reply to " + reply.getResponseTo());
+                    + requestId + ", got reply to " + reply.getResponseTo());
         }
 
         return reply;
@@ -800,194 +800,194 @@ public class SingleMongoConnection implements MongoConnection {
 
         long watchIterations = 0;
         try {
-        while (true) {
-            watchIterations++;
-            OpMsg reply = null;
+            while (true) {
+                watchIterations++;
+                OpMsg reply = null;
 
-            try {
-                // The server answers a getMore within maxTimeMS (empty batch on no events).
-                // Waiting only maxWait client-side loses the race against network/processing
-                // time: the client hits its deadline just before the reply arrives, "restarts"
-                // the stream in place and thereby (a) leaks the previous server-side cursor
-                // (seen as hundreds of idle $changeStream cursors in prod) and (b) leaves the
-                // late reply unread in the stream - desyncing every following read (Error 43
-                // on unrelated queries, planner stall 2026-07-11/12). Grant a grace period.
-                reply = readNextMessage(maxWait + WATCH_READ_GRACE_MS);
-            } catch (MorphiumDriverException e) {
-                if (e.getMessage().contains("server did not answer in time: ") || e.getMessage().contains("Read timed out")) {
-                    log.debug("WATCH: timeout, resending query");
-                    msg.setMessageId(msgId.incrementAndGet());
-                    sendQuery(msg);
-                    continue;
-                }
-                throw (e);
-            }
-
-            //log.info("got answer for watch!");
-
-            // Handle null reply (no answer within maxTimeMS + grace)
-            // Check isContinued() to allow caller to detect staleness and decide to stop
-            if (reply == null) {
-                log.debug("Got null as reply - checking if should continue");
-                if (!command.getCb().isContinued()) {
-                    log.debug("Callback indicates stop - exiting watch loop");
-                    break;
-                }
-
-                // No reply although the server must answer within maxTimeMS: this connection
-                // is suspect - a late reply may still be in flight. Restarting the stream on
-                // the same connection would desync the reply stream and leak the server-side
-                // cursor. Close and let the caller (ChangeStreamMonitor) resume on a fresh
-                // connection using its tracked resume token.
-                if (lastResumeToken[0] != null) {
-                    command.setResumeAfter(lastResumeToken[0]);
-                }
-                log.warn("watch: no reply within maxTimeMS+{}ms grace on {} - closing connection, caller should resume", WATCH_READ_GRACE_MS, connectedTo);
-                close();
-                throw new MorphiumDriverNetworkException("watch: no reply within maxTimeMS + grace - connection closed, resume on a fresh connection");
-            }
-
-            // liveness heartbeat: the server answers a getMore within maxTimeMS even without
-            // events - a fresh stamp means the stream is provably alive and in sync
-            command.setLastReplyAt(System.currentTimeMillis());
-
-            checkForError(reply);
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> cursor = (Map<String, Object>) reply.getFirstDoc().get("cursor");
-
-            if (cursor == null) {
-                throw new MorphiumDriverException("Could not watch - cursor is null");
-            }
-
-            // log.debug("CursorID:" + cursor.get("id").toString());
-            long cursorId = Long.parseLong(cursor.get("id").toString());
-            command.setMetaData("cursor", cursorId);
-
-            // PoppyDB-specific, best-effort: some servers (PoppyDB primaries) piggyback their
-            // current change-stream sequence on the initial aggregate response, following the
-            // same convention as the "poppyResumeSequence" resumeAfter marker. A real MongoDB
-            // server never sends this field, so it is simply absent there. Stash it as generic
-            // command metadata (same mechanism as "cursor"/"server" above) so callers with access
-            // to this command instance - e.g. a registrationCallback - can read the primary's
-            // sequence at the exact moment the watch was established, without widening the
-            // registrationCallback's Runnable signature.
-            Object primarySequence = reply.getFirstDoc().get("poppyPrimarySequence");
-            if (primarySequence != null) {
-                command.setMetaData("poppyPrimarySequence", primarySequence);
-            }
-
-            // Call registration callback once the watch cursor is established
-            // This signals to ChangeStreamMonitor that the watch is ready to receive events
-            if (!registrationCallbackCalled && command.getRegistrationCallback() != null) {
-                registrationCallbackCalled = true;
                 try {
-                    command.getRegistrationCallback().run();
-                } catch (Exception e) {
-                    log.warn("Registration callback failed: {}", e.getMessage());
+                    // The server answers a getMore within maxTimeMS (empty batch on no events).
+                    // Waiting only maxWait client-side loses the race against network/processing
+                    // time: the client hits its deadline just before the reply arrives, "restarts"
+                    // the stream in place and thereby (a) leaks the previous server-side cursor
+                    // (seen as hundreds of idle $changeStream cursors in prod) and (b) leaves the
+                    // late reply unread in the stream - desyncing every following read (Error 43
+                    // on unrelated queries, planner stall 2026-07-11/12). Grant a grace period.
+                    reply = readNextMessage(maxWait + WATCH_READ_GRACE_MS);
+                } catch (MorphiumDriverException e) {
+                    if (e.getMessage().contains("server did not answer in time: ") || e.getMessage().contains("Read timed out")) {
+                        log.debug("WATCH: timeout, resending query");
+                        msg.setMessageId(msgId.incrementAndGet());
+                        sendQuery(msg);
+                        continue;
+                    }
+                    throw (e);
                 }
-            }
 
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object >> result = (List<Map<String, Object >> ) cursor.get("firstBatch");
+                //log.info("got answer for watch!");
 
-            if (result == null) {
-                @SuppressWarnings("unchecked")
-                List<Map<String, Object >> nextBatchResult = (List<Map<String, Object >>) cursor.get("nextBatch");
-                result = nextBatchResult;
-            }
-            // Track whether we should exit after processing events
-            boolean shouldExit = false;
-            if (result != null && !result.isEmpty()) {
-                // demoted to debug (#264): one line per watch batch is production log spam
-                log.debug("WATCH: received batch of {} events for coll={} (iter={})", result.size(), command.getColl(), watchIterations);
-                for (Map<String, Object> o : result) {
-                    // Capture resume token from each event (_id is the resume token in change streams)
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> eventResumeToken = (Map<String, Object>) o.get("_id");
-                    if (eventResumeToken != null) {
-                        lastResumeToken[0] = eventResumeToken;
-                    }
-                    long cbStart = System.currentTimeMillis();
-                    command.getCb().incomingData(o, System.currentTimeMillis() - start);
-                    long cbDur = System.currentTimeMillis() - cbStart;
-                    if (cbDur > 100) {
-                        log.warn("WATCH: callback took {}ms for coll={}", cbDur, command.getColl());
-                    }
-                    docsProcessed++;
-                    // Check isContinued() after EACH event, matching InMemoryDriver behavior
-                    // This ensures we stop immediately when callback returns false
+                // Handle null reply (no answer within maxTimeMS + grace)
+                // Check isContinued() to allow caller to detect staleness and decide to stop
+                if (reply == null) {
+                    log.debug("Got null as reply - checking if should continue");
                     if (!command.getCb().isContinued()) {
-                        log.debug("WATCH: isContinued returned false, will exit - coll={}", command.getColl());
-                        shouldExit = true;
+                        log.debug("Callback indicates stop - exiting watch loop");
                         break;
                     }
-                }
-            }
 
-            // The server sends postBatchResumeToken with EVERY reply, including empty batches.
-            // It is the only token a consumer has while no events flow - exactly the situation
-            // in which a dying watch would otherwise restart at "now" and lose the gap. Only
-            // adopt it for fully processed batches (shouldExit means we broke out mid-batch,
-            // the token would skip the events we did not deliver).
-            if (!shouldExit) {
+                    // No reply although the server must answer within maxTimeMS: this connection
+                    // is suspect - a late reply may still be in flight. Restarting the stream on
+                    // the same connection would desync the reply stream and leak the server-side
+                    // cursor. Close and let the caller (ChangeStreamMonitor) resume on a fresh
+                    // connection using its tracked resume token.
+                    if (lastResumeToken[0] != null) {
+                        command.setResumeAfter(lastResumeToken[0]);
+                    }
+                    log.warn("watch: no reply within maxTimeMS+{}ms grace on {} - closing connection, caller should resume", WATCH_READ_GRACE_MS, connectedTo);
+                    close();
+                    throw new MorphiumDriverNetworkException("watch: no reply within maxTimeMS + grace - connection closed, resume on a fresh connection");
+                }
+
+                // liveness heartbeat: the server answers a getMore within maxTimeMS even without
+                // events - a fresh stamp means the stream is provably alive and in sync
+                command.setLastReplyAt(System.currentTimeMillis());
+
+                checkForError(reply);
+
                 @SuppressWarnings("unchecked")
-                Map<String, Object> postBatchResumeToken = (Map<String, Object>) cursor.get("postBatchResumeToken");
+                Map<String, Object> cursor = (Map<String, Object>) reply.getFirstDoc().get("cursor");
 
-                if (postBatchResumeToken != null) {
-                    lastResumeToken[0] = postBatchResumeToken;
+                if (cursor == null) {
+                    throw new MorphiumDriverException("Could not watch - cursor is null");
+                }
+
+                // log.debug("CursorID:" + cursor.get("id").toString());
+                long cursorId = Long.parseLong(cursor.get("id").toString());
+                command.setMetaData("cursor", cursorId);
+
+                // PoppyDB-specific, best-effort: some servers (PoppyDB primaries) piggyback their
+                // current change-stream sequence on the initial aggregate response, following the
+                // same convention as the "poppyResumeSequence" resumeAfter marker. A real MongoDB
+                // server never sends this field, so it is simply absent there. Stash it as generic
+                // command metadata (same mechanism as "cursor"/"server" above) so callers with access
+                // to this command instance - e.g. a registrationCallback - can read the primary's
+                // sequence at the exact moment the watch was established, without widening the
+                // registrationCallback's Runnable signature.
+                Object primarySequence = reply.getFirstDoc().get("poppyPrimarySequence");
+                if (primarySequence != null) {
+                    command.setMetaData("poppyPrimarySequence", primarySequence);
+                }
+
+                // Call registration callback once the watch cursor is established
+                // This signals to ChangeStreamMonitor that the watch is ready to receive events
+                if (!registrationCallbackCalled && command.getRegistrationCallback() != null) {
+                    registrationCallbackCalled = true;
+                    try {
+                        command.getRegistrationCallback().run();
+                    } catch (Exception e) {
+                        log.warn("Registration callback failed: {}", e.getMessage());
+                    }
+                }
+
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object >> result = (List<Map<String, Object >> ) cursor.get("firstBatch");
+
+                if (result == null) {
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object >> nextBatchResult = (List<Map<String, Object >>) cursor.get("nextBatch");
+                    result = nextBatchResult;
+                }
+                // Track whether we should exit after processing events
+                boolean shouldExit = false;
+                if (result != null && !result.isEmpty()) {
+                    // demoted to debug (#264): one line per watch batch is production log spam
+                    // log.debug("WATCH: received batch of {} events for coll={} (iter={})", result.size(), command.getColl(), watchIterations);
+                    for (Map<String, Object> o : result) {
+                        // Capture resume token from each event (_id is the resume token in change streams)
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> eventResumeToken = (Map<String, Object>) o.get("_id");
+                        if (eventResumeToken != null) {
+                            lastResumeToken[0] = eventResumeToken;
+                        }
+                        long cbStart = System.currentTimeMillis();
+                        command.getCb().incomingData(o, System.currentTimeMillis() - start);
+                        long cbDur = System.currentTimeMillis() - cbStart;
+                        if (cbDur > 100) {
+                            log.warn("WATCH: callback took {}ms for coll={}", cbDur, command.getColl());
+                        }
+                        docsProcessed++;
+                        // Check isContinued() after EACH event, matching InMemoryDriver behavior
+                        // This ensures we stop immediately when callback returns false
+                        if (!command.getCb().isContinued()) {
+                            // log.debug("WATCH: isContinued returned false, will exit - coll={}", command.getColl());
+                            shouldExit = true;
+                            break;
+                        }
+                    }
+                }
+
+                // The server sends postBatchResumeToken with EVERY reply, including empty batches.
+                // It is the only token a consumer has while no events flow - exactly the situation
+                // in which a dying watch would otherwise restart at "now" and lose the gap. Only
+                // adopt it for fully processed batches (shouldExit means we broke out mid-batch,
+                // the token would skip the events we did not deliver).
+                if (!shouldExit) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> postBatchResumeToken = (Map<String, Object>) cursor.get("postBatchResumeToken");
+
+                    if (postBatchResumeToken != null) {
+                        lastResumeToken[0] = postBatchResumeToken;
+                    }
+                }
+
+                if (shouldExit || !command.getCb().isContinued()) {
+                    log.debug("WATCH: exiting loop - shouldExit={}, isContinued={}", shouldExit, command.getCb().isContinued());
+                    String coll = command.getColl();
+
+                    if (coll == null) {
+                        coll = "1";
+                    }
+
+                    killCursors(command.getDb(), coll, cursorId);
+                    command.setMetaData("duration", System.currentTimeMillis() - start);
+                    break;
+                }
+                if (cursorId != 0) {
+                    msg = new OpMsg();
+                    msg.setMessageId(msgId.incrementAndGet());
+                    String[] ns = cursor.get("ns").toString().split("\\.");
+                    var db = ns[0];
+                    String col = cursor.get("ns").toString();
+
+                    if (ns[0].length() + 1 < cursor.get("ns").toString().length()) {
+                        col = ((String)cursor.get("ns")).substring(ns[0].length() + 1);
+                    }
+
+                    // if (ns.length > 2) {
+                    //     for (int i = 2; i < ns.length; i++) {
+                    //         col = col + "." + ns[i];
+                    //     }
+                    // }
+                    Doc doc = new Doc();
+                    doc.put("getMore", cursorId);
+                    doc.put("collection", col);
+                    doc.put("batchSize", batchSize);
+                    doc.put("maxTimeMS", maxWait);
+                    doc.put("$db", db);
+                    msg.setFirstDoc(doc);
+                    sendQuery(msg);
+                } else {
+                    log.debug("WATCH: cursor exhausted, restarting");
+                    // Use resume token if available to prevent duplicate events
+                    if (lastResumeToken[0] != null) {
+                        command.setResumeAfter(lastResumeToken[0]);
+                        startMsg.setFirstDoc(command.asMap());
+                        log.debug("Resuming from token after cursor exhausted");
+                    }
+                    msg = startMsg;
+                    msg.setMessageId(msgId.incrementAndGet());
+                    sendQuery(msg);
                 }
             }
-
-            if (shouldExit || !command.getCb().isContinued()) {
-                log.debug("WATCH: exiting loop - shouldExit={}, isContinued={}", shouldExit, command.getCb().isContinued());
-                String coll = command.getColl();
-
-                if (coll == null) {
-                    coll = "1";
-                }
-
-                killCursors(command.getDb(), coll, cursorId);
-                command.setMetaData("duration", System.currentTimeMillis() - start);
-                break;
-            }
-            if (cursorId != 0) {
-                msg = new OpMsg();
-                msg.setMessageId(msgId.incrementAndGet());
-                String[] ns = cursor.get("ns").toString().split("\\.");
-                var db = ns[0];
-                String col = cursor.get("ns").toString();
-
-                if (ns[0].length() + 1 < cursor.get("ns").toString().length()) {
-                    col = ((String)cursor.get("ns")).substring(ns[0].length() + 1);
-                }
-
-                // if (ns.length > 2) {
-                //     for (int i = 2; i < ns.length; i++) {
-                //         col = col + "." + ns[i];
-                //     }
-                // }
-                Doc doc = new Doc();
-                doc.put("getMore", cursorId);
-                doc.put("collection", col);
-                doc.put("batchSize", batchSize);
-                doc.put("maxTimeMS", maxWait);
-                doc.put("$db", db);
-                msg.setFirstDoc(doc);
-                sendQuery(msg);
-            } else {
-                log.debug("WATCH: cursor exhausted, restarting");
-                // Use resume token if available to prevent duplicate events
-                if (lastResumeToken[0] != null) {
-                    command.setResumeAfter(lastResumeToken[0]);
-                    startMsg.setFirstDoc(command.asMap());
-                    log.debug("Resuming from token after cursor exhausted");
-                }
-                msg = startMsg;
-                msg.setMessageId(msgId.incrementAndGet());
-                sendQuery(msg);
-            }
-        }
         } finally {
             // Publish the freshest resume token on EVERY exit - normal stop, grace timeout or
             // network death. Without this, a consumer that never received an event has no token
@@ -1069,10 +1069,10 @@ public class SingleMongoConnection implements MongoConnection {
 
     private Map<String, Object> getSingleDocAndKillCursor(OpMsg msg) throws MorphiumDriverException {
         if (!msg.hasCursor()) {
-            return null;
-        }
+        return null;
+    }
 
-        if (!(msg.getFirstDoc().get("cursor") instanceof Map)) {
+    if (!(msg.getFirstDoc().get("cursor") instanceof Map)) {
             log.error("Cursor has wrong type: {}", msg.getFirstDoc().get("cursor").toString());
             return null;
         }
@@ -1082,7 +1082,7 @@ public class SingleMongoConnection implements MongoConnection {
         Map<String, Object> ret = null;
 
         if (cursor.containsKey("firstBatch")) {
-            @SuppressWarnings("unchecked")
+        @SuppressWarnings("unchecked")
             List<Map<String, Object >> lst = (List<Map<String, Object >> ) cursor.get("firstBatch");
 
             if (lst != null && !lst.isEmpty()) {
@@ -1098,8 +1098,8 @@ public class SingleMongoConnection implements MongoConnection {
         }
 
         String[] namespace = cursor.get("ns").toString().split("\\.");
-        killCursors(namespace[0], namespace[1], (Long) cursor.get("id"));
-        return ret;
-    }
+            killCursors(namespace[0], namespace[1], (Long) cursor.get("id"));
+                    return ret;
+                }
 
 }
