@@ -145,45 +145,100 @@ public class PreImageSurvivesReconnectTest {
     }
 
     /**
-     * The residual case the sticky buffering cannot cover: events written before the namespace
-     * was ever watched with pre-images. Those genuinely have none, and the stream must end
-     * rather than skip them.
+     * The residual case sticky buffering cannot cover: an event written while the namespace had
+     * never been watched with pre-images genuinely has none. Reaching it needs a resume token
+     * from BEFORE that write - a plain watch without resumeAfter never replays it, so the
+     * previous version of this test only ever exercised the later, pre-image-carrying update
+     * and proved nothing.
      */
     @Test
-    public void requiredStreamEndsInsteadOfSkippingEventsThatHaveNoPreImage() throws Exception {
+    public void requiredResumeOverAnEventWithoutPreImageFailsVisibly() throws Exception {
         InMemoryDriver drv = freshDriver();
-        String coll = "neverWatched";
+        String coll = "noPreImageHistory";
         drv.insert(db, coll, List.of(Doc.of("_id", 1, "counter", 1)), null, true);
 
-        // Written with no pre-image subscriber ever registered on this namespace, so the
-        // buffered event carries no pre-image at all.
-        drv.update(db, coll, Doc.of("_id", 1), null, Doc.of("$set", Doc.of("counter", 2)), false, false, null, null);
+        // 1) a watch that does NOT want pre-images - so the namespace stays unmarked - purely
+        //    to obtain a resume token.
+        CountDownLatch first = new CountDownLatch(1);
+        Collector tokenCollector = new Collector(first);
+        MongoConnection con1 = drv.getPrimaryConnection(null);
+        WatchCommand watch1 = new WatchCommand(con1).setDb(db).setColl(coll)
+                .setFullDocumentBeforeChange(WatchCommand.FullDocumentBeforeChangeEnum.off)
+                .setBatchSize(1).setMaxTimeMS(5000).setCb(tokenCollector);
+        Thread w1 = startWatch(watch1);
 
-        AtomicReference<Boolean> sawEvent = new AtomicReference<>(false);
-        CountDownLatch latch = new CountDownLatch(1);
-        Collector collector = new Collector(latch) {
-        };
+        Thread.sleep(200);
+        drv.update(db, coll, Doc.of("_id", 1), null, Doc.of("$set", Doc.of("counter", 2)),
+                   false, false, null, null);
+        assertTrue(first.await(10, TimeUnit.SECONDS), "the token watch must see its update");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> token = (Map<String, Object>) tokenCollector.events.get(0).get("_id");
+        assertNotNull(token);
+
+        tokenCollector.running = false;
+        w1.join(10_000);
+
+        // 2) write while nothing wants pre-images: this event has none, for good.
+        drv.update(db, coll, Doc.of("_id", 1), null, Doc.of("$set", Doc.of("counter", 3)),
+                   false, false, null, null);
+
+        // 3) resume across it with required - must fail, not return quietly.
+        CountDownLatch second = new CountDownLatch(1);
+        Collector collector = new Collector(second);
+        MongoConnection con2 = drv.getPrimaryConnection(null);
+        WatchCommand watch2 = new WatchCommand(con2).setDb(db).setColl(coll)
+                .setFullDocumentBeforeChange(WatchCommand.FullDocumentBeforeChangeEnum.required)
+                .setResumeAfter(token)
+                .setBatchSize(1).setMaxTimeMS(2000).setCb(collector);
+
+        MorphiumDriverException thrown = assertThrows(MorphiumDriverException.class, watch2::watch,
+            "a required resume across an event without a pre-image must fail - returning "
+                + "normally after skipping it is undetectable data loss");
+        assertTrue(thrown.getMessage().contains("fullDocumentBeforeChange"),
+            "the failure has to name its cause, got: " + thrown.getMessage());
+        watch2.releaseConnection();
+
+        assertTrue(collector.events.isEmpty(), "nothing may be delivered from a window that cannot be served");
+        drv.close();
+    }
+
+    /**
+     * An insert has no before-state and mongod lists no pre-image field for it, so a required
+     * stream must keep running across inserts. Demanding one there would deactivate every such
+     * stream on its very next insert.
+     */
+    @Test
+    public void requiredStreamSurvivesInserts() throws Exception {
+        InMemoryDriver drv = freshDriver();
+        String coll = "insertsUnderRequired";
+
+        CountDownLatch latch = new CountDownLatch(2);
+        Collector collector = new Collector(latch);
         MongoConnection con = drv.getPrimaryConnection(null);
         WatchCommand watch = new WatchCommand(con).setDb(db).setColl(coll)
                 .setFullDocument(WatchCommand.FullDocumentEnum.updateLookup)
                 .setFullDocumentBeforeChange(WatchCommand.FullDocumentBeforeChangeEnum.required)
-                .setBatchSize(1).setMaxTimeMS(2000).setCb(collector);
+                .setBatchSize(1).setMaxTimeMS(5000).setCb(collector);
         Thread w = startWatch(watch);
 
-        Thread.sleep(300);
-        drv.update(db, coll, Doc.of("_id", 1), null, Doc.of("$set", Doc.of("counter", 3)), false, false, null, null);
+        Thread.sleep(200);
+        drv.insert(db, coll, List.of(Doc.of("_id", 1, "counter", 1)), null, true);
+        drv.update(db, coll, Doc.of("_id", 1), null, Doc.of("$set", Doc.of("counter", 2)),
+                   false, false, null, null);
 
-        latch.await(5, TimeUnit.SECONDS);
-        sawEvent.set(!collector.events.isEmpty());
+        assertTrue(latch.await(10, TimeUnit.SECONDS),
+            "a required stream must see the insert AND the following update - if the insert "
+                + "deactivated it, the update never arrives");
+
         collector.running = false;
         w.join(10_000);
 
-        // Once the stream is registered the namespace is sticky, so this update DOES carry a
-        // pre-image - the point here is that nothing was skipped silently either way.
-        if (sawEvent.get()) {
-            assertNotNull(collector.events.get(0).get("fullDocumentBeforeChange"),
-                "an event delivered to a required stream must carry the pre-image");
-        }
+        assertEquals("insert", collector.events.get(0).get("operationType"));
+        assertNull(collector.events.get(0).get("fullDocumentBeforeChange"),
+            "an insert carries no pre-image, and required must not invent one");
+        assertEquals("update", collector.events.get(1).get("operationType"));
+        assertNotNull(collector.events.get(1).get("fullDocumentBeforeChange"));
 
         drv.close();
     }

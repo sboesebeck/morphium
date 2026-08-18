@@ -1351,6 +1351,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
 
             if (!subscription.isActive()) {
+                if (subscription.getTerminalError() != null) {
+                    throw new MorphiumDriverException(subscription.getTerminalError());
+                }
+
                 return subscription.getCursorId();
             }
 
@@ -1390,6 +1394,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         } finally {
             unregisterSubscription(subscription);
             monitors.remove(monitor);
+        }
+
+        // The live path, mirroring the replay path above: a stream that ENDED because it could
+        // not be served must not look like one the consumer closed. Checked after the finally
+        // so the subscription is unregistered either way.
+        if (subscription.getTerminalError() != null) {
+            throw new MorphiumDriverException(subscription.getTerminalError());
         }
 
         return subscription.getCursorId();
@@ -10075,6 +10086,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     /** Same namespace keys {@link #anySubscriberWantsPreImage} walks, against the sticky set. */
+    /**
+     * Whether this event kind can carry a pre-image at all. Only update, replace and delete
+     * have a before-state; insert (and the invalidate/drop family) never do, so a missing
+     * pre-image there is normal and must not be treated as a broken resume window.
+     */
+    private static boolean canCarryPreImage(Map<String, Object> event) {
+        Object op = event.get("operationType");
+        return "update".equals(op) || "replace".equals(op) || "delete".equals(op);
+    }
+
     private boolean namespaceEverWantedPreImage(String db, String collection) {
         return preImageNamespaces.contains(db)
                || preImageNamespaces.contains(db + ".1")
@@ -10380,6 +10401,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         private volatile boolean active = true;
         /** One ERROR per subscription, not per lost event - see reportMissingRequiredPreImage. */
         private volatile boolean preImageLossReported = false;
+        /**
+         * Set when the stream ends because it cannot be served, not because the consumer asked
+         * to stop. watch() turns this into a MorphiumDriverException, so "required" actually
+         * means what it says instead of the call returning as if all was well.
+         */
+        private volatile String terminalError = null;
         private final InMemAggregator aggregator; // reused per subscription
         private final boolean insertOnlyMatchPipeline;
         private String namespaceKey;
@@ -10459,6 +10486,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             return Objects.equals(collection, info.collection);
         }
 
+        private String getTerminalError() {
+            return terminalError;
+        }
+
         private boolean isActive() {
             return active;
         }
@@ -10511,8 +10542,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
 
             // required + no pre-image is NOT a filter result, it is history this stream cannot
-            // be served from - see reportMissingRequiredPreImage.
+            // be served from - see reportMissingRequiredPreImage. Only for operations that HAVE
+            // a before-state: an insert never carries a pre-image and mongod lists none for it,
+            // so demanding one there would kill every required stream on its next insert.
             if (beforeChangeMode == WatchCommand.FullDocumentBeforeChangeEnum.required
+                    && canCarryPreImage(info.event)
                     && info.event.get("fullDocumentBeforeChange") == null) {
                 reportMissingRequiredPreImage(info);
                 return;
@@ -10526,7 +10560,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             adjustFullDocument(working);
 
             if (!applyFullDocumentBeforeChange(working)) {
-                reportMissingRequiredPreImage(info);
+                if (canCarryPreImage(info.event)) {
+                    reportMissingRequiredPreImage(info);
+                }
+
                 return;
             }
 
@@ -10570,6 +10607,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
          * events written before the namespace was ever watched with pre-images.
          */
         private void reportMissingRequiredPreImage(ChangeStreamEventInfo info) {
+            terminalError = "change stream on " + db + "." + collection
+                    + " requires fullDocumentBeforeChange, but the event at resume token " + info.token
+                    + " has none - it predates pre-images being watched on this namespace, or its "
+                    + "pre-image was evicted. Resume from an earlier point is not possible; resync.";
+
             if (!preImageLossReported) {
                 preImageLossReported = true;
                 log.error("Change stream on {}.{} requires fullDocumentBeforeChange, but the event at "
@@ -10600,7 +10642,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                 case required:
                     if (before == null) {
-                        return false;
+                        // An insert has no before-state, so "required" cannot mean "drop it":
+                        // mongod lists no pre-image field for inserts either.
+                        return !canCarryPreImage(working);
                     }
 
                     return true;
