@@ -102,6 +102,41 @@ public class ElectionNetworkClientReconnectTest {
         client.stop();
     }
 
+    /**
+     * A peer driver must keep talking to its one peer. {@code connect()} enlarges the host seed
+     * from the hello answer to every replica-set member (the responder puts its own address
+     * first), and on a failed attempt it walks to the next seed entry with
+     * {@code ConnectionType.ANY}. A driver dialed for a peer that is down would then attach to
+     * whatever else answers - including this very node - while the caller believes it reached
+     * the peer. On 2026-08-18 that turned a candidate's vote request for a restarting peer into
+     * a self-answered grant, counted under the peer's name: a 2/3 majority nobody granted.
+     */
+    @Test
+    void peerDriverSeedStaysPinnedToTheOnePeerItWasDialedFor() throws Exception {
+        int peerPort = freePort();
+        String peerAddress = "localhost:" + peerPort;
+        // The peer must answer hello as a replica-set member - that answer is what enlarges the
+        // seed. The two other members do not have to exist; only their names travel.
+        List<String> rsHosts = List.of(peerAddress, "localhost:" + freePort(), "localhost:" + freePort());
+
+        peer = new PoppyDB(peerPort, "localhost", 100, 60);
+        peer.configureReplicaSet("rs0", rsHosts, null, true, new ElectionConfig());
+        peer.start();
+
+        ElectionManager em = new ElectionManager("localhost:1", List.of("localhost:1", peerAddress),
+                new ElectionConfig());
+        ElectionNetworkClient client = new ElectionNetworkClient(em);
+
+        SingleMongoConnectDriver driver = client.getOrCreateConnection(peerAddress);
+
+        assertNotNull(driver, "precondition: the peer is reachable");
+        assertEquals(List.of(peerAddress), List.copyOf(driver.getHostSeed()),
+                "the driver must not carry other replica-set members in its seed - a failed "
+                        + "attempt would walk to them and silently talk to the wrong node");
+
+        client.stop();
+    }
+
     @Test
     void deadCachedConnectionIsEvictedEvenWhenThePeerStaysUnreachable() throws Exception {
         // Nothing listens here - the redial fails. The dead driver must still be gone, so the

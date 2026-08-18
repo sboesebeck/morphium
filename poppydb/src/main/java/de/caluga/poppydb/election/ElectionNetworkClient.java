@@ -275,6 +275,18 @@ public class ElectionNetworkClient {
 
             driver.connect();
 
+            // Pin the seed back to this one peer. connect() enlarges it from the hello answer
+            // to every RS member - the peer's own address first - and on a failed attempt
+            // connect() walks to the next seed entry with ConnectionType.ANY. A driver dialed
+            // for a peer that is down therefore attaches to whatever else answers, up to and
+            // including THIS node, while we go on believing we are talking to the peer: on
+            // 2026-08-18 a candidate's vote request for a restarting peer was answered by the
+            // candidate itself and counted as that peer's grant, which won it an election that
+            // the only up-to-date node had explicitly denied. Nothing here needs the wider
+            // seed - this driver only ever talks to one peer.
+
+            driver.setHostSeed(peer);
+
             log.debug("Created connection to peer {}", peer);
             // Only cache if connection was successful
             SingleMongoConnectDriver raced = peerConnections.putIfAbsent(peer, driver);
