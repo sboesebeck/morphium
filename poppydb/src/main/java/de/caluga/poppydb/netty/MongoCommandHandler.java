@@ -719,7 +719,18 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 Map<String, Object> answer;
                 if (error != null) {
                     log.error("getMore error for cursor {}: {}", cursorId, error.getMessage());
-                    answer = Doc.of("ok", 0.0, "errmsg", error.getMessage());
+                    Throwable cause = error instanceof java.util.concurrent.CompletionException && error.getCause() != null
+                                      ? error.getCause() : error;
+
+                    if (cause instanceof WatchCursorManager.ChangeStreamHistoryLostException) {
+                        // Same code the replication resume gate uses: the client has to tell
+                        // "the window is gone, resync" apart from an ordinary failure, which a
+                        // bare errmsg does not allow.
+                        answer = Doc.of("ok", 0.0, "code", 286, "codeName", "ChangeStreamHistoryLost",
+                                        "errmsg", cause.getMessage());
+                    } else {
+                        answer = Doc.of("ok", 0.0, "errmsg", cause.getMessage());
+                    }
                 } else {
                     log.debug("getMore returning {} events for cursor {}", batch.size(), cursorId);
                     var cursor = Doc.of("nextBatch", batch, "ns", db + "." + collection, "id", cursorId);

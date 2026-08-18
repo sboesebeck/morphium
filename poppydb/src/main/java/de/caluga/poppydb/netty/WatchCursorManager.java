@@ -77,6 +77,8 @@ public class WatchCursorManager {
             }
         });
 
+        state.wcmd = wcmd;
+
         // Start the watch in the driver - it will register the subscription and return immediately
         // The async loop in InMemoryDriver will handle calling the callback when events arrive
         try {
@@ -255,6 +257,16 @@ public class WatchCursorManager {
             return CompletableFuture.completedFuture(batch);
         }
 
+        // A stream that ENDED because it cannot be served must not answer like an idle one.
+        // Checked after the buffered events above, so whatever was already delivered still
+        // reaches the client before the error does.
+        if (state.wcmd != null && state.wcmd.getTerminalError() != null) {
+            log.warn("Cursor {} ended unservable: {}", state.cursorId, state.wcmd.getTerminalError());
+            watchCursors.remove(state.cursorId);
+            return CompletableFuture.failedFuture(
+                new ChangeStreamHistoryLostException(state.wcmd.getTerminalError()));
+        }
+
         // If not running, return empty immediately
         if (!running) {
             log.debug("getMoreWatch: not running, returning empty for cursor {}", state.cursorId);
@@ -429,6 +441,18 @@ public class WatchCursorManager {
         return false;
     }
 
+    /**
+     * A change stream that can no longer be served from the replay buffer - the wire answer is
+     * MongoDB's ChangeStreamHistoryLost (286), the same code the replication resume gate in
+     * MongoCommandHandler already uses, so a client tells "window lost, resync" apart from an
+     * ordinary error.
+     */
+    public static class ChangeStreamHistoryLostException extends RuntimeException {
+        public ChangeStreamHistoryLostException(String message) {
+            super(message);
+        }
+    }
+
     /** Fail all pending getMore requests with a CursorKilled-style error. */
     private void failPending(Queue<PendingGetMore> pending) {
         PendingGetMore p;
@@ -583,6 +607,9 @@ public class WatchCursorManager {
         final long cursorId;
         final String db;
         final String collection;
+        // The command the watch runs under: it carries the reason when the stream ended because
+        // it could not be served, which getMore turns into an error instead of an empty batch.
+        volatile WatchCommand wcmd;
         // Bounded so a slow/absent consumer cannot grow the buffer without limit.
         // offer() returns false at capacity; the caller then kills the cursor.
         final Queue<Map<String, Object>> events = new LinkedBlockingQueue<>(MAX_CURSOR_QUEUE_SIZE);

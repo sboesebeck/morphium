@@ -94,6 +94,24 @@ public class WatchCommand extends MongoCommand<WatchCommand> {
         return resumeAfter;
     }
 
+    /**
+     * Set when the watch ended because it could NOT be served - a resume window that no longer
+     * carries a required pre-image, for instance - rather than because the consumer stopped it.
+     * The callback interface has no error channel, so a server driving this command
+     * asynchronously reads the reason here and turns it into a wire error instead of an empty
+     * batch, which would look like "nothing happened".
+     */
+    private volatile String terminalError = null;
+
+    public String getTerminalError() {
+        return terminalError;
+    }
+
+    public WatchCommand setTerminalError(String terminalError) {
+        this.terminalError = terminalError;
+        return this;
+    }
+
     public WatchCommand setResumeAfter(Map<String, Object> resumeAfter) {
         this.resumeAfter = resumeAfter;
         return this;

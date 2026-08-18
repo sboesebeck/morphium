@@ -3376,6 +3376,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
             } finally {
+                // The server path cannot throw at anybody - it runs detached - so the reason is
+                // handed to the command, where the cursor layer picks it up on the next
+                // getMore. Without this a stream that CANNOT be served looks exactly like an
+                // idle one.
+                if (subscription.getTerminalError() != null) {
+                    cmd.setTerminalError(subscription.getTerminalError());
+                }
+
                 unregisterSubscription(subscription);
                 monitors.remove(monitor);
             }
