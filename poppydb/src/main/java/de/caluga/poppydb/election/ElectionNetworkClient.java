@@ -96,9 +96,12 @@ public class ElectionNetworkClient {
      * Stop the network client and close all connections.
      */
     public void stop() {
-        if (!running) {
-            return;
-        }
+        // Deliberately NOT short-circuiting on !running: connections can exist without the
+        // client ever having been started (a caller that only used getOrCreateConnection), and
+        // returning early there left drivers, sockets and their schedulers alive - visible as
+        // heartbeat chatter long after the owner was done with them. Closing is idempotent, so
+        // making this method independent of the lifecycle flag costs nothing and always frees
+        // what was actually allocated.
         running = false;
 
         // Close all peer connections

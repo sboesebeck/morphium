@@ -54,6 +54,9 @@ public class ElectionNetworkClientReconnectTest {
         ElectionManager em = new ElectionManager("localhost:1", List.of("localhost:1", peerAddress),
                 new ElectionConfig());
         ElectionNetworkClient client = new ElectionNetworkClient(em);
+        // Started, so the matching stop() actually tears the drivers down - an unstarted client
+        // used to leave its sockets and their schedulers running past the test.
+        client.start();
 
         // A driver in exactly the state the leader was stuck with: present in the cache,
         // reporting itself as not connected, and unable to recover on its own.
@@ -91,6 +94,9 @@ public class ElectionNetworkClientReconnectTest {
         ElectionManager em = new ElectionManager("localhost:1", List.of("localhost:1", peerAddress),
                 new ElectionConfig());
         ElectionNetworkClient client = new ElectionNetworkClient(em);
+        // Started, so the matching stop() actually tears the drivers down - an unstarted client
+        // used to leave its sockets and their schedulers running past the test.
+        client.start();
 
         SingleMongoConnectDriver driver = client.getOrCreateConnection(peerAddress);
 
@@ -126,6 +132,9 @@ public class ElectionNetworkClientReconnectTest {
         ElectionManager em = new ElectionManager("localhost:1", List.of("localhost:1", peerAddress),
                 new ElectionConfig());
         ElectionNetworkClient client = new ElectionNetworkClient(em);
+        // Started, so the matching stop() actually tears the drivers down - an unstarted client
+        // used to leave its sockets and their schedulers running past the test.
+        client.start();
 
         SingleMongoConnectDriver driver = client.getOrCreateConnection(peerAddress);
 
@@ -146,6 +155,9 @@ public class ElectionNetworkClientReconnectTest {
         ElectionManager em = new ElectionManager("localhost:1", List.of("localhost:1", unreachable),
                 new ElectionConfig());
         ElectionNetworkClient client = new ElectionNetworkClient(em);
+        // Started, so the matching stop() actually tears the drivers down - an unstarted client
+        // used to leave its sockets and their schedulers running past the test.
+        client.start();
 
         SingleMongoConnectDriver dead = new SingleMongoConnectDriver();
         dead.setHostSeed(unreachable);
