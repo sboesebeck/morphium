@@ -8,6 +8,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+#### Test-results report: skipped tests were invisible, and no record ever qualified for a tag
+Two independent defects in the test-results reporting made the release table and the README
+badge misleading.
+
+**Skipped tests had no column.** The record builder computes `passed = methods - failed -
+skipped` and stores `skipped` in every record, but `test_report.py` rendered only `Tests` and
+`Passed` — so a release table showed e.g. 2114 tests and 2100 passed with nothing accounting
+for the difference, reading like 14 silently lost tests. The rendered table now carries a
+`Skipped` column, so `Tests = Passed + Skipped` is visible on its face.
+
+**No test record could ever qualify for a tag commit.** A record counts for a target commit
+only if every path in the diff between them is allowlisted as "does not change the released
+artifact". The maven-release-plugin rewrites the project version in every `pom.xml` when it
+cuts a tag, and `pom.xml` is deliberately not path-allowlisted — a changed dependency or
+plugin version there absolutely does change the artifact. The consequence was that *every*
+tag commit disqualified *every* record: the badge sat at `0/5 phases, 0 passed` in red no
+matter how green the matrix was, and `updateReleaseReport.sh` hit its "no qualifying results"
+guard on every run, so the release notes never refreshed — the "living report" was live in
+name only. (Release notes still looked right at release time purely because `release.sh`
+renders them against `HEAD` *before* the version bump.)
+
+`pom.xml` is now judged by content rather than by path: its canonical XML is compared with the
+project's own `version`, the `parent` version and the `scm` tag blanked out, so a pure release
+bump no longer disqualifies a record. Only those three fields are blanked — a `<version>`
+inside a `<dependency>` or `<plugin>` still disqualifies, as it must. The comparison strips
+whitespace-only text, because the release plugin also reflows the `<project>` element's
+namespace attributes onto one line. Anything unparsable, added or removed fails closed and
+disqualifies: the check hands out permission to *ignore* a diff, so uncertainty must never
+mean "ignore it".
+
 ## [6.3.2] - 2026-08-18
 
 ### Added

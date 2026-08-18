@@ -22,6 +22,7 @@ import json
 import os
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 
 REQUIRED_PHASES = ["inmem", "mongodb_rs", "poppydb_rs",
                    "mongodb_single", "poppydb_single"]
@@ -61,6 +62,59 @@ def load_records():
     return records
 
 
+# --- release-bump detection -------------------------------------------------
+# The maven-release-plugin rewrites the project's own <version> (and
+# <scm><tag>) in every pom.xml when it cuts a tag. Those commits change no
+# behaviour, but they DO touch pom.xml - and pom.xml must not be blanket-
+# allowlisted, because a changed dependency or plugin version there absolutely
+# does change the released artifact. So pom.xml is judged by *content* instead
+# of by path: a pom whose canonical XML is identical once the project's own
+# coordinates are blanked is a pure release bump and does not disqualify a
+# record. Without this, no test record ever qualifies for a tag commit, which
+# froze the release notes and pinned the badge at "0/5 phases" (the state this
+# fixes).
+def _pom_canon(blob):
+    """Canonical XML of a pom with the release-plugin-owned fields blanked.
+
+    Whitespace-only text is stripped, so the plugin's habit of reflowing the
+    <project> element's namespace attributes onto a single line is not seen as
+    a change either. Only the PROJECT's own version/parent version/scm tag are
+    blanked - never a <dependency> or <plugin> <version>, since those do change
+    the artifact.
+    """
+    # Our own poms out of our own history - no untrusted input. ElementTree
+    # does not resolve external entities, so there is no XXE surface here.
+    root = ET.fromstring(blob)
+    ns = root.tag[:root.tag.index("}") + 1] if root.tag.startswith("{") else ""
+    for holder, tag in ((root, "version"),
+                        (root.find(ns + "parent"), "version"),
+                        (root.find(ns + "scm"), "tag")):
+        if holder is None:
+            continue
+        el = holder.find(ns + tag)
+        if el is not None:
+            el.text = "<release-bump>"
+    return ET.canonicalize(ET.tostring(root, encoding="unicode"),
+                           strip_text=True)
+
+
+def pom_bump_only(commit, target, path):
+    """True iff `path` differs between the commits only in release-bump fields.
+
+    Fails closed: an unreadable, added or removed pom, or anything that will
+    not parse, returns False. This function hands out permission to *ignore* a
+    diff, so uncertainty must never mean "ignore it".
+    """
+    a = sh("git", "show", "%s:%s" % (commit, path))
+    b = sh("git", "show", "%s:%s" % (target, path))
+    if a.returncode != 0 or b.returncode != 0:
+        return False
+    try:
+        return _pom_canon(a.stdout) == _pom_canon(b.stdout)
+    except Exception:
+        return False
+
+
 def classify_diff(commit, target):
     """'' if identical, 'clean'/'tests' if allowlisted diff, None otherwise."""
     if sh("git", "merge-base", "--is-ancestor", commit, target).returncode != 0:
@@ -74,6 +128,8 @@ def classify_diff(commit, target):
     verdict = "clean"
     for f in files:
         if any(fnmatch.fnmatch(f, p) for p in ALLOW):
+            continue
+        if os.path.basename(f) == "pom.xml" and pom_bump_only(commit, target, f):
             continue
         if any(fnmatch.fnmatch(f, p) for p in ALLOW_ANNOTATE):
             verdict = "tests"
@@ -98,27 +154,32 @@ def aggregate(records, target):
 
 
 def render_markdown(chosen, target):
+    # "Tests" is surefire's "Tests run" total; Passed + Skipped account for it.
+    # Skipped is rendered explicitly because without it the table shows a
+    # Passed count below the Tests count with no visible explanation.
     lines = ["## Test results", "",
-             "| Phase | Tests | Passed | Flaky | Broken | Runner | Tested commit | When (UTC) |",
-             "|---|---|---|---|---|---|---|---|"]
+             "| Phase | Tests | Passed | Skipped | Flaky | Broken | Runner | Tested commit | When (UTC) |",
+             "|---|---|---|---|---|---|---|---|---|"]
     annotate = False
     for phase in REQUIRED_PHASES:
         if phase not in chosen:
-            lines.append("| %s | — | — | — | — | *missing* | | |" % phase)
+            lines.append("| %s | — | — | — | — | — | *missing* | | |" % phase)
             continue
         rec, st, diff_class = chosen[phase]
         if diff_class == "tests":
             annotate = True
-        lines.append("| %s | %d | %d | %d | %d | %s | %s | %s |" % (
-            phase, st["methods"], st["passed"], st.get("flaky", 0),
+        lines.append("| %s | %d | %d | %d | %d | %d | %s | %s | %s |" % (
+            phase, st["methods"], st["passed"], st.get("skipped", 0),
+            st.get("flaky", 0),
             st["broken"], rec["runner"], rec["commit"][:8], rec["timestamp"]))
     # extension-module phases (jakarta-data, quarkus, ...): report-only, never gate-relevant
     for phase in sorted(p for p in chosen if p not in REQUIRED_PHASES):
         rec, st, diff_class = chosen[phase]
         if diff_class == "tests":
             annotate = True
-        lines.append("| %s *(optional)* | %d | %d | %d | %d | %s | %s | %s |" % (
-            phase, st["methods"], st["passed"], st.get("flaky", 0),
+        lines.append("| %s *(optional)* | %d | %d | %d | %d | %d | %s | %s | %s |" % (
+            phase, st["methods"], st["passed"], st.get("skipped", 0),
+            st.get("flaky", 0),
             st["broken"], rec["runner"], rec["commit"][:8], rec["timestamp"]))
     cov = None
     for phase in REQUIRED_PHASES:
@@ -158,6 +219,68 @@ def write_badges(chosen, cov, badges_dir):
                        "message": "%.0f%% line" % avg, "color": color}, fh)
 
 
+POM_BASE = """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <parent>
+    <groupId>de.caluga</groupId>
+    <artifactId>morphium-parent</artifactId>
+    <version>%(v)s</version>
+  </parent>
+  <artifactId>morphium-core</artifactId>
+  <version>%(v)s</version>
+  <scm><tag>%(tag)s</tag></scm>
+  <dependencies>
+    <dependency>
+      <groupId>org.mongodb</groupId>
+      <artifactId>mongodb-driver-sync</artifactId>
+      <version>%(dep)s</version>
+    </dependency>
+  </dependencies>
+</project>
+"""
+
+
+def _pom_selftest():
+    """_pom_canon is the whole of pom_bump_only's judgement (the git plumbing
+    around it is trivial), so it is what the selftest exercises."""
+    snap = POM_BASE % {"v": "6.3.2-SNAPSHOT", "tag": "HEAD", "dep": "4.11.5"}
+    rel = POM_BASE % {"v": "6.3.2", "tag": "v6.3.2", "dep": "4.11.5"}
+    assert _pom_canon(snap) == _pom_canon(rel), \
+        "a pure release bump must not disqualify a record"
+    # the maven-release-plugin also reflows the <project> element onto one line
+    reflowed = rel.replace(
+        '<project xmlns="http://maven.apache.org/POM/4.0.0"\n'
+        '         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">',
+        '<project xmlns="http://maven.apache.org/POM/4.0.0" '
+        'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">')
+    assert reflowed != rel, "reflow fixture did not apply - selftest is vacuous"
+    assert _pom_canon(snap) == _pom_canon(reflowed), \
+        "attribute reflow is formatting, not a change"
+    # a changed DEPENDENCY version changes the artifact and must disqualify,
+    # even though it is also just a <version> element
+    bumped_dep = POM_BASE % {"v": "6.3.2", "tag": "v6.3.2", "dep": "4.12.0"}
+    assert _pom_canon(snap) != _pom_canon(bumped_dep), \
+        "a dependency version change MUST disqualify"
+    # so must any real structural change
+    extra = rel.replace("</dependencies>",
+                        "<dependency><groupId>x</groupId>"
+                        "<artifactId>y</artifactId></dependency></dependencies>")
+    assert _pom_canon(snap) != _pom_canon(extra), \
+        "an added dependency MUST disqualify"
+    # fails closed on garbage rather than waving it through
+    assert pom_bump_only.__doc__ and _pom_canon_fails_closed(), \
+        "unparsable pom must not count as a bump"
+
+
+def _pom_canon_fails_closed():
+    try:
+        _pom_canon("not xml at all")
+    except Exception:
+        return True
+    return False
+
+
 def selftest():
     rec = {"schema": 1, "commit": "a" * 40, "branch": "develop",
            "timestamp": "2026-08-13T20:00:00Z", "runner": "t",
@@ -179,6 +302,23 @@ def selftest():
     assert chosen == {}, "incomplete records must never qualify"
     md, cov = render_markdown({}, "a" * 40)
     assert "*missing*" in md
+    # every rendered row must have as many cells as the header, or GitHub
+    # silently drops the surplus/pads the shortfall and the table lies
+    header_cells = [l for l in md.splitlines() if l.startswith("| Phase ")][0].count("|")
+    for row in [l for l in md.splitlines() if l.startswith("| ") and not l.startswith("| Phase ")]:
+        assert row.count("|") == header_cells, "cell count mismatch: %s" % row
+    # Skipped must be visible: without it a Passed count below the Tests count
+    # has no explanation in the rendered table (the bug this column fixes).
+    partial_skip = json.loads(json.dumps(rec))
+    partial_skip["phases"]["inmem"].update({"methods": 10, "passed": 8, "skipped": 2})
+    with mock.patch(__name__ + ".classify_diff", return_value=""):
+        skip_chosen = aggregate([partial_skip], "a" * 40)
+    md_skip, _ = render_markdown(skip_chosen, "a" * 40)
+    header = [l for l in md_skip.splitlines() if l.startswith("| Phase ")][0]
+    assert "| Skipped |" in header, "header must carry a Skipped column"
+    inmem_row = [l for l in md_skip.splitlines() if l.startswith("| inmem ")][0]
+    assert inmem_row.split("|")[2:5] == [" 10 ", " 8 ", " 2 "], \
+        "Tests/Passed/Skipped must render in that order: %s" % inmem_row
     # Verify annotation only fires for "tests" diffs, not "clean" diffs
     with mock.patch(__name__ + ".classify_diff", return_value="clean"):
         chosen = aggregate([rec], "a" * 40)
@@ -206,6 +346,7 @@ def selftest():
     assert md.count(MARK_START) == 1, "start marker must appear exactly once"
     assert md.count(MARK_END) == 1, "end marker must appear exactly once"
     assert md.index(MARK_START) < md.index(MARK_END), "start marker must precede end marker"
+    _pom_selftest()
     print("selftest OK")
 
 
