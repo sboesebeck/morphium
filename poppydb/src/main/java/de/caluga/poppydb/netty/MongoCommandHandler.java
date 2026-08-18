@@ -39,7 +39,11 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
     private static final Logger log = LoggerFactory.getLogger(MongoCommandHandler.class);
 
-    // Dedicated executor for command processing — offloads work from Netty I/O threads.
+    // Executor used ONLY for the asynchronous write-concern replication wait (see postWrite) -
+    // command processing itself, including the insert/find/update/delete fast paths, runs
+    // synchronously on the Netty event loop. A slow command therefore blocks every other
+    // connection on the same event loop; moving data commands onto a worker pool (with per-
+    // channel response ordering) is a known, deliberate open point, not an oversight.
     // Uses a fixed pool (not virtual threads) to bound memory: virtual threads caused OOM
     // because hundreds accumulated waiting on InMemoryDriver's per-collection write lock.
     // Pool size = 2x CPU cores provides enough parallelism without memory pressure.
@@ -104,7 +108,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
      * Outcome of the shared pre-dispatch middleware. When {@link #errorResponse} is non-null
      * the caller must send it and stop; otherwise dispatch proceeds.
      */
-    private static final class CheckResult {
+    // package-private: exercised by SecondaryReadPreferenceTest
+    static final class CheckResult {
         static final CheckResult PROCEED = new CheckResult(null);
         final Map<String, Object> errorResponse;
 
@@ -279,6 +284,20 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         }
     }
 
+    /** buildInfo.versionArray as mongo-tools et al. expect it: the leading numeric components
+     *  of the version string, zero-padded to 4 entries ("6.3.2-SNAPSHOT" -> [6,3,2,0]).
+     *  mongorestore refuses to talk to a server whose versionArray has fewer than 3 entries. */
+    static List<Integer> buildVersionArray(String version) {
+        List<Integer> arr = new java.util.ArrayList<>(4);
+        for (String part : version.split("[.\\-]")) {
+            if (!part.matches("\\d+")) break;
+            arr.add(Integer.parseInt(part));
+            if (arr.size() == 4) break;
+        }
+        while (arr.size() < 4) arr.add(0);
+        return arr;
+    }
+
     private void processOpQuery(ChannelHandlerContext ctx, OpQuery query) throws Exception {
         Map<String, Object> doc = query.getDoc();
         int requestId = query.getMessageId();
@@ -287,15 +306,15 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             // isMaster via OpQuery (legacy)
             log.debug("OpQuery->isMaster");
             OpReply reply = new OpReply();
-            reply.setFlags(2);
+            // AWAIT_CAPABLE like real mongod. QUERY_FAILURE (2) here made strict drivers
+            // (mongo-tools/Go) read the hello document as an error and drop the connection,
+            // breaking mongodump/mongorestore; lenient drivers (Node, morphium) ignore flags.
+            reply.setFlags(OpReply.AWAIT_CAPABLE_FLAG);
             reply.setMessageId(msgId.incrementAndGet());
             reply.setResponseTo(requestId);
             reply.setNumReturned(1);
 
-            Map<String, Object> response = getHelloResult().toMsg();
-            response.put("poppyDB", true);
-            response.put("morphiumServer", true);
-            response.put("inMemoryBackend", true);
+            Map<String, Object> response = helloAnswer();
             reply.setDocuments(Arrays.asList(response));
 
             ctx.writeAndFlush(reply);
@@ -304,7 +323,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
         // OpQuery is deprecated
         OpReply reply = new OpReply();
-        reply.setFlags(2);
+        reply.setFlags(OpReply.QUERY_FAILURE_FLAG);
         reply.setMessageId(msgId.incrementAndGet());
         reply.setResponseTo(requestId);
         reply.setNumReturned(1);
@@ -379,6 +398,15 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         Map<String, Object> doc = opMsg.getFirstDoc();
         int requestId = opMsg.getMessageId();
 
+        // Kind-1 document-sequence sections (mongorestore/mongoimport bulk writes; morphium
+        // clients never send them): per wire spec each sequence is equivalent to an array
+        // field of the same name in the command body ("documents"/"updates"/"deletes").
+        if (opMsg.getDocuments() != null) {
+            for (var seq : opMsg.getDocuments().entrySet()) {
+                doc.putIfAbsent(seq.getKey(), seq.getValue());
+            }
+        }
+
         if (log.isDebugEnabled()) log.debug("Incoming {}", Utils.toJsonString(doc));
 
         String cmd = doc.keySet().iterator().next(); // first key = command name (no stream overhead)
@@ -446,6 +474,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
             case "buildInfo":
                 answer = Doc.of("version", InMemoryDriver.REPORTED_SERVER_VERSION,
+                        "versionArray", buildVersionArray(InMemoryDriver.REPORTED_SERVER_VERSION),
                         "buildEnvironment", Doc.of("distarch", "java", "targetarch", "java"),
                         "ok", 1.0);
                 break;
@@ -454,10 +483,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             case "isMaster":
             case "hello":
                 log.debug("OpMsg->hello/ismaster");
-                answer = getHelloResult().toMsg();
-                answer.put("poppyDB", true);
-                answer.put("morphiumServer", true);
-                answer.put("inMemoryBackend", true);
+                answer = helloAnswer();
                 break;
 
             case "getFreeMonitoringStatus":
@@ -496,13 +522,11 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 break;
 
             case "abortTransaction":
-                handleAbortTransaction(ctx);
-                answer = Doc.of("ok", 1.0);
+                answer = handleAbortTransaction(ctx);
                 break;
 
             case "commitTransaction":
-                handleCommitTransaction(ctx);
-                answer = Doc.of("ok", 1.0);
+                answer = handleCommitTransaction(ctx);
                 break;
 
             case "getMore":
@@ -1028,7 +1052,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
      * the error response the caller must send.
      */
     @SuppressWarnings("unchecked")
-    private CheckResult preDispatch(ChannelHandlerContext ctx, String cmd, Map<String, Object> doc) {
+    // package-private: exercised by SecondaryReadPreferenceTest
+    CheckResult preDispatch(ChannelHandlerContext ctx, String cmd, Map<String, Object> doc) {
         boolean isWriteCommand = WRITE_COMMANDS.contains(cmd.toLowerCase());
         boolean isPrimary = isCurrentPrimary();
 
@@ -1065,10 +1090,17 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             return CheckResult.reject(errorResponse);
         }
 
-        // (2) Reject primary-only reads on secondaries to ensure consistency.
+        // (2) Reject primary-only reads on secondaries to ensure consistency. MongoDB's
+        // DEFAULT read preference is primary, so a read arriving WITHOUT an explicit
+        // $readPreference is a primary read too and must be rejected just like
+        // mode:"primary" - previously it silently served possibly-stale secondary data.
+        // Mirrors mongod's handling of a direct secondary connection without secondaryOk.
+        // Morphium's own wire commands always carry $readPreference (default
+        // primaryPreferred), so they are unaffected; getMore/control commands never
+        // reach preDispatch (CONTROL_COMMANDS).
         if (!isPrimary && !isWriteCommand) {
             Map<String, Object> readPref = (Map<String, Object>) doc.get("$readPreference");
-            if (readPref != null && "primary".equalsIgnoreCase((String) readPref.get("mode"))) {
+            if (readPref == null || "primary".equalsIgnoreCase((String) readPref.get("mode"))) {
                 String currentPrimary = getCurrentPrimaryHost();
                 Map<String, Object> errorResponse = Doc.of(
                     "ok", 0.0,
@@ -1097,8 +1129,23 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
      * <p>The replication coordinator is resolved through {@link #replicationCoordinator()} at
      * call time so a later switch to a live supplier needs no change here.
      */
-    private boolean postWrite(ChannelHandlerContext ctx, Map<String, Object> doc, String cmd,
+    // package-private: exercised by JournalConcernHonestyTest
+    boolean postWrite(ChannelHandlerContext ctx, Map<String, Object> doc, String cmd,
                               Map<String, Object> answer, int requestId) {
+        // PoppyDB has no journal: j:true promises durability that does not exist. Like mongod
+        // without journaling, the write is executed but the concern fails honestly (code 2,
+        // BadValue). Checked BEFORE the coordinator/primary guards so it also fires standalone,
+        // and short-circuits the replication wait - the concern is already unsatisfiable.
+        Object wc = doc.get("writeConcern");
+        if (wc instanceof Map && Boolean.TRUE.equals(((Map<String, Object>) wc).get("j"))) {
+            answer.put("writeConcernError", Doc.of(
+                "code", 2,
+                "codeName", "BadValue",
+                "errmsg", "cannot use 'j' option: PoppyDB has no journal (in-memory store with snapshot persistence)"
+            ));
+            return false;
+        }
+
         ReplicationCoordinator coordinator = replicationCoordinator();
         if (coordinator == null || !isCurrentPrimary()) {
             return false;
@@ -1522,6 +1569,35 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         return myAddress;
     }
 
+    /**
+     * The complete hello/isMaster answer: topology from {@link #getHelloResult()} plus the
+     * PoppyDB identity flags. Single source for both the OP_QUERY legacy path and the OP_MSG
+     * path, so the two can never drift.
+     */
+    // package-private: exercised by HelloCapabilitiesTest
+    Map<String, Object> helloAnswer() {
+        Map<String, Object> answer = getHelloResult().toMsg();
+        answer.put("poppyDB", true);
+        answer.put("morphiumServer", true);
+        answer.put("inMemoryBackend", true);
+        // Honest capability advertisement: the hello reply's RS topology + logical sessions
+        // make modern drivers enable retryable writes by default, but PoppyDB has no
+        // (lsid, txnNumber) dedup (spec: issue #293) - there is no standard hello field to
+        // say "sessions yes, retryable writes no", so clients/tooling get an explicit
+        // document instead of discovering the gaps at runtime. Documented in docs/poppydb.md.
+        Doc capabilities = Doc.of(
+            "version", 1,
+            "retryableWrites", false,
+            "journal", false,
+            "durability", "snapshot",
+            "readConcern", "local",
+            "transactions", "partial"
+        );
+        capabilities.put("textSearch", "simplified");
+        answer.put("poppyCapabilities", capabilities);
+        return answer;
+    }
+
     private HelloResult getHelloResult() {
         HelloResult res = new HelloResult();
         res.setHelloOk(true);
@@ -1689,30 +1765,49 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         }
     }
 
-    private void handleAbortTransaction(ChannelHandlerContext ctx) {
+    // package-private: exercised by TransactionErrorPropagationTest
+    Map<String, Object> handleAbortTransaction(ChannelHandlerContext ctx) {
         MorphiumTransactionContext txCtx = ctx.channel().attr(TX_CONTEXT_KEY).getAndSet(null);
         if (txCtx != null) {
             log.debug("Aborting transaction");
-            driver.setTransactionContext(txCtx);
             try {
+                driver.setTransactionContext(txCtx);
                 driver.abortTransaction();
             } catch (Exception e) {
                 log.error("Error aborting transaction", e);
+                return txnErrorAnswer("abortTransaction", e);
             }
         }
+        return Doc.of("ok", 1.0);
     }
 
-    private void handleCommitTransaction(ChannelHandlerContext ctx) {
+    // package-private: exercised by TransactionErrorPropagationTest
+    Map<String, Object> handleCommitTransaction(ChannelHandlerContext ctx) {
         MorphiumTransactionContext txCtx = ctx.channel().attr(TX_CONTEXT_KEY).getAndSet(null);
         if (txCtx != null) {
             log.debug("Committing transaction");
-            driver.setTransactionContext(txCtx);
             try {
+                driver.setTransactionContext(txCtx);
                 driver.commitTransaction();
             } catch (Exception e) {
                 log.error("Error committing transaction", e);
+                return txnErrorAnswer("commitTransaction", e);
             }
         }
+        return Doc.of("ok", 1.0);
+    }
+
+    /**
+     * A commit/abort that threw was previously logged and acknowledged with ok:1 - the client
+     * believed its transaction was committed. The failure is answered mongo-shaped instead;
+     * code 8 (UnknownError) unless the driver attached a specific mongo code.
+     */
+    private static Map<String, Object> txnErrorAnswer(String cmd, Exception e) {
+        Object code = 8;
+        if (e instanceof MorphiumDriverException mde && mde.getMongoCode() != null) {
+            code = mde.getMongoCode();
+        }
+        return Doc.of("ok", 0.0, "errmsg", cmd + " failed: " + e.getMessage(), "code", code);
     }
 
     private String extractSessionId(Map<String, Object> doc) {
@@ -2056,7 +2151,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             Map<String, Object> answer = Doc.of("ok", 1.0, "n", docs.size());
             if (writeErrors != null && !writeErrors.isEmpty()) {
                 answer.put("writeErrors", writeErrors);
-                answer.put("n", docs.size() - writeErrors.size());
+                answer.put("n", InMemoryDriver.insertedCountFromWriteErrors(docs.size(), ordered, writeErrors));
             }
             return answer;
         } catch (MorphiumDriverException e) {
@@ -2069,12 +2164,17 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> processFindDirect(ChannelHandlerContext ctx, Map<String, Object> doc, int requestId) {
+    // package-private: exercised by FastPathOptionsTest
+    Map<String, Object> processFindDirect(ChannelHandlerContext ctx, Map<String, Object> doc, int requestId) {
         String db = (String) doc.get("$db");
         String coll = (String) doc.get("find");
         Map<String, Object> filter = (Map<String, Object>) doc.get("filter");
         Map<String, Object> sort = (Map<String, Object>) doc.get("sort");
         Map<String, Object> projection = (Map<String, Object>) doc.get("projection");
+        // The client's collation was ignored on this path (#252 follow-up) - update/delete/
+        // count/distinct were fixed, find was not. hint stays unread: the InMemoryDriver has
+        // no hint support on any path, so ignoring it cannot diverge from the generic path.
+        Map<String, Object> collation = (Map<String, Object>) doc.get("collation");
         Integer limit = doc.get("limit") instanceof Number ? ((Number) doc.get("limit")).intValue() : 0;
         Integer skip = doc.get("skip") instanceof Number ? ((Number) doc.get("skip")).intValue() : 0;
         Integer batchSize = doc.get("batchSize") instanceof Number ? ((Number) doc.get("batchSize")).intValue() : 0;
@@ -2094,7 +2194,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             int windowSize = MAX_RETAINED_BATCHES * batchSize;
             int fetchLimit = batchSize + windowSize;
             if (limit > 0) fetchLimit = Math.min(fetchLimit, limit);
-            var window = driver.find(db, coll, filter, sort, projection, skip, fetchLimit);
+            var window = driver.find(db, coll, filter, sort, projection, collation, skip, fetchLimit);
 
             if (window.size() > batchSize) {
                 List<Map<String, Object>> firstBatch = new ArrayList<>(window.subList(0, batchSize));
@@ -2104,7 +2204,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 boolean hasLimit = limit > 0;
                 int remainingLimit = hasLimit ? Math.max(0, limit - window.size()) : 0;
                 findCursorRegistry.put(cursorId, new FindCursorRegistry.FindCursorState(db, coll, filter, sort, projection,
-                        retained, batchSize, nextSkip, hasLimit, remainingLimit));
+                        collation, retained, batchSize, nextSkip, hasLimit, remainingLimit));
                 channelCursors.add(cursorId);
                 return Doc.of("ok", 1.0, "cursor",
                         Doc.of("firstBatch", firstBatch, "id", cursorId, "ns", db + "." + coll));
@@ -2116,7 +2216,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
         // No batchSize requested — single-shot fetch of the full (limit-bounded) result set,
         // returned inline with no server-side cursor (unchanged from prior behaviour).
-        var results = driver.find(db, coll, filter, sort, projection, skip, limit);
+        var results = driver.find(db, coll, filter, sort, projection, collation, skip, limit);
         return Doc.of("ok", 1.0, "cursor",
                 Doc.of("firstBatch", results, "id", 0L, "ns", db + "." + coll));
     }
@@ -2127,7 +2227,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
      * {@code limit} has already been exhausted. See {@link FindCursorRegistry.FindCursorState}
      * for the concurrent-write caveat this re-execution carries.
      */
-    private void refillFindCursorWindow(FindCursorRegistry.FindCursorState state) {
+    // package-private: exercised by FastPathOptionsTest
+    void refillFindCursorWindow(FindCursorRegistry.FindCursorState state) {
         if (state.hasLimit && state.remainingLimit <= 0) {
             return;
         }
@@ -2135,7 +2236,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         int fetchLimit = state.hasLimit ? Math.min(windowSize, state.remainingLimit) : windowSize;
         if (fetchLimit <= 0) return;
         List<Map<String, Object>> refill = driver.find(state.db, state.collection, state.filter,
-                state.sort, state.projection, state.nextSkip, fetchLimit);
+                state.sort, state.projection, state.collation, state.nextSkip, fetchLimit);
         state.nextSkip += refill.size();
         if (state.hasLimit) state.remainingLimit -= refill.size();
         state.remaining.addAll(refill);

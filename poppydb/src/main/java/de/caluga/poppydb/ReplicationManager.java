@@ -40,7 +40,9 @@ public class ReplicationManager {
     private final InMemoryDriver localDriver;
     private final String primaryHost;
     private final int primaryPort;
-    private final AtomicBoolean running = new AtomicBoolean(false);
+    // Package-visible so ReplicationEventQueueByteBudgetTest can exercise the byte-budget
+    // backpressure without a live replication connection - the wait loop keys off this flag.
+    final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicBoolean connected = new AtomicBoolean(false);
     private final AtomicLong eventsApplied = new AtomicLong(0);
     private final AtomicLong lastEventTime = new AtomicLong(0);
@@ -59,6 +61,19 @@ public class ReplicationManager {
     // Number of times the primary signalled "resume window lost" and we fell back to a full re-sync.
     // Exposed for tests/metrics to distinguish a clean resume (0) from a re-sync fallback.
     private final AtomicLong resyncCount = new AtomicLong(0);
+    // True while the initial-sync retry loop is refusing a destructive full re-sync (clear +
+    // snapshot, or a shortcut-driven equivalent) because the primary's reported sequence at the
+    // most recent watch registration is BEHIND the sequence our local data was last known to
+    // reflect - see the guard in startInitialSyncOnce(). Cleared as soon as an attempt's primary
+    // sequence catches back up (>= local), whether that attempt then takes the shortcut or a full
+    // sync. Exposed via getStats() so operators/tests can see a node that is deliberately holding
+    // onto its data rather than idly "still syncing".
+    private final AtomicBoolean refusingDestructiveResync = new AtomicBoolean(false);
+    // Number of times a destructive full re-sync was refused for the reason above. Monotonic
+    // counter, never reset - distinguishes "never needed to refuse" from "refused N times" in
+    // stats/tests, independent of the current (possibly already-cleared) refusingDestructiveResync
+    // flag.
+    private final AtomicLong refusedResyncCount = new AtomicLong(0);
     // Wall-clock time (System.currentTimeMillis()) of the previous resync, used to detect resyncs
     // repeating faster than the buffer can absorb (see triggerResync()). 0 = no resync yet.
     private final AtomicLong lastResyncTimestamp = new AtomicLong(0);
@@ -86,7 +101,9 @@ public class ReplicationManager {
     private volatile long watchCursorId = -1;
 
     // Initial sync state
-    private final AtomicBoolean initialSyncComplete = new AtomicBoolean(false);
+    // Package-visible so InitialSyncElectionSeedTest can put the manager into the exact
+    // post-sync state the losing interleaving produces (sync done, lastAppliedSequence still 0).
+    final AtomicBoolean initialSyncComplete = new AtomicBoolean(false);
     private final CountDownLatch initialSyncLatch = new CountDownLatch(1);
     // True when the most recently COMPLETED initial sync was satisfied by the consistency
     // shortcut (dbHash comparison against the primary, see tryConsistencyShortcut()) instead of
@@ -206,7 +223,35 @@ public class ReplicationManager {
     // Bounded so a stalled batch processor applies backpressure to the watch callback
     // (via put()) instead of buffering replication events until OOM.
     private static final int EVENT_QUEUE_CAPACITY = 100_000;
-    private final BlockingQueue<Map<String, Object>> eventQueue = new LinkedBlockingQueue<>(EVENT_QUEUE_CAPACITY);
+    private final BlockingQueue<QueuedEvent> eventQueue = new LinkedBlockingQueue<>(EVENT_QUEUE_CAPACITY);
+
+    /**
+     * A queued replication event plus its estimated size, measured exactly once at enqueue time
+     * (see {@link InMemoryDriver#estimateBsonSize}) so the byte accounting adds and subtracts
+     * the very same value at every queue mutation site.
+     */
+    private record QueuedEvent(Map<String, Object> event, long estimatedBytes) {}
+
+    // Byte budget for eventQueue (estimated bytes; 0 = off - PoppyDB opts in with a 256m
+    // default, --event-queue-budget). The count capacity alone does not bound memory: every
+    // queued event retains its full document, so 100k ~300KB bulk-export events blow any heap
+    // (same failure family as the replay-buffer incident, commit 88acb76b0). Unlike the replay
+    // buffer, overflow must NOT evict here - queued events are not yet applied, dropping one is
+    // silent data loss on this secondary. Instead the budget extends the existing count
+    // backpressure to bytes: the producer (watch callback) blocks in enqueueReplicationEvent()
+    // until the consumer's drain frees budget.
+    private volatile long eventQueueByteBudget = 0;
+    // Estimated bytes currently queued (sum of QueuedEvent.estimatedBytes). Maintained at every
+    // queue mutation site: enqueue adds after a successful put, every drain subtracts the exact
+    // per-event values it removed - so the counter converges to the queue's true content even
+    // across a resync discard racing the producer.
+    private final AtomicLong eventQueueBytes = new AtomicLong();
+    // Monotonic count of enqueues that had to wait on the byte budget (diagnostic, in getStats()).
+    private final AtomicLong eventQueueBytePressureCount = new AtomicLong();
+    // Rate limit for the byte-backpressure WARN log (at most one per minute).
+    private volatile long lastBytePressureWarnAt = 0;
+    // Monitor for byte-budget waits: the producer waits here, releaseEventQueueBytes() notifies.
+    private final Object eventQueueByteLock = new Object();
     // volatile: written by start()/stop(), read by the watch-callback thread in
     // requestFlush() with no happens-before edge between them
     private volatile ScheduledExecutorService batchProcessor;
@@ -220,8 +265,38 @@ public class ReplicationManager {
     private final AtomicLong lastWatchResponseTime = new AtomicLong(0);
     private static final long STALENESS_THRESHOLD_MS = 30000; // 30 seconds without response = stale
 
+    // How long isContinued() sleeps before ending the watch while refusingDestructiveResync is
+    // true (2026-08-14 task-3 review fix). Paces the register/teardown cycle that refreshes
+    // lastKnownPrimarySequence - see the pacing comment at that isContinued() check for why this
+    // is load-bearing, not cosmetic. A fixed interval rather than mirroring the initial-sync
+    // thread's own growing 1s->30s backoff: that state lives on a different thread and this is a
+    // different loop (the watch's own getMore cadence, not the sync-decision retry cadence) -
+    // a fixed value in the same 1-5s ballpark is simpler and avoids coupling the two.
+    private static final long REFUSAL_WATCH_PACE_MS = 2000;
+
     // Callback to notify when log index is updated (for election consistency)
     private java.util.function.BiConsumer<Long, Long> onLogIndexUpdate;
+
+    // Fired every time an initial sync COMPLETES successfully (the gate-opening moment where
+    // initialSyncComplete flips true) - i.e. this node now holds an authoritative copy of the
+    // primary's dataset. Wired by PoppyDB to release the partial-restore candidacy guard
+    // (#306 P1-2 follow-up): the release must hang off actual sync COMPLETION, not off
+    // replication merely starting, and it must exist in the election path
+    // (startReplicationToLeader), which - unlike static-mode startReplication() - has no
+    // synchronous waitForInitialSync it could hook. May fire more than once per
+    // ReplicationManager lifetime (a resync closes and re-opens the gate); receivers must be
+    // idempotent.
+    private volatile Runnable onInitialSyncComplete;
+
+    // Arms the completion notification (#306 review follow-up): the gate-opening moment only
+    // means "snapshot copied, apply gate open" - the events buffered in eventQueue during the
+    // snapshot (up to 100k) are NOT applied yet, and a guard released before they are would be
+    // released onto a node that is still measurably behind. So the sync success block only
+    // ARMS this flag; the batch processor fires the callback once the queue has actually
+    // drained (and only while running - a stopped manager's late sync thread can arm it, but
+    // nothing will ever fire it, which is exactly right for a superseded manager).
+    // Package-visible for tests.
+    final AtomicBoolean syncCompleteNotifyPending = new AtomicBoolean(false);
 
     // RS-internal connection security, set once via setInternalConnectionSecurity() before
     // start() - see docs/superpowers/specs/2026-08-05-poppydb-rs-internal-auth-tls-design.md.
@@ -254,6 +329,14 @@ public class ReplicationManager {
     }
 
     /**
+     * Set the callback fired on every successful initial-sync completion (see the field's
+     * comment). Call before {@link #start()}; the callback must be idempotent.
+     */
+    public void setOnInitialSyncComplete(Runnable callback) {
+        this.onInitialSyncComplete = callback;
+    }
+
+    /**
      * Configure how the connection to the primary authenticates/encrypts itself. Call before
      * {@link #start()}. {@code internalSslContext} of {@code null} means the connection stays
      * plaintext even if {@code authEnabled} is true.
@@ -264,6 +347,40 @@ public class ReplicationManager {
         this.authUser = authUser;
         this.authPassword = authPassword;
         this.internalSslContext = internalSslContext;
+    }
+
+    /**
+     * Byte budget for the replication event queue (estimated bytes, see
+     * {@link InMemoryDriver#estimateBsonSize}; 0 = off, only the count capacity applies).
+     * Enforced as backpressure on the producer, never by dropping queued events - see
+     * {@link #enqueueReplicationEvent}. Safe to call on a running manager: raising or
+     * disabling the budget wakes a currently blocked producer.
+     */
+    public void setEventQueueByteBudget(long bytes) {
+        if (bytes < 0) {
+            throw new IllegalArgumentException("eventQueueByteBudget must be >= 0 (0 = disabled)");
+        }
+
+        this.eventQueueByteBudget = bytes;
+
+        synchronized (eventQueueByteLock) {
+            eventQueueByteLock.notifyAll();
+        }
+    }
+
+    /** Current event-queue byte budget; 0 = byte bound disabled. */
+    long getEventQueueByteBudget() {
+        return eventQueueByteBudget;
+    }
+
+    /** Estimated bytes currently held by the event queue (diagnostic). */
+    long getEventQueueBytes() {
+        return eventQueueBytes.get();
+    }
+
+    /** Number of enqueues that had to wait on the byte budget (diagnostic). */
+    long getEventQueueBytePressureCount() {
+        return eventQueueBytePressureCount.get();
     }
 
     /**
@@ -386,6 +503,97 @@ public class ReplicationManager {
     }
 
     /**
+     * Enqueue a replication event from the watch callback. Blocks (backpressure to the watch
+     * reader, never to the initial-sync snapshot - see the gate comment in processBatch())
+     * while the queue is at its count capacity ({@code LinkedBlockingQueue.put}) or over its
+     * byte budget. Two deliberate properties of the byte wait:
+     * <ul>
+     * <li>an event larger than the whole budget is admitted whenever the queue holds no bytes,
+     *     so it can never block forever (the byte analogue of the replay buffer's
+     *     {@code size > 1} guard);</li>
+     * <li>the wait is a timed loop re-checking {@code running}, so a {@link #stop()} that never
+     *     interrupts this thread still gets out - and an interrupt propagates exactly like the
+     *     count path's {@code put()}.</li>
+     * </ul>
+     * Package-visible for tests.
+     */
+    void enqueueReplicationEvent(Map<String, Object> data) throws InterruptedException {
+        long size = InMemoryDriver.estimateBsonSize(data);
+
+        if (eventQueueByteBudget > 0) {
+            boolean waited = false;
+
+            synchronized (eventQueueByteLock) {
+                // Wait while admitting would exceed the budget AND the queue still holds bytes
+                // - a queue at 0 bytes always admits, even an event above the whole budget.
+                // Re-read the budget each round so setEventQueueByteBudget() takes effect on a
+                // waiting producer.
+                while (running.get() && eventQueueByteBudget > 0 && eventQueueBytes.get() > 0
+                        && eventQueueBytes.get() + size > eventQueueByteBudget) {
+                    if (!waited) {
+                        waited = true;
+                        eventQueueBytePressureCount.incrementAndGet();
+                        long now = System.currentTimeMillis();
+
+                        if (now - lastBytePressureWarnAt > 60_000) {
+                            lastBytePressureWarnAt = now;
+                            log.warn("Replication event queue byte budget ({} bytes) exhausted - blocking the "
+                                    + "watch reader until the apply side frees budget (bulk writes of large "
+                                    + "documents, or initial sync still running?)", eventQueueByteBudget);
+                        }
+                    }
+
+                    eventQueueByteLock.wait(100);
+                }
+            }
+        }
+
+        eventQueue.put(new QueuedEvent(data, size));
+        // Adding after the (possibly count-blocked) put keeps the invariant that the counter
+        // only ever accounts events that actually made it into the queue; any drain racing us
+        // subtracts this event's exact size, so the counter converges to the queue content.
+        eventQueueBytes.addAndGet(size);
+    }
+
+    /**
+     * Drain up to {@code max} queued events, releasing their bytes from the budget (waking a
+     * producer blocked in {@link #enqueueReplicationEvent}). The single consumer-side drain
+     * point, used by processBatch(). Package-visible for tests.
+     */
+    List<Map<String, Object>> drainBatch(int max) {
+        List<QueuedEvent> drained = new ArrayList<>(max);
+        eventQueue.drainTo(drained, max);
+        List<Map<String, Object>> batch = new ArrayList<>(drained.size());
+
+        if (!drained.isEmpty()) {
+            releaseEventQueueBytes(drained);
+
+            for (QueuedEvent qe : drained) {
+                batch.add(qe.event());
+            }
+        }
+
+        return batch;
+    }
+
+    /** Subtract the removed events' bytes from the accounting and wake a blocked producer. */
+    private void releaseEventQueueBytes(List<QueuedEvent> removed) {
+        long freed = 0;
+
+        for (QueuedEvent qe : removed) {
+            freed += qe.estimatedBytes();
+        }
+
+        if (freed != 0) {
+            eventQueueBytes.addAndGet(-freed);
+
+            synchronized (eventQueueByteLock) {
+                eventQueueByteLock.notifyAll();
+            }
+        }
+    }
+
+    /**
      * Process queued events in batches for better performance.
      */
     private void processBatch() {
@@ -400,28 +608,109 @@ public class ReplicationManager {
         }
 
         if (eventQueue.isEmpty()) {
+            // Periodic catch-up half of the election log-index feed: even with nothing to
+            // drain, reconcile the election layer's view on every flush tick. A replication
+            // position that became known WITHOUT a live event to carry it (e.g. the
+            // registration seed landing only after the initial sync's own one-shot report
+            // already ran - see recordPrimarySequenceAtRegistration) then still reaches
+            // ElectionManager within one tick instead of never. updateLogIndex is
+            // monotonic-max, so re-reporting the same value every tick is a harmless no-op.
+            reportLogIndexToElection();
+            maybeFireSyncCompleteNotify();
             return;
         }
 
-        List<Map<String, Object>> batch = new ArrayList<>(BATCH_SIZE);
-        eventQueue.drainTo(batch, BATCH_SIZE);
+        List<Map<String, Object>> batch = drainBatch(BATCH_SIZE);
 
         if (batch.isEmpty()) {
+            reportLogIndexToElection();
+            maybeFireSyncCompleteNotify();
             return;
         }
 
         applyEventsInOrder(batch);
 
         // Notify about log index update for election consistency
-        long currentSeq = lastAppliedSequence.get();
-        if (onLogIndexUpdate != null && currentSeq > 0) {
-            // Term is 0 for now - will be updated when we receive term from leader
-            onLogIndexUpdate.accept(currentSeq, 0L);
-        }
+        reportLogIndexToElection();
+        maybeFireSyncCompleteNotify();
 
         // Immediately report progress after processing batch for faster write concern acknowledgment
         if (immediateProgressReporting) {
             reportProgressToPrimary();
+        }
+    }
+
+    /**
+     * Fires the armed initial-sync-completion notification once it is actually TRUE end to
+     * end - see {@link #syncCompleteNotifyPending}. Called from the batch processor thread
+     * only. Package-visible for tests.
+     */
+    void maybeFireSyncCompleteNotify() {
+        if (!syncCompleteNotifyPending.get()) {
+            return;
+        }
+
+        // All three must hold before the armed notification may fire:
+        // - running: a stopped (superseded) manager's late sync thread can still ARM the flag,
+        //   but its sync ran against a primary that may no longer lead - nothing may fire it;
+        // - initialSyncComplete: a resync in between closed the gate again - wait for it;
+        // - empty queue: the backlog buffered during the snapshot must actually be APPLIED,
+        //   or the "authoritative copy" the receiver acts on is still measurably behind.
+        if (!running.get() || !initialSyncComplete.get() || !eventQueue.isEmpty()) {
+            return;
+        }
+
+        if (!syncCompleteNotifyPending.compareAndSet(true, false)) {
+            return;
+        }
+
+        Runnable hook = onInitialSyncComplete;
+
+        if (hook != null) {
+            try {
+                hook.run();
+            } catch (Exception e) {
+                log.warn("onInitialSyncComplete callback failed: {}", e.getMessage(), e);
+            }
+        }
+    }
+
+    /**
+     * Test seam: puts an event into the apply queue exactly like the watch callback does,
+     * without a live change stream.
+     */
+    void enqueueEventForTest(Map<String, Object> event) throws InterruptedException {
+        eventQueue.put(new QueuedEvent(event, 0));
+    }
+
+    /** Test seam: drops all buffered events, as if the batch processor had applied them. */
+    void clearEventQueueForTest() {
+        eventQueue.clear();
+    }
+
+    /**
+     * Push the current replication position to the election layer (wired by PoppyDB to
+     * {@link de.caluga.poppydb.election.ElectionManager#updateLogIndex}, whose monotonic-max
+     * semantics make repeated or out-of-date reports harmless no-ops). That monotonicity is
+     * what this method's design leans on: instead of reporting the position exactly ONCE at a
+     * place where it may not be known yet (the seed race between the initial-sync success
+     * block and the watch-registration seed, both racing on other threads), it is reported
+     * from every place the position can become known, plus periodically from the batch
+     * processor's flush tick as a net over the whole race class.
+     *
+     * <p>Gated on {@code initialSyncComplete}: before the sync gate opens this node does not
+     * hold the primary's dataset, and claiming a non-zero replication position then would
+     * recreate - from the other side - exactly the hazard the #306 empty-candidate restraint
+     * closed (an effectively-empty node taking part in elections as if it had the data).
+     */
+    private void reportLogIndexToElection() {
+        if (!initialSyncComplete.get()) {
+            return;
+        }
+        long currentSeq = lastAppliedSequence.get();
+        if (onLogIndexUpdate != null && currentSeq > 0) {
+            // Term is 0 for now - will be updated when we receive term from leader
+            onLogIndexUpdate.accept(currentSeq, 0L);
         }
     }
 
@@ -1023,6 +1312,37 @@ public class ReplicationManager {
                         }
 
                         if (!shortcut) {
+                            // Fail-closed destructive-resync guard (D2, 2026-08-14 empty-node-wipe
+                            // fix): a legitimate primary NEVER regresses its own change-stream
+                            // sequence counter - not even a real, replicated dropDatabase, which is
+                            // itself an event and therefore ADVANCES the counter. A primary whose
+                            // sequence at THIS watch registration is BEHIND the sequence our local
+                            // data was last known to reflect can therefore only be a freshly
+                            // restarted/stale process that reset its counter to 0 (or an older
+                            // build's "resume window lost" chain that lost the original data's
+                            // provenance) - not a trustworthy source of "the real current state".
+                            // Wiping local data to match it would be the exact kill chain this fix
+                            // closes: a restarted, empty node winning re-election (or simply coming
+                            // back up on the same address) and every follower dropping its real
+                            // data to match it. Refuse instead: keep the data, keep retrying with
+                            // backoff - a later, genuinely caught-up primary (sequence >= ours)
+                            // un-sticks this on its own, no manual intervention needed.
+                            long primarySeqAtRegistration = lastKnownPrimarySequence.get();
+                            long localSeqBeforeWipe = lastAppliedSequence.get();
+
+                            if (primarySeqAtRegistration < localSeqBeforeWipe) {
+                                log.error("refusing full re-sync: primary sequence {} is behind local {} - "
+                                        + "possible restarted/stale primary, keeping local data",
+                                        primarySeqAtRegistration, localSeqBeforeWipe);
+                                refusingDestructiveResync.set(true);
+                                refusedResyncCount.incrementAndGet();
+                                Thread.sleep(backoffMs);
+                                backoffMs = Math.min(backoffMs * 2, 30_000);
+                                continue;
+                            }
+
+                            refusingDestructiveResync.set(false);
+
                             // Start each attempt from a clean local slate so a retry after a
                             // partially-successful copy doesn't fail on already-copied documents.
                             // The flag is set BEFORE the clear: even a clear that throws partway
@@ -1056,6 +1376,55 @@ public class ReplicationManager {
                             continue;
                         }
 
+                        // Not (or no longer) refusing: this attempt is about to declare success,
+                        // whether via the shortcut or a full copy, both of which require the guard
+                        // above to have passed (or never triggered - shortcut skips it entirely,
+                        // but a matching dbHash on non-trivial data is itself strong evidence of a
+                        // legitimate, caught-up primary).
+                        refusingDestructiveResync.set(false);
+
+                        // Adopt this attempt's confirmed primary sequence as our new base now that
+                        // we are declaring success (I-1, 2026-08-14 final review fix). A plain
+                        // set(), NOT Math.max(current, ...): change-stream sequences are
+                        // PRIMARY-LOCAL (see tryConsistencyShortcut's own javadoc on this) - the
+                        // OLD lastAppliedSequence (from whatever primary we last successfully
+                        // tracked, possibly a dead one with a much HIGHER counter than this brand
+                        // new/still-quiet primary) lives in a completely different, incomparable
+                        // number space from THIS primary's. Taking the max of two unrelated
+                        // counters is not "the safer of two options", it is meaningless - and
+                        // concretely harmful: it left this node believing it needed to resume
+                        // after a sequence number the new primary's own history could never
+                        // contain, so the very next reconnect always hit "resume window lost" ->
+                        // a dbHash mismatch (as soon as one real write happened) -> the D2 guard
+                        // above comparing the new primary's still-low counter against that stale
+                        // inherited high-water mark -> refusing an entirely LEGITIMATE resync,
+                        // unbounded on a quiet cluster (the new primary would need N more writes
+                        // before its counter ever caught up to the old primary's abandoned one).
+                        // "Having successfully synced against THIS primary, its base is my base."
+                        //
+                        // Two compositions this set() must not break, both verified safe:
+                        //
+                        // (1) The election feed just below must not regress. It doesn't:
+                        // ElectionManager#updateLogIndex is ITSELF monotonic-max internally
+                        // (`if (index >= lastLogIndex.get())`, a lower index is silently a no-op)
+                        // - so adopting a LOWER base here can at most make the value THIS method
+                        // reports go down, never the election's own recorded lastLogIndex. The
+                        // monotonic guarantee Task 1 relies on lives in ElectionManager, by
+                        // design, precisely so a primary-local counter reset on THIS side can
+                        // never regress it - see updateLogIndex's own javadoc.
+                        //
+                        // (2) Events buffered during the sync window are not lost. Every event
+                        // sitting in eventQueue right now was captured by the watch AFTER this
+                        // same registration (recordPrimarySequenceAtRegistration ran, and hence
+                        // lastKnownPrimarySequence was captured, at the START of this sync cycle -
+                        // strictly before any of those events could have arrived), so every
+                        // buffered event's own sequence number is >= lastKnownPrimarySequence.
+                        // Setting lastAppliedSequence to that lower bound now and then draining
+                        // the gate is safe: applyChangeEvent/applyBulkInserts advance it further
+                        // via their own per-event Math.max as each buffered (and all subsequent
+                        // live) event is applied - nothing regresses, nothing is skipped.
+                        lastAppliedSequence.set(lastKnownPrimarySequence.get());
+
                         // Success: open the gate. The batch processor now drains the events
                         // buffered during the snapshot (idempotent replay) and all subsequent live
                         // events, in order.
@@ -1063,6 +1432,42 @@ public class ReplicationManager {
                         applying.set(true);
                         initialSyncComplete.set(true);
                         initialSyncLatch.countDown();
+
+                        // Arm the completion notification - do NOT fire it here (#306 review
+                        // follow-up): "sync complete" at this point only means the snapshot is
+                        // copied and the apply gate is open; the events buffered during the
+                        // snapshot are still in eventQueue. The batch processor fires the
+                        // callback once that backlog has drained (see
+                        // maybeFireSyncCompleteNotify), and only while this manager is still
+                        // running - firing from THIS thread would also break stop()'s
+                        // documented invariant that the sync thread never calls back into
+                        // PoppyDB (whose monitor stop() holds while joining this thread).
+                        syncCompleteNotifyPending.set(true);
+
+                        // Seed the election layer's view of our replication position now that we
+                        // hold the primary's dataset (either path: full snapshot or consistency
+                        // shortcut both land here). lastAppliedSequence is already correct at this
+                        // point (either seeded at registration when it started at 0, or reseeded
+                        // just above when it did not) - see the reseed comment above for the full
+                        // picture. Without this, a freshly-synced node that then applies zero LIVE
+                        // events would never reach
+                        // processBatch()'s onLogIndexUpdate call (it only fires when there is
+                        // something in eventQueue to drain) and would keep reporting index 0 to
+                        // ElectionManager despite actually holding real data - wrongly granting
+                        // votes to genuinely empty candidates as voter, and wrongly denied as
+                        // candidate. updateLogIndex()'s monotonic (max) semantics make this safe to
+                        // call unconditionally: it can only raise ElectionManager's view, never
+                        // regress it.
+                        //
+                        // This report is deliberately NOT the only one: on a loaded host this
+                        // thread can get here BEFORE the watch thread's registration callback has
+                        // seeded lastAppliedSequence (the sync is released by watchLive alone,
+                        // which that callback flips before recording the seed - and a fast
+                        // shortcut/tiny-dataset sync can outrun the gap). The read below then
+                        // sees 0 and reports nothing - which is fine, because the late-landing
+                        // seed reports itself (see recordPrimarySequenceAtRegistration) and the
+                        // batch processor's flush tick reconciles periodically as a net.
+                        reportLogIndexToElection();
                         return;
                     } catch (Exception e) {
                         // Snapshot failed while the watch may still be healthy. Retry from within
@@ -1098,6 +1503,7 @@ public class ReplicationManager {
     void setWatchLiveForTest(boolean live) {
         watchLive.set(live);
     }
+
 
     /**
      * True once the change-stream watch has registered with the primary (see {@code watchLive}'s
@@ -1628,11 +2034,22 @@ public class ReplicationManager {
             // stream captures every subsequent write, so the initial-sync snapshot can safely
             // start copying without losing writes that happen during the copy. Bump the
             // generation FIRST so a snapshot that captures the generation the instant it sees
-            // watchLive observes the value belonging to this watch (not a stale one).
+            // watchLive observes the value belonging to this watch (not a stale one). Record
+            // the primary's sequence BEFORE flipping watchLive: watchLive is what releases the
+            // initial-sync thread, and recording after the flip opened a race window in which
+            // a fast (shortcut/tiny-dataset) sync could run its ENTIRE cycle against the
+            // still-stale pre-registration sequence - reading 0 for the destructive-resync
+            // guard's primary side, re-basing lastAppliedSequence to 0 at success, and
+            // skipping its election seed (the CI-flaky InitialSyncElectionSeedTest leg; the
+            // catch-up report in recordPrimarySequenceAtRegistration is the net for any
+            // ordering this reorder cannot guarantee, e.g. a primary that never sends the
+            // sequence on the first watch). SingleMongoConnection.watch() stashes the
+            // "poppyPrimarySequence" metadata before invoking this callback, so the read is
+            // safe here.
             watchCmd.setRegistrationCallback(() -> {
                 watchGeneration.incrementAndGet();
-                watchLive.set(true);
                 recordPrimarySequenceAtRegistration(watchCmd);
+                watchLive.set(true);
             });
             cmd = watchCmd
                 .setCb(new DriverTailableIterationCallback() {
@@ -1644,10 +2061,11 @@ public class ReplicationManager {
                         // Update staleness tracker - we received a response
                         lastWatchResponseTime.set(System.currentTimeMillis());
                         // Queue for batch processing instead of immediate application.
-                        // Use put() so a full queue blocks the watch callback (backpressure)
+                        // enqueueReplicationEvent() blocks the watch callback (backpressure)
+                        // when the queue is at its count capacity or over its byte budget,
                         // rather than dropping events or growing without bound.
                         try {
-                            eventQueue.put(data);
+                            enqueueReplicationEvent(data);
                             // Apply it now instead of waiting out the flush tick. Without this the
                             // batch processor only ran on its fixed BATCH_FLUSH_INTERVAL_MS
                             // schedule, so a single write that a write concern waits on paid the
@@ -1673,6 +2091,39 @@ public class ReplicationManager {
                         if (lastResponse > 0 && (now - lastResponse) > STALENESS_THRESHOLD_MS) {
                             log.warn("Watch connection appears stale (no response for {}ms), forcing reconnection",
                                     now - lastResponse);
+                            return false;
+                        }
+                        // While refusing a destructive resync (see the guard in
+                        // startInitialSyncOnce()), recordPrimarySequenceAtRegistration() only ever
+                        // refreshes lastKnownPrimarySequence at watch REGISTRATION - a live watch
+                        // session registers exactly once, so without this, a refusal would freeze
+                        // on the primary sequence observed at that one registration forever, never
+                        // discovering that the primary has since caught up ("a later caught-up
+                        // leader syncs normally" would then require some UNRELATED event, e.g. a
+                        // real disconnect, to ever re-check). Ending the watch here lets the
+                        // replication loop's own retry re-establish it, which re-registers and
+                        // refreshes the primary-sequence signal the destructive-resync guard reads
+                        // on its next attempt.
+                        //
+                        // PACING (2026-08-14 task-3 review fix): this is NOT reached only after a
+                        // maxTimeMS getMore wait as the earlier version of this comment assumed -
+                        // isContinued() is also checked immediately after the very first reply that
+                        // establishes the watch cursor (SingleMongoConnection.watch()'s post-
+                        // establishment check, before any getMore is ever issued), and
+                        // replicationLoop() calls watchForChanges() again with no sleep of its own
+                        // once it returns. Without an explicit sleep here those two facts combine
+                        // into an unbounded register/teardown spin against a possibly-troubled
+                        // primary - measured at ~1400 registrations/s in review, not the "~500ms,
+                        // bounded, self-limiting" cadence this comment used to (wrongly) claim. The
+                        // sleep paces every refusal retry, not just conceptually the first.
+                        if (refusingDestructiveResync.get()) {
+                            log.debug("Watch cycling while refusing a destructive resync, to refresh the "
+                                    + "primary-sequence signal");
+                            try {
+                                Thread.sleep(REFUSAL_WATCH_PACE_MS);
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                            }
                             return false;
                         }
                         return true;
@@ -1745,8 +2196,12 @@ public class ReplicationManager {
      * sequence - exposed via {@link #getLastKnownPrimarySequence()} for callers such as a
      * replication-lag metric that need it regardless of whether it was actually used to seed the
      * resume point.
+     *
+     * <p>Package-private so the seed-race regression test ({@code InitialSyncElectionSeedTest})
+     * can drive the exact losing interleaving (initial sync declares success BEFORE this seed
+     * lands) deterministically, without depending on CI-load scheduling to hit it.
      */
-    private void recordPrimarySequenceAtRegistration(WatchCommand watchCmd) {
+    void recordPrimarySequenceAtRegistration(WatchCommand watchCmd) {
         Map<String, Object> metaData = watchCmd.getMetaData();
         Object raw = metaData == null ? null : metaData.get("poppyPrimarySequence");
         if (!(raw instanceof Number n)) {
@@ -1758,6 +2213,14 @@ public class ReplicationManager {
         if (lastAppliedSequence.compareAndSet(0, primarySeq)) {
             log.debug("Seeded lastAppliedSequence with primary sequence {} at watch registration "
                     + "(idle-window resume point)", primarySeq);
+            // Catch-up half of the initial-sync election seed (#306 follow-up): if the sync
+            // loop already declared success, its own one-shot report over there read a still-0
+            // lastAppliedSequence and was skipped - this seed landing is the moment the
+            // position actually becomes known, so report it from here. In the ordinary,
+            // non-racy order (seed lands at the START of a sync cycle, gate still closed)
+            // reportLogIndexToElection()'s initialSyncComplete gate keeps this silent - a node
+            // that does not hold the primary's dataset yet must not claim a position.
+            reportLogIndexToElection();
         }
     }
 
@@ -1778,12 +2241,27 @@ public class ReplicationManager {
     /**
      * Fall back to a full re-initial-sync after the primary signalled that our resume point is no
      * longer replayable. Rearms the Task 8 initial-sync machinery: closes the apply gate, resets the
-     * sync flags so {@link #startInitialSyncOnce()} launches a fresh snapshot, drops the events left
-     * over from the lost window, and resets the sequence so the next watch starts fresh (no
-     * resumeAfter) instead of re-requesting the same lost window in a loop. The replication loop then
-     * re-runs initial sync + watch on its next iteration.
+     * sync flags so {@link #startInitialSyncOnce()} launches a fresh snapshot, and drops the events
+     * left over from the lost window. The replication loop then re-runs initial sync + watch on its
+     * next iteration.
+     *
+     * <p>Deliberately does NOT reset {@code lastAppliedSequence} to 0 (unlike before the 2026-08-14
+     * empty-node-wipe fix). {@code initialSyncComplete} is already false at this point, which alone
+     * already suppresses the next watch's {@code resumeAfter} (see the {@code initialSyncComplete.get()
+     * && resumeSeq > 0} guard in {@link #watchForChanges()}) - zeroing the sequence was never load-
+     * bearing for that. It WAS, however, load-bearing for a hazard: zeroing it here made
+     * {@code recordPrimarySequenceAtRegistration()}'s reseed ({@code compareAndSet(0, primarySeq)})
+     * fire unconditionally on the very next registration, silently replacing our real local data's
+     * last-known-good sequence with whatever the new/possibly-empty primary reports - which is
+     * exactly what let {@link #startInitialSyncOnce()}'s destructive-resync guard be defeated: by the
+     * time that guard ran, the honest "how far behind is this primary" signal was already gone.
+     * Preserving the value here is what lets that guard compare the primary's regressed sequence
+     * against our data's true position instead of a freshly-overwritten 0. The now-stale value is
+     * reseeded explicitly, and correctly, once a sync attempt actually succeeds (or is legitimately
+     * allowed to proceed) - see the reseed at the "not (or no longer) refusing" point in
+     * {@link #startInitialSyncOnce()}.
      */
-    private void triggerResync(long fromSequence) {
+    void triggerResync(long fromSequence) {
         long n = resyncCount.incrementAndGet();
         long now = System.currentTimeMillis();
         long previous = lastResyncTimestamp.getAndSet(now);
@@ -1798,9 +2276,14 @@ public class ReplicationManager {
         initialSyncComplete.set(false);
         initialSyncStarted.set(false);  // allow startInitialSyncOnce() to launch a new snapshot
         watchLive.set(false);
-        lastAppliedSequence.set(0);     // resume fresh; next watch sends no resumeAfter
         lastReportedSequence.set(0);
-        eventQueue.clear();             // discard events buffered for the lost window
+        // Discard events buffered for the lost window. Drain-and-release instead of clear() so
+        // the byte accounting stays exact (each queued event's bytes are subtracted
+        // individually, converging with a producer that adds its bytes only after a successful
+        // put) and a producer blocked on the byte budget is woken.
+        List<QueuedEvent> discarded = new ArrayList<>();
+        eventQueue.drainTo(discarded);
+        releaseEventQueueBytes(discarded);
     }
 
     /**
@@ -1822,6 +2305,20 @@ public class ReplicationManager {
     /** Number of times replication fell back to a full re-sync because the resume window was lost. */
     long getResyncCount() {
         return resyncCount.get();
+    }
+
+    /**
+     * True while this node is currently refusing a destructive full re-sync because the primary's
+     * sequence regressed below our local data's (see {@link #getStats()}'s
+     * {@code refusingDestructiveResync}).
+     */
+    boolean isRefusingDestructiveResync() {
+        return refusingDestructiveResync.get();
+    }
+
+    /** Lifetime count of destructive-resync refusals (see {@link #isRefusingDestructiveResync()}). */
+    long getRefusedResyncCount() {
+        return refusedResyncCount.get();
     }
 
     /**
@@ -2088,6 +2585,12 @@ public class ReplicationManager {
      * of MongoDB's RECOVERING member: it must not serve data-plane reads or writes. Returns false
      * once the initial sync has completed and the local database is a consistent replica, and false
      * after {@link #stop()} (running == false).
+     *
+     * <p>Also true while {@link #isRefusingDestructiveResync()} holds - a node refusing a
+     * destructive resync has NOT re-completed initial sync against the (currently untrusted) primary,
+     * even though, unlike the ordinary half-cleared case this javadoc otherwise describes, its local
+     * database is fully intact and deliberately left untouched. It is still treated as RECOVERING
+     * here (conservative: correctness over availability) rather than carved out as a distinct state.
      */
     public boolean isSyncing() {
         return running.get() && !initialSyncComplete.get();
@@ -2115,10 +2618,19 @@ public class ReplicationManager {
         stats.put("lastReportedSequence", lastReportedSequence.get());
         stats.put("lastKnownPrimarySequence", lastKnownPrimarySequence.get());
         stats.put("resyncCount", resyncCount.get());
+        // D2 (2026-08-14 empty-node-wipe fix): true while this node is deliberately refusing a
+        // destructive full re-sync because the primary's sequence regressed below our local data's
+        // - see the guard in startInitialSyncOnce(). refusedResyncCount is the monotonic lifetime
+        // count of such refusals, independent of whether the flag is currently set.
+        stats.put("refusingDestructiveResync", refusingDestructiveResync.get());
+        stats.put("refusedResyncCount", refusedResyncCount.get());
         stats.put("primaryHost", primaryHost + ":" + primaryPort);
         stats.put("myAddress", myAddress);
         stats.put("eventQueueSize", eventQueue.size());
         stats.put("eventQueueCapacity", EVENT_QUEUE_CAPACITY);
+        stats.put("eventQueueBytes", eventQueueBytes.get());
+        stats.put("eventQueueByteBudget", eventQueueByteBudget);
+        stats.put("eventQueueBytePressureCount", eventQueueBytePressureCount.get());
         // How many events behind the secondary is, based on the primary's sequence at the most
         // recent watch registration (Task 2b's exchange - see getLastKnownPrimarySequence()).
         // Clamped to 0: once live events keep flowing past that registration-time snapshot,
@@ -2135,6 +2647,106 @@ public class ReplicationManager {
      */
     public long getLastAppliedSequence() {
         return lastAppliedSequence.get();
+    }
+
+    /**
+     * This instance's own replication target, in {@code "host:port"} form - the identity a
+     * carried sequence must match to be comparable (see the two-arg
+     * {@link #carryOverLastAppliedSequence(long, String)} overload). {@code primaryHost}/
+     * {@code primaryPort} are final, set once at construction and never updated for the life of
+     * this instance (see the field javadocs) - a leader change always replaces the whole
+     * {@code ReplicationManager}, it never repoints an existing one.
+     */
+    String getLeaderAddress() {
+        return primaryHost + ":" + primaryPort;
+    }
+
+    /**
+     * Seeds {@link #lastAppliedSequence} from a predecessor {@code ReplicationManager}'s value,
+     * carried across a leader-change instance replacement (2026-08-14 task-3 review fix, D2
+     * defense-in-depth). {@code PoppyDB#startReplicationToLeader} constructs a brand-new
+     * {@code ReplicationManager} on every leader change; a fresh instance's
+     * {@code lastAppliedSequence} starts at 0, and
+     * {@code recordPrimarySequenceAtRegistration()}'s own seed
+     * ({@code compareAndSet(0, primarySeq)}) then unconditionally adopts whatever the new
+     * leader reports - making {@code localSeqBeforeWipe == primarySeqAtRegistration} by
+     * construction and the destructive-resync guard in {@link #startInitialSyncOnce()} vacuously
+     * pass every time on this path (a primary can never be "behind" a local sequence it just
+     * supplied itself). Without carrying the predecessor's real position forward, this path was
+     * protected only by the election-layer empty-vs-data invariant (Tasks 1/2/4), not by this
+     * task's own guard.
+     *
+     * <p><b>Superseded by the two-arg overload below for production use</b> (2026-08-14
+     * production-CI fix, I-2): calling this single-arg form unconditionally is only correct when
+     * the caller has already established that the carried sequence was earned against THIS SAME
+     * primary - see that overload's javadoc for why blindly carrying a value across a genuine
+     * leader change caused a real incident (82 refusal loops on poppydb.fritz.box). Kept
+     * package-private (not deleted) because it is still exactly right for that one case - the
+     * two-arg overload delegates to it - and because tests exercise it directly to seed a
+     * {@code ReplicationManager} without a live connection.
+     *
+     * <p>Must be called before {@link #start()}, while {@code lastAppliedSequence} is still its
+     * untouched 0 default - enforced with the same {@code compareAndSet(0, ...)} idiom every
+     * other seed of this field uses (see {@link #recordPrimarySequenceAtRegistration}), so a
+     * second/late call, or one that races an already-started sync, is a safe no-op rather than a
+     * regression. A predecessor sequence of 0 (cold-boot / never-synced predecessor, or no
+     * predecessor at all) is intentionally a no-op - 0 is exactly the legitimate default for a
+     * genuinely fresh node with nothing to protect.
+     */
+    void carryOverLastAppliedSequence(long predecessorSequence) {
+        if (predecessorSequence > 0) {
+            lastAppliedSequence.compareAndSet(0, predecessorSequence);
+        }
+    }
+
+    /**
+     * Primary-identity-aware carry-over (2026-08-14 production-CI fix, I-2): the single-arg
+     * overload above blindly arms the destructive-resync guard with the predecessor's carried
+     * sequence, which is only sound when that sequence was earned against THIS SAME primary.
+     * Change-stream sequences are PRIMARY-LOCAL (see {@code tryConsistencyShortcut}'s own
+     * javadoc), and a LEADER CHANGE - the very reason a carry-over happens at all - is the NORMAL
+     * case that makes two RMs' sequence spaces incomparable, not a rare edge case. Production
+     * evidence (poppydb.fritz.box CI, branch fix/poppydb-empty-node-wipe): after a real leader
+     * change under messaging load, a follower carried {@code lastAppliedSequence} 227951 from the
+     * old leader's space; the new leader's own (entirely unrelated) counter was 213896. Every
+     * reconnect logged "refusing full re-sync: primary sequence 213896 is behind local 227951"
+     * every 1-2s for 40+ minutes - the node stuck RECOVERING, three messaging test classes timed
+     * out. The commit that made a successful sync ADOPT the synced primary's base
+     * ({@code lastAppliedSequence.set(lastKnownPrimarySequence.get())}, see the reseed comment in
+     * {@link #startInitialSyncOnce()}) could not help: adoption only runs AFTER a successful sync,
+     * and the guard - armed with the foreign 227951 - was exactly what blocked that sync from ever
+     * succeeding. Hen-and-egg.
+     *
+     * <p>{@code predecessorSourceAddress} is the {@code "host:port"} the carried sequence was
+     * actually earned against (see {@link #getLeaderAddress()}), or {@code null} if there was no
+     * live predecessor at all. Two cases:
+     * <ul>
+     *   <li><b>Matches this instance's own {@link #getLeaderAddress()}</b> - the true kill chain:
+     *       the SAME node (address-wise) restarted empty/stale, or - the other route into this
+     *       state - the intra-RM {@code triggerResync()} retry path, where the primary literally
+     *       cannot have changed (one {@code ReplicationManager}'s {@code primaryHost}/
+     *       {@code primaryPort} are final). Arm the guard exactly as before, via
+     *       {@link #carryOverLastAppliedSequence(long)}.</li>
+     *   <li><b>Any other address, including {@code null}</b> - a genuinely different primary (or
+     *       no predecessor at all). The carried sequence must NOT arm the guard - it lives in an
+     *       unrelated number space. Deliberately a no-op here: {@code lastAppliedSequence} is left
+     *       at its 0 default, so {@code recordPrimarySequenceAtRegistration()}'s EXISTING
+     *       {@code compareAndSet(0, primarySeq)} seed (unconditionally live for every instance,
+     *       not something this method needs to duplicate) adopts THIS primary's own base the
+     *       moment it is first learned at watch registration - "let dbHash/the consistency
+     *       shortcut decide whether a resync is actually needed", exactly as a genuinely fresh
+     *       node would. This is a deliberate scope boundary, not a gap: a wrongly-elected empty
+     *       primary that has itself taken on enough fresh writes could still pass a subsequent
+     *       resync decision - the actual barrier against that is the election-layer invariant
+     *       (Tasks 1/2/4, "an empty node must never win against a data-bearing voter"), not this
+     *       guard.</li>
+     * </ul>
+     */
+    void carryOverLastAppliedSequence(long predecessorSequence, String predecessorSourceAddress) {
+        if (getLeaderAddress().equals(predecessorSourceAddress)) {
+            carryOverLastAppliedSequence(predecessorSequence);
+        }
+        // else: different primary (or no predecessor) - see javadoc; intentionally not armed.
     }
 
     /**

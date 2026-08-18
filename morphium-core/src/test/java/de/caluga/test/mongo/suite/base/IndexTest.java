@@ -22,6 +22,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
 /**
@@ -39,12 +40,12 @@ public class IndexTest extends MultiDriverTestBase {
     public void createIndexMapFromTest(Morphium morphium) {
         try (morphium) {
             List<Map<String, Object>> idx = morphium.createIndexKeyMapFrom(new String[] {"-timer , -namne", "bla, fasel, blub"});
-            assert(idx.size() == 2) : "Created indexes: " + idx.size();
-            assert(idx.get(0).get("timer").equals(-1));
-            assert(idx.get(0).get("namne").equals(-1));
-            assert(idx.get(1).get("bla").equals(1));
-            assert(idx.get(1).get("fasel").equals(1));
-            assert(idx.get(1).get("blub").equals(1));
+            assertTrue((idx.size() == 2), () -> String.valueOf("Created indexes: " + idx.size()));
+            assertTrue((idx.get(0).get("timer").equals(-1)));
+            assertTrue((idx.get(0).get("namne").equals(-1)));
+            assertTrue((idx.get(1).get("bla").equals(1)));
+            assertTrue((idx.get(1).get("fasel").equals(1)));
+            assertTrue((idx.get(1).get("blub").equals(1)));
         }
     }
 
@@ -118,27 +119,27 @@ public class IndexTest extends MultiDriverTestBase {
 
                 if (key.get("_id") != null && key.get("_id").equals(1)) {
                     foundId = true;
-                    assert(i.getUnique() == null || !(Boolean) i.getUnique());
+                    assertTrue((i.getUnique() == null || !(Boolean) i.getUnique()));
                 } else if (key.get("name") != null && key.get("name").equals(1) && key.get("timer") == null) {
                     foundName = true;
-                    assert(i.getUnique() == null || !(Boolean) i.getUnique());
+                    assertTrue((i.getUnique() == null || !(Boolean) i.getUnique()));
                 } else if (key.get("timer") != null && key.get("timer").equals(-1) && key.get("name") == null) {
                     foundTimer = true;
-                    assert(i.getUnique() == null || !(Boolean) i.getUnique());
+                    assertTrue((i.getUnique() == null || !(Boolean) i.getUnique()));
                 } else if (key.get("lst") != null) {
                     foundLst = true;
-                    assert(i.getUnique() == null || !(Boolean) i.getUnique());
+                    assertTrue((i.getUnique() == null || !(Boolean) i.getUnique()));
                 } else if (key.get("timer") != null && key.get("timer").equals(-1) && key.get("name") != null && key.get("name").equals(-1)) {
                     foundTimerName2 = true;
-                    assert(i.getUnique() == null || !(Boolean) i.getUnique());
+                    assertTrue((i.getUnique() == null || !(Boolean) i.getUnique()));
                 } else if (key.get("timer") != null && key.get("timer").equals(1) && key.get("name") != null && key.get("name").equals(-1)) {
                     foundTimerName = true;
-                    assert(i.getUnique() != null && (Boolean) i.getUnique());
+                    assertTrue((i.getUnique() != null && (Boolean) i.getUnique()));
                 }
             }
 
             log.info("Found indices id:" + foundId + " timer: " + foundTimer + " TimerName: " + foundTimerName + " name: " + foundName + " TimerName2: " + foundTimerName2);
-            assert(foundId && foundTimer && foundTimerName && foundName && foundTimerName2 && foundLst);
+            assertTrue((foundId && foundTimer && foundTimerName && foundName && foundTimerName2 && foundLst));
         }
     }
 
@@ -171,22 +172,22 @@ public class IndexTest extends MultiDriverTestBase {
 
                 if (key.get("_id") != null && key.get("_id").equals(1)) {
                     foundId = true;
-                    assert(i.getUnique() == null || !(Boolean) i.getUnique());
+                    assertTrue((i.getUnique() == null || !(Boolean) i.getUnique()));
                 } else if (key.get("name") != null && key.get("something") == null && key.get("name").equals(1) && key.get("timer") == null) {
                     foundName = true;
-                    assert(i.getUnique() == null || !(Boolean) i.getUnique());
+                    assertTrue((i.getUnique() == null || !(Boolean) i.getUnique()));
                 } else if (key.get("timer") != null && key.get("timer").equals(-1) && key.get("name") == null) {
                     foundTimer = true;
-                    assert(i.getUnique() == null || !(Boolean) i.getUnique());
+                    assertTrue((i.getUnique() == null || !(Boolean) i.getUnique()));
                 } else if (key.get("lst") != null) {
                     foundLst = true;
-                    assert(i.getUnique() == null || !(Boolean) i.getUnique());
+                    assertTrue((i.getUnique() == null || !(Boolean) i.getUnique()));
                 } else if (key.get("timer") != null && key.get("timer").equals(-1) && key.get("name") != null && key.get("name").equals(-1)) {
                     foundTimerName2 = true;
-                    assert(i.getUnique() == null || !(Boolean) i.getUnique());
+                    assertTrue((i.getUnique() == null || !(Boolean) i.getUnique()));
                 } else if (key.get("timer") != null && key.get("timer").equals(1) && key.get("name") != null && key.get("name").equals(-1)) {
                     foundTimerName = true;
-                    assert(i.getUnique() == null || (Boolean) i.getUnique());
+                    assertTrue((i.getUnique() == null || (Boolean) i.getUnique()));
                 } else if (key.get("something") != null && key.get("some_other") != null && key.get("something").equals(1) && key.get("some_other").equals(1)) {
                     foundnew1 = true;
                 } else if (key.get("name") != null && key.get("something") != null && key.get("name").equals(1) && key.get("something").equals(-1)) {
@@ -196,7 +197,7 @@ public class IndexTest extends MultiDriverTestBase {
 
             log.info("Found indices id:" + foundId + " timer: " + foundTimer + " TimerName: " + foundTimerName + " name: " + foundName + " TimerName2: " + foundTimerName2 + " lst: " + foundLst + " SubIndex1: " + foundnew1 +
                      " subIndex2: " + foundnew2);
-            assert(foundnew1 && foundnew2 && foundId && foundTimer && foundTimerName && foundName && foundTimerName2 && foundLst);
+            assertTrue((foundnew1 && foundnew2 && foundId && foundTimer && foundTimerName && foundName && foundTimerName2 && foundLst));
         }
     }
 

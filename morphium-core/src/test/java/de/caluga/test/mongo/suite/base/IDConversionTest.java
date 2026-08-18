@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -28,12 +29,12 @@ public class IDConversionTest extends MultiDriverTestBase {
         qu.f("_id").eq(new MorphiumId().toString());
 
         System.out.println(qu.toQueryObject().toString());
-        assert (qu.toQueryObject().toString().contains("_id="));
+        assertTrue((qu.toQueryObject().toString().contains("_id=")));
 
         qu = new Query(morphium, UncachedObject.class, null);
         qu.setCollectionName("uncached");
         qu.f("str_value").eq(new MorphiumId());
         System.out.println(qu.toQueryObject().toString());
-        assert (!qu.toQueryObject().toString().contains("_id="));
+        assertTrue((!qu.toQueryObject().toString().contains("_id=")));
     }
 }

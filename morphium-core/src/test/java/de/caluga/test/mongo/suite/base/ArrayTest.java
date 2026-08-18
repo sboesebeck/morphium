@@ -11,6 +11,7 @@ import de.caluga.morphium.query.Query;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -71,8 +72,8 @@ public class ArrayTest extends MultiDriverTestBase {
             Query<ArrayTestObj> q = morphium.createQueryFor(ArrayTestObj.class);
             q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
             obj = q.get();
-            assert (obj.getIntArr() != null && obj.getIntArr().length != 0) : "No ints found";
-            assert (obj.getStringArr() != null && obj.getStringArr().length > 0) : "No strings found";
+            assertTrue((obj.getIntArr() != null && obj.getIntArr().length != 0), "No ints found");
+            assertTrue((obj.getStringArr() != null && obj.getStringArr().length > 0), "No strings found");
         }
     }
 }

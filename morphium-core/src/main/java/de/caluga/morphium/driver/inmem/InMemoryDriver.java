@@ -15,8 +15,14 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.io.Writer;
+import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.text.Collator;
@@ -349,6 +355,29 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private final Map<String, OwnedIndexStore> indexStoreByCollection = new ConcurrentHashMap<>();
 
     /**
+     * Monotonic per-collection invalidation counter ({@code db + "." + collection}, absent means
+     * "never invalidated"), bumped by every {@link #invalidateIndexStore} BEFORE it removes the
+     * store. {@link #getIndexStore} reads it before snapshotting the documents in
+     * {@link #buildIndexStore} and refuses to publish the build if it changed in between - two
+     * callers reach getIndexStore WITHOUT the collection lock (the ExplainCommand path in
+     * runCommand and recordAggregateSlowQueryIfNeeded), so their build can race a concurrent
+     * write+invalidate and would otherwise publish a pre-mutation snapshot AFTER the invalidate,
+     * serving permanently stale data to every later reader (#290). Entries are deliberately never
+     * removed (a dropped collection keeps its counter): removal would reopen an ABA window, and
+     * the cost is one boxed long per namespace ever invalidated.
+     */
+    private final ConcurrentHashMap<String, Long> indexStoreEpochByCollection = new ConcurrentHashMap<>();
+
+    /**
+     * Companion to {@link #indexStoreEpochByCollection} for the store removals that do NOT go
+     * through {@link #invalidateIndexStore}: whole-DB {@link #drop(String, WriteConcern)} and
+     * {@link #resetData()} discard stores wholesale (bulk removal - a per-key bump cannot cover
+     * collections whose store was not built yet), so they bump this global counter BEFORE the
+     * removal instead, with the same publish-fencing contract (#290).
+     */
+    private final AtomicLong indexStoreDropEpoch = new AtomicLong();
+
+    /**
      * A {@link CollectionIndexStore} together with the data provenance it was built from:
      * either a specific {@link InMemTransactionContext} (the store holds that transaction's
      * cloned documents) or {@link #NO_TRANSACTION} (built from the live database).
@@ -485,6 +514,24 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     // primary all buffer mutations come from a single writer thread, and any drift is transient and
     // self-correcting — it only loosens the eviction bound slightly and never corrupts the deque.
     private final AtomicInteger changeStreamHistorySize = new AtomicInteger();
+    // Byte budget for the replay buffer (spec: 2026-08-14-replay-buffer-byte-budget.md). The
+    // count limit alone does not bound memory: every buffered event retains its full document,
+    // so bulk writes of large documents can pin GBs (ACC incident 2026-08-14: 100k events held
+    // ~4GB live while the visible collections stayed under 1MB). Once the estimated buffered
+    // bytes exceed the budget, oldest events are evicted - identical window-lost semantics as
+    // count overflow, a disconnected consumer simply has to re-sync. 0 = no byte bound (core
+    // default, unchanged behaviour; PoppyDB opts in - planned to become the default in 7.0).
+    private volatile long changeStreamHistoryByteBudget = 0;
+    // Estimated bytes currently buffered; same best-effort consistency contract as
+    // changeStreamHistorySize above (single writer on the PoppyDB primary, transient drift
+    // only loosens the bound). Every deque mutation site maintains it via the event's
+    // estimatedBytes field.
+    private final AtomicLong changeStreamHistoryBytes = new AtomicLong();
+    // Monotonic count of events evicted because of the byte budget (not the count limit) -
+    // diagnostic only, exposed in serverStatus like mongod's oplogTruncation counters.
+    private final AtomicLong changeStreamHistoryEvictedForBudget = new AtomicLong();
+    // Rate limit for the budget-eviction WARN log (at most one per minute).
+    private volatile long lastBudgetEvictWarnAt = 0;
     // Track the sequence number at the time of the last drop per namespace (db.collection or db).
     // replayHistory skips events older than this to prevent stale events from being replayed.
     private final ConcurrentHashMap<String, Long> lastDropSequence = new ConcurrentHashMap<>();
@@ -573,10 +620,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private static class TtlIndexInfo {
         final String fieldName;
         final int expireAfterSeconds;
+        // mongod's TTL monitor deletes only documents the index actually covers - a TTL index
+        // with a partialFilterExpression must leave uncovered documents alone (review 2026-08-13)
+        final Map<String, Object> partialFilterExpression;
 
-        TtlIndexInfo(String fieldName, int expireAfterSeconds) {
+        TtlIndexInfo(String fieldName, int expireAfterSeconds, Map<String, Object> partialFilterExpression) {
             this.fieldName = fieldName;
             this.expireAfterSeconds = expireAfterSeconds;
+            this.partialFilterExpression = partialFilterExpression;
         }
     }
 
@@ -675,24 +726,154 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public void restore(InputStream in) throws IOException, ParseException {
-        GZIPInputStream gzin = new GZIPInputStream(in);
-        BufferedInputStream bin = new BufferedInputStream(gzin);
-        BufferedReader br = new BufferedReader(new InputStreamReader(bin));
-        String l = null;
-        StringBuilder b = new StringBuilder();
+        byte[] raw;
 
-        while ((l = br.readLine()) != null) {
-            b.append(l);
+        try (GZIPInputStream gzin = new GZIPInputStream(in)) {
+            raw = gzin.readAllBytes();
         }
 
-        br.close();
-        ObjectMapperImpl mapper = new ObjectMapperImpl();
-        MorphiumTypeMapper<ObjectId> typeMapper = getObjectIdTypeMapper();
-        mapper.registerCustomMapperFor(ObjectId.class, typeMapper);
-        // log.info("Read in json: " + b);
-        InMemDumpContainer cnt = mapper.deserialize(InMemDumpContainer.class, b.toString());
-        // log.info("Restoring DB " + cnt.getDb() + " dump from " + new Date(cnt.getCreated()));
-        setDatabase(cnt.getDb(), cnt.getData());
+        // Dumps are written as UTF-8 (see dump()/dumpToFile()). Legacy dumps were written with
+        // the platform default charset (#306), so a dump that is not valid UTF-8 gets a
+        // tolerant second chance as ISO-8859-1 - that decodes every byte sequence and maps the
+        // typical legacy defaults (latin-1/latin-9/windows-1252) closely enough for umlauts.
+        // Decoding must REPORT malformed input instead of silently replacing characters with
+        // U+FFFD, or a legacy dump would be mojibake'd without anyone noticing.
+        // The content is decoded as a whole, NOT line by line: the previous readLine() loop
+        // silently deleted raw newlines that legacy dumps contain inside string values.
+        String json;
+
+        try {
+            json = StandardCharsets.UTF_8.newDecoder()
+                   .onMalformedInput(CodingErrorAction.REPORT)
+                   .onUnmappableCharacter(CodingErrorAction.REPORT)
+                   .decode(ByteBuffer.wrap(raw)).toString();
+        } catch (CharacterCodingException e) {
+            log.warn("Dump is not valid UTF-8 - assuming a legacy dump written with a platform "
+                     + "default charset, falling back to ISO-8859-1");
+            json = new String(raw, StandardCharsets.ISO_8859_1);
+        }
+
+        // The dump is parsed as PLAIN JSON and converted back at the dump boundary
+        // (restoreDumpValue) - deliberately NOT through the entity-aware ObjectMapperImpl.
+        // The store holds plain document maps; the previous restore resolved every document
+        // that carried a class_name (i.e. everything the ORM ever wrote) into an entity
+        // instance, which corrupted the store and NPE'd inside the restore type mappers for
+        // any entity field of a marked type (Date/UUID/byte[]/id) that was absent from the
+        // document ("Parsing failed ... 'd' is null", #306 follow-up).
+        Map<String, Object> root;
+
+        try {
+            root = (Map<String, Object>) new JSONParser().parse(json);
+        } catch (ParseException e) {
+            int pos = e.getPosition();
+            int from = Math.max(0, pos - 40);
+            int to = Math.min(json.length(), pos + 40);
+            throw new RuntimeException("Dump restore failed: invalid JSON at position " + pos + " (" + e + ")"
+                + (from < to ? " - context: ..." + json.substring(from, to).replaceAll("[\\r\\n\\t]", " ") + "..." : ""), e);
+        }
+
+        String db = root.get("db") == null ? null : root.get("db").toString();
+        Object dataObj = root.get("data");
+
+        if (db == null || !(dataObj instanceof Map)) {
+            throw new RuntimeException("Dump restore failed: dump container is missing "
+                + (db == null ? "the 'db' name" : "the 'data' map") + " - not a morphium dump?");
+        }
+
+        Map<String, List<Map<String, Object>>> data = new HashMap<>();
+
+        for (Map.Entry<String, Object> coll : ((Map<String, Object>) dataObj).entrySet()) {
+            if (!(coll.getValue() instanceof List)) {
+                throw new RuntimeException("Dump restore failed: collection '" + coll.getKey() + "' is not a list but "
+                    + (coll.getValue() == null ? "null" : coll.getValue().getClass().getName()));
+            }
+
+            List<Map<String, Object>> docs = new ArrayList<>();
+            int i = 0;
+
+            for (Object o : (List<?>) coll.getValue()) {
+                Object doc = restoreDumpValue(o, coll.getKey() + "[" + i++ + "]");
+
+                if (!(doc instanceof Map)) {
+                    throw new RuntimeException("Dump restore failed: document " + coll.getKey() + "[" + (i - 1)
+                        + "] is not a document but " + (doc == null ? "null" : doc.getClass().getName()));
+                }
+
+                docs.add((Map<String, Object>) doc);
+            }
+
+            data.put(coll.getKey(), docs);
+        }
+
+        setDatabase(db, data);
+    }
+
+    /**
+     * Converts a parsed dump-JSON value back into the driver's storage types. The
+     * {@code {class_name, value}} marker maps written by {@link #writeDumpJson(Object, Writer)}
+     * (and by the ObjectId type mapper of the {@code dump(Morphium, ...)} path) become
+     * Date/UUID/byte[]/MorphiumId again. Ids are read tolerantly: BOTH marker forms are
+     * accepted - {@code org.bson.types.ObjectId} (the form every existing dump contains) and
+     * {@code de.caluga.morphium.driver.MorphiumId} - and both restore as {@link MorphiumId},
+     * which is what the wire path (BsonDecoder) delivers and what queries compare against.
+     * Anything else stays a plain map/list - in particular a document-level {@code class_name}
+     * written by the ORM is kept as an ordinary field and must NOT trigger entity resolution:
+     * the store contains documents, not entity objects.
+     */
+    @SuppressWarnings("unchecked")
+    private Object restoreDumpValue(Object val, String path) {
+        if (val instanceof Map) {
+            Map<String, Object> m = (Map<String, Object>) val;
+            Object cn = m.get("class_name");
+
+            if (cn instanceof String && m.containsKey("value") && m.size() == 2) {
+                Object v = m.get("value");
+
+                try {
+                    switch ((String) cn) {
+                        case "org.bson.types.ObjectId":
+                        case "de.caluga.morphium.driver.MorphiumId":
+                            return new MorphiumId(v.toString());
+
+                        case "java.util.Date":
+                            return new Date(v instanceof Number ? ((Number) v).longValue() : Long.parseLong(v.toString()));
+
+                        case "java.util.UUID":
+                            return UUID.fromString(v.toString());
+
+                        case "[B":
+                            return Base64.getDecoder().decode(v.toString());
+
+                        default:
+                            break; // no marker type - a document that happens to have these two fields
+                    }
+                } catch (RuntimeException e) {
+                    throw new RuntimeException("Dump restore failed at '" + path + "': cannot restore a value of type "
+                        + cn + " from " + v, e);
+                }
+            }
+
+            Map<String, Object> ret = new LinkedHashMap<>();
+
+            for (Map.Entry<String, Object> e : m.entrySet()) {
+                ret.put(e.getKey(), restoreDumpValue(e.getValue(), path + "." + e.getKey()));
+            }
+
+            return ret;
+        }
+
+        if (val instanceof List) {
+            List<Object> ret = new ArrayList<>(((List<?>) val).size());
+            int i = 0;
+
+            for (Object o : (List<?>) val) {
+                ret.add(restoreDumpValue(o, path + "[" + i++ + "]"));
+            }
+
+            return ret;
+        }
+
+        return val;
     }
 
     public void restoreFromFile(File f) throws IOException, ParseException {
@@ -715,8 +896,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         d.setData(snapshotDatabase(db));
         d.setDb(db);
         Map<String, Object> ser = mapper.serialize(d);
-        OutputStreamWriter wr = new OutputStreamWriter(gzip);
-        Utils.writeJson(ser, wr);
+        OutputStreamWriter wr = new OutputStreamWriter(gzip, StandardCharsets.UTF_8);
+        writeDumpJson(ser, wr);
         wr.flush();
         gzip.finish();
         gzip.flush();
@@ -748,14 +929,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         try (FileOutputStream fos = new FileOutputStream(f);
             GZIPOutputStream gzip = new GZIPOutputStream(fos);
-            OutputStreamWriter wr = new OutputStreamWriter(gzip)) {
+            OutputStreamWriter wr = new OutputStreamWriter(gzip, StandardCharsets.UTF_8)) {
 
             InMemDumpContainer d = new InMemDumpContainer();
             d.setCreated(System.currentTimeMillis());
             d.setData(snapshot);
             d.setDb(db);
             Map<String, Object> ser = mapper.serialize(d);
-            Utils.writeJson(ser, wr);
+            writeDumpJson(ser, wr);
             wr.flush();
             gzip.finish();
         }
@@ -785,29 +966,97 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     /**
-     * Restore all databases from a directory.
-     * @param dir Directory containing .morphium.gz dump files
-     * @return Number of databases restored
+     * Outcome of {@link #restoreAllFromDirectoryResult(File)}: how many dump files were found,
+     * how many were actually restored, and which files failed. Callers must treat
+     * {@code !isComplete()} as a partial restore, never as success (#306).
      */
-    public int restoreAllFromDirectory(File dir) throws IOException, ParseException {
+    public static final class DirectoryRestoreResult {
+        private final int total;
+        private final int restored;
+        private final List<String> failedFiles;
+
+        public DirectoryRestoreResult(int total, int restored, List<String> failedFiles) {
+            this.total = total;
+            this.restored = restored;
+            this.failedFiles = List.copyOf(failedFiles);
+        }
+
+        /** Number of dump files found in the directory. */
+        public int getTotal() {
+            return total;
+        }
+
+        /** Number of databases successfully restored. */
+        public int getRestored() {
+            return restored;
+        }
+
+        /** File names (not paths) of the dump files that failed to restore. */
+        public List<String> getFailedFiles() {
+            return failedFiles;
+        }
+
+        /** True when every dump file found was restored (also true for an empty directory). */
+        public boolean isComplete() {
+            return restored == total;
+        }
+    }
+
+    /**
+     * Restore all databases from a directory.
+     * <p>
+     * A broken dump file must never abort the whole restore (#306: a mid-loop exception silently
+     * left 6 of 8 production databases unrestored). Each file is restored under its own
+     * try/catch: failures are logged on ERROR with the file name and full stack trace, the
+     * remaining dumps are still attempted, and a summary line is ALWAYS emitted - INFO when
+     * complete, an unmissable WARN with restored/total counts when partial.
+     *
+     * @param dir Directory containing .morphium.gz dump files
+     * @return result with total/restored counts and the list of failed files
+     */
+    public DirectoryRestoreResult restoreAllFromDirectoryResult(File dir) throws IOException {
         if (!dir.exists() || !dir.isDirectory()) {
             log.warn("Dump directory does not exist or is not a directory: {}", dir.getAbsolutePath());
-            return 0;
+            return new DirectoryRestoreResult(0, 0, List.of());
         }
 
         File[] dumpFiles = dir.listFiles((d, name) -> name.endsWith(".morphium.gz"));
         if (dumpFiles == null || dumpFiles.length == 0) {
             log.info("No dump files found in {}", dir.getAbsolutePath());
-            return 0;
+            return new DirectoryRestoreResult(0, 0, List.of());
         }
 
-        int count = 0;
+        int restored = 0;
+        List<String> failed = new ArrayList<>();
         for (File dumpFile : dumpFiles) {
             log.info("Restoring from {}", dumpFile.getAbsolutePath());
-            restoreFromFile(dumpFile);
-            count++;
+            try {
+                restoreFromFile(dumpFile);
+                restored++;
+            } catch (Exception e) {
+                failed.add(dumpFile.getName());
+                log.error("Failed to restore dump file {} - skipping it and continuing with the remaining dumps",
+                        dumpFile.getAbsolutePath(), e);
+            }
         }
-        return count;
+
+        if (failed.isEmpty()) {
+            log.info("Restored {} of {} databases from {}", restored, dumpFiles.length, dir.getAbsolutePath());
+        } else {
+            log.warn("PARTIAL RESTORE: only {} of {} databases restored from {} - failed dump files: {}",
+                    restored, dumpFiles.length, dir.getAbsolutePath(), failed);
+        }
+        return new DirectoryRestoreResult(dumpFiles.length, restored, failed);
+    }
+
+    /**
+     * Restore all databases from a directory.
+     * @param dir Directory containing .morphium.gz dump files
+     * @return Number of databases restored - callers that need to detect a PARTIAL restore
+     *         should use {@link #restoreAllFromDirectoryResult(File)} instead
+     */
+    public int restoreAllFromDirectory(File dir) throws IOException, ParseException {
+        return restoreAllFromDirectoryResult(dir).getRestored();
     }
 
     private MorphiumTypeMapper<ObjectId> getObjectIdTypeMapper() {
@@ -825,6 +1074,82 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 return new ObjectId(((Map <?, ? >) d).get("value").toString());
             }
         };
+    }
+
+    /**
+     * JSON writer for dump files. Unlike the generic {@link Utils#writeJson}, this one must
+     * produce JSON that can be parsed back into the exact same storage types the driver holds:
+     * strings are escaped, and the non-JSON BSON value types a collection can contain (Date,
+     * UUID, ObjectId/MorphiumId, byte[]) are written as class_name-marked maps that
+     * {@link #restoreDumpValue} converts back on restore.
+     * Before #306 the dump used {@link Utils#writeJson}, which wrote strings unescaped and
+     * Date/UUID as bare unquoted toString() tokens - every dump of a database with real data
+     * (timestamps, text with quotes) was unparseable, and byte[]/ids silently changed type.
+     */
+    private static void writeDumpJson(Object o, Writer out) throws IOException {
+        if (o == null) {
+            out.write("null");
+        } else if (o instanceof String) {
+            Utils.writeEscapedJsonString((String) o, out);
+        } else if (o instanceof Date) {
+            out.write("{ \"class_name\" : \"java.util.Date\", \"value\" : " + ((Date) o).getTime() + " } ");
+        } else if (o instanceof UUID) {
+            out.write("{ \"class_name\" : \"java.util.UUID\", \"value\" : \"" + o + "\" } ");
+        } else if (o instanceof ObjectId || o instanceof MorphiumId) {
+            // keep the marker format the (pre-existing) ObjectId type mapper produces
+            out.write("{ \"value\" : \"" + o + "\", \"class_name\" : \"org.bson.types.ObjectId\" } ");
+        } else if (o instanceof byte[]) {
+            out.write("{ \"class_name\" : \"[B\", \"value\" : \""
+                      + Base64.getEncoder().encodeToString((byte[]) o) + "\" } ");
+        } else if (o instanceof Map) {
+            out.write("{ ");
+            boolean comma = false;
+
+            for (Map.Entry <?, ? > e : ((Map <?, ? >) o).entrySet()) {
+                if (comma) {
+                    out.write(", ");
+                }
+
+                comma = true;
+                Utils.writeEscapedJsonString(String.valueOf(e.getKey()), out);
+                out.write(" : ");
+                writeDumpJson(e.getValue(), out);
+            }
+
+            out.write(" } ");
+        } else if (o instanceof Collection) {
+            out.write(" [ ");
+            boolean comma = false;
+
+            for (Object obj : (Collection <?>) o) {
+                if (comma) {
+                    out.write(", ");
+                }
+
+                comma = true;
+                writeDumpJson(obj, out);
+            }
+
+            out.write("]");
+        } else if (o.getClass().isArray()) {
+            out.write(" [ ");
+            int length = Array.getLength(o);
+
+            for (int i = 0; i < length; i++) {
+                if (i > 0) {
+                    out.write(", ");
+                }
+
+                writeDumpJson(Array.get(o, i), out);
+            }
+
+            out.write("]");
+        } else if (o instanceof Enum) {
+            Utils.writeEscapedJsonString(((Enum <?>) o).name(), out);
+        } else {
+            // numbers, booleans
+            out.write(o.toString());
+        }
     }
 
     @Override
@@ -879,6 +1204,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         cappedCurrentBytesByCollection.clear();
         collectionsWithTtlIndex.clear();
         ttlQueueByCollection.clear();
+        // Bump BEFORE the clear - see drop(): fences a build racing this reset out of
+        // re-publishing a pre-reset snapshot (#290).
+        indexStoreDropEpoch.incrementAndGet();
         indexStoreByCollection.clear();
 
         for (var m : monitors) {
@@ -889,6 +1217,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         changeStreamSubscribers.clear();
         changeStreamHistory.clear();
         changeStreamHistorySize.set(0);
+        changeStreamHistoryBytes.set(0);
+        changeStreamHistoryEvictedForBudget.set(0);
         changeStreamSequence.set(0);
         lastDropSequence.clear();
         lastGlobalDropSequence.set(0);
@@ -1601,7 +1931,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         names.addAll(Set.of("serverStatus", "bulkWrite", "saslStart", "saslContinue", "createUser", "updateUser",
-                "dropUser", "registerMessagingCollection", "unregisterMessagingSubscriber", "dbHash", "validate"));
+                "dropUser", "usersInfo", "registerMessagingCollection", "unregisterMessagingSubscriber", "dbHash",
+                "validate"));
         return names;
     }
 
@@ -1617,6 +1948,113 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     private int authNotImplemented(String commandName, int code, String codeName, String detail) {
         return errorResult(code, codeName, commandName + " is not supported by InMemoryDriver/PoppyDB: " + detail);
+    }
+
+    /**
+     * {@code usersInfo} - what {@code db.getUsers()} and {@code db.getUser(name)} send. Reads the
+     * documents {@code createUser} stored in {@code admin.system.users} and projects them into the
+     * shape mongod answers with.
+     *
+     * <p>Accepts the argument forms mongod does: {@code 1} (all users of the database the command
+     * was issued against), a plain name, a {@code {user, db}} document, or a list of either; plus
+     * {@code forAllDBs} to cross database boundaries. An unknown user is not an error - the users
+     * array simply comes back empty.
+     *
+     * <p>{@code credentials} (the SCRAM salts and stored keys) are omitted unless
+     * {@code showCredentials} is requested, exactly as mongod does - listing users must not hand
+     * out password material by default. The mechanisms themselves are reported either way, since
+     * a client needs to know what a user can authenticate with.
+     */
+    @SuppressWarnings("unchecked")
+    private int usersInfoInternal(Map<String, Object> cmdMap) {
+        String requestDb = (String) cmdMap.get("$db");
+        Object argument = cmdMap.get("usersInfo");
+        boolean showCredentials = Boolean.TRUE.equals(cmdMap.get("showCredentials"));
+        boolean forAllDBs = Boolean.TRUE.equals(cmdMap.get("forAllDBs"));
+
+        // Selectors are the (db, user) pairs asked for; empty means "every user in scope".
+        List<String> wantedIds = new ArrayList<>();
+        boolean allInScope = false;
+
+        for (Object entry : argument instanceof List ? (List<Object>) argument : List.of(argument == null ? 1 : argument)) {
+            if (entry instanceof Map) {
+                Map<String, Object> spec = (Map<String, Object>) entry;
+                Object user = spec.get("user");
+                Object db = spec.get("db");
+
+                if (user == null) {
+                    return errorResult(2, "BadValue", "UserName must contain a field named: user");
+                }
+
+                wantedIds.add(de.caluga.morphium.driver.inmem.auth.UserDocuments
+                        .userId(db == null ? requestDb : db.toString(), user.toString()));
+            } else if (entry instanceof String) {
+                wantedIds.add(de.caluga.morphium.driver.inmem.auth.UserDocuments
+                        .userId(requestDb, (String) entry));
+            } else {
+                // Numeric 1 (or anything else mongod treats as "all")
+                allInScope = true;
+            }
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>();
+
+        try {
+            List<Map<String, Object>> users = getCollection(USERS_DB, USERS_COLLECTION);
+            java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(USERS_DB, USERS_COLLECTION);
+            lock.readLock().lock();
+
+            try {
+                for (Map<String, Object> doc : users) {
+                    if (allInScope) {
+                        if (!forAllDBs && !requestDb.equals(doc.get("db"))) {
+                            continue;
+                        }
+                    } else if (!wantedIds.contains(String.valueOf(doc.get("_id")))) {
+                        continue;
+                    }
+
+                    result.add(projectUserDocument(doc, showCredentials));
+                }
+            } finally {
+                lock.readLock().unlock();
+            }
+        } catch (MorphiumDriverException e) {
+            return errorResult(1, "InternalError", "could not read users: " + e.getMessage());
+        }
+
+        int requestId = commandNumber.incrementAndGet();
+        addResult(requestId, prepareResult(Doc.of("users", result, "ok", 1.0)));
+        return requestId;
+    }
+
+    /** Copies a stored user document into the mongod-shaped answer of {@code usersInfo}. */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> projectUserDocument(Map<String, Object> doc, boolean showCredentials) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("_id", doc.get("_id"));
+        out.put("user", doc.get("user"));
+        out.put("db", doc.get("db"));
+
+        if (doc.get("customData") != null) {
+            out.put("customData", doc.get("customData"));
+        }
+
+        out.put("roles", doc.get("roles") == null ? new ArrayList<>() : doc.get("roles"));
+
+        Object credentials = doc.get("credentials");
+
+        if (credentials instanceof Map) {
+            out.put("mechanisms", new ArrayList<>(((Map<String, Object>) credentials).keySet()));
+        } else {
+            out.put("mechanisms", new ArrayList<>());
+        }
+
+        if (showCredentials && credentials != null) {
+            out.put("credentials", credentials);
+        }
+
+        return out;
     }
 
     private Map<String, Object> findUserDocument(String authDb, String user) {
@@ -2367,6 +2805,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             return dropUserInternal(cmdMap);
         }
 
+        if (commandName.equals("usersInfo")) {
+            return usersInfoInternal(cmdMap);
+        }
+
         // serverStatus and the top-level bulkWrite (MongoDB 8.0 shape) have no typed command
         // class, so the reflective dispatch below cannot resolve them - answer them from the
         // raw map here (#257)
@@ -2506,6 +2948,28 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                         "heapUsedAfterGcPercent", Math.round(heapUsedAfterGcPercent() * 10) / 10.0,
                                         "warnPercent", memoryWarnPercent, "rejectPercent", memoryRejectPercent,
                                         "warnActive", memoryWarnActive.get()));
+        // Replay-buffer state. Primary operational metric is the retained resume window in
+        // seconds - the analogue of mongod's oplog "log length start to end"
+        // (rs.printReplicationInfo()): how much consumer/secondary downtime is still resumable
+        // without a re-sync. peekFirst/peekLast are O(1); under concurrent eviction the two
+        // reads are not atomic, which at worst skews a diagnostic value transiently.
+        ChangeStreamEventInfo histFirst = changeStreamHistory.peekFirst();
+        ChangeStreamEventInfo histLast = changeStreamHistory.peekLast();
+        Doc replayBuffer = Doc.of("events", changeStreamHistorySize.get(),
+                                  "bytes", changeStreamHistoryBytes.get(),
+                                  "budgetBytes", changeStreamHistoryByteBudget,
+                                  "limitEvents", changeStreamHistoryLimit,
+                                  "evictedForBudget", changeStreamHistoryEvictedForBudget.get());
+
+        if (histFirst != null && histLast != null) {
+            replayBuffer.put("firstEventTime", new Date(histFirst.createdAt));
+            replayBuffer.put("lastEventTime", new Date(histLast.createdAt));
+            replayBuffer.put("windowSeconds", Math.max(0, (histLast.createdAt - histFirst.createdAt) / 1000));
+        } else {
+            replayBuffer.put("windowSeconds", 0L);
+        }
+
+        m.put("changeStreamReplayBuffer", replayBuffer);
         addResult(ret, m);
         return ret;
     }
@@ -3249,7 +3713,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         List<Map<String, Object>> writeErrors = insert(cmd.getDb(), cmd.getColl(), cmd.getDocuments(),
             cmd.getWriteConcern(), ordered);
         var m = prepareResult();
-        m.put("n", cmd.getDocuments().size() - writeErrors.size());
+        m.put("n", insertedCountFromWriteErrors(cmd.getDocuments().size(), ordered, writeErrors));
         if (writeErrors.size() != 0) {
             m.put("writeErrors", writeErrors);
         }
@@ -4539,6 +5003,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     // already pushed a fresh entry reflecting the new expiry; this one is stale.
                     continue;
                 }
+                if (ttlInfo.partialFilterExpression != null
+                        && !QueryHelper.matchesQuery(ttlInfo.partialFilterExpression, doc, null)) {
+                    // A document outside the index's partialFilterExpression is not part of the
+                    // TTL index - mongod's TTL monitor never deletes it. Checked against the LIVE
+                    // document, so a later transition into the filter still expires normally via
+                    // the next enqueued entry.
+                    continue;
+                }
 
                 collectionData.remove(doc);
                 indexStore.onRemove(doc);
@@ -5341,6 +5813,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                           Map<String, Object> sort, Map<String, Object> projection, int skip, int limit)
     throws MorphiumDriverException {
         return find(db, collection, query, sort, projection, null, skip, limit, false);
+    }
+
+    public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query,
+                                          Map<String, Object> sort, Map<String, Object> projection,
+                                          Map<String, Object> collation, int skip, int limit)
+    throws MorphiumDriverException {
+        return find(db, collection, query, sort, projection, collation, skip, limit, false);
     }
 
     private java.util.concurrent.locks.ReadWriteLock getCollectionLock(String db, String collection) {
@@ -6209,7 +6688,19 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // otherwise publish a store built from a document list another thread is
             // concurrently mutating.
         }
+        // Read BEFORE the documents snapshot inside buildIndexStore: if an invalidate or a
+        // DB-wide drop lands between here and the publish below, the snapshot may predate that
+        // mutation and must not be published (see indexStoreEpochByCollection, #290).
+        Long epochBefore = indexStoreEpochByCollection.get(key);
+        long dropEpochBefore = indexStoreDropEpoch.get();
         OwnedIndexStore built = new OwnedIndexStore(buildIndexStore(db, collection), requiredOwner);
+        if (indexStoreEpochMovedSince(key, epochBefore, dropEpochBefore)) {
+            // Concurrent invalidate during the build - the snapshot is possibly stale. Use it
+            // privately (same semantics as losing the publish race below: valid for this caller's
+            // one-shot read, invisible to everyone else) and let the next caller rebuild fresh.
+            // No transaction recording either: that tracks PUBLISHED stores a commit must purge.
+            return built.store();
+        }
         // Store and owner are published in a single map operation, so no other thread can ever
         // see one without the other. If existing was null, this is a plain first-touch publish
         // (putIfAbsent). If existing was non-null (the mismatch case above), the entry changes
@@ -6232,6 +6723,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         if (prev != null) {
             return prev.owner() == requiredOwner ? prev.store() : built.store();
         }
+        // Post-publish re-validation: the pre-build check above is check-then-act, so a full
+        // invalidate (bump + remove) can land entirely between it and the publish - the publish
+        // then resurrects the possibly-stale snapshot right after the invalidate's remove. If the
+        // epoch moved, undo exactly our own entry (conditional remove - OwnedIndexStore compares
+        // by store identity, so someone else's newer publish is never touched) and fall back to
+        // private use. Combined with invalidateIndexStore's bump-before-remove ordering this
+        // closes the race completely: a publish that slips past this check happened before the
+        // bump, and therefore before the remove that discards it (#290).
+        if (indexStoreEpochMovedSince(key, epochBefore, dropEpochBefore)) {
+            indexStoreByCollection.remove(key, built);
+            return built.store();
+        }
         // Record that this collection's persistent index store was actually BUILT (not merely
         // reused) while a transaction is open - see
         // InMemTransactionContext#getIndexStoreAccessedCollections. Only a build reads via
@@ -6249,7 +6752,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return built.store();
     }
 
-    private CollectionIndexStore buildIndexStore(String db, String collection) throws MorphiumDriverException {
+    /* package-private: same-package tests override this to interleave a concurrent write with the
+     * publish in getIndexStore (#290) */
+    CollectionIndexStore buildIndexStore(String db, String collection) throws MorphiumDriverException {
         indexStoreRebuilds++;
         CollectionIndexStore store = new CollectionIndexStore();
         List<Map<String, Object>> indexDescriptors = getIndexes(db, collection);
@@ -6296,8 +6801,25 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * collection's document list wholesale (see each call site's own comment for why a full rebuild
      * is the right, and cheap-enough, answer there).
      */
+    /**
+     * True when {@code db.collection}'s store was invalidated (per-key epoch) or ANY store was
+     * dropped wholesale (drop epoch) since the caller sampled both values before its
+     * {@link #buildIndexStore} snapshot - i.e. when that snapshot may predate a concurrent
+     * mutation and must not be published (#290).
+     */
+    private boolean indexStoreEpochMovedSince(String key, Long epochBefore, long dropEpochBefore) {
+        return !java.util.Objects.equals(epochBefore, indexStoreEpochByCollection.get(key))
+                || dropEpochBefore != indexStoreDropEpoch.get();
+    }
+
     private void invalidateIndexStore(String db, String collection) {
-        indexStoreByCollection.remove(db + "." + collection);
+        String key = db + "." + collection;
+        // Bump BEFORE the remove: a lock-free builder (see getIndexStore, #290) re-reads this
+        // epoch at publish time, so with this ordering its publish either happens after the bump
+        // (epoch check refuses it) or before it (this remove discards it) - a pre-mutation
+        // snapshot can never outlive this invalidate either way.
+        indexStoreEpochByCollection.merge(key, 1L, Long::sum);
+        indexStoreByCollection.remove(key);
     }
 
     /**
@@ -6585,6 +7107,39 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return insert(db, collection, objs, wc, true);
     }
 
+    /**
+     * Removes the working-list entries at the given (ascending) positions from both parallel
+     * lists, keeping objs and their original-batch-index list aligned. Position-based on purpose:
+     * removal by equality (the old removeAll) would also drop an equal-but-different document
+     * elsewhere in the batch.
+     */
+    private static void removeWorkingListPositions(List<Map<String, Object>> objs, List<Integer> origIdx,
+            List<Integer> positions) {
+        for (int i = positions.size() - 1; i >= 0; i--) {
+            int p = positions.get(i);
+            objs.remove(p);
+            origIdx.remove(p);
+        }
+    }
+
+    /**
+     * Number of documents an insert actually committed, derived from its writeErrors.
+     * batchSize - writeErrors.size() is only right for unordered inserts; an ordered insert
+     * stops at the first error, so everything after it was never attempted - the first error's
+     * (original-batch) index IS the number of documents inserted before it.
+     */
+    public static int insertedCountFromWriteErrors(int batchSize, boolean ordered, List<Map<String, Object>> writeErrors) {
+        if (writeErrors == null || writeErrors.isEmpty()) {
+            return batchSize;
+        }
+
+        if (ordered) {
+            return ((Number) writeErrors.get(0).get("index")).intValue();
+        }
+
+        return batchSize - writeErrors.size();
+    }
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     public List<Map<String, Object>> insert(String db, String collection, List<Map<String, Object>> objs,
                                             Map<String, Object> wc, boolean ordered) throws MorphiumDriverException {
@@ -6597,10 +7152,19 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             int errors = 0;
             objs = new ArrayList<>(objs);
             writeErrors = new ArrayList<>();
+            // Original batch position of each working-list entry, kept aligned with objs across
+            // every removal below. writeErrors.index must refer to the CLIENT's batch - indexing
+            // into the shrunken working list silently shifted every error reported after an
+            // earlier loop had already removed a document.
+            List<Integer> origIdx = new ArrayList<>(objs.size());
+
+            for (int i = 0; i < objs.size(); i++) {
+                origIdx.add(i);
+            }
 
             // BSON size gate (mongod parity, code 10334) - like the duplicate checks below:
             // ordered inserts throw, unordered ones report a per-document writeError
-            List<Map<String, Object>> oversized = new ArrayList<>();
+            List<Integer> oversizedPos = new ArrayList<>();
 
             for (int objIdx = 0; objIdx < objs.size(); objIdx++) {
                 MorphiumDriverException tooBig = documentTooLarge(objs.get(objIdx), false);
@@ -6610,64 +7174,22 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         throw tooBig;
                     }
 
-                    writeErrors.add(Doc.of("index", objIdx, "code", 10334, "errmsg", tooBig.getMessage()));
-                    oversized.add(objs.get(objIdx));
+                    writeErrors.add(Doc.of("index", origIdx.get(objIdx), "code", 10334, "errmsg", tooBig.getMessage()));
+                    oversizedPos.add(objIdx);
                     errors++;
                 }
             }
 
-            objs.removeAll(oversized);
-            // check for unique index
-            List<Map<String, Object>> indexes = getIndexes(db, collection);
-            if (indexes != null && !indexes.isEmpty()) {
-                for (var idx : indexes) {
-                    if (idx.containsKey("$options")) {
-                        Map<String, Object> options = (Map<String, Object>) idx.get("$options");
-
-                        if (options.containsKey("unique")
-                                && (options.get("unique").equals("true") || options.get("unique").equals(true))) {
-                            // checking fields
-                            Map<String, Object> indexKey = new HashMap<>(idx);
-                            List<Map<String, Object>> duplicateDocs = new ArrayList<>();
-
-                            for (int objIdx = 0; objIdx < objs.size(); objIdx++) {
-                                var o = objs.get(objIdx);
-                                var q = Doc.of();
-
-                                for (String k : indexKey.keySet()) {
-                                    if (k.startsWith("$")) {
-                                        continue;
-                                    }
-
-                                    q.put(k, o.get(k));
-                                }
-
-                                if (q.size() != 1) {
-                                    // need to add and query
-                                    List<Map<String, Object>> and = new ArrayList();
-                                    for (var e : q.entrySet()) {
-                                        and .add(Doc.of(e.getKey(), e.getValue()));
-                                    }
-                                    q = Doc.of("$and", and );
-                                }
-
-                                if (existsMatchingDocument(db, collection, q)) {
-                                    log.error("Cannot store - unique index!");
-                                    writeErrors.add(Doc.of(
-                                        "index", objIdx,
-                                        "code", 11000,
-                                        "errmsg", "E11000 duplicate key error"
-                                    ));
-                                    duplicateDocs.add(o);
-                                }
-                            }
-
-                            errors = errors + duplicateDocs.size();
-                            objs.removeAll(duplicateDocs);
-                        }
-                    }
-                }
-            }
+            removeWorkingListPositions(objs, origIdx, oversizedPos);
+            // NO unique-index pre-check here anymore: CollectionIndexStore.onInsert (the loop
+            // further down) is the single authority for uniqueness - committed-document conflicts
+            // and intra-batch conflicts alike surface there as per-doc writeErrors, with mongod's
+            // actual ordered semantics (stop at the first error) instead of the removed legacy
+            // O(collection)-scan's skip-and-continue. The scan also re-implemented the index
+            // membership rules (sparse/partialFilterExpression) separately from the store and got
+            // the partial-filter half wrong: it exempted only the INCOMING document, so an
+            // uncovered stored document still counted as a collision partner - a false E11000
+            // mongod does not raise (review 2026-08-13).
 
             // Get collection once - used for capped eviction and the physical adds below
             var collectionData = getCollection(db, collection);
@@ -6685,7 +7207,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // path maintains it incrementally), and this loop never adds to it - so duplicates
             // BETWEEN documents of this same batch still only surface at onInsert below,
             // exactly as with the old snapshot-based check.
-            List<Map<String, Object>> idDuplicates = new ArrayList<>();
+            List<Integer> idDuplicatePos = new ArrayList<>();
             for (int objIdx = 0; objIdx < objs.size(); objIdx++) {
                 Map<String, Object> o = objs.get(objIdx);
                 if (o.get("_id") != null && indexStore.containsId(o.get("_id"))) {
@@ -6693,16 +7215,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         throw new MorphiumDriverException("Duplicate _id! " + o.get("_id"), null);
                     }
                     writeErrors.add(Doc.of(
-                        "index", objIdx,
+                        "index", origIdx.get(objIdx),
                         "code", 11000,
                         "errmsg", "E11000 duplicate key error collection: " + db + "." + collection + " dup key: { _id: " + o.get("_id") + " }"
                     ));
-                    idDuplicates.add(o);
+                    idDuplicatePos.add(objIdx);
                     continue;
                 }
                 o.putIfAbsent("_id", new ObjectId());
             }
-            objs.removeAll(idDuplicates);
+            removeWorkingListPositions(objs, origIdx, idDuplicatePos);
             // collectionData already retrieved above
             // Capped collections may evict existing documents to make room for the incoming
             // batch - those evictions must be reflected in the index store too, or evicted docs
@@ -6743,6 +7265,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 if (cappedInfo.containsKey("max")) {
                     while (!objs.isEmpty() && collectionData.size() + objs.size() > cappedInfo.get("max")) {
                         objs.remove(0);
+                        origIdx.remove(0);
                     }
                 }
                 // The old byte-capped trim of the incoming batch compared against
@@ -6779,7 +7302,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     indexStore.onInsert(o);
                 } catch (MorphiumDriverException ex) {
                     writeErrors.add(Doc.of(
-                        "index", objIdx,
+                        "index", origIdx.get(objIdx),
                         "code", ex.getMongoCode() == null ? 11000 : ex.getMongoCode(),
                         "errmsg", ex.getMessage()
                     ));
@@ -7542,6 +8065,51 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         return cur;
+    }
+
+    /**
+     * True when {@code path} resolves to a key/index that EXISTS but holds an explicit
+     * {@code null} - as opposed to not existing at all, which is what a plain
+     * {@link #getByPathArrayAware} {@code == null} cannot distinguish. The array-mutation
+     * operators need the distinction for mongod parity (#291): a missing field gets the array
+     * created, an explicitly-null field is a non-array value and must be rejected.
+     */
+    @SuppressWarnings("rawtypes")
+    private boolean isExplicitNullAtPath(Map<String, Object> doc, String path) {
+        String[] parts = path.split("\\.");
+        Object cur = doc;
+
+        for (int i = 0; i < parts.length - 1; i++) {
+            String p = parts[i];
+
+            if (cur instanceof Map) {
+                cur = ((Map) cur).get(p);
+            } else if (cur instanceof List && isArrayIndex(p)) {
+                List l = (List) cur;
+                int idx = Integer.parseInt(p);
+                cur = idx < l.size() ? l.get(idx) : null;
+            } else {
+                return false;
+            }
+
+            if (cur == null) {
+                return false;
+            }
+        }
+
+        String last = parts[parts.length - 1];
+
+        if (cur instanceof Map) {
+            return ((Map) cur).containsKey(last) && ((Map) cur).get(last) == null;
+        }
+
+        if (cur instanceof List && isArrayIndex(last)) {
+            List l = (List) cur;
+            int idx = Integer.parseInt(last);
+            return idx < l.size() && l.get(idx) == null;
+        }
+
+        return false;
     }
 
     /**
@@ -8572,10 +9140,19 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                 List v;
                                 boolean created = false;
 
+                                // mongod parity (#291): a MISSING field gets the array created, but a
+                                // field explicitly stored as null is a non-array value and must fail
+                                // ("Cannot apply $addToSet to non-array field ... has non-array type
+                                // null"). Legacy/foreign writers produce such documents; treating them
+                                // like missing hid exactly the failure mode messaging trips over.
                                 if (field.contains(".")) {
                                     Object existing = getByPathArrayAware(obj, field);
 
                                     if (existing == null) {
+                                        if (isExplicitNullAtPath(obj, field)) {
+                                            throw new MorphiumDriverException("Cannot apply " + operand
+                                                            + " to non-array field '" + field + "' - field has non-array type null");
+                                        }
                                         v = new ArrayList<>();
                                         setByPathArrayAware(obj, field, v);
                                         created = true;
@@ -8589,6 +9166,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                     Object existing = obj.get(field);
 
                                     if (existing == null) {
+                                        if (obj.containsKey(field)) {
+                                            throw new MorphiumDriverException("Cannot apply " + operand
+                                                            + " to non-array field '" + field + "' - field has non-array type null");
+                                        }
                                         v = new ArrayList<>();
                                         obj.put(field, v);
                                         created = true;
@@ -8944,12 +9525,40 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         changeStreamHistory.addLast(eventInfo);
         changeStreamHistorySize.incrementAndGet();
+        changeStreamHistoryBytes.addAndGet(eventInfo.estimatedBytes);
 
-        while (changeStreamHistorySize.get() > changeStreamHistoryLimit) {
-            if (changeStreamHistory.pollFirst() != null) {
-                changeStreamHistorySize.decrementAndGet();
-            } else {
+        long budget = changeStreamHistoryByteBudget;
+
+        // Evict oldest while either bound is exceeded. The just-appended (= newest) event is
+        // never evicted (size > 1 guard on the byte branch), so an event larger than the whole
+        // budget stays buffered as the only entry instead of looping forever.
+        while (true) {
+            boolean overCount = changeStreamHistorySize.get() > changeStreamHistoryLimit;
+            boolean overBytes = budget > 0 && changeStreamHistoryBytes.get() > budget
+                && changeStreamHistorySize.get() > 1;
+
+            if (!overCount && !overBytes) {
+                break;
+            }
+
+            ChangeStreamEventInfo evicted = changeStreamHistory.pollFirst();
+
+            if (evicted == null) {
                 break; // deque already empty
+            }
+
+            changeStreamHistorySize.decrementAndGet();
+            changeStreamHistoryBytes.addAndGet(-evicted.estimatedBytes);
+
+            if (!overCount) {
+                changeStreamHistoryEvictedForBudget.incrementAndGet();
+                long now = System.currentTimeMillis();
+
+                if (now - lastBudgetEvictWarnAt > 60_000) {
+                    lastBudgetEvictWarnAt = now;
+                    log.warn("Replay buffer byte budget ({} bytes) exceeded - evicting oldest change "
+                        + "events; the resume window is shrinking (bulk writes of large documents?)", budget);
+                }
             }
         }
 
@@ -9163,12 +9772,56 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
         this.changeStreamHistoryLimit = limit;
         while (changeStreamHistorySize.get() > limit) {
-            if (changeStreamHistory.pollFirst() != null) {
+            ChangeStreamEventInfo evicted = changeStreamHistory.pollFirst();
+            if (evicted != null) {
                 changeStreamHistorySize.decrementAndGet();
+                changeStreamHistoryBytes.addAndGet(-evicted.estimatedBytes);
             } else {
                 break; // deque already empty
             }
         }
+    }
+
+    /**
+     * Set the replay-buffer byte budget (estimated bytes, see {@link #estimateBsonSize}). 0
+     * disables the byte bound (default - only the count limit applies). Shrinking the budget
+     * immediately trims the oldest buffered events down to the new bound; the newest event is
+     * always retained. Eviction semantics are identical to count overflow: a consumer whose
+     * resume token falls into the evicted range gets window-lost and must re-sync.
+     */
+    public void setChangeStreamHistoryByteBudget(long bytes) {
+        if (bytes < 0) {
+            throw new IllegalArgumentException("changeStreamHistoryByteBudget must be >= 0 (0 = disabled)");
+        }
+
+        this.changeStreamHistoryByteBudget = bytes;
+
+        while (bytes > 0 && changeStreamHistoryBytes.get() > bytes && changeStreamHistorySize.get() > 1) {
+            ChangeStreamEventInfo evicted = changeStreamHistory.pollFirst();
+
+            if (evicted == null) {
+                break; // deque already empty
+            }
+
+            changeStreamHistorySize.decrementAndGet();
+            changeStreamHistoryBytes.addAndGet(-evicted.estimatedBytes);
+            changeStreamHistoryEvictedForBudget.incrementAndGet();
+        }
+    }
+
+    /** Current replay-buffer byte budget; 0 = byte bound disabled. */
+    public long getChangeStreamHistoryByteBudget() {
+        return changeStreamHistoryByteBudget;
+    }
+
+    /** Estimated bytes currently held by the replay buffer (diagnostic). */
+    public long getChangeStreamHistoryBytes() {
+        return changeStreamHistoryBytes.get();
+    }
+
+    /** Number of events currently held by the replay buffer (diagnostic). */
+    public int getChangeStreamHistorySize() {
+        return changeStreamHistorySize.get();
     }
 
     /**
@@ -9493,6 +10146,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         private final String collection;
         private final Map<String, Object> event;
         private final long createdAt;
+        // Estimated BSON-ish size of the full event map (including fullDocument), measured
+        // exactly once at construction - the byte-budget bookkeeping adds/subtracts this at
+        // every deque mutation site, so no separate size cache is needed.
+        private final long estimatedBytes;
 
         private ChangeStreamEventInfo(long token, String db, String collection, Map<String, Object> event,
                                       long createdAt) {
@@ -9501,7 +10158,43 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             this.collection = collection;
             this.event = event;
             this.createdAt = createdAt;
+            this.estimatedBytes = estimateBsonSize(event);
         }
+    }
+
+    /**
+     * Cheap, allocation-free estimate of a value's BSON size, used to enforce the replay-buffer
+     * byte budget on the write hot path. Deliberately NOT exact: strings are estimated at 1.5
+     * bytes/char (between ASCII's 1 and the UTF-8 worst case), scalars at a flat 16 bytes. Stays
+     * within roughly a factor of 2 of {@code BsonEncoder.encodeDocument().length} for realistic
+     * documents - good enough for a budget bound without re-encoding the document (allocates) or
+     * JOL (shallow {@code sizeOf} is useless here, deep {@code GraphLayout} far too expensive).
+     */
+    public static long estimateBsonSize(Object v) {
+        if (v == null) {
+            return 4;
+        }
+        if (v instanceof String s) {
+            return (long) (s.length() * 1.5) + 8;
+        }
+        if (v instanceof byte[] b) {
+            return b.length + 16L;
+        }
+        if (v instanceof Map<?, ?> m) {
+            long sum = 8;
+            for (Map.Entry<?, ?> e : m.entrySet()) {
+                sum += (e.getKey() instanceof String k ? k.length() + 2 : 8) + estimateBsonSize(e.getValue());
+            }
+            return sum;
+        }
+        if (v instanceof Collection<?> c) {
+            long sum = 8;
+            for (Object o : c) {
+                sum += 4 + estimateBsonSize(o);
+            }
+            return sum;
+        }
+        return 16; // numbers, booleans, dates, ObjectIds, other scalars
     }
 
     private class ChangeStreamSubscription {
@@ -9989,6 +10682,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         changeStreamHistory.removeIf(e -> {
             if (db.equals(e.db) && collection.equals(e.collection)) {
                 changeStreamHistorySize.decrementAndGet();
+                changeStreamHistoryBytes.addAndGet(-e.estimatedBytes);
                 return true;
             }
             return false;
@@ -10005,6 +10699,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         changeStreamHistory.removeIf(e -> {
             if (db.equals(e.db) && collection.equals(e.collection)) {
                 changeStreamHistorySize.decrementAndGet();
+                changeStreamHistoryBytes.addAndGet(-e.estimatedBytes);
                 return true;
             }
             return false;
@@ -10028,6 +10723,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         String dbPrefix = db + ".";
+        // Bump BEFORE the removal - same publish-fencing contract as invalidateIndexStore's
+        // bump-before-remove, but via the global drop epoch: a per-key bump could not cover
+        // collections whose store is only being built right now (#290).
+        indexStoreDropEpoch.incrementAndGet();
         indexStoreByCollection.keySet().removeIf(key -> key.startsWith(dbPrefix));
 
         long dropBoundary = changeStreamSequence.addAndGet(100);
@@ -10036,6 +10735,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         changeStreamHistory.removeIf(e -> {
             if (db.equals(e.db)) {
                 changeStreamHistorySize.decrementAndGet();
+                changeStreamHistoryBytes.addAndGet(-e.estimatedBytes);
                 return true;
             }
             return false;
@@ -10670,7 +11370,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (fieldName != null) {
                 Object expireVal = options.get("expireAfterSeconds");
                 int expireSeconds = (expireVal instanceof Number) ? ((Number) expireVal).intValue() : 0;
-                ttlInfo = new TtlIndexInfo(fieldName, expireSeconds);
+                Map<String, Object> ttlPartialFilter =
+                        (options.get("partialFilterExpression") instanceof Map
+                                && !((Map<String, Object>) options.get("partialFilterExpression")).isEmpty())
+                        ? (Map<String, Object>) options.get("partialFilterExpression") : null;
+                ttlInfo = new TtlIndexInfo(fieldName, expireSeconds, ttlPartialFilter);
                 collectionsWithTtlIndex.put(db + "." + collection, ttlInfo);
             }
         }

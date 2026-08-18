@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>de.caluga</groupId>
+    <artifactId>morphium-parent</artifactId>
+    <version>6.3.2</version>
+  </parent>
+
+  <artifactId>morphium-spring-boot-parent</artifactId>
+  <packaging>pom</packaging>
+
+  <name>Morphium Spring Boot – Parent</name>
+  <description>Spring Boot integration for Morphium MongoDB ODM with Jakarta Data repository support</description>
+  <url>https://github.com/Bardioc1977/spring-boot-morphium</url>
+
+  <licenses>
+    <license>
+      <name>The Apache Software License, Version 2.0</name>
+      <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+    </license>
+  </licenses>
+
+  <modules>
+    <module>morphium-spring-boot-autoconfigure</module>
+    <module>morphium-spring-boot-starter</module>
+    <module>morphium-spring-boot-test</module>
+  </modules>
+
+  <!-- groupId/version are inherited from morphium-parent (Lockstep-Versionierung,
+       siehe D1) — kein eigenes <version>-Element hier. -->
+
+  <!-- Die spring-boot.version-Property ist nach morphium-parent gewandert
+       (analog zum bestehenden quarkus.version-Muster, siehe morphium/pom.xml),
+       damit ein Spring-Boot-Upgrade eine Ein-Zeilen-Änderung im Parent wird.
+       Der spring-boot-dependencies-BOM-Import bleibt bewusst hier im Modul-POM
+       und darf NICHT nach morphium-parent wandern (siehe D3, Invariante I4,
+       analog zum Quarkus-BOM-Kommentar in morphium/quarkus-morphium/pom.xml):
+       sonst müsste jeder Kern-Build (morphium-core/poppydb) ~250+ Spring-Boot-
+       verwaltete Koordinaten auflösen, nur um dieses Parent-POM zu lesen. -->
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-dependencies</artifactId>
+        <version>${spring-boot.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+</project>

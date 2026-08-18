@@ -219,6 +219,20 @@ public class BsonDecoder {
                                         idx += 8;
                                         break;
 
+                                    case 0x13: {
+                                            //decimal128: low 64 bits little-endian first, then high (IEEE 754-2008 BID)
+                                            long decLow = readLong(in, idx);
+                                            long decHigh = readLong(in, idx + 8);
+                                            org.bson.types.Decimal128 dec = org.bson.types.Decimal128.fromIEEE754BIDEncoding(decHigh, decLow);
+                                            try {
+                                                value = dec.bigDecimalValue();
+                                            } catch (ArithmeticException e) {
+                                                value = dec;   //NaN/Infinity have no BigDecimal representation
+                                            }
+                                            idx += 16;
+                                            break;
+                                        }
+
                                     case (byte) 0xff:
                                             //min key
                                             value = new MongoMinKey();
@@ -226,8 +240,8 @@ public class BsonDecoder {
 
                                         case 0x7f:
                                                 //max key
-                                                //noinspection UnusedAssignment
                                                 value = new MongoMaxKey();
+                                                break;
 
                                             default:
                                                     throw new RuntimeException("unknown data type: " + in[idx]);

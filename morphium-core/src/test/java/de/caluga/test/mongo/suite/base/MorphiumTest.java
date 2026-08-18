@@ -15,6 +15,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 @Tag("core")
 public class MorphiumTest extends MultiDriverTestBase {
 
@@ -22,10 +26,10 @@ public class MorphiumTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void testListDatabases(Morphium morphium) throws Exception  {
         createUncachedObjects(morphium, 1);
-        Thread.sleep(10);
-        assert (morphium.listDatabases().size() != 0);
-        assert (morphium.listDatabases().contains(morphium.getConfig().connectionSettings().getDatabase()));
-        assert (morphium.listCollections().contains(morphium.getMapper().getCollectionName(UncachedObject.class)));
+        TestUtils.waitForConditionToBecomeTrue(5000, "Collection not listed",
+                () -> morphium.listCollections().contains(morphium.getMapper().getCollectionName(UncachedObject.class)));
+        assertFalse(morphium.listDatabases().isEmpty());
+        assertTrue(morphium.listDatabases().contains(morphium.getConfig().connectionSettings().getDatabase()));
     }
 
     @ParameterizedTest
@@ -126,33 +130,33 @@ public class MorphiumTest extends MultiDriverTestBase {
 
         UncachedObject uc = new UncachedObject("value", 12);
         morphium.store(uc);
-        Thread.sleep(500);
-        assert (preStore.get() == 1);
-        assert (postStore.get() == 1);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Store listeners not called",
+                () -> postStore.get() == 1);
+        assertEquals(1, preStore.get());
 
         morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).get();
-        assert (postLoad.get() == 1);
+        assertTrue((postLoad.get() == 1));
 
         postLoad.set(0);
         Thread.sleep(500);
         morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).asList();
-        assert (postLoad.get() == 2); //one for each element, one for the whole list - two listeners!
+        assertTrue((postLoad.get() == 2)); //one for each element, one for the whole list - two listeners!
 
         morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).delete();
-        assert (preRemove.get() == 1);
-        assert (postRemove.get() == 1);
+        assertTrue((preRemove.get() == 1));
+        assertTrue((postRemove.get() == 1));
 
 
         morphium.dropCollection(UncachedObject.class);
-        assert (preDrop.get() == 1);
-        assert (postDrop.get() == 1);
+        assertTrue((preDrop.get() == 1));
+        assertTrue((postDrop.get() == 1));
 
         morphium.removeListener(lst);
         preStore.set(0);
         uc = new UncachedObject("value", 12);
         morphium.store(uc);
         Thread.sleep(50);
-        assert (preStore.get() == 0);
+        assertTrue((preStore.get() == 0));
     }
 
 
@@ -161,11 +165,13 @@ public class MorphiumTest extends MultiDriverTestBase {
     public void testUnset(Morphium morphium) throws Exception  {
         UncachedObject uc = new UncachedObject("val", 123);
         morphium.store(uc);
-        Thread.sleep(50);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Object not stored",
+                () -> morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).countAll() == 1);
         morphium.unsetInEntity(uc, UncachedObject.Fields.strValue);
-        Thread.sleep(500);
-        morphium.reread(uc);
-        assert (uc.getStrValue() == null);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Unset not persisted", () -> {
+            morphium.reread(uc);
+            return uc.getStrValue() == null;
+        });
     }
 
     @ParameterizedTest
@@ -173,12 +179,14 @@ public class MorphiumTest extends MultiDriverTestBase {
     public void testSet(Morphium morphium) throws Exception  {
         UncachedObject uc = new UncachedObject("val", 123);
         morphium.store(uc);
-        Thread.sleep(50);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Object not stored",
+                () -> morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).countAll() == 1);
         morphium.setInEntity(uc, UncachedObject.Fields.strValue, "other");
-        assert (uc.getStrValue().equals("other"));
-        Thread.sleep(500);
-        morphium.reread(uc);
-        assert (uc.getStrValue().equals("other"));
+        assertTrue((uc.getStrValue().equals("other")));
+        TestUtils.waitForConditionToBecomeTrue(5000, "Set not persisted", () -> {
+            morphium.reread(uc);
+            return "other".equals(uc.getStrValue());
+        });
     }
 
 

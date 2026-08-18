@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("aggregation")
 public class LookupTests extends MultiDriverTestBase {
@@ -45,9 +46,9 @@ public class LookupTests extends MultiDriverTestBase {
             ;
 
             if (m.get("_id").equals(4)) {
-                assert(((List) m.get("inventory_docs")).size() == 0);
+                assertTrue((((List) m.get("inventory_docs")).size() == 0));
             } else {
-                assert(((List) m.get("inventory_docs")).size() == 1);
+                assertTrue((((List) m.get("inventory_docs")).size() == 1));
             }
         }
     }
@@ -88,11 +89,11 @@ public class LookupTests extends MultiDriverTestBase {
 
             if (m.get("_id").equals(1)) {
                 //should be two possible warehouses
-                assert(((List) m.get("stock_data")).size() == 2);
+                assertTrue((((List) m.get("stock_data")).size() == 2));
             } else if (m.get("_id").equals(5)) {
-                assert(((List) m.get("stock_data")).size() == 0);  //not available
+                assertTrue((((List) m.get("stock_data")).size() == 0)); //not available
             } else {
-                assert(((List) m.get("stock_data")).size() == 1);
+                assertTrue((((List) m.get("stock_data")).size() == 1));
             }
         }
 

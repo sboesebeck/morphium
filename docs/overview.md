@@ -72,5 +72,5 @@ Next steps
 
 Driver notes
 - Morphium uses its own wire‑protocol driver tailored to Morphium’s mapping.
-- Limitations: No MongoDB Atlas support.
+- MongoDB Atlas is supported via `mongodb+srv://` (DNS SRV/TXT resolution, TLS enabled automatically); see the [SSL/TLS guide](./ssl-tls.md#mongodb-atlas-example).
 

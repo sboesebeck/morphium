@@ -24,6 +24,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 
 import org.apache.commons.lang3.SystemUtils;
@@ -1197,10 +1198,18 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                           null, false, false, null, null, null);
             if (!running.get())
                 return; // this happens during tests mainly
-            cmd.execute();
+            Map<String, Object> ret = cmd.execute();
             cmd.releaseConnection();
             cmd = null;
+
+            // legacy null-field shape surfaces as a write error on mongod (#291)
+            if (ret.get("writeErrors") != null) {
+                LegacyProcessedByRepair.repairNullField(morphium, collName, queryId, processedByFieldName, id);
+            }
         } catch (MorphiumDriverException e) {
+            if (LegacyProcessedByRepair.repairNullField(morphium, collName, queryId, processedByFieldName, id)) {
+                return;
+            }
             log.error("Error persisting processed_by mark for answer " + msg.getMsgId(), e);
         } finally {
             if (cmd != null) {
@@ -1255,6 +1264,12 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     return;
                 }
                 if (!msg.getProcessedBy().contains(id)) {
+                    // Legacy/foreign document with an explicit processed_by: null - the
+                    // $addToSet was rejected by mongod as a write error (#291).
+                    if (LegacyProcessedByRepair.repairNullField(morphium, collName, queryId, processedByFieldName, id)) {
+                        msg.getProcessedBy().add(id);
+                        return;
+                    }
                     log.warn("{}: Could not update processed_by in msg {}", id, msg.getMsgId());
                 }
                 return;
@@ -1262,6 +1277,12 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
             msg.getProcessedBy().add(id);
         } catch (MorphiumDriverException e) {
+            // The InMemoryDriver surfaces the $addToSet-on-null rejection as an exception
+            // rather than a write error - same legacy-document case, same repair (#291).
+            if (LegacyProcessedByRepair.repairNullField(morphium, collName, queryId, processedByFieldName, id)) {
+                msg.getProcessedBy().add(id);
+                return;
+            }
             log.error("Error updating processed by - this might lead to duplicate execution!", e);
         } finally {
             if (cmd != null) {
@@ -1575,8 +1596,14 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             lockCollectionToTopic.put(getLockCollectionName(n), n);
             ensureSharedLockMonitor();
         }
-        monitorsByTopic.putIfAbsent(n, new ArrayList<>());
-        monitorsByTopic.get(n).add(Map.of(MType.monitor, cm, MType.listener, l));
+        monitorsByTopic.compute(n, (k, entries) -> {
+            if (entries == null) {
+                entries = new CopyOnWriteArrayList<>();
+            }
+
+            entries.add(Map.of(MType.monitor, cm, MType.listener, l));
+            return entries;
+        });
         return Map.of(MType.monitor, cm, MType.listener, l);
     }
 
@@ -1633,23 +1660,37 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
     @Override
     public void removeListenerForTopic(String topic, MessageListener l) {
-        int idx = -1;
-
-        for (var cm : monitorsByTopic.get(topic)) {
-            idx++;
-
-            if (cm.get(MType.listener) == l) {
-                break;
+        // The whole lookup-and-remove runs under the map's per-key lock: a concurrent
+        // registration must not add to a list that is about to be dropped as empty. The
+        // monitor is terminated afterwards - that is a network operation and has no business
+        // running inside a ConcurrentHashMap mapping function.
+        AtomicReference<Map<MType, Object>> removed = new AtomicReference<>();
+        AtomicBoolean topicDropped = new AtomicBoolean();
+        monitorsByTopic.computeIfPresent(topic, (k, entries) -> {
+            for (var entry : entries) {
+                if (entry.get(MType.listener) == l) {
+                    removed.set(entry);
+                    break;
+                }
             }
+
+            if (removed.get() != null) {
+                entries.remove(removed.get());
+            }
+
+            if (entries.isEmpty()) {
+                topicDropped.set(true);
+                return null;
+            }
+
+            return entries;
+        });
+
+        if (removed.get() != null) {
+            ((ChangeStreamMonitor) removed.get().get(MType.monitor)).terminate();
         }
 
-        if (idx >= 0) {
-            var entry = monitorsByTopic.get(topic).get(idx);
-            ((ChangeStreamMonitor) entry.get(MType.monitor)).terminate();
-            monitorsByTopic.get(topic).remove(idx);
-        }
-        if (monitorsByTopic.get(topic).isEmpty()) {
-            monitorsByTopic.remove(topic);
+        if (topicDropped.get()) {
             lockCollectionToTopic.remove(getLockCollectionName(topic));
         }
     }

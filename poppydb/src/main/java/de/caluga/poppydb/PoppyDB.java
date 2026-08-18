@@ -110,6 +110,10 @@ public class PoppyDB {
     private boolean electionEnabled = false;
     private ElectionConfig electionConfig = null;
     private ElectionManager electionManager = null;
+    // Set by the startup restore: false means this node came up with only part of its data
+    // (#306 review, P1-2). Kept as a field because the restore runs before the election manager
+    // exists, and applied to it as soon as it does.
+    private volatile boolean localDataComplete = true;
     private ElectionNetworkClient electionNetworkClient = null;
 
     // SSL configuration
@@ -142,6 +146,27 @@ public class PoppyDB {
     // volatile: mutated under synchronized on the election/leadership paths but read unsynchronized
     // from Netty event-loop threads via the isSecondarySyncing() supplier passed to each handler.
     private volatile ReplicationManager replicationManager = null;
+    // Durable carry-over watermark for ReplicationManager#carryOverLastAppliedSequence (2026-08-14
+    // review hardening). startReplicationToLeader() reads the predecessor RM's lastAppliedSequence
+    // into a purely LOCAL variable before building the replacement - which dies with the attempt
+    // if newReplicationManager.start() then throws (real, if narrow: an auth/TLS connect failure).
+    // replicationManager stays null in that case, so the retry chain's NEXT
+    // startReplicationToLeader() call would otherwise read 0 again, silently making the
+    // destructive-resync guard vacuous on the retry. This field persists that value across such
+    // retries independent of whether any particular attempt ever successfully starts - updated
+    // every time startReplicationToLeader() reads (and stops) a predecessor, so it always reflects
+    // the most recently known-good position. volatile: written only under the class monitor
+    // (synchronized methods), but read here defensively for the same reason replicationManager is.
+    private volatile long lastKnownAppliedSequence = 0;
+    // Companion to lastKnownAppliedSequence above (2026-08-14 production-CI fix, I-2): the
+    // "host:port" the watermark sequence was actually earned against - see
+    // ReplicationManager#carryOverLastAppliedSequence(long, String)'s javadoc for why comparing
+    // sequences across a genuine leader change is unsound (production incident: 82 refusal loops
+    // over 40+ minutes). Always updated TOGETHER with lastKnownAppliedSequence, from the same
+    // predecessor read, so the pair is never inconsistent with each other. null means "no
+    // predecessor ever recorded" (cold boot) - carryOverSourceFor()'s null result correctly never
+    // matches any real ReplicationManager#getLeaderAddress().
+    private volatile String lastKnownAppliedSequenceSource = null;
     // Held behind an AtomicReference (rather than a plain volatile field copied into each
     // connection at accept time) so every MongoCommandHandler resolves the coordinator live
     // via a Supplier - onLeadershipChange swaps this reference and every existing connection
@@ -194,12 +219,59 @@ public class PoppyDB {
         driver.setServerMode(true);
         // Size the change-event replay buffer for replication resume-after-disconnect: a reconnecting
         // secondary replays events after its last-applied sequence from this buffer instead of doing a
-        // full re-sync. Bound: 100_000 events (ring buffer, oldest evicted on overflow).
+        // full re-sync. Bounds: 100_000 events AND a byte budget (ring buffer, oldest evicted on
+        // overflow of either). The count limit alone does not bound memory - every buffered event
+        // retains its full document, so 100k bulk-write events pinned ~4GB on the ACC message bus
+        // (incident 2026-08-14, spec 2026-08-14-replay-buffer-byte-budget.md). Trade-off: heavy bulk
+        // writes shrink the resume window in wall-clock time, making a secondary re-sync more likely -
+        // deliberate (availability over resumability).
         driver.setChangeStreamHistoryLimit(REPLICATION_REPLAY_BUFFER_EVENTS);
+        driver.setChangeStreamHistoryByteBudget(REPLICATION_REPLAY_BUFFER_BYTES);
     }
 
     /** Primary replay-buffer bound (events) backing replication resume-after-disconnect. */
     static final int REPLICATION_REPLAY_BUFFER_EVENTS = 100_000;
+
+    /** Default replay-buffer byte budget (estimated bytes) - overridable via --replay-buffer. */
+    static final long REPLICATION_REPLAY_BUFFER_BYTES = 256L * 1024 * 1024;
+
+    /** Default event-queue byte budget (estimated bytes) - overridable via --event-queue-budget. */
+    static final long REPLICATION_EVENT_QUEUE_BYTES = 256L * 1024 * 1024;
+
+    // Effective event-queue byte budget, applied to every ReplicationManager this node creates
+    // when it (re-)becomes a secondary - the RM is replaced on every leader change, so the value
+    // must survive here rather than on any single RM instance.
+    private volatile long eventQueueByteBudget = REPLICATION_EVENT_QUEUE_BYTES;
+
+    /**
+     * Byte budget for a secondary's replication event queue (estimated bytes, 0 = off) - see
+     * ReplicationManager.setEventQueueByteBudget. Unlike the replay buffer's budget this never
+     * discards events (they are not applied yet - dropping one would be silent data loss);
+     * instead the change-stream reader blocks until the apply side frees budget, exactly like
+     * the queue's count capacity. Applied to the current ReplicationManager (if any) and to
+     * every one created later.
+     */
+    public void setEventQueueByteBudget(long bytes) {
+        if (bytes < 0) {
+            throw new IllegalArgumentException("eventQueueByteBudget must be >= 0 (0 = disabled)");
+        }
+
+        this.eventQueueByteBudget = bytes;
+        ReplicationManager rm = replicationManager;
+
+        if (rm != null) {
+            rm.setEventQueueByteBudget(bytes);
+        }
+    }
+
+    /**
+     * Replay-buffer byte budget (estimated bytes, 0 = off) - see
+     * InMemoryDriver.setChangeStreamHistoryByteBudget. Evicting for bytes has the same
+     * window-lost semantics as count overflow: an affected secondary re-syncs.
+     */
+    public void setReplayBufferByteBudget(long bytes) {
+        driver.setChangeStreamHistoryByteBudget(bytes);
+    }
 
     /**
      * Warn/reject memory watermarks in percent of max heap (100 disables a stage) - see
@@ -597,10 +669,26 @@ public class PoppyDB {
             primary = false;
             primaryHost = null;
 
+            // Raft requires currentTerm/votedFor to survive a restart - a node coming back at
+            // term 0 is what turned the ACC rolling upgrade into term churn (#306). A server
+            // that persists its data at all should persist this too, so default the state file
+            // next to the dump directory unless an operator configured a path explicitly.
+            if (dumpDirectory != null && electionConfig.getStatePersistencePath() == null) {
+                electionConfig.setStatePersistencePath(
+                        new File(dumpDirectory, "election-state.properties").getAbsolutePath());
+                electionConfig.setPersistState(true);
+                log.info("Election state persisted to {}", electionConfig.getStatePersistencePath());
+            }
+
             // Create election manager with priority-aware config
             electionManager = new ElectionManager(myAddress, hosts, electionConfig);
 
             // Set up leadership change callback
+            // A node that restored only part of its data must not win an election: restoring
+            // does not advance the change-stream sequence, so after a cluster-wide restart every
+            // node reports index 0 and the index-based restraint cannot separate an intact node
+            // from a gutted one. It would then overwrite the intact peers via their initial sync.
+            electionManager.setDataComplete(localDataComplete);
             electionManager.setOnLeadershipChange(this::onLeadershipChange);
             electionManager.setOnLeaderDiscovered(this::onLeaderDiscovered);
 
@@ -861,26 +949,90 @@ public class PoppyDB {
             return;
         }
 
-        if (replicationManager != null) {
-            replicationManager.stop();
+        // Carries the predecessor RM's real position into the replacement (2026-08-14
+        // empty-node-wipe fix): a fresh ReplicationManager's own lastAppliedSequence starts at 0,
+        // and its first watch registration would otherwise unconditionally seed it from whatever
+        // the NEW leader reports (recordPrimarySequenceAtRegistration's compareAndSet(0,
+        // primarySeq)) - making the destructive-resync guard in startInitialSyncOnce() vacuously
+        // pass every time on this path (see ReplicationManager#carryOverLastAppliedSequence's
+        // javadoc for the full "why"). Carrying it forward is what lets that guard also protect a
+        // leader change, not just a same-address reconnect - defense-in-depth alongside the
+        // election-layer empty-vs-data invariant (Tasks 1/2/4).
+        ReplicationManager oldReplicationManager = replicationManager;
+        if (oldReplicationManager != null) {
+            oldReplicationManager.stop();
             replicationManager = null;
         }
+        // carryOverSequenceFor()/carryOverSourceFor() are called AFTER stop() returns, not before
+        // (2026-08-14 review hardening - TOCTOU): stop() flushes the batch processor's last
+        // drained batch before returning, which can still advance lastAppliedSequence past
+        // whatever a pre-stop snapshot would have captured. The reference is still valid here -
+        // stop() does not invalidate it, only the `replicationManager` field assignment above
+        // does - so this reads the predecessor's definitive final position instead of a
+        // possibly-stale one.
+        long carriedLastAppliedSequence = carryOverSequenceFor(oldReplicationManager);
+        // Paired with the sequence above (2026-08-14 production-CI fix, I-2) - see
+        // ReplicationManager#carryOverLastAppliedSequence(long, String)'s javadoc: the sequence
+        // alone is meaningless without knowing WHICH primary it was earned against, since a
+        // leader change is the normal case that makes two RMs' sequence spaces incomparable.
+        String carriedSource = carryOverSourceFor(oldReplicationManager);
+
+        // Persist for a possible failed-start retry of THIS attempt (see lastKnownAppliedSequence's
+        // javadoc): must happen regardless of whether newReplicationManager.start() below ever
+        // succeeds - if it throws, replicationManager stays null and only these two fields (not
+        // the oldReplicationManager local, which dies with this method invocation) survive into
+        // the next startReplicationToLeader() call the retry chain makes. Always updated together.
+        lastKnownAppliedSequence = carriedLastAppliedSequence;
+        lastKnownAppliedSequenceSource = carriedSource;
 
         String leaderHost = parts[0];
         int leaderPort = Integer.parseInt(parts[1]);
 
         // Start replication from new leader
         ReplicationManager newReplicationManager = new ReplicationManager(driver, leaderHost, leaderPort);
+        newReplicationManager.setEventQueueByteBudget(eventQueueByteBudget);
+        newReplicationManager.carryOverLastAppliedSequence(carriedLastAppliedSequence, carriedSource);
         newReplicationManager.setInternalConnectionSecurity(
                 authRequired, rootUser, rootPassword, sslEnabled ? internalSslContext : null);
         newReplicationManager.setMyAddress(host + ":" + port);
+        // Follower-side half of the election log-recency feed (see ElectionManager#updateLogIndex's
+        // javadoc): keep our applied replication sequence flowing into ElectionManager so the
+        // vote-deny check has real data to compare against instead of a vacuous 0.
+        if (electionManager != null) {
+            newReplicationManager.setOnLogIndexUpdate((index, term) ->
+                    electionManager.updateLogIndex(index, electionManager.getCurrentTerm()));
+        }
+        // Release of the partial-restore candidacy guard (#306 P1-2 follow-up): the guard used
+        // to be lifted only in static-mode startReplication() (after its synchronous
+        // waitForInitialSync) - this path, the one election mode actually takes, never lifted
+        // it, so a partially-restored node stayed barred from candidacy FOREVER even after a
+        // complete authoritative sync; when the primary later died, the cluster stayed without
+        // one. The completion hook fires only once an initial sync has COMPLETED and its
+        // buffered backlog has drained (see ReplicationManager#maybeFireSyncCompleteNotify) -
+        // never on mere replication start, since a guard released early would be no guard at
+        // all. The callback is bound to THIS manager instance so a superseded manager firing
+        // late cannot release the guard on the strength of a stale sync.
+        newReplicationManager.setOnInitialSyncComplete(
+                () -> releaseDataCompleteAfterSync(newReplicationManager));
+        // Assigned BEFORE start() (#306 review round 2): the sync-complete notification is
+        // one-shot (maybeFireSyncCompleteNotify CASes the flag), and on a fast sync (e.g. the
+        // consistency shortcut against loopback) the batch tick can fire it before a
+        // post-start() assignment lands - releaseDataCompleteAfterSync then sees
+        // source != replicationManager, discards the release, and the flag is already
+        // consumed: the guard stays stuck until some unrelated resync. The static-mode path
+        // (startReplication) already assigns before start() for the same reason.
+        replicationManager = newReplicationManager;
         try {
             newReplicationManager.start();
-            replicationManager = newReplicationManager;
             primaryHost = leaderId;
             log.info("Started replication from new leader {}", leaderId);
             scheduleReplicationLivenessProbe(leaderId, newReplicationManager);
         } catch (Exception e) {
+            // Roll the early assignment back before the shared failure handler runs - a
+            // dead-but-non-null manager left in the field would trip the same-leader guard
+            // above and block every retry until the next leader change (see
+            // handleReplicationStartFailure's comment).
+            replicationManager = null;
             handleReplicationStartFailure(leaderId, newReplicationManager, e, delayOnFailureMs);
         }
     }
@@ -1324,6 +1476,17 @@ public class PoppyDB {
 
     public void setDumpDirectory(File dir) {
         this.dumpDirectory = dir;
+
+        // Ordering hazard (#306): configureReplicaSet() derives the election-state file path
+        // from the dump directory and bakes it into the ElectionManager's config. If the dump
+        // directory arrives only afterwards, term/votedFor persistence stays silently disabled
+        // - exactly what happened on the customer ACC environment. Make it loud.
+        if (dir != null && electionManager != null && electionConfig != null
+                && (!electionConfig.isPersistState() || electionConfig.getStatePersistencePath() == null)) {
+            log.warn("Dump directory was set AFTER configureReplicaSet() - election state "
+                     + "(currentTerm/votedFor) will NOT be persisted. Call setDumpDirectory() before "
+                     + "configureReplicaSet(), or set an explicit state persistence path in the ElectionConfig.");
+        }
     }
 
     public void setDumpIntervalMs(long intervalMs) {
@@ -1478,10 +1641,18 @@ public class PoppyDB {
             log.info("Starting replication from primary {}:{}", pHost, pPort);
 
             replicationManager = new ReplicationManager(driver, pHost, pPort);
+            replicationManager.setEventQueueByteBudget(eventQueueByteBudget);
             replicationManager.setInternalConnectionSecurity(
                     authRequired, rootUser, rootPassword, sslEnabled ? internalSslContext : null);
             // Set this secondary's address for progress reporting
             replicationManager.setMyAddress(host + ":" + port);
+            // Same completion hook as the election path (startReplicationToLeader): the
+            // partial-restore guard is released by actual sync COMPLETION, wherever and
+            // whenever that happens - including a sync that finishes only after the bounded
+            // wait below has given up (#306 review, P1-2). Instance-bound like there.
+            ReplicationManager staticModeManager = replicationManager;
+            staticModeManager.setOnInitialSyncComplete(
+                    () -> releaseDataCompleteAfterSync(staticModeManager));
             replicationManager.start();
 
             // Wait for initial sync (up to 30 seconds)
@@ -1542,23 +1713,89 @@ public class PoppyDB {
         return count;
     }
 
-    public int restoreFromDump() throws IOException {
+    /**
+     * Restore all databases from the configured dump directory. Broken dump files no longer
+     * abort the restore (#306): the driver skips them (logging each on ERROR with stack trace)
+     * and always emits a summary line. The returned result exposes restored/total so callers
+     * can tell a partial restore from success instead of treating any non-exception as "done".
+     */
+    public InMemoryDriver.DirectoryRestoreResult restoreFromDump() throws IOException {
         if (dumpDirectory == null) {
             throw new IOException("Dump directory not configured");
         }
-        try {
-            int count = driver.restoreAllFromDirectory(dumpDirectory);
-            log.info("Restored {} databases from {}", count, dumpDirectory.getAbsolutePath());
-            return count;
-        } catch (org.json.simple.parser.ParseException e) {
-            throw new IOException("Failed to parse dump file", e);
+
+        InMemoryDriver.DirectoryRestoreResult result = driver.restoreAllFromDirectoryResult(dumpDirectory);
+
+        // The partial-restore candidacy guard lives HERE, not only in PoppyDBCLI (#306 review
+        // round 2): an embedder following docs/poppydb.md (restore, check isComplete(),
+        // start()) never calls setLocalDataComplete(false) itself - after a cluster-wide
+        // restart the gutted embedded node then reports index 0 like everyone else, wins the
+        // election and overwrites the intact peers via their initial sync, the exact
+        // empty-node-wipe the guard exists to close. Only ever degrades: a complete restore
+        // must not re-set true here, that could lift a guard some other code path dropped.
+        if (!result.isComplete()) {
+            log.warn("Partial restore ({}/{} databases) - this node will not stand for election "
+                    + "until an authoritative sync has completed",
+                    result.getRestored(), result.getTotal());
+            setLocalDataComplete(false);
         }
+
+        return result;
     }
 
     // Status methods
 
     public boolean isRunning() {
         return running;
+    }
+
+    /**
+     * Records whether the startup restore produced a complete local dataset. A node that is
+     * missing databases stays out of candidacy (it still votes) until an authoritative sync
+     * completes - otherwise it can become primary after a cluster-wide restart and push its
+     * incomplete state onto the intact nodes.
+     */
+    public void setLocalDataComplete(boolean complete) {
+        this.localDataComplete = complete;
+
+        if (electionManager != null) {
+            electionManager.setDataComplete(complete);
+        }
+    }
+
+    /** Whether this node currently considers its local dataset complete (see {@link #setLocalDataComplete}). */
+    public boolean isLocalDataComplete() {
+        return localDataComplete;
+    }
+
+    /**
+     * ReplicationManager's initial-sync-completion hook (#306 review, P1-2): an authoritative
+     * copy from the primary has fully replaced whatever the local restore produced - snapshot
+     * AND the backlog buffered during it (the hook only fires once both are done, see
+     * {@code ReplicationManager#maybeFireSyncCompleteNotify}) - so a node held back for an
+     * incomplete restore may stand for election again. Idempotent - a resync completing later
+     * fires it again, harmlessly.
+     *
+     * <p>{@code source} is the manager the callback was registered on. A superseded manager
+     * must not release the guard (its sync ran against a primary that may no longer lead), so
+     * anything other than the CURRENT manager is ignored. Deliberately an unsynchronized
+     * volatile read, not the PoppyDB monitor: this runs on the manager's batch thread, and
+     * {@code stop()} - which waits on that very thread - is called under the monitor;
+     * taking it here could deadlock shutdown. The primary defense against a stale manager is
+     * its own running-flag gate in {@code maybeFireSyncCompleteNotify}; this check is the
+     * belt to that suspenders.
+     */
+    private void releaseDataCompleteAfterSync(ReplicationManager source) {
+        if (source != replicationManager) {
+            log.debug("Ignoring initial-sync completion from a superseded ReplicationManager");
+            return;
+        }
+
+        if (!localDataComplete) {
+            log.info("Initial sync completed (backlog drained) - local data is authoritative again, "
+                    + "this node may stand for election");
+            setLocalDataComplete(true);
+        }
     }
 
     public int getConnectionCount() {
@@ -1617,6 +1854,62 @@ public class PoppyDB {
     /** Test hook: the secondary-side replication manager (null on a node that is currently primary). */
     ReplicationManager getReplicationManagerForTest() {
         return replicationManager;
+    }
+
+    /**
+     * The sequence to carry into a replacement {@link ReplicationManager} being started in
+     * {@link #startReplicationToLeader(String, long)}: the (already-stopped, but still readable)
+     * predecessor's own final position if one was actually stopped this attempt, otherwise the
+     * durable {@link #lastKnownAppliedSequence} watermark left behind by a previous attempt -
+     * which is exactly what a failed-start retry (predecessor {@code null}, since
+     * {@code replicationManager} was already nulled and no live RM survived to hand a value
+     * forward) falls back to instead of silently losing the position and reading a vacuous 0.
+     *
+     * <p>Deliberately pure (reads but never writes {@link #lastKnownAppliedSequence} - the
+     * caller persists the result separately) and package-private: lets a test exercise the
+     * fallback decision in isolation - including the {@code predecessor == null} branch that in
+     * production only a failed {@code newReplicationManager.start()} retry ever reaches - without
+     * needing to force a real synchronous {@code start()} throw (which in this driver stack
+     * realistically requires an auth/TLS connect mismatch; disproportionate machinery for
+     * covering this one fallback decision - see {@code carryOverSequenceFallsBackToPersistedWatermarkWhenNoPredecessor}
+     * in {@code ReplicationFailClosedTest}).
+     */
+    long carryOverSequenceFor(ReplicationManager predecessor) {
+        return predecessor != null ? predecessor.getLastAppliedSequence() : lastKnownAppliedSequence;
+    }
+
+    /**
+     * Companion to {@link #carryOverSequenceFor(ReplicationManager)} (2026-08-14 production-CI
+     * fix, I-2): the {@code "host:port"} the sequence returned by that method was actually earned
+     * against - a live predecessor's own {@link ReplicationManager#getLeaderAddress()}, or the
+     * durable {@link #lastKnownAppliedSequenceSource} watermark on a failed-start retry, mirroring
+     * {@code carryOverSequenceFor}'s own fallback exactly (same {@code predecessor} parameter,
+     * same null-means-fallback shape) so the two are always read as a matched pair. Passed
+     * together into {@link ReplicationManager#carryOverLastAppliedSequence(long, String)}, whose
+     * javadoc explains why the sequence is meaningless without this.
+     */
+    String carryOverSourceFor(ReplicationManager predecessor) {
+        return predecessor != null ? predecessor.getLeaderAddress() : lastKnownAppliedSequenceSource;
+    }
+
+    /** Test hook: read the durable carry-over watermark (see {@link #lastKnownAppliedSequence}'s javadoc). */
+    long getLastKnownAppliedSequenceForTest() {
+        return lastKnownAppliedSequence;
+    }
+
+    /** Test hook: seed the durable carry-over watermark without going through a real replication attempt. */
+    void setLastKnownAppliedSequenceForTest(long sequence) {
+        lastKnownAppliedSequence = sequence;
+    }
+
+    /** Test hook: read the durable carry-over source watermark (see its field javadoc). */
+    String getLastKnownAppliedSequenceSourceForTest() {
+        return lastKnownAppliedSequenceSource;
+    }
+
+    /** Test hook: seed the durable carry-over source watermark without a real replication attempt. */
+    void setLastKnownAppliedSequenceSourceForTest(String source) {
+        lastKnownAppliedSequenceSource = source;
     }
 
     public ElectionManager getElectionManager() {

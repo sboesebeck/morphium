@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900" role="img" aria-labelledby="title desc">
+  <title id="title">Morphium and PoppyDB brand board</title>
+  <desc id="desc">A presentation of the related Morphium and PoppyDB logo system with icons and colors.</desc>
+  <rect width="1400" height="900" rx="36" fill="#F8FAFC"/>
+  <text x="90" y="100" fill="#667085" font-family="Inter, Avenir Next, Helvetica Neue, Arial, sans-serif" font-size="24" font-weight="700" letter-spacing="3">OPEN-SOURCE DATA INFRASTRUCTURE</text>
+
+  <g transform="translate(90 150)">
+    <g transform="translate(0 8)">
+      <path fill="#101828" d="M16 168V53c0-17 14-31 31-31 10 0 19 4 25 12l24 29 24-29c7-8 16-12 26-12 17 0 30 14 30 31v115h-32V61l-48 58-48-58v107H16Z"/>
+      <path fill="#6941C6" d="m40 121 23-28 33 40 33-40 23 28-56 68-56-68Z"/>
+      <path fill="#F04444" d="m96 133 13-16 13 16-13 16-13-16Z"/>
+    </g>
+    <text x="230" y="145" fill="#6941C6" font-family="Inter, Avenir Next, Helvetica Neue, Arial, sans-serif" font-size="112" font-weight="700" letter-spacing="-5">Morphium</text>
+    <text x="232" y="190" fill="#667085" font-family="Inter, Avenir Next, Helvetica Neue, Arial, sans-serif" font-size="25">Object mapping, without friction.</text>
+  </g>
+
+  <line x1="90" y1="440" x2="1310" y2="440" stroke="#E4E7EC" stroke-width="2"/>
+
+  <g transform="translate(90 500)">
+    <g>
+      <path fill="#F04444" d="M96 91C62 91 37 73 37 46c0-14 11-25 25-25 28 0 47 26 47 58v12H96Z"/>
+      <path fill="#F04444" d="M101 91c0-34 18-59 45-59 14 0 25 11 25 25 0 28-26 47-58 47h-12V91Z"/>
+      <path fill="#F04444" d="M101 101c34 0 59 18 59 45 0 14-11 25-25 25-28 0-47-26-47-58v-12h13Z"/>
+      <path fill="#F04444" d="M91 101c0 34-18 59-45 59-14 0-25-11-25-25 0-28 26-47 58-47h12v13Z"/>
+      <circle cx="96" cy="96" r="22" fill="#101828"/>
+      <circle cx="96" cy="96" r="7" fill="#F5A524"/>
+    </g>
+    <text x="230" y="140" fill="#6941C6" font-family="Inter, Avenir Next, Helvetica Neue, Arial, sans-serif" font-size="112" font-weight="700" letter-spacing="-5">Poppy</text>
+    <text x="590" y="140" fill="#101828" font-family="Inter, Avenir Next, Helvetica Neue, Arial, sans-serif" font-size="112" font-weight="800" letter-spacing="-5">DB</text>
+    <text x="232" y="185" fill="#667085" font-family="Inter, Avenir Next, Helvetica Neue, Arial, sans-serif" font-size="25">Small, resilient, and built to replicate.</text>
+  </g>
+
+  <g transform="translate(1015 735)">
+    <circle cx="18" cy="18" r="18" fill="#101828"/>
+    <circle cx="76" cy="18" r="18" fill="#6941C6"/>
+    <circle cx="134" cy="18" r="18" fill="#F04444"/>
+    <circle cx="192" cy="18" r="18" fill="#F5A524"/>
+    <text x="0" y="75" fill="#667085" font-family="Inter, Avenir Next, Helvetica Neue, Arial, sans-serif" font-size="18">Midnight · Violet · Poppy · Amber</text>
+  </g>
+</svg>

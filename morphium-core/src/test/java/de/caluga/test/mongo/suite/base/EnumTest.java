@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -37,10 +38,10 @@ public class EnumTest extends MultiDriverTestBase {
         Thread.sleep(150);
         ent = morphium.createQueryFor(EnumEntity.class).f("value").eq("ein Test").get();
         assertNotNull(ent.getTst(), "Enum is null!");
-        assert(ent.getTst().equals(TestEnum.TEST1)) : "Enum error!";
+        assertTrue((ent.getTst().equals(TestEnum.TEST1)), "Enum error!");
         ent = morphium.createQueryFor(EnumEntity.class).f("tst").eq(TestEnum.TEST1).get();
         assertNotNull(ent.getTst(), "Enum is null!");
-        assert(ent.getTst().equals(TestEnum.TEST1)) : "Enum error!";
+        assertTrue((ent.getTst().equals(TestEnum.TEST1)), "Enum error!");
     }
 
     @ParameterizedTest
@@ -59,14 +60,14 @@ public class EnumTest extends MultiDriverTestBase {
         Thread.sleep(150);
         EnumEntity ent2 = morphium.createQueryFor(EnumEntity.class).f("value").eq("ein Test").get();
         assertNotNull(ent2.getTst(), "Enum is null!");
-        assert(ent2.getTst().equals(TestEnum.TEST1)) : "Enum error!";
+        assertTrue((ent2.getTst().equals(TestEnum.TEST1)), "Enum error!");
         ent2 = morphium.createQueryFor(EnumEntity.class).f("tst").eq(TestEnum.TEST1).get();
         assertNotNull(ent2.getTst(), "Enum is null!");
-        assert(ent2.getTst().equals(TestEnum.TEST1)) : "Enum error!";
-        assert(ent2.getTstLst().size() == 3) : "Size of testlist wrong: " + ent2.getTstLst().size();
+        assertTrue((ent2.getTst().equals(TestEnum.TEST1)), "Enum error!");
+        assertTrue((ent2.getTstLst().size() == 3), String.valueOf("Size of testlist wrong: " + ent2.getTstLst().size()));
 
         for (int i = 0; i < ent2.getTstLst().size(); i++) {
-            assert(ent2.getTstLst().get(i).equals(ent.getTstLst().get(i))) : "Enums differ?!?!? " + ent.getTstLst().get(i).name() + "!=" + ent2.getTstLst().get(i).name();
+            assertTrue((ent2.getTstLst().get(i).equals(ent.getTstLst().get(i))), String.valueOf("Enums differ?!?!? " + ent.getTstLst().get(i).name() + "!=" + ent2.getTstLst().get(i).name()));
         }
     }
 

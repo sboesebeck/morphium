@@ -127,6 +127,13 @@ Before that reorder the return leg carried an extra majority-acked write, making
 expensive as the outbound leg (measured 2.0× → 1.0× after the fix, ~40% lower request/reply RTT
 on MongoDB).
 
+These floors are for the broadcast (non-exclusive) path. **Exclusive** request/reply — the
+profile production services actually use — additionally pays the lock/claim machinery per
+message, which is nearly free on PoppyDB (~+1 ms median) but costly on MongoDB (~+8 ms median,
+with p99 tails growing into the seconds at only 100 msg/s). Measured numbers for both backends
+and both paths: see [Performance Comparison](../v5-vs-v6-performance.md), section
+"Exclusive request/reply".
+
 ### Throughput ceiling and overload behavior — MongoDB
 
 Steady-state window (offered rate 175–225 msg/s, well past every implementation's knee):

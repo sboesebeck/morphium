@@ -206,7 +206,12 @@ public class MultiDriverTestBase {
         //
         if (includeInMem && allowed.contains(InMemoryDriver.driverName)) {
             MorphiumConfig inMemCfg = MorphiumConfig.fromProperties(base.asProperties());
-            inMemCfg.driverSettings().setDriverName(InMemoryDriver.driverName);
+            // The base config may have been loaded for an external driver, where sharing defaults
+            // to false. Tests commonly create additional Morphium instances from this config and
+            // expect them to behave like clients connected to the same database.
+            inMemCfg.driverSettings()
+                    .setDriverName(InMemoryDriver.driverName)
+                    .setInMemorySharedDatabases(true);
             inMemCfg.authSettings().setMongoAuthDb(null).setMongoLogin(null).setMongoPassword(null);
             inMemCfg.connectionSettings().setDatabase(baseDbPrefix + "_" + number.incrementAndGet());
             // Clear host seed for InMemoryDriver - it doesn't need external hosts

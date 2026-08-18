@@ -19,6 +19,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Created with IntelliJ IDEA.
@@ -72,7 +73,7 @@ public class PolymorphismTest extends MultiDriverTestBase {
         ;
 
         pc = morphium.getMapper().deserialize(PolyContainer.class, obj);
-        assert (pc.aSubClass instanceof SubClass);
+        assertTrue((pc.aSubClass instanceof SubClass));
 
         pc = new PolyContainer();
         pc.aLotOfSubClasses = new ArrayList<>();
@@ -83,12 +84,12 @@ public class PolymorphismTest extends MultiDriverTestBase {
         obj = morphium.getMapper().serialize(pc);
         assertNotNull(obj);
         ;
-        assert (((List) obj.get("a_lot_of_sub_classes")).size() == 3);
+        assertTrue((((List) obj.get("a_lot_of_sub_classes")).size() == 3));
 
         pc = morphium.getMapper().deserialize(PolyContainer.class, obj);
         assertNotNull(pc);
         ;
-        assert (pc.aLotOfSubClasses.size() == 3);
+        assertTrue((pc.aLotOfSubClasses.size() == 3));
 
         pc = new PolyContainer();
         pc.aMapOfSubClasses = new HashMap<>();

@@ -23,7 +23,7 @@ public class StatsTest extends MultiDriverTestBase {
         createUncachedObjects(morphium, 100);
         Thread.sleep(100);
         Map<String, Object> stats = morphium.getDbStats();
-        assert (!stats.isEmpty());
+        assertTrue((!stats.isEmpty()));
         for (String k : stats.keySet()) {
             log.info("Stat: " + k + "   : " + stats.get(k));
         }
@@ -35,7 +35,7 @@ public class StatsTest extends MultiDriverTestBase {
         createUncachedObjects(morphium, 100);
         Thread.sleep(100);
         Map<String, Object> stats = morphium.getCollStats(UncachedObject.class);
-        assert (!stats.isEmpty());
+        assertTrue((!stats.isEmpty()));
         for (String k : stats.keySet()) {
             log.info("Stat: " + k + "   : " + stats.get(k));
         }

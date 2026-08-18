@@ -52,6 +52,16 @@ class ConfigInspector {
         if (opts.maxBsonSizeBytes < 0) {
             errors.add("max-bson-size must be >= 0 (0 = off), got: " + opts.maxBsonSizeBytes);
         }
+        try {
+            opts.replayBufferBytes();
+        } catch (IllegalArgumentException e) {
+            errors.add(e.getMessage());
+        }
+        try {
+            opts.eventQueueBudgetBytes();
+        } catch (IllegalArgumentException e) {
+            errors.add(e.getMessage());
+        }
         if (opts.maxConnections < 1) {
             errors.add("max-connections must be >= 1, got: " + opts.maxConnections);
         }
@@ -171,6 +181,24 @@ class ConfigInspector {
         appendKey(sb, opts, "memory-warn", String.valueOf(opts.memoryWarnPct));
         appendKey(sb, opts, "memory-reject", String.valueOf(opts.memoryRejectPct));
         appendKey(sb, opts, "max-bson-size", String.valueOf(opts.maxBsonSizeBytes));
+        appendKey(sb, opts, "replay-buffer", opts.replayBuffer);
+
+        // Resolved value as a comment only - the rendered output must stay a loadable config
+        // file, so the key keeps its raw input form (a percentage resolves against max heap).
+        try {
+            sb.append("# replay-buffer resolved: ").append(opts.replayBufferBytes()).append(" bytes\n");
+        } catch (IllegalArgumentException e) {
+            // invalid value - validate() reports it, nothing to resolve here
+        }
+
+        appendKey(sb, opts, "event-queue-budget", opts.eventQueueBudget);
+
+        try {
+            sb.append("# event-queue-budget resolved: ").append(opts.eventQueueBudgetBytes()).append(" bytes\n");
+        } catch (IllegalArgumentException e) {
+            // invalid value - validate() reports it, nothing to resolve here
+        }
+
         appendKey(sb, opts, "compressor", opts.compressor.toLowerCase(Locale.ROOT));
         appendKey(sb, opts, "rs-name", opts.rsName);
         appendKey(sb, opts, "rs-seed", opts.rsSeed);

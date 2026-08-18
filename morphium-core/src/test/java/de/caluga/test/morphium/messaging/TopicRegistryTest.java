@@ -123,7 +123,7 @@ public class TopicRegistryTest extends MultiDriverTestBase {
                     sender.sendMessage(new Msg("listener-topic", "msg", "value"));
 
                     Thread.sleep(1000); // Wait for message processing
-                    assert (received.get());
+                    assertTrue((received.get()));
 
                     sender.terminate();
                     receiver.terminate();

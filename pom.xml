@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>de.caluga</groupId>
   <artifactId>morphium-parent</artifactId>
-  <version>6.3.1</version>
+  <version>6.3.2</version>
   <packaging>pom</packaging>
   <name>Morphium Parent</name>
   <url>http://caluga.de</url>
@@ -21,7 +21,7 @@
     <url>https://github.com/sboesebeck/morphium</url>
     <connection>scm:git:git://github.com/sboesebeck/morphium.git</connection>
     <developerConnection>scm:git:git@github.com:sboesebeck/morphium.git</developerConnection>
-    <tag>v6.3.1</tag>
+    <tag>v6.3.2</tag>
   </scm>
   <developers>
     <developer>
@@ -56,13 +56,14 @@
     "mvn install"                    -> builds core + PoppyDB + all extensions
     "mvn install -DskipExtensions"    -> builds only core + PoppyDB (no Docker,
                                           no Quarkus/Spring download needed).
-                                          Skips BOTH extension modules currently
+                                          Skips ALL extension modules currently
                                           in the "extensions" profile below:
-                                          morphium-jakarta-data AND quarkus-morphium,
-                                          not just quarkus-morphium. quarkus-morphium
-                                          depends on morphium-jakarta-data, so this
-                                          reactor could not build one without the
-                                          other even if it tried to.
+                                          morphium-jakarta-data, quarkus-morphium,
+                                          AND spring-boot-morphium. quarkus-morphium
+                                          and spring-boot-morphium both depend on
+                                          morphium-jakarta-data, so this reactor
+                                          could not build one without the others
+                                          even if it tried to.
   -->
   <modules>
     <module>morphium-core</module>
@@ -78,7 +79,10 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <mongodbDriver.version>4.11.5</mongodbDriver.version>
     <netty.version>4.2.9.Final</netty.version>
-    <!--  This is required for later correct replacement of argline -->
+    <!--  This is required for late-binding replacement of argline by agents like jacoco's prepare-agent.
+         Surefire's @{argLine} syntax (used in the surefire pluginManagement config) re-reads this
+         property at execution time, after prepare-agent has modified it, instead of interpolating
+         at model-build time when it would only see the empty value. -->
     <argLine />
     <!-- Heap cap for the forked test JVMs. Without it they size themselves ergonomically from
          the HOST's physical RAM (MaxRAMPercentage 25%), which is wrong wherever the JVM cannot
@@ -87,7 +91,7 @@
          OutOfMemoryError was ever thrown - the phases simply grew until the machine ran dry and
          the runner's memory watchdog killed everything mid-suite. A fixed cap also makes runs
          reproducible instead of quietly depending on how much RAM the developer's machine has.
-         Kept separate from ${argLine} so an agent that replaces that property (jacoco's
+         Kept separate from @{argLine} so an agent that replaces that property (jacoco's
          prepare-agent is the usual one) still composes with this.
          Why 2g and not less: the InMemoryDriver keeps whole databases on the heap AND guards
          itself with a watermark relative to that heap - at 1g, StorageSnapshotTest's concurrent
@@ -96,10 +100,13 @@
          2g leaves headroom. Override per run with -Dtest.maxHeap=-XmxNNN. -->
     <test.maxHeap>-Xmx2g</test.maxHeap>
     <!-- JUnit tag control (defaults)
-         external = needs a real MongoDB (enabled by -Pexternal)
-         manual   = process-killing / hardcoded-local tests, NEVER in CI -->
+         external  = needs a real MongoDB (enabled by -Pexternal)
+         manual    = process-killing / hardcoded-local tests, NEVER in CI
+         benchmark = timing-sensitive perf benchmarks (e.g. PerformanceBenchmarkTest), not part
+                     of the regular suite; run explicitly via -Dtest=(class name) or the
+                     "tags benchmark" runtests.sh option -->
     <test.includeTags />
-    <test.excludeTags>external,manual</test.excludeTags>
+    <test.excludeTags>external,manual,benchmark</test.excludeTags>
     <!-- Extension module property for morphium-jakarta-data.
          Deliberately only the version, no Quarkus/Spring BOM (see I4). -->
     <jakarta.data.version>1.0.0</jakarta.data.version>
@@ -110,6 +117,14 @@
          dependencyManagement comment below); only the version property is
          centralized. -->
     <quarkus.version>3.32.3</quarkus.version>
+    <!-- Extension module property for spring-boot-morphium (M5-T5, moved
+         here from spring-boot-morphium/pom.xml per D1/B6, analogous to the
+         quarkus.version pattern above): a Spring Boot upgrade is a
+         single-line change here. The spring-boot-dependencies BOM *import*
+         itself stays in spring-boot-morphium/pom.xml (see I4 and the
+         dependencyManagement comment below); only the version property is
+         centralized. -->
+    <spring-boot.version>3.4.13</spring-boot.version>
   </properties>
   <build>
     <pluginManagement>
@@ -119,7 +134,7 @@
           <artifactId>maven-surefire-plugin</artifactId>
           <version>3.0.0</version>
           <configuration>
-            <argLine>${argLine} ${test.maxHeap}</argLine>
+            <argLine>@{argLine} ${test.maxHeap}</argLine>
             <!-- JUnit 5 tag selection - use groups/excludedGroups for surefire -->
             <groups>${test.includeTags}</groups>
             <excludedGroups>${test.excludeTags}</excludedGroups>
@@ -203,6 +218,11 @@
             <preparationGoals>clean install -DskipTests</preparationGoals>
             <arguments>-Dmaven.javadoc.skip=false -DskipTests</arguments>
           </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.jacoco</groupId>
+          <artifactId>jacoco-maven-plugin</artifactId>
+          <version>0.8.12</version>
         </plugin>
       </plugins>
     </pluginManagement>
@@ -405,8 +425,8 @@
     <profile>
       <id>external</id>
       <properties>
-        <!-- enable external-tagged tests, but manual-only tests stay excluded -->
-        <test.excludeTags>manual</test.excludeTags>
+        <!-- enable external-tagged tests, but manual/benchmark tests stay excluded -->
+        <test.excludeTags>manual,benchmark</test.excludeTags>
       </properties>
       <build>
         <plugins>
@@ -440,6 +460,35 @@
         <morphium.driver>single</morphium.driver>
       </properties>
     </profile>
+    <profile>
+      <id>coverage</id>
+      <!-- Opt-in only: the agent costs measurable time and the CI phases are
+           load-sensitive. prepare-agent sets ${argLine}; surefire composes it
+           with ${test.maxHeap} (see the argLine property comment above). Inherited
+           reactor-wide: a root build with -Pcoverage also instruments the extension
+           modules (morphium-jakarta-data, quarkus-morphium); coverage reports are only
+           consumed for morphium-core and poppydb - use -pl or -DskipExtensions to avoid
+           the extra agent cost. -->
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.jacoco</groupId>
+            <artifactId>jacoco-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>prepare-agent</id>
+                <goals><goal>prepare-agent</goal></goals>
+              </execution>
+              <execution>
+                <id>report</id>
+                <phase>verify</phase>
+                <goals><goal>report</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
     <!-- Extension modules. Active by default; disable with
          "-DskipExtensions" for a core-only build without Quarkus/Spring
          download and without Docker. -->
@@ -453,6 +502,7 @@
       <modules>
         <module>morphium-jakarta-data</module>
         <module>quarkus-morphium</module>
+        <module>spring-boot-morphium</module>
       </modules>
     </profile>
   </profiles>

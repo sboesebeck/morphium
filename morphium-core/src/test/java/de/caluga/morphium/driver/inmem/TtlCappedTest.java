@@ -36,6 +36,31 @@ public class TtlCappedTest {
     }
 
     @Test
+    void ttlWithPartialFilterOnlyExpiresCoveredDocs() throws Exception {
+        // mongod's TTL monitor deletes only documents matching the index's
+        // partialFilterExpression - uncovered documents must survive their expiry time.
+        InMemoryDriver drv = freshDriver();
+        drv.setExpireCheck(100);
+        drv.createIndex(db, coll, Doc.of("expiresAt", 1),
+                Doc.of("name", "ttl_partial", "expireAfterSeconds", 0,
+                        "partialFilterExpression", Doc.of("status", "done")));
+
+        Date past = new Date(System.currentTimeMillis() - 5000);
+        new InsertMongoCommand(drv).setDb(db).setColl(coll)
+                .setDocuments(List.of(
+                        Doc.of("counter", 1, "status", "done", "expiresAt", past),
+                        Doc.of("counter", 2, "status", "open", "expiresAt", past)))
+                .execute();
+
+        TestUtils.waitForConditionToBecomeTrue(10_000, "covered TTL-expired document was never removed",
+                () -> drv.find(db, coll, Doc.of("counter", 1), null, null, 0, 0).isEmpty());
+        // Both entries were due in the same sweep pass - the covered one is gone, so the
+        // uncovered one's queue entry has been processed too and must have been skipped.
+        assertEquals(1, drv.find(db, coll, Doc.of("counter", 2), null, null, 0, 0).size(),
+                "a document outside the partial filter must not be TTL-deleted");
+    }
+
+    @Test
     void ttlDocExpiresWithinOneSweepAfterItsTime() throws Exception {
         InMemoryDriver drv = freshDriver();
         drv.setExpireCheck(100);

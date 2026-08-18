@@ -137,6 +137,15 @@ public class BsonEncoder {
             long lng = Double.doubleToLongBits((Double) v);
 
             writeLong(lng);
+        } else if (v instanceof java.math.BigDecimal || v instanceof org.bson.types.Decimal128) {
+            //decimal128: low 64 bits little-endian first, then high (IEEE 754-2008 BID)
+            org.bson.types.Decimal128 dec = v instanceof org.bson.types.Decimal128
+                    ? (org.bson.types.Decimal128) v
+                    : new org.bson.types.Decimal128((java.math.BigDecimal) v);
+            writeByte(0x13);
+            cString(n);
+            writeLong(dec.getLow());
+            writeLong(dec.getHigh());
         } else if (v instanceof String) {
 
             writeByte(2);

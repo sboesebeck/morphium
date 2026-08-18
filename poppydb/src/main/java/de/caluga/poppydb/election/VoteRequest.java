@@ -38,6 +38,35 @@ public class VoteRequest {
      */
     private int candidatePriority;
 
+    /**
+     * PreVote (Raft §4.2.3 / §9.6, #306): when true, this is NOT a real vote request but the
+     * question "would you grant me a vote if I started an election?". The sender has NOT
+     * incremented its term ({@code term} carries the sender's CURRENT term, not the term it
+     * would campaign at), and the receiver must not change any state (no term adoption, no
+     * votedFor, no election timer reset) when answering.
+     *
+     * <p>Wire/rolling-upgrade compatibility: this rides as an extra field on the existing
+     * {@code requestVote} command rather than a new command, and it carries the sender's
+     * CURRENT term precisely so that an OLD node which does not know the field treats it as an
+     * ordinary same-term vote request - which is non-disruptive (no term bump on the old node)
+     * and whose grant/deny answer approximates the PreVote answer (same log-recency, term and
+     * priority checks). A grant from an old node therefore counts toward the PreVote majority,
+     * so a new node in an old cluster is never blocked by peers that lack PreVote support.
+     */
+    private boolean preVote;
+
+    /**
+     * Sender-local correlation id (#306 P1-3): identifies the (Pre)Vote round this request was
+     * sent for, so the sender can discard responses that answer an EARLIER round instead of
+     * crediting them to the current one - in a three-node set, one late grant from an old
+     * PreVote round plus the self-vote is already a "majority" and triggers a real election
+     * with its term bump. Deliberately NOT serialized ({@link #toMap()}): the response travels
+     * back on the same code path that sent the request (ElectionNetworkClient holds the
+     * request object and hands it to {@code handleVoteResponse} together with the response),
+     * so correlation never needs to cross the wire and the protocol stays untouched.
+     */
+    private long roundId;
+
     public VoteRequest() {
     }
 
@@ -98,6 +127,25 @@ public class VoteRequest {
         return this;
     }
 
+    public boolean isPreVote() {
+        return preVote;
+    }
+
+    public VoteRequest setPreVote(boolean preVote) {
+        this.preVote = preVote;
+        return this;
+    }
+
+    /** Sender-local round correlation id - see the field's javadoc; never on the wire. */
+    public long getRoundId() {
+        return roundId;
+    }
+
+    public VoteRequest setRoundId(long roundId) {
+        this.roundId = roundId;
+        return this;
+    }
+
     /**
      * Convert to Map for wire protocol transmission.
      * Uses LinkedHashMap to ensure command name is first key (MongoDB wire protocol requirement).
@@ -110,6 +158,12 @@ public class VoteRequest {
         map.put("lastLogIndex", lastLogIndex);
         map.put("lastLogTerm", lastLogTerm);
         map.put("candidatePriority", candidatePriority);
+        if (preVote) {
+            // Only serialized when set - keeps real vote requests byte-identical to what old
+            // nodes send/expect; old receivers simply ignore the unknown key (see the field's
+            // javadoc for why that fallback is safe).
+            map.put("preVote", true);
+        }
         return map;
     }
 
@@ -128,6 +182,7 @@ public class VoteRequest {
         } else {
             req.setCandidatePriority(ElectionConfig.MAX_PRIORITY / 2);
         }
+        req.setPreVote(Boolean.TRUE.equals(map.get("preVote")));
         return req;
     }
 
@@ -139,6 +194,7 @@ public class VoteRequest {
                 ", lastLogIndex=" + lastLogIndex +
                 ", lastLogTerm=" + lastLogTerm +
                 ", candidatePriority=" + candidatePriority +
+                ", preVote=" + preVote +
                 '}';
     }
 }

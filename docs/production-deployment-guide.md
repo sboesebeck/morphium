@@ -60,10 +60,9 @@ cfg.authSettings().setMongoAdminPwd(System.getenv("MONGO_ADMIN_PWD"));
 
 **Network Security:**
 ```java
-// Note: Wire protocol driver has limitations
-// - No MongoDB Atlas support
-// - No SSL/TLS connections
-// Deploy in trusted network environments or use network-level encryption
+// SSL/TLS and MongoDB Atlas (mongodb+srv://) are supported since v6.0/v6.2 —
+// see docs/ssl-tls.md for setup, including the Atlas example.
+cfg.connectionSettings().setUseSSL(true);
 ```
 
 ### 3. Environment-Specific Configurations

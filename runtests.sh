@@ -14,7 +14,7 @@ LOGDIR="${MORPHIUM_TESTLOG:-test.log}"      # Override with env var for parallel
 # Multi-module layout: tests live in morphium-core
 TEST_MODULE="morphium-core"
 TEST_SRC="$TEST_MODULE/src/test/java"
-SUREFIRE_REPORTS="$TEST_MODULE/$SUREFIRE_REPORTS"
+SUREFIRE_REPORTS="$TEST_MODULE/${SUREFIRE_REPORTS:-target/surefire-reports}"
 
 cd $(dirname $0)
 # Ensure the temp directory exists
@@ -156,6 +156,104 @@ function quitting() {
 	fi
 }
 
+# Publish this run's results to the decoupled test-results store (opt-in via --publish-results).
+# Called from both the parallel and sequential end-of-run paths. Never fails the test run:
+# every error path below is swallowed (echo + return 0), on purpose.
+function publish_test_results() {
+	# phase identity: explicit --phase override wins, else derive from driver/backend
+	local phase="$PHASE_OVERRIDE"
+	if [ -z "$phase" ]; then
+		case "$driver" in
+		inmem)
+			phase="inmem"
+			;;
+		*)
+			if [ "$startPoppydbLocal" -eq 1 ]; then
+				if [ "$poppydbSingleNode" -eq 1 ]; then
+					phase="poppydb_single"
+				else
+					phase="poppydb_rs"
+				fi
+			else
+				# multi-host or replicaSet= URI means replica set
+				local effective_uri="${uri:-$MONGODB_URI}"
+				case "$effective_uri" in
+				*replicaSet=* | *,*)
+					phase="mongodb_rs"
+					;;
+				*)
+					phase="mongodb_single"
+					;;
+				esac
+			fi
+			;;
+		esac
+	fi
+
+	local publish_args=()
+	[ -n "$SCOPE_TAGS" ] && publish_args+=(--tags "$SCOPE_TAGS")
+	[ -n "$SCOPE_PATTERN" ] && publish_args+=(--test-pattern "$SCOPE_PATTERN")
+
+	# Resolve commit/branch. In a phase-orchestrator run this script itself lives
+	# in a symlink farm workdir (mirrors the repo but has no .git), so a plain
+	# "git rev-parse HEAD" here comes back empty - not a git error, since bash 3.2's
+	# `git` still finds *some* enclosing .git via cwd in the general case, but the
+	# workdir has none at all. Fall back to resolving the runtests.sh symlink's
+	# real path (python3 is already a hard dependency of this function, so no
+	# readlink -f needed) and asking the checkout it actually points into.
+	local commit branch script_repo
+	commit=$(git rev-parse HEAD 2>/dev/null || true)
+	if [ -z "$commit" ]; then
+		script_repo=$(python3 -c "import os,sys; print(os.path.dirname(os.path.realpath(sys.argv[1])))" "$0")
+		commit=$(git -C "$script_repo" rev-parse HEAD 2>/dev/null || true)
+		branch=$(git -C "$script_repo" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+	else
+		branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+	fi
+	if [ -z "$commit" ]; then
+		echo -e "${YL}Info:${CL} could not resolve a git commit (not a git checkout, even via symlink target) - skipping results publish"
+		return 0
+	fi
+	[ -z "$branch" ] && branch="unknown"
+
+	local record_json
+	record_json=$(python3 "$(dirname "$0")/scripts/test_results_record.py" \
+		--logdir "$LOGDIR" --phase "$phase" \
+		--runner "${RUNNER_LABEL:-$(hostname -s)}" \
+		--commit "$commit" \
+		--branch "$branch" \
+		--duration-s "$(($(date +%s) - TESTS_STARTED_AT))" \
+		"${publish_args[@]}")
+	local record_rc=$?
+
+	if [ "$record_rc" -eq 2 ]; then
+		echo -e "${YL}Info:${CL} no parsable test logs in $LOGDIR - skipping results publish"
+		return 0
+	elif [ "$record_rc" -ne 0 ]; then
+		echo -e "${RD}publishing test results failed (tests unaffected)${CL} - could not build record (exit $record_rc)"
+		return 0
+	fi
+
+	local publisher_args=()
+	if [ "${MORPHIUM_PUBLISH_DRYRUN:-0}" = "1" ]; then
+		publisher_args+=(--dry-run)
+	fi
+
+	local publish_rc=0
+	echo "$record_json" | "$(dirname "$0")/scripts/publishTestResults.sh" "${publisher_args[@]}" \
+		|| { echo -e "${RD}publishing test results failed (tests unaffected)${CL}"; publish_rc=1; }
+
+	# Living report: after a real (non-dry-run) successful publish, best-effort
+	# refresh the latest release's notes section + badges from the store.
+	# updateReleaseReport.sh has its own guards (missing/unauthenticated gh,
+	# no tag, store unreachable, ...) - "|| true" here just protects against
+	# it failing outright, it should never affect the test run's exit status.
+	if [ "$publish_rc" -eq 0 ] && [ "${MORPHIUM_PUBLISH_DRYRUN:-0}" != "1" ]; then
+		"$(dirname "$0")/scripts/updateReleaseReport.sh" || true
+	fi
+	return 0
+}
+
 source "$(dirname "$0")/scripts/stats.sh"
 
 # Aggregate per-slot logs into the shared "" directory so stats work after interruptions.
@@ -250,6 +348,9 @@ poppydbMaxConnections=""
 poppydbSocketTimeout=""
 testname=""    # Stores the class pattern from --test
 methodname="." # Stores the method pattern from --test (defaults to all methods)
+PUBLISH_RESULTS=0
+RUNNER_LABEL=""
+PHASE_OVERRIDE=""
 
 # Save original arguments for stats processing
 original_args=("$@")
@@ -292,6 +393,10 @@ while [ "q$1" != "q" ]; do
 		echo -e "${BL}--taillog$CL          - tails a specific log"
 		echo -e "${BL}--showfailed$CL       - let's you choose a log from failed test classes to view"
 		echo -e "${BL}--stats$CL         - show test statistics and failed tests (replaces getStats.sh)"
+		echo -e "${BL}--publish-results$CL      - publish this run's results to the test-results store"
+		echo -e "${BL}--runner-label$CL ${GN}NAME$CL - label identifying this runner in the published record (default: hostname)"
+		echo -e "${BL}--phase$CL ${GN}NAME$CL   - override the auto-detected phase name in the published record"
+		echo -e "                     ${YL}NOTE:${CL} set ${GN}MORPHIUM_PUBLISH_DRYRUN=1$CL to publish in --dry-run mode"
 		echo -e "if neither ${BL}--restart${CL} nor ${BL}--skip${CL} are set, you will be asked what to do"
 		echo
 		echo -e "${YL}Tag Examples:${CL}"
@@ -501,6 +606,17 @@ while [ "q$1" != "q" ]; do
 		fi
 		skip=1 # Implies skipping confirmation if --test is used
 		shift
+	elif [ "q$1" == "q--publish-results" ]; then
+		PUBLISH_RESULTS=1
+		shift
+	elif [ "q$1" == "q--runner-label" ]; then
+		shift
+		RUNNER_LABEL=$1
+		shift
+	elif [ "q$1" == "q--phase" ]; then
+		shift
+		PHASE_OVERRIDE=$1
+		shift
 	else
 		echo "Unknown option $1"
 		exit 1
@@ -512,6 +628,15 @@ done
 # Set defaults
 if [ -z "$parallel" ]; then
 	parallel=1
+fi
+
+# Capture the run's scope (tags/pattern) for the published test-results record, regardless
+# of the order --tags/--test/--rerunfailed were given on the command line.
+SCOPE_TAGS="$includeTags"
+if [ "$rerunfailed" -eq 1 ]; then
+	SCOPE_PATTERN="rerunfailed"
+else
+	SCOPE_PATTERN="$test_pattern"
 fi
 
 # Set default driver to inmem if none specified and no external mode
@@ -637,6 +762,18 @@ if [[ ! "$includeTags" == *"manual"* ]]; then
 		excludeTags="manual"
 	elif [[ ! "$excludeTags" == *"manual"* ]]; then
 		excludeTags="$excludeTags,manual"
+	fi
+fi
+
+# 'benchmark' tagged tests (timing-sensitive perf benchmarks, e.g. PerformanceBenchmarkTest) are
+# not part of the regular suite - same reasoning/mechanism as 'manual' above: the pom default
+# excludes them, but a self-built -Dtest.excludeTags overrides that default, so 'benchmark' has
+# to be re-added here too. Only an explicit --tags benchmark (plus --exclude-tags '') runs them.
+if [[ ! "$includeTags" == *"benchmark"* ]]; then
+	if [ -z "$excludeTags" ]; then
+		excludeTags="benchmark"
+	elif [[ ! "$excludeTags" == *"benchmark"* ]]; then
+		excludeTags="$excludeTags,benchmark"
 	fi
 fi
 
@@ -1031,6 +1168,7 @@ fi
 TEST_MVN_PROPS="$MVN_PROPS -Dmaven.compiler.skip=true"
 
 tst=0
+TESTS_STARTED_AT=$(date +%s) # Wall-clock start of this run, used for the published duration-s
 echo -e "${GN}Starting tests..${CL}" >"$TEST_TMP_DIR/failed.txt"
 # running getfailedTests in background
 {
@@ -1640,6 +1778,9 @@ function run_parallel_tests() {
 if [ $parallel -gt 1 ]; then
 	run_parallel_tests
 	parallelResult=$?
+	if [ "$PUBLISH_RESULTS" = "1" ]; then
+		publish_test_results
+	fi
 	# quitting() does the shared teardown (test databases, PoppyDB, temp dir) that the
 	# sequential branch reaches through its own exit paths - without it a parallel run
 	# leaves its /tmp/morphium-runtests-$PID directory behind on every invocation.
@@ -1892,11 +2033,17 @@ else
 	if [ -z "$unsuc" ] || [ "$unsuc" -eq 0 ]; then
 		echo -e "${GN}no errors recorded$CL"
 		rm -f "$TEST_TMP_DIR/failed.txt"
+		if [ "$PUBLISH_RESULTS" = "1" ]; then
+			publish_test_results
+		fi
 		quitting
 	else
 		# Copy failed.txt to $LOGDIR/ so it persists after cleanup
 		cp "$TEST_TMP_DIR/failed.txt" "$LOGDIR/failed.txt" 2>/dev/null
 		echo -e "${RD}There were errors$CL: fails $fail + errors $err = $unsuc - List of failed tests in $LOGDIR/failed.txt"
+		if [ "$PUBLISH_RESULTS" = "1" ]; then
+			publish_test_results
+		fi
 		quitting
 		exit 1
 	fi

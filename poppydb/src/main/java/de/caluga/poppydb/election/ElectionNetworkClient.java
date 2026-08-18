@@ -120,14 +120,17 @@ public class ElectionNetworkClient {
                 if (response != null) {
                     VoteResponse voteResponse = VoteResponse.fromMap(response);
                     voteResponse.setVoterId(peer);
-                    electionManager.handleVoteResponse(peer, voteResponse);
+                    // The request is handed back alongside the response (#306 P1-3): its
+                    // roundId/preVote let the ElectionManager credit the response to the round
+                    // it actually answers - and discard it if that round is already over.
+                    electionManager.handleVoteResponse(peer, request, voteResponse);
                 } else {
                     log.debug("Null response from {} for vote request", peer);
                 }
             } catch (Exception e) {
                 log.debug("Failed to send vote request to {}: {}", peer, e.getMessage());
                 // Treat as vote denied
-                electionManager.handleVoteResponse(peer, new VoteResponse(0, false, peer));
+                electionManager.handleVoteResponse(peer, request, new VoteResponse(0, false, peer));
             }
         });
     }

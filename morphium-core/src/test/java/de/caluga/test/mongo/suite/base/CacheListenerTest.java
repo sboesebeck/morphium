@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Created with IntelliJ IDEA.
@@ -60,7 +61,7 @@ public class CacheListenerTest extends MultiDriverTestBase {
         };
         try {
             morphium.getCache().addCacheListener(cl);
-            assert (morphium.getCache().isListenerRegistered(cl));
+            assertTrue((morphium.getCache().isListenerRegistered(cl)));
 
 
             super.createCachedObjects(morphium, 100);
@@ -70,13 +71,13 @@ public class CacheListenerTest extends MultiDriverTestBase {
             }
             TestUtils.waitForWrites(morphium, log);
             Thread.sleep(1000);
-            assert (wouldAdd);
+            assertTrue((wouldAdd));
 
             super.createCachedObjects(morphium, 10);
             TestUtils.waitForWrites(morphium, log);
             log.info("Waiting for would clear message");
             Thread.sleep(1500);
-            assert (wouldClear);
+            assertTrue((wouldClear));
         } finally {
             morphium.getCache().removeCacheListener(cl);
 

@@ -193,16 +193,23 @@ public class ElectionManagerTest {
         AtomicInteger deniedCount = new AtomicInteger(0);
         AtomicInteger grantedCount = new AtomicInteger(0);
 
-        // Fires (once per peer) inside becomeCandidate() -> requestVotes(): the node has
-        // started its own election. Capture the denial count and state as they were at that
-        // exact moment (the callback runs under the state lock, so state is stably CANDIDATE
-        // here) - asserting on live state afterwards would race the barrage-driven demotion.
+        // Fires (once per peer) as soon as the node starts its own election round. Since
+        // PreVote (#306), the FIRST outgoing vote request of a round is the PreVote probe,
+        // sent while still FOLLOWER (PreVote deliberately never leaves that state - the term
+        // increment and CANDIDATE transition only happen after a pre-granted majority). The
+        // invariant this test protects is unchanged: the node STARTS ITS OWN election round
+        // while denials are still arriving - the positive, latching signal is still the
+        // sendVoteRequest callback. Capture the denial count and the request as they were at
+        // that exact moment (the callback runs under the state lock) - asserting on live state
+        // afterwards would race the barrage-driven updates.
         CountDownLatch candidacyLatch = new CountDownLatch(1);
         AtomicInteger denialsAtCandidacy = new AtomicInteger(-1);
         AtomicReference<ElectionState> stateAtCandidacy = new AtomicReference<>();
+        AtomicReference<VoteRequest> firstOutgoingRequest = new AtomicReference<>();
         manager.setSendVoteRequest((peer, req) -> {
             denialsAtCandidacy.compareAndSet(-1, deniedCount.get());
             stateAtCandidacy.compareAndSet(null, manager.getState());
+            firstOutgoingRequest.compareAndSet(null, req);
             candidacyLatch.countDown();
         });
 
@@ -243,8 +250,14 @@ public class ElectionManagerTest {
 
         assertTrue(becameCandidate,
                 "Node should have started its own election despite continuous lower-priority vote requests");
-        assertEquals(ElectionState.CANDIDATE, stateAtCandidacy.get(),
-                "vote requests must have been sent from CANDIDATE state");
+        // Since PreVote (#306) an election round opens with a PreVote probe sent from FOLLOWER
+        // state - reaching CANDIDATE (and bumping the term) requires a pre-granted majority,
+        // which this test's silent peers never provide. The pre-#306 assertion (first request
+        // sent from CANDIDATE state) is therefore intentionally inverted.
+        assertEquals(ElectionState.FOLLOWER, stateAtCandidacy.get(),
+                "the opening PreVote probe must be sent from FOLLOWER state (no term bump before a pre-granted majority)");
+        assertTrue(firstOutgoingRequest.get().isPreVote(),
+                "the first outgoing request of an election round must be a PreVote probe");
         // Sanity: the barrage was actually in flight BEFORE candidacy - otherwise this test
         // would pass for the wrong reason (e.g. a broken sender thread, or denials so sparse
         // the timer was never contested). >= 3 leaves ample slack: at a 30ms cadence against a
@@ -404,21 +417,26 @@ public class ElectionManagerTest {
         ElectionManager manager = new ElectionManager("localhost:27017", hosts, config);
         managers.add(manager);
 
-        // Set our log state to be ahead
+        // Set our log state to reflect real (non-empty) replication progress.
         manager.updateLogIndex(10, 2);
 
         manager.start();
         Thread.sleep(50);
 
-        // Request from candidate with older log (lower term)
-        VoteRequest oldLogRequest = new VoteRequest(3, "localhost:27018", 5, 1);
-        VoteResponse response1 = manager.handleVoteRequest(oldLogRequest);
-        assertFalse(response1.isVoteGranted(), "Should deny vote to candidate with older log (lower term)");
+        // isLogAtLeastAsUpToDate is deliberately NOT a Raft term/index comparison (see its
+        // javadoc): replication sequences are primary-local and lastLogTerm is only a
+        // currentTerm stand-in, so term ordering across nodes isn't meaningful here. The one
+        // invariant it enforces: an empty candidate (index 0) must never win against a voter
+        // that holds data (index > 0) - a stale-but-non-empty candidate is intentionally NOT
+        // denied by this check (handled elsewhere: fail-closed resync + candidacy restraint).
+        VoteRequest emptyCandidateRequest = new VoteRequest(3, "localhost:27018", 0, 0);
+        VoteResponse response1 = manager.handleVoteRequest(emptyCandidateRequest);
+        assertFalse(response1.isVoteGranted(), "Should deny vote to an empty candidate (index 0) when we hold data");
 
-        // Request from candidate with up-to-date log
-        VoteRequest upToDateRequest = new VoteRequest(4, "localhost:27019", 10, 2);
-        VoteResponse response2 = manager.handleVoteRequest(upToDateRequest);
-        assertTrue(response2.isVoteGranted(), "Should grant vote to candidate with up-to-date log");
+        // Any non-zero index is granted, even if numerically behind our own index.
+        VoteRequest nonEmptyCandidateRequest = new VoteRequest(4, "localhost:27019", 5, 1);
+        VoteResponse response2 = manager.handleVoteRequest(nonEmptyCandidateRequest);
+        assertTrue(response2.isVoteGranted(), "Should grant vote to any non-empty candidate");
     }
 
     @Test

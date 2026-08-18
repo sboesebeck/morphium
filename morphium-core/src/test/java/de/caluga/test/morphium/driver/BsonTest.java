@@ -52,9 +52,39 @@ public class BsonTest extends BaseTest {
 
         BsonDecoder dec = new BsonDecoder();
         Map<String, Object> aDoc = dec.decodeDocument(bytes);
-        assert (aDoc.equals(doc));
+        assertTrue((aDoc.equals(doc)));
     }
 
+
+    @Test
+    public void decimal128RoundtripTest() throws Exception {
+        // Decimal128 (BSON type 0x13) is what mongodump/mongorestore ship for NumberDecimal
+        // values; the decoder used to throw "unknown data type: 19" on it.
+        Doc doc = Doc.of();
+        doc.put("saldo", new java.math.BigDecimal("1234.56"));
+        doc.put("neg", new java.math.BigDecimal("-0.000001"));
+        doc.put("big", new java.math.BigDecimal("9.999999999999999999999999999999999E+6144"));
+
+        byte[] bytes = BsonEncoder.encodeDocument(doc);
+        Map<String, Object> decoded = new BsonDecoder().decodeDocument(bytes);
+
+        assertEquals(0, ((java.math.BigDecimal) decoded.get("saldo")).compareTo(new java.math.BigDecimal("1234.56")));
+        assertEquals(0, ((java.math.BigDecimal) decoded.get("neg")).compareTo(new java.math.BigDecimal("-0.000001")));
+        assertEquals(0, ((java.math.BigDecimal) decoded.get("big"))
+                .compareTo(new java.math.BigDecimal("9.999999999999999999999999999999999E+6144")));
+    }
+
+    @Test
+    public void decimal128NaNSurvivesAsDecimal128Test() throws Exception {
+        // NaN/Infinity have no BigDecimal representation - they round-trip as Decimal128
+        Doc doc = Doc.of();
+        doc.put("nan", org.bson.types.Decimal128.NaN);
+
+        byte[] bytes = BsonEncoder.encodeDocument(doc);
+        Map<String, Object> decoded = new BsonDecoder().decodeDocument(bytes);
+
+        assertEquals(org.bson.types.Decimal128.NaN, decoded.get("nan"));
+    }
 
     @Test
     public void mongoIdTest() throws Exception {
@@ -65,7 +95,7 @@ public class BsonTest extends BaseTest {
                 log.info("Created " + i);
             }
             MorphiumId id = new MorphiumId();
-            assert (!lst.contains(id));
+            assertTrue((!lst.contains(id)));
             lst.add(id);
         }
         log.info("done");

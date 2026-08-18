@@ -8,15 +8,23 @@ set -eo pipefail
 # 1. Validates prerequisites (branch, credentials, GPG, Java)
 # 2. Runs tests (optional)
 # 3. Aligns POM versions if necessary; bumps README version snippets
-# 4. Prepares release (creates tag, bumps next SNAPSHOT via maven-release-plugin)
-# 5. Builds release artifacts for all modules
-# 6. Creates combined bundle (parent + all modules in MODULE_DIRS, see the
+# 4. Reports on the test-results store (scripts/test_report.py) - never
+#    blocks the release (badges live on the test-results store branch, kept
+#    current by scripts/updateReleaseReport.sh, not committed here)
+# 5. Prepares release (creates tag, bumps next SNAPSHOT via maven-release-plugin)
+# 6. Builds release artifacts for all modules
+# 7. Creates combined bundle (parent + all modules in MODULE_DIRS, see the
 #    "Module registry" section below)
-# 7. Signs & generates checksums for all artifacts
-# 8. Uploads bundle to Sonatype Central Portal
-# 9. Merges tag to master and pushes changes
-# 10. Deploys documentation to gh-pages (optional)
-# 11. Finalizes state and provides summary
+# 8. Signs & generates checksums for all artifacts
+# 9. Uploads bundle to Sonatype Central Portal
+# 10. Merges tag to master and pushes changes; attaches the test report to the
+#     GitHub release (best-effort, needs authenticated gh)
+# 11. Deploys documentation to gh-pages (optional)
+# 12. Finalizes state and provides summary
+#
+# Note: in-code step comments keep their original numbers (Step 1..11) with
+# 4b/9b suffixes for these two additions, to keep this diff minimal — the
+# list above is the narrative order, not a literal grep target.
 #
 # Note: Can skip to Step 8 (Upload) using --skip-to-upload if previous run failed, this can happen when
 # the Sonatype credentials are not correct
@@ -62,6 +70,11 @@ SKIP_TO_UPLOAD=false
 ROLLBACK=false
 RESET=false
 
+# Working dir for release-scoped scratch files (e.g. the test-results
+# report's markdown, read back later by the GitHub-release step). Created
+# unconditionally below and removed by the cleanup() trap on any exit path.
+RELEASE_TMP=""
+
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -106,7 +119,13 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   --help)
-    sed -n '4,44p' "$0" | sed 's/^# //' | sed 's/^#//'
+    # Print from line 4 through the header comment block's closing banner:
+    # the block runs as contiguous "#"-prefixed lines, terminated by the
+    # first truly blank line in the file (the one separating the header
+    # from "# Colors for output" below) - so this self-adjusts as the
+    # header comment grows/shrinks instead of rotting like a hardcoded
+    # end-line number (was '4,44p', silently undercounting after edits).
+    sed -n '4,/^$/p' "$0" | sed 's/^# //' | sed 's/^#//'
     exit 0
     ;;
   *)
@@ -136,9 +155,19 @@ done
 # (e.g. quarkus-morphium/integration-tests) should still list modules
 # explicitly here rather than glob-discovering directories, so such submodules
 # are simply never added to the arrays.
-MODULE_DIRS=(morphium-core poppydb morphium-jakarta-data quarkus-morphium/runtime quarkus-morphium/deployment quarkus-morphium/testing)
-MODULE_ARTIFACT_IDS=(morphium poppydb morphium-jakarta-data quarkus-morphium quarkus-morphium-deployment quarkus-morphium-testing)
-MODULE_EXTRA_CLASSIFIERS=("" "cli" "" "" "" "")
+MODULE_DIRS=(morphium-core poppydb morphium-jakarta-data quarkus-morphium/runtime quarkus-morphium/deployment quarkus-morphium/testing spring-boot-morphium/morphium-spring-boot-autoconfigure spring-boot-morphium/morphium-spring-boot-starter spring-boot-morphium/morphium-spring-boot-test)
+MODULE_ARTIFACT_IDS=(morphium poppydb morphium-jakarta-data quarkus-morphium quarkus-morphium-deployment quarkus-morphium-testing morphium-spring-boot-autoconfigure morphium-spring-boot-starter morphium-spring-boot-test)
+MODULE_EXTRA_CLASSIFIERS=("" "cli" "" "" "" "" "" "" "")
+
+# Extension-module READMEs that pin the reactor's current SNAPSHOT version and
+# therefore need bumping when develop moves on (see
+# bump_module_readme_snapshots). Deliberately its own list rather than derived
+# from MODULE_DIRS: a module README lives at the EXTENSION root, not in the
+# published submodule directory, so quarkus-morphium has a single README serving
+# its three published submodules and MODULE_DIRS would point at three paths that
+# hold no README at all. Adding a new extension module here is what keeps its
+# README from rotting.
+MODULE_README_FILES=(morphium-jakarta-data/README.md quarkus-morphium/README.md spring-boot-morphium/README.md)
 
 # All module pom.xml paths plus the root pom.xml, for git add/commit calls.
 # Note: MODULE_DIRS only lists directories that hold a *published* artifact
@@ -155,7 +184,7 @@ MODULE_EXTRA_CLASSIFIERS=("" "cli" "" "" "" "")
 # it is listed here, so any pom missing from this array would silently be
 # version-bumped by Maven but NOT staged by the `git add "${ALL_POM_FILES[@]}"`
 # calls below — leaving it out of sync with the commit.
-ALL_POM_FILES=(pom.xml quarkus-morphium/pom.xml quarkus-morphium/integration-tests/pom.xml)
+ALL_POM_FILES=(pom.xml quarkus-morphium/pom.xml quarkus-morphium/integration-tests/pom.xml spring-boot-morphium/pom.xml)
 for _module_dir in "${MODULE_DIRS[@]}"; do
   ALL_POM_FILES+=("${_module_dir}/pom.xml")
 done
@@ -281,6 +310,47 @@ bump_readme_versions() {
   fi
 }
 
+# Bump the reactor SNAPSHOT version pinned inside the extension modules' own
+# READMEs to <new_snapshot>. Separate from bump_readme_versions() because the
+# two rot in opposite directions: a top-level README quotes the last RELEASE,
+# since that is what a user copies into their own pom, while a module README
+# documents the version the module currently carries INSIDE the reactor, which
+# is always a SNAPSHOT. The release-version substitution therefore never matches
+# in a module README - which is how quarkus-morphium/README.md came to still say
+# 6.3.0-SNAPSHOT a release after it was written.
+#
+# Called on develop after release:prepare has moved the reactor to the next
+# SNAPSHOT, so the bump rides along with that same push instead of landing a
+# release later.
+#
+# Same restraint as bump_readme_versions: only the machine-readable spots, never
+# a blanket X.Y.Z-SNAPSHOT replace, so prose naming a historic snapshot on
+# purpose keeps saying what its author meant. A module README that wants to be
+# kept in sync has to use one of these three shapes.
+bump_module_readme_snapshots() {
+  local new_snapshot="$1"
+  local file bumped=""
+
+  for file in "${MODULE_README_FILES[@]}"; do
+    [ -f "$file" ] || continue
+    sed -i.relbak -E \
+      -e "s#<version>[0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT</version>#<version>${new_snapshot}</version>#g" \
+      -e "s#currently [0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT#currently ${new_snapshot}#g" \
+      -e "s#[|] Morphium [|] [0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT#| Morphium | ${new_snapshot}#g" \
+      "$file"
+    rm -f "${file}.relbak"
+    git diff --quiet -- "$file" || bumped="${bumped:+$bumped }$file"
+  done
+
+  if [ -n "$bumped" ]; then
+    git add $bumped
+    git commit -m "Update module README snapshot versions to ${new_snapshot}" -q
+    log_success "Module README snapshots bumped to ${new_snapshot} (${bumped})"
+  else
+    log_info "Module README snapshots already current - nothing to bump"
+  fi
+}
+
 # Copy, sign and checksum one module's artifacts into the bundle staging area.
 # Usage: add_module_to_bundle <module_dir> <artifact_id> <version> <bundle_dir> <extra_classifiers_csv> [allow_snapshot_fallback]
 #
@@ -389,10 +459,87 @@ upload_bundle() {
   fi
 }
 
+# Report on the decoupled test-results store (scripts/test_report.py, see
+# .superpowers/sdd/2026-08-13-test-results-store/) for HEAD: aggregates
+# whatever scope=complete records cover HEAD (or an allowlisted-diff ancestor
+# of it) per required phase (inmem/mongodb_rs/poppydb_rs/mongodb_single/
+# poppydb_single). This is a REPORT, not a gate - "Transparenz statt
+# Türsteher": it never aborts the release. Exit codes from test_report.py:
+# 0 = all required phases complete and green, 1 = gaps or broken tests (the
+# release notes will carry the honest table, including the gaps), 3 = infra
+# error (store unreachable) - in that case there is nothing to report. The
+# markdown already carries the marker-wrapped section (test_report.py); it is
+# written to $RELEASE_TMP/test-report.md for publish_github_release_notes()
+# below. Badges are no longer produced/committed here - they live on the
+# test-results store branch and are kept current by
+# scripts/updateReleaseReport.sh, called after every runtests.sh publish.
+run_test_results_report() {
+  log_step "Checking test-results store for HEAD"
+
+  local report_file="$RELEASE_TMP/test-report.md"
+  local report_status=0
+  python3 scripts/test_report.py \
+    --target-commit "$(git rev-parse HEAD)" \
+    --markdown-out "$report_file" || report_status=$?
+
+  if [ "$report_status" -eq 3 ]; then
+    log_warn "Test-results store unreachable - skipping test report"
+    return 0
+  elif [ "$report_status" -ne 0 ]; then
+    log_warn "Test matrix incomplete or broken - release continues, the release notes will say so"
+  else
+    log_success "Test matrix complete and green"
+  fi
+}
+
+# Attach the test-results report to the GitHub release for $tag: create the
+# release if it doesn't exist yet, otherwise append the report to whatever
+# notes are already there (release:perform / prior manual edits). Entirely
+# best-effort - a missing/unauthenticated gh CLI, or gh itself failing, is
+# logged as a warning and must never fail the release at this point (upload +
+# git merge to master already happened).
+publish_github_release_notes() {
+  if ! command -v gh &>/dev/null; then
+    log_warn "gh CLI not found - skipping GitHub release notes"
+    return 0
+  fi
+  if ! gh auth status &>/dev/null; then
+    log_warn "gh CLI not authenticated - skipping GitHub release notes"
+    return 0
+  fi
+
+  local report_file="$RELEASE_TMP/test-report.md"
+  if [ ! -f "$report_file" ]; then
+    log_warn "No test-results report available - skipping GitHub release notes"
+    return 0
+  fi
+
+  if gh release view "$tag" >/dev/null 2>&1; then
+    local body
+    if ! body=$(gh release view "$tag" --json body -q .body); then
+      log_warn "Failed to read existing GitHub release body for $tag - skipping GitHub release notes"
+      return 0
+    fi
+    if ! printf '%s\n\n%s\n' "$body" "$(cat "$report_file")" | gh release edit "$tag" --notes-file -; then
+      log_warn "Failed to update GitHub release notes for $tag"
+      return 0
+    fi
+  else
+    if ! gh release create "$tag" --title "Morphium $tag" --notes-file "$report_file"; then
+      log_warn "Failed to create GitHub release $tag"
+      return 0
+    fi
+  fi
+  log_success "Test report attached to GitHub release $tag"
+}
+
 cleanup() {
   local exit_code=$?
   if [ -n "$BUNDLE_DIR" ] && [ -d "$BUNDLE_DIR" ]; then
     rm -rf "$BUNDLE_DIR"
+  fi
+  if [ -n "$RELEASE_TMP" ] && [ -d "$RELEASE_TMP" ]; then
+    rm -rf "$RELEASE_TMP"
   fi
   # Always return to the original branch on exit
   if [ -n "$ORIGINAL_BRANCH" ]; then
@@ -414,6 +561,10 @@ trap cleanup EXIT
 
 # Record starting branch early so cleanup trap can return here on any error
 ORIGINAL_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+
+# Scratch dir for this run (test-results report markdown, read back by the
+# GitHub-release step); cleaned up by the cleanup() trap above.
+RELEASE_TMP=$(mktemp -d)
 
 # -----------------------------------------------------------------------------
 # Rollback handler
@@ -813,7 +964,7 @@ module_list=""
 for module_dir in "${MODULE_DIRS[@]}"; do
   module_list="${module_list:+$module_list, }$module_dir"
 done
-log_success "Multi-module structure: morphium-parent, quarkus-morphium-parent, ${module_list}"
+log_success "Multi-module structure: morphium-parent, quarkus-morphium-parent, morphium-spring-boot-parent, ${module_list}"
 fi
 
 # -----------------------------------------------------------------------------
@@ -872,6 +1023,13 @@ if [ "$DRY_RUN" = true ]; then
   sign_file "${quarkus_parent_repo}/quarkus-morphium-parent-${version}.pom"
   checksum_file "${quarkus_parent_repo}/quarkus-morphium-parent-${version}.pom"
 
+  log_info "Adding morphium-spring-boot-parent..."
+  spring_parent_repo="${BUNDLE_DIR}/de/caluga/morphium-spring-boot-parent/${version}"
+  mkdir -p "$spring_parent_repo"
+  cp spring-boot-morphium/pom.xml "${spring_parent_repo}/morphium-spring-boot-parent-${version}.pom"
+  sign_file "${spring_parent_repo}/morphium-spring-boot-parent-${version}.pom"
+  checksum_file "${spring_parent_repo}/morphium-spring-boot-parent-${version}.pom"
+
   for i in "${!MODULE_DIRS[@]}"; do
     add_module_to_bundle \
       "${MODULE_DIRS[$i]}" \
@@ -888,7 +1046,7 @@ if [ "$DRY_RUN" = true ]; then
   log_step "Dry run complete"
   echo ""
   echo "Would release version: $release_version"
-  echo "  Modules: morphium-parent, quarkus-morphium-parent, ${MODULE_ARTIFACT_IDS[*]}"
+  echo "  Modules: morphium-parent, quarkus-morphium-parent, morphium-spring-boot-parent, ${MODULE_ARTIFACT_IDS[*]}"
   echo "  From branch: $branch"
   echo ""
   echo "Bundle contents:"
@@ -911,7 +1069,7 @@ if [ "$SKIP_TO_UPLOAD" != true ]; then
   echo "  Last release: $last_tag"
   echo "  Release version: $release_version (--${BUMP_TYPE})"
   echo "  Next development: $next_snapshot"
-  echo "  Modules: morphium-parent, quarkus-morphium-parent, ${MODULE_ARTIFACT_IDS[*]}"
+  echo "  Modules: morphium-parent, quarkus-morphium-parent, morphium-spring-boot-parent, ${MODULE_ARTIFACT_IDS[*]}"
   echo "  Branch: $branch"
   echo "  Auto-publish: $AUTO_PUBLISH"
   echo ""
@@ -920,6 +1078,19 @@ if [ "$SKIP_TO_UPLOAD" != true ]; then
     echo "Release cancelled"
     exit 0
   fi
+fi
+
+# -----------------------------------------------------------------------------
+# Step 4b: Test-results report
+# -----------------------------------------------------------------------------
+# Reports on the decoupled test-results store instead of the old opt-in
+# `--run-tests` (mvn clean test locally, never covering the real
+# inmem/mongodb_rs/poppydb_rs/mongodb_single/poppydb_single matrix). Runs
+# unconditionally in the default path now; it never blocks the release -
+# gaps and broken phases just get reported honestly in the release notes.
+
+if [ "$SKIP_TO_UPLOAD" != true ]; then
+  run_test_results_report
 fi
 
 # -----------------------------------------------------------------------------
@@ -1023,6 +1194,16 @@ if [ "$SKIP_TO_UPLOAD" != true ]; then
   sign_file "${quarkus_parent_repo}/quarkus-morphium-parent-${version}.pom"
   checksum_file "${quarkus_parent_repo}/quarkus-morphium-parent-${version}.pom"
 
+  # --- morphium-spring-boot-parent (POM-only, same special case as
+  # morphium-parent/quarkus-morphium-parent above) ---
+  log_info "Adding morphium-spring-boot-parent..."
+  spring_parent_repo="${BUNDLE_DIR}/de/caluga/morphium-spring-boot-parent/${version}"
+  mkdir -p "$spring_parent_repo"
+
+  cp spring-boot-morphium/pom.xml "${spring_parent_repo}/morphium-spring-boot-parent-${version}.pom"
+  sign_file "${spring_parent_repo}/morphium-spring-boot-parent-${version}.pom"
+  checksum_file "${spring_parent_repo}/morphium-spring-boot-parent-${version}.pom"
+
   # --- one block per registered module (see MODULE_DIRS/MODULE_ARTIFACT_IDS
   # /MODULE_EXTRA_CLASSIFIERS above); analogous to the former morphium/poppydb
   # copy-paste blocks, now driven by add_module_to_bundle() so a future module
@@ -1055,7 +1236,7 @@ if [ "$SKIP_TO_UPLOAD" != true ]; then
   (cd "$BUNDLE_DIR" && zip -q -r "$(pwd)/../bundle-${version}.jar" de/)
 
   log_success "Combined bundle: $bundle_file ($(du -h "$bundle_file" | cut -f1))"
-  log_info "  Contents: morphium-parent (pom), quarkus-morphium-parent (pom), ${MODULE_ARTIFACT_IDS[*]} (jar+sources+javadoc, plus extra classifiers where applicable)"
+  log_info "  Contents: morphium-parent (pom), quarkus-morphium-parent (pom), morphium-spring-boot-parent (pom), ${MODULE_ARTIFACT_IDS[*]} (jar+sources+javadoc, plus extra classifiers where applicable)"
 fi
 
 # -----------------------------------------------------------------------------
@@ -1113,6 +1294,7 @@ log_success "Merged to master"
 
 # Push develop (release:prepare already committed the next SNAPSHOT there)
 git checkout develop
+bump_module_readme_snapshots "$next_snapshot"
 git push origin develop || true
 
 # Return to original branch
@@ -1130,6 +1312,12 @@ rm -f release.properties pom.xml.releaseBackup 2>/dev/null || true
 for _module_dir in "${MODULE_DIRS[@]}"; do
   rm -f "${_module_dir}/pom.xml.releaseBackup" 2>/dev/null || true
 done
+
+# -----------------------------------------------------------------------------
+# Step 9b: Publish test report to the GitHub release
+# -----------------------------------------------------------------------------
+
+publish_github_release_notes
 
 # -----------------------------------------------------------------------------
 # Step 10: Deploy documentation (optional)

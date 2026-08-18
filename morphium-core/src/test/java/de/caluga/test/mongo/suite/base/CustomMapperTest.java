@@ -165,9 +165,9 @@ public class CustomMapperTest extends MultiDriverTestBase {
         Object marshalled = m.marshall(g);
         Geo res = m.unmarshall(marshalled);
         assertNotNull(res.getType());;
-        assert(res.getType().equals(GeoType.POINT));
-        assert(((List) res.getCoordinates()).get(0).equals(12.0));
-        assert(((List) res.getCoordinates()).get(1).equals(13.0));
+        assertTrue((res.getType().equals(GeoType.POINT)));
+        assertTrue((((List) res.getCoordinates()).get(0).equals(12.0)));
+        assertTrue((((List) res.getCoordinates()).get(1).equals(13.0)));
     }
 
     @ParameterizedTest
@@ -187,15 +187,15 @@ public class CustomMapperTest extends MultiDriverTestBase {
         assertNotNull(readContainingObject.getCustomMappedObject(), "Custom mapped object null?");
         assertNotNull(readContainingObject.getCustomMappedObjectList(), "List of custom mapped object null?");
         assertNotNull(readContainingObject.getCustomMappedObjectMap(), "Map with custom mapped object null?");
-        assert(readContainingObject.getCustomMappedObjectList().size() == 2) : "List of custom mapped objects has wrong size? size is " + readContainingObject.getCustomMappedObjectList().size();
-        assert(readContainingObject.getCustomMappedObjectMap().size() == 2) : "Map with custom mapped objects as value has wrong size?";
-        assert(readContainingObject.getCustomMappedObject().equals(containingObject.getCustomMappedObject())) : "Single custom mapped objects differ?";
+        assertTrue((readContainingObject.getCustomMappedObjectList().size() == 2), () -> String.valueOf("List of custom mapped objects has wrong size? size is " + readContainingObject.getCustomMappedObjectList().size()));
+        assertTrue((readContainingObject.getCustomMappedObjectMap().size() == 2), "Map with custom mapped objects as value has wrong size?");
+        assertTrue((readContainingObject.getCustomMappedObject().equals(containingObject.getCustomMappedObject())), "Single custom mapped objects differ?");
 
         for (int i = 0; i < 2; i++) {
             CustomMappedObject referenceObject = containingObject.getCustomMappedObjectList().get(i);
             assertNotNull(readContainingObject.getCustomMappedObjectList().get(i), "Custom mapped object in list missing? - " + i);
-            assert(readContainingObject.getCustomMappedObjectList().get(i).equals(referenceObject)) : "Custom mapped objects in list differ? - " + i;
-            assert(readContainingObject.getCustomMappedObjectMap().get(referenceObject.getName()).equals(map.get(referenceObject.getName()))) : "Custom mapped objects in map differ? - " + i;
+            assertTrue((readContainingObject.getCustomMappedObjectList().get(i).equals(referenceObject)), String.valueOf("Custom mapped objects in list differ? - " + i));
+            assertTrue((readContainingObject.getCustomMappedObjectMap().get(referenceObject.getName()).equals(map.get(referenceObject.getName()))), String.valueOf("Custom mapped objects in map differ? - " + i));
         }
 
         morphium.getMapper().deregisterCustomMapperFor(CustomMappedObject.class);
@@ -293,14 +293,14 @@ public class CustomMapperTest extends MultiDriverTestBase {
         assertNotNull(readContainingObject.getComplexMap(), "Complex map object null?");
         assertNotNull(readContainingObject.getComplexestList(), "Complexest list object null?");
         assertNotNull(readContainingObject.getComplexestMap(), "Complexest map object null?");
-        assert(readContainingObject.getComplexList().size() == 1) : "Complex list has wrong size?";
-        assert(readContainingObject.getComplexMap().size() == 1) : "Complex map has wrong size?";
-        assert(readContainingObject.getComplexestList().size() == 1) : "Complexest list has wrong size?";
-        assert(readContainingObject.getComplexestMap().size() == 1) : "Complexest map has wrong size?";
-        assert(readContainingObject.getComplexList().equals(complexList)) : "Complex lists differ?";
-        assert(readContainingObject.getComplexMap().equals(complexMap)) : "Complex maps differ?";
-        assert(readContainingObject.getComplexestList().equals(complexestList)) : "Complexest lists differ?";
-        assert(readContainingObject.getComplexestMap().equals(complexestMap)) : "Complexest maps differ?";
+        assertTrue((readContainingObject.getComplexList().size() == 1), "Complex list has wrong size?");
+        assertTrue((readContainingObject.getComplexMap().size() == 1), "Complex map has wrong size?");
+        assertTrue((readContainingObject.getComplexestList().size() == 1), "Complexest list has wrong size?");
+        assertTrue((readContainingObject.getComplexestMap().size() == 1), "Complexest map has wrong size?");
+        assertTrue((readContainingObject.getComplexList().equals(complexList)), "Complex lists differ?");
+        assertTrue((readContainingObject.getComplexMap().equals(complexMap)), "Complex maps differ?");
+        assertTrue((readContainingObject.getComplexestList().equals(complexestList)), "Complexest lists differ?");
+        assertTrue((readContainingObject.getComplexestMap().equals(complexestMap)), "Complexest maps differ?");
         morphium.getMapper().deregisterCustomMapperFor(CustomMappedObject.class);
     }
 

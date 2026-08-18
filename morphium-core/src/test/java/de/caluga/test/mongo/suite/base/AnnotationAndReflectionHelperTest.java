@@ -98,7 +98,7 @@ public class AnnotationAndReflectionHelperTest {
     @Test
     public void convertCamelCaseTest() {
         String n = helper.convertCamelCase("thisIsATestTT");
-        assert (n.equals("this_is_a_test_t_t"));
+        assertTrue((n.equals("this_is_a_test_t_t")));
 
     }
 

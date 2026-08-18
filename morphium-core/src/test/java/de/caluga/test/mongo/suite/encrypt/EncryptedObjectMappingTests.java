@@ -17,6 +17,7 @@ import java.util.Map;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("encryption")
 public class EncryptedObjectMappingTests extends MultiDriverTestBase {
@@ -43,13 +44,13 @@ public class EncryptedObjectMappingTests extends MultiDriverTestBase {
         ent.sub.name = "name of the document";
 
         Map<String, Object> serialized = om.serialize(ent);
-        assert (!ent.enc.equals(serialized.get("enc")));
+        assertTrue((!ent.enc.equals(serialized.get("enc"))));
 
         EncryptedEntity deserialized = om.deserialize(EncryptedEntity.class, serialized);
-        assert (deserialized.enc.equals(ent.enc));
-        assert (ent.intValue.equals(deserialized.intValue));
-        assert (ent.floatValue.equals(deserialized.floatValue));
-        assert (ent.listOfStrings.equals(deserialized.listOfStrings));
+        assertTrue((deserialized.enc.equals(ent.enc)));
+        assertTrue((ent.intValue.equals(deserialized.intValue)));
+        assertTrue((ent.floatValue.equals(deserialized.floatValue)));
+        assertTrue((ent.listOfStrings.equals(deserialized.listOfStrings)));
     }
 
 

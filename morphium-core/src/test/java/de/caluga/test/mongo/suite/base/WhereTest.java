@@ -14,6 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import javax.script.ScriptEngineManager;
 
 import java.util.List;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -99,7 +100,7 @@ public class WhereTest extends MultiDriverTestBase {
                 assertThat(o.getCounter()).describedAs("Counter should be >5 and <10 but is: %d", o.getCounter()).isLessThan(10).isGreaterThan(5);
             }
 
-            assert(morphium.getStatistics().get("X-Entries for: idCache|de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
+            assertTrue((morphium.getStatistics().get("X-Entries for: idCache|de.caluga.test.mongo.suite.data.UncachedObject") == null), "Cached Uncached Object?!?!?!");
         }
     }
 }

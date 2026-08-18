@@ -47,7 +47,7 @@ public class BasicAdminTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void readPreferenceTest(Morphium morphium) {
         ReadPreferenceLevel.NEAREST.setPref(ReadPreference.nearest());
-        assert(ReadPreferenceLevel.NEAREST.getPref().getType().equals(ReadPreference.nearest().getType()));
+        assertTrue((ReadPreferenceLevel.NEAREST.getPref().getType().equals(ReadPreference.nearest().getType())));
     }
 
 
@@ -61,7 +61,7 @@ public class BasicAdminTests extends MultiDriverTestBase {
             morphium.save(new UncachedObject("str", 1));
             List<String> dbs = morphium.listDatabases();
             assertNotNull(dbs);
-            assert(dbs.size() != 0);
+            assertTrue((dbs.size() != 0));
 
             for (String s : dbs) {
                 log.info("Got DB: " + s);
@@ -164,7 +164,7 @@ public class BasicAdminTests extends MultiDriverTestBase {
 
             while (TestUtils.countUC(morphium) < 10) {
                 Thread.sleep(100);
-                assert(System.currentTimeMillis() - s < morphium.getConfig().connectionSettings().getMaxWaitTime());
+                assertTrue((System.currentTimeMillis() - s < morphium.getConfig().connectionSettings().getMaxWaitTime()));
             }
 
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
@@ -175,20 +175,20 @@ public class BasicAdminTests extends MultiDriverTestBase {
             while (c != 1) {
                 c = q.countAll();
                 Thread.sleep(100);
-                assert(System.currentTimeMillis() - s < morphium.getConfig().connectionSettings().getMaxWaitTime());
+                assertTrue((System.currentTimeMillis() - s < morphium.getConfig().connectionSettings().getMaxWaitTime()));
             }
 
-            assert(c == 1) : "Count wrong: " + c;
+            assertTrue((c == 1), String.valueOf("Count wrong: " + c));
             UncachedObject o = q.get();
             s = System.currentTimeMillis();
 
             while (o == null) {
                 Thread.sleep(100);
-                assert(System.currentTimeMillis() - s < morphium.getConfig().connectionSettings().getMaxWaitTime());
+                assertTrue((System.currentTimeMillis() - s < morphium.getConfig().connectionSettings().getMaxWaitTime()));
                 o = q.get();
             }
 
-            assert(o.getCounter() == 1);
+            assertTrue((o.getCounter() == 1));
         }
     }
     @ParameterizedTest

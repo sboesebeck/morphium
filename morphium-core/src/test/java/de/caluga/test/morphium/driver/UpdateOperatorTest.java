@@ -81,6 +81,41 @@ public class UpdateOperatorTest {
     }
 
     @Test
+    public void addToSetOnMissingField_createsArray() throws Exception {
+        MorphiumId id = seed(Doc.of("counter", 1));
+
+        update(id, Doc.of("$addToSet", Doc.of("tags", "a")));
+
+        assertEquals(List.of("a"), reload(id).get("tags"), "$addToSet on a missing field must create the array");
+    }
+
+    @Test
+    public void addToSetOnExplicitNullField_failsLikeMongod() throws Exception {
+        // mongod distinguishes a MISSING field (array gets created) from a field explicitly
+        // stored as null: "Cannot apply $addToSet to non-array field. Field named 'tags' has
+        // non-array type null". Legacy/foreign writers produce such documents (#291).
+        Doc doc = Doc.of("counter", 1);
+        doc.put("tags", null);
+        MorphiumId id = seed(doc);
+
+        assertThrows(MorphiumDriverException.class,
+                () -> update(id, Doc.of("$addToSet", Doc.of("tags", "a"))),
+                "$addToSet on an explicitly-null field must fail like mongod");
+        assertNull(reload(id).get("tags"), "the failed update must not modify the field");
+    }
+
+    @Test
+    public void pushOnExplicitNullField_failsLikeMongod() throws Exception {
+        Doc doc = Doc.of("counter", 1);
+        doc.put("tags", null);
+        MorphiumId id = seed(doc);
+
+        assertThrows(MorphiumDriverException.class,
+                () -> update(id, Doc.of("$push", Doc.of("tags", "a"))),
+                "$push on an explicitly-null field must fail like mongod");
+    }
+
+    @Test
     public void pullWithElemMatch_removesMatchingElements() throws Exception {
         MorphiumId id = seed(Doc.of("results", new ArrayList<>(List.of(
             Doc.of("item", "A", "score", 5),

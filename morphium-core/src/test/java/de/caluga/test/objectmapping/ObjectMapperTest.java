@@ -58,19 +58,19 @@ public class ObjectMapperTest {
         c.idMap.put("1", new MorphiumId());
         MorphiumObjectMapper mapper = new ObjectMapperImpl();
         Map<String, Object> marshall = mapper.serialize(c);
-        assert(marshall.get("simple_id") instanceof ObjectId);
-        assert(((Map <?, ? >) marshall.get("id_map")).get("1") instanceof ObjectId);
+        assertTrue((marshall.get("simple_id") instanceof ObjectId));
+        assertTrue((((Map <?, ? >) marshall.get("id_map")).get("1") instanceof ObjectId));
 
         for (Object i : (List<?>) marshall.get("others")) {
-            assert(i instanceof ObjectId);
+            assertTrue((i instanceof ObjectId));
         }
 
         ///
         c = mapper.deserialize(ListOfIdsContainer.class, marshall);
         // noinspection ConstantConditions
-        assert(c.idMap != null && c.idMap.get("1") != null && c.idMap.get("1") instanceof MorphiumId);
+        assertTrue((c.idMap != null && c.idMap.get("1") != null && c.idMap.get("1") instanceof MorphiumId));
         // noinspection ConstantConditions
-        assert(c.others.size() == 4 && c.others.get(0) instanceof MorphiumId);
+        assertTrue((c.others.size() == 4 && c.others.get(0) instanceof MorphiumId));
         assertNotNull(c.simpleId);;
     }
 
@@ -92,20 +92,20 @@ public class ObjectMapperTest {
         om.setAnnotationHelper(an);
         Map<String, Object> map = om.serialize(new ObjectMapperImplTest.Simple());
         log.info("Got map");
-        assert(map.get("test").toString().startsWith("test"));
+        assertTrue((map.get("test").toString().startsWith("test")));
         ObjectMapperImplTest.Simple s = om.deserialize(ObjectMapperImplTest.Simple.class, map);
         log.info("Got simple");
         Map<String, Object> m = new HashMap<>();
         m.put("test", "testvalue");
         m.put("simple", s);
         map = om.serializeMap(m, null);
-        assert(map.get("test").equals("testvalue"));
+        assertTrue((map.get("test").equals("testvalue")));
         List<ObjectMapperImplTest.Simple> lst = new ArrayList<>();
         lst.add(new ObjectMapperImplTest.Simple());
         lst.add(new ObjectMapperImplTest.Simple());
         lst.add(new ObjectMapperImplTest.Simple());
         List<Object> serializedList = om.serializeIterable(lst, null, null);
-        assert(serializedList.size() == 3);
+        assertTrue((serializedList.size() == 3));
         List<ObjectMapperImplTest.Simple> deserializedList = om.deserializeList(serializedList);
         log.info("Deserialized " + deserializedList.size());
     }

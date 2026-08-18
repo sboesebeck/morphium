@@ -25,16 +25,35 @@ public final class IndexDefinition {
     private final List<String> fields;
     private final Map<String, Integer> directions;
     private final boolean unique;
+    private final boolean sparse;
+    private final Map<String, Object> partialFilterExpression;
+    private final CompiledQuery compiledPartialFilter;
     private final Long expireAfterSeconds;
     private final String name;
 
     private IndexDefinition(List<String> fields, Map<String, Integer> directions, boolean unique,
-            Long expireAfterSeconds, String name) {
+            boolean sparse, Map<String, Object> partialFilterExpression, Long expireAfterSeconds, String name) {
         this.fields = fields;
         this.directions = directions;
         this.unique = unique;
+        this.sparse = sparse;
+        this.partialFilterExpression = partialFilterExpression;
         this.expireAfterSeconds = expireAfterSeconds;
         this.name = name;
+        // The filter is immutable and evaluated on every write of a partial index's collection -
+        // compile it ONCE here instead of going through QueryHelper.matchesQuery per document,
+        // whose global identity-keyed LRU takes a process-wide lock on every call (its own javadoc
+        // tells hot paths to compile). Falls back to null (interpreted evaluation) if this filter
+        // uses something the compiler cannot handle.
+        CompiledQuery compiled = null;
+        if (partialFilterExpression != null) {
+            try {
+                compiled = CompiledQuery.compile(partialFilterExpression);
+            } catch (RuntimeException e) {
+                compiled = null;
+            }
+        }
+        this.compiledPartialFilter = compiled;
     }
 
     /**
@@ -64,12 +83,23 @@ public final class IndexDefinition {
         }
 
         boolean unique = false;
+        boolean sparse = false;
+        Map<String, Object> partialFilterExpression = null;
         Long expireAfterSeconds = null;
         String name = null;
 
         if (options != null) {
             Object uniqueOption = options.get("unique");
             unique = Boolean.TRUE.equals(uniqueOption) || "true".equalsIgnoreCase(String.valueOf(uniqueOption));
+
+            Object sparseOption = options.get("sparse");
+            sparse = Boolean.TRUE.equals(sparseOption) || "true".equalsIgnoreCase(String.valueOf(sparseOption));
+
+            Object partialOption = options.get("partialFilterExpression");
+            if (partialOption instanceof Map && !((Map<String, Object>) partialOption).isEmpty()) {
+                partialFilterExpression = Collections.unmodifiableMap(
+                        new LinkedHashMap<>((Map<String, Object>) partialOption));
+            }
 
             Object expireOption = options.get("expireAfterSeconds");
             if (expireOption instanceof Number) {
@@ -83,7 +113,8 @@ public final class IndexDefinition {
         }
 
         List<String> orderedFields = Collections.unmodifiableList(new ArrayList<>(directions.keySet()));
-        return new IndexDefinition(orderedFields, directions, unique, expireAfterSeconds, name);
+        return new IndexDefinition(orderedFields, directions, unique, sparse, partialFilterExpression,
+                expireAfterSeconds, name);
     }
 
     /**
@@ -111,6 +142,35 @@ public final class IndexDefinition {
         return unique;
     }
 
+    /**
+     * Whether the index was declared {@code sparse}. The store still indexes every document
+     * (lookups must stay complete), but a sparse <em>unique</em> index skips its duplicate check
+     * for documents that contain none of the indexed fields - MongoDB excludes those documents
+     * from a sparse index entirely, so they never collide there.
+     */
+    public boolean sparse() {
+        return sparse;
+    }
+
+    /**
+     * The index's {@code partialFilterExpression}, or {@code null} if it has none. MongoDB leaves
+     * a document out of a partial index entirely when it does not match this query, so such a
+     * document can never collide on a unique index - see {@code CollectionIndexStore}, which is
+     * where that is enforced (this class only parses).
+     */
+    public Map<String, Object> partialFilterExpression() {
+        return partialFilterExpression;
+    }
+
+    /**
+     * The {@link #partialFilterExpression()} compiled once at construction, or {@code null} when
+     * there is no filter or it could not be compiled (callers then fall back to interpreted
+     * evaluation via {@code QueryHelper.matchesQuery}).
+     */
+    public CompiledQuery compiledPartialFilter() {
+        return compiledPartialFilter;
+    }
+
     /** TTL, in seconds, or {@code null} if this is not a TTL index. */
     public Long expireAfterSeconds() {
         return expireAfterSeconds;
@@ -124,6 +184,7 @@ public final class IndexDefinition {
     @Override
     public String toString() {
         return "IndexDefinition{fields=" + fields + ", directions=" + directions + ", unique=" + unique
+                + ", sparse=" + sparse + ", partialFilterExpression=" + partialFilterExpression
                 + ", expireAfterSeconds=" + expireAfterSeconds + ", name=" + name + '}';
     }
 }

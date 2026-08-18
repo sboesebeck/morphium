@@ -57,7 +57,7 @@ public class WriteBufferCountTest extends MultiDriverTestBase {
         });
         waitForWriteProcessToBeScheduled(morphium);
         int c = morphium.getWriteBufferCount();
-        assert (c != 0);
+        assertTrue((c != 0));
 
         long s = System.currentTimeMillis();
         while (TestUtils.countUC(morphium) < 10000) {
@@ -74,7 +74,7 @@ public class WriteBufferCountTest extends MultiDriverTestBase {
             c = morphium.getWriteBufferCount();
             ++cnt;
             Thread.yield();
-            assert (cnt < 1000000);
+            assertTrue((cnt < 1000000));
         }
         return c;
     }

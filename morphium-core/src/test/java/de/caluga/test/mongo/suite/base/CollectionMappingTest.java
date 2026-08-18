@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -21,9 +22,9 @@ public class CollectionMappingTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void collectionMappingTest(Morphium morphium) {
         String n = morphium.getMapper().getCollectionName(CachedObject.class);
-        assert (n.equals("cached_object")) : "Collection wrong";
+        assertTrue((n.equals("cached_object")), "Collection wrong");
         n = morphium.getMapper().getCollectionName(ComplexObject.class);
-        assert (n.equals("ComplexObject")) : "Collection wrong";
+        assertTrue((n.equals("ComplexObject")), "Collection wrong");
 
     }
 }

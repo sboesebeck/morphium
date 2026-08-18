@@ -74,9 +74,7 @@ public class Utils {
             out.write("]");
             return;
         } else if ((o instanceof String) || (o instanceof MorphiumId) || (o instanceof ObjectId) || (o instanceof Enum)) {
-            out.write("\"");
-            out.write(o.toString());
-            out.write("\"");
+            writeEscapedJsonString(o.toString(), out);
             return;
         } else if (!(o instanceof Map)) {
             out.write(o.toString());
@@ -92,27 +90,54 @@ public class Utils {
             }
 
             comma = true;
-            out.write("\"");
-            out.write(e.getKey());
-            out.write("\"");
+            writeEscapedJsonString(e.getKey(), out);
 
             out.write(" : ");
             if (e.getValue() == null) {
                 out.write(" null");
             } else if (e.getValue() instanceof String) {
-                out.write("\"");
-                out.write((String) e.getValue());
-                out.write("\"");
+                writeEscapedJsonString((String) e.getValue(), out);
             } else if (e.getValue() instanceof Enum) {
-                out.write("\"");
-                out.write(e.getValue().toString());
-                out.write("\"");
+                writeEscapedJsonString(e.getValue().toString(), out);
             } else {
                 writeJson(e.getValue(), out);
             }
 
         }
         out.write(" } ");
+    }
+
+    /**
+     * Writes s as a quoted, properly escaped JSON string literal. The previous behavior of
+     * writing strings verbatim produced unparseable JSON as soon as the content contained a
+     * quote, backslash or control character - which is how every dump of a database with real
+     * text data became unrestorable (#306).
+     */
+    public static void writeEscapedJsonString(String s, Writer out) throws IOException {
+        out.write('"');
+
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+
+            switch (c) {
+                case '"' -> out.write("\\\"");
+                case '\\' -> out.write("\\\\");
+                case '\n' -> out.write("\\n");
+                case '\r' -> out.write("\\r");
+                case '\t' -> out.write("\\t");
+                case '\b' -> out.write("\\b");
+                case '\f' -> out.write("\\f");
+                default -> {
+                    if (c < 0x20) {
+                        out.write(String.format("\\u%04x", (int) c));
+                    } else {
+                        out.write(c);
+                    }
+                }
+            }
+        }
+
+        out.write('"');
     }
 
     public static String getHex(long i) {

@@ -16,6 +16,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -161,11 +162,11 @@ public class SortingTest extends MultiDriverTestBase {
             int lastValue = -1;
 
             for (UncachedObject u : lst) {
-                assert(lastValue <= u.getCounter()) : "Counter not greater, last: " + lastValue + " now:" + u.getCounter();
+                assertTrue((lastValue <= u.getCounter()), String.valueOf("Counter not greater, last: " + lastValue + " now:" + u.getCounter()));
                 lastValue = u.getCounter();
             }
 
-            assert(lastValue == 7599) : "Last value wrong: " + lastValue;
+            assertTrue((lastValue == 7599), String.valueOf("Last value wrong: " + lastValue));
             q = morphium.createQueryFor(UncachedObject.class);
             q = q.f("str_value").eq("Random value");
             Map<String, Integer> order = new HashMap<>();
@@ -175,11 +176,11 @@ public class SortingTest extends MultiDriverTestBase {
             lastValue = -1;
 
             for (UncachedObject u : lst) {
-                assert(lastValue <= u.getCounter()) : "Counter not smaller, last: " + lastValue + " now:" + u.getCounter();
+                assertTrue((lastValue <= u.getCounter()), String.valueOf("Counter not smaller, last: " + lastValue + " now:" + u.getCounter()));
                 lastValue = u.getCounter();
             }
 
-            assert(lastValue == 7599) : "Last value wrong: " + lastValue;
+            assertTrue((lastValue == 7599), String.valueOf("Last value wrong: " + lastValue));
         }
     }
 

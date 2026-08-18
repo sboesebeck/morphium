@@ -77,7 +77,7 @@ public class CollectionIndexStore {
 
         for (Map<String, Object> doc : existingDocs) {
             IndexKey key = IndexKey.extract(doc, def);
-            if (def.unique() && entry.hasBucket(key)) {
+            if (collidesOnUnique(entry, key, doc)) {
                 throw duplicateKeyException(name, key);
             }
             entry.add(key, doc);
@@ -185,7 +185,7 @@ public class CollectionIndexStore {
         for (IndexEntry entry : indexesByName.values()) {
             IndexKey key = IndexKey.extract(doc, entry.definition);
             keys.put(entry, key);
-            if (entry.definition.unique() && entry.hasBucket(key)) {
+            if (collidesOnUnique(entry, key, doc)) {
                 throw duplicateKeyException(indexNameOf(entry.definition), key);
             }
         }
@@ -193,6 +193,67 @@ public class CollectionIndexStore {
         for (Map.Entry<IndexEntry, IndexKey> e : keys.entrySet()) {
             e.getKey().add(e.getValue(), doc);
         }
+    }
+
+    /**
+     * Whether inserting {@code doc} under {@code key} would violate {@code entry}'s unique
+     * constraint. Beyond the plain "some other document already holds this key", two MongoDB rules
+     * take documents out of an index entirely - and a document that is not in the index cannot
+     * collide in it:
+     *
+     * <ul>
+     *   <li>{@code sparse}: a document containing none of the indexed fields;
+     *   <li>{@code partialFilterExpression}: a document not matching that query. Note this cuts
+     *       both ways - the incoming document is exempt if it does not match, and an already
+     *       stored document sitting in the same bucket does not count as a collision partner if
+     *       <em>it</em> does not match (the filter may well select on a field that is not part of
+     *       the index key, so uncovered and covered documents share buckets).
+     * </ul>
+     */
+    private boolean collidesOnUnique(IndexEntry entry, IndexKey key, Map<String, Object> doc) {
+        IndexDefinition def = entry.definition;
+
+        if (!def.unique() || (def.sparse() && key.allMissing())) {
+            return false;
+        }
+
+        if (def.partialFilterExpression() == null) {
+            return entry.hasBucket(key);
+        }
+
+        // Bucket lookup FIRST: it is an O(1) hash probe and empty on the common no-collision
+        // path, while the filter evaluations below are the expensive half of this check.
+        List<Map<String, Object>> bucket = entry.bucket(key);
+        if (bucket == null) {
+            return false;
+        }
+        if (!coveredByPartialFilter(def, doc)) {
+            return false;
+        }
+        for (Map<String, Object> other : bucket) {
+            if (other != doc && coveredByPartialFilter(def, other)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether {@code doc} is part of {@code def}'s index at all, as far as its
+     * {@code partialFilterExpression} is concerned. Always true for an index without one.
+     *
+     * <p>Documents outside the filter are still <em>stored</em> in the index here (like sparse
+     * ones): lookups must stay complete, and only the uniqueness check honours the filter.
+     */
+    private static boolean coveredByPartialFilter(IndexDefinition def, Map<String, Object> doc) {
+        Map<String, Object> filter = def.partialFilterExpression();
+        if (filter == null) {
+            return true;
+        }
+        // Prefer the filter compiled once at IndexDefinition construction over
+        // QueryHelper.matchesQuery, whose global query cache takes a process-wide lock per call.
+        CompiledQuery compiled = def.compiledPartialFilter();
+        return compiled != null ? compiled.matches(doc) : QueryHelper.matchesQuery(filter, doc, null);
     }
 
     /** Removes {@code doc} (matched by reference identity) from every index. */
@@ -234,26 +295,30 @@ public class CollectionIndexStore {
         for (IndexEntry entry : indexesByName.values()) {
             IndexKey oldKey = IndexKey.extract(before, entry.definition);
             IndexKey newKey = IndexKey.extract(after, entry.definition);
-            if (!oldKey.equals(newKey)) {
+            boolean keyChanged = !oldKey.equals(newKey);
+            if (keyChanged) {
                 changedEntries.add(entry);
                 oldKeys.add(oldKey);
                 newKeys.add(newKey);
             }
-        }
 
-        for (int i = 0; i < changedEntries.size(); i++) {
-            IndexEntry entry = changedEntries.get(i);
             if (!entry.definition.unique()) {
                 continue;
             }
-            IndexKey newKey = newKeys.get(i);
-            List<Map<String, Object>> bucket = entry.bucket(newKey);
-            if (bucket != null) {
-                for (Map<String, Object> other : bucket) {
-                    if (other != after) {
-                        throw duplicateKeyException(indexNameOf(entry.definition), newKey);
-                    }
-                }
+            // Uniqueness must be validated not only when the KEY changed: with an unchanged key,
+            // an update can still move the document INTO a partial index's filter, making it a
+            // collision partner for covered neighbors already sharing its bucket - mongod raises
+            // E11000 on exactly that update. Checked here, BEFORE any structural mutation below
+            // (see the caller-obligation javadoc). collidesOnUnique excludes {@code after} itself
+            // by reference, so the unchanged-key case (where it already sits in the bucket) is
+            // safe; the coverage-transition test keeps the check off the plain-update fast path.
+            boolean check = keyChanged;
+            if (!check && entry.definition.partialFilterExpression() != null) {
+                check = !coveredByPartialFilter(entry.definition, before)
+                        && coveredByPartialFilter(entry.definition, after);
+            }
+            if (check && collidesOnUnique(entry, newKey, after)) {
+                throw duplicateKeyException(indexNameOf(entry.definition), newKey);
             }
         }
 
@@ -262,6 +327,24 @@ public class CollectionIndexStore {
             entry.remove(oldKeys.get(i), after);
             entry.add(newKeys.get(i), after);
         }
+    }
+
+    /**
+     * Total number of document references currently held across every index bucket - diagnostics
+     * only. A document indexed by N indexes counts N times. A store whose collection has been
+     * emptied must report 0; anything else means some removal no-opped and the documents are
+     * leaked (see #303).
+     */
+    int totalIndexedEntries() {
+        int total = 0;
+
+        for (IndexEntry entry : indexesByName.values()) {
+            for (List<Map<String, Object>> bucket : entry.byKey.values()) {
+                total += bucket.size();
+            }
+        }
+
+        return total;
     }
 
     /**

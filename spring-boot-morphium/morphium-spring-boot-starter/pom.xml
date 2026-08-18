@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>de.caluga</groupId>
+    <artifactId>morphium-spring-boot-parent</artifactId>
+    <version>6.3.2</version>
+  </parent>
+
+  <artifactId>morphium-spring-boot-starter</artifactId>
+  <name>Morphium Spring Boot – Starter</name>
+  <description>Starter POM for Spring Boot Morphium integration</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>de.caluga</groupId>
+      <artifactId>morphium-spring-boot-autoconfigure</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>de.caluga</groupId>
+      <artifactId>morphium</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>de.caluga</groupId>
+      <artifactId>morphium-jakarta-data</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>jakarta.data</groupId>
+      <artifactId>jakarta.data-api</artifactId>
+    </dependency>
+  </dependencies>
+
+  <!-- Aktiviert die im morphium-parent-pluginManagement bereits versionierte
+       source-/javadoc-jar-Erzeugung (Central-Pflicht). -->
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>

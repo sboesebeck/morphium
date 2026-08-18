@@ -1059,6 +1059,10 @@ public final class CompiledQuery {
                 }
                 for (Object candidate : lookup.values) {
                     if (candidate instanceof List) {
+                        if (expected instanceof List
+                                && QueryHelper.listEquals((List<?>) candidate, (List<?>) expected, coll)) {
+                            return true;
+                        }
                         for (Object element : (List<Object>) candidate) {
                             if (QueryHelper.compareValues(element, expected, coll)) {
                                 return true;
@@ -1109,6 +1113,10 @@ public final class CompiledQuery {
                         }
                         return false;
                     }
+                }
+                if (expected instanceof List
+                        && QueryHelper.listEquals(lst, (List<?>) expected, collUnchecked)) {
+                    return true;
                 }
                 return lst.contains(expected);
             }

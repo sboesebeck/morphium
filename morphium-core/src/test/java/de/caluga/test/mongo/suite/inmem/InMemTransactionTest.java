@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -25,7 +26,7 @@ public class InMemTransactionTest extends MorphiumInMemTestBase {
         UncachedObject u = new UncachedObject("test", 101);
         morphium.store(u);
         long l = TestUtils.countUC(morphium);
-        assert (l == 11) : "Count wrong: " + l;
+        assertTrue((l == 11), () -> String.valueOf("Count wrong: " + l));
         morphium.abortTransaction();
         TestUtils.waitForConditionToBecomeTrue(3000, "Transaction abort not reflected in count",
             () -> TestUtils.countUC(morphium) == 10);

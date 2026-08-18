@@ -35,9 +35,9 @@ public class TypeIdTests extends MultiDriverTestBase {
         ad.setAdditionals(null);
         AdditionalDataEntity adReread = TestUtils.waitForObject(() -> morphium.reread(ad));
         assertNotNull(adReread.getAdditionals());
-        assert(adReread.getAdditionals().containsKey("test"));
-        assert(adReread.getAdditionals().get("test") instanceof EmbeddedObject);
-        assert(((EmbeddedObject) adReread.getAdditionals().get("test")).getName().equals("name"));
+        assertTrue((adReread.getAdditionals().containsKey("test")));
+        assertTrue((adReread.getAdditionals().get("test") instanceof EmbeddedObject));
+        assertTrue((((EmbeddedObject) adReread.getAdditionals().get("test")).getName().equals("name")));
         checkTypeId(morphium, EmbeddedObject.class, adReread, "test");
     }
 
@@ -55,9 +55,9 @@ public class TypeIdTests extends MultiDriverTestBase {
         ad = morphium.reread(ad);
         assertNotNull(ad.getAdditionals());
         ;
-        assert(ad.getAdditionals().containsKey("test"));
-        assert(ad.getAdditionals().get("test") instanceof EmbeddedObject);
-        assert(((EmbeddedObject) ad.getAdditionals().get("test")).getName().equals("emb"));
+        assertTrue((ad.getAdditionals().containsKey("test")));
+        assertTrue((ad.getAdditionals().get("test") instanceof EmbeddedObject));
+        assertTrue((((EmbeddedObject) ad.getAdditionals().get("test")).getName().equals("emb")));
         checkTypeId(morphium, EmbeddedObject.class, ad, "test");
     }
 

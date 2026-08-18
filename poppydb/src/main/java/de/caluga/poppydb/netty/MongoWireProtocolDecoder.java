@@ -99,9 +99,21 @@ public class MongoWireProtocolDecoder extends ByteToMessageDecoder {
             log.debug("Decoded {} message, id={}, size={}", code.name(), requestId, messageSize);
             out.add(message);
         } catch (Exception e) {
-            log.error("Failed to parse {} message (requestId={}, size={}): {} — skipping",
+            log.error("Failed to parse {} message (requestId={}, size={}): {} — rejecting",
                     code.name(), requestId, messageSize, e.getMessage());
-            // Bytes already consumed, stream stays in sync — don't close the connection
+            // Bytes already consumed, stream stays in sync — don't close the connection.
+            // But DO answer: silently skipping leaves the client waiting for a reply that
+            // never comes (observed as mongosh/mongorestore hanging forever on a document
+            // the BSON decoder could not parse).
+            if (code == WireProtocolMessage.OpCode.OP_MSG) {
+                de.caluga.morphium.driver.wireprotocol.OpMsg err = new de.caluga.morphium.driver.wireprotocol.OpMsg();
+                err.setMessageId(requestId + 1_000_000);
+                err.setResponseTo(requestId);
+                err.setFirstDoc(de.caluga.morphium.driver.Doc.of(
+                        "ok", 0.0, "errmsg", "message could not be parsed: " + e.getMessage(),
+                        "code", 22, "codeName", "InvalidBSON"));
+                ctx.writeAndFlush(err);
+            }
         }
     }
 

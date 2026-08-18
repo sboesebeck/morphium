@@ -161,9 +161,11 @@ Aggregator<Order, OrderStats> agg = morphium.createAggregator(Order.class, Order
 
 #### Cache Synchronization
 **Cluster-aware caching** with synchronization:
-- **WatchingCacheSynchronizer** - Uses MongoDB Change Streams
-- **MessagingCacheSynchronizer** - Uses Morphium messaging
+- **WatchingCacheSynchronizer** - Watches the underlying collections via MongoDB Change Streams; catches changes from any writer (not just Morphium), but needs a replica set
+- **MessagingCacheSynchronizer** - Propagates invalidations via Morphium's own messaging; works on any backend (no replica set needed), but only sees writes made through Morphium
 - **Manual cache control** for custom strategies
+
+See [Developer Guide § Cache Synchronization](./developer-guide.md#cache-synchronization) for guidance on choosing between them.
 
 #### Cache Strategies
 ```java

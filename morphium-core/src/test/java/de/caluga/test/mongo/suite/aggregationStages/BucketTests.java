@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("aggregation")
 public class BucketTests extends MultiDriverTestBase {
@@ -47,10 +48,10 @@ public class BucketTests extends MultiDriverTestBase {
 
             assertNotNull(a.artists);
             ;
-            assert (a.artists.size() > 0);
-            assert (a.count == a.artists.size());
+            assertTrue((a.artists.size() > 0));
+            assertTrue((a.count == a.artists.size()));
             for (Artist artist : a.artists) {
-                assert (a.id <= artist.yearBorn);
+                assertTrue((a.id <= artist.yearBorn));
             }
         }
 

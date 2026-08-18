@@ -232,24 +232,41 @@ See How‑To: [Aggregation Examples](./howtos/aggregation-examples.md) for more 
 
 ## Caching
 - Add `@Cache` to entities to enable read cache; TTL, max entries, and clear strategy are configurable.
-- Cluster‑wide cache synchronization uses Morphium’s messaging; see the [Messaging](./messaging.md) guide.
+- Cluster‑wide cache synchronization comes in two flavors — messaging‑driven and watching (change‑stream‑driven); see below for which one to pick.
 - A JCache adapter is available if you prefer standard javax.cache interfaces.
 See How‑To: [Caching Examples](./howtos/caching-examples.md) and [Cache Patterns](./howtos/cache-patterns.md) for recipes and guidance.
 
 ### Cache Synchronization
 
-- Purpose: keep caches consistent across nodes. Messaging was originally introduced to propagate cache change events in clusters.
-- Mechanism: on writes, Morphium emits a cache message; other nodes apply a policy from `@Cache.syncCache`:
+- Purpose: keep caches consistent across nodes when the underlying data changes.
+- Mechanism: on a relevant change, other nodes apply a policy from `@Cache.syncCache`:
   - `CLEAR_TYPE_CACHE`: clear the entire type cache for the entity.
   - `REMOVE_ENTRY_FROM_TYPE_CACHE`: remove a single entry (by ID) from the cache.
   - `UPDATE_ENTRY`: re‑read and update the cached entity in place (may briefly expose stale data under concurrent reads—“dirty reads”).
-- Requirements: ensure messaging is running on all nodes; change streams improve responsiveness and reduce polling (replica set required).
-- Setup snippet:
-```java
-var messaging = morphium.createMessaging();
-messaging.start();
-new MessagingCacheSynchronizer(messaging, morphium); // attach synchronizer
-```
+- Two independent implementations both drive the same `@Cache.syncCache` policies — pick one, not both, per Morphium instance:
+
+  **`MessagingCacheSynchronizer`** — hooks into Morphium's own storage listener. Every `store`/`remove`/`update`/`drop` made *through this (or another) Morphium instance* triggers a `cacheSync` message over Morphium's own messaging, which every other node with a `MessagingCacheSynchronizer` attached picks up.
+  ```java
+  var messaging = morphium.createMessaging();
+  messaging.start();
+  new MessagingCacheSynchronizer(messaging, morphium); // attach synchronizer
+  ```
+  - Requirements: messaging must be running (and healthy) on every node that should invalidate its cache. Works against any driver/backend — in‑memory, single MongoDB, PoppyDB, or a replica set — no change‑stream support needed.
+  - Blind spot: it only ever sees writes that go through Morphium's storage listener. Changes made by another application, a raw driver/shell write, a restore, or an admin script are invisible to it and will **not** invalidate remote caches.
+  - Extra strength: this is more than "just a watcher" — the invalidation travels as a regular message on the `cacheSyncType`/`cacheSyncRecord` topics of Morphium's general‑purpose messaging, not a raw DB event. Any node — including a non‑Java, non‑Morphium process that merely understands the message document format — can register its own listener on the same topic and trigger additional logic beyond the built‑in `@Cache.syncCache` handling (e.g. invalidate a different cache layer, fire a notification, write an audit trail). Worth it whenever the desired reaction to a cache‑relevant write is more involved than clear/remove/update.
+
+  **`WatchingCacheSynchronizer`** — opens a MongoDB Change Stream (`ChangeStreamMonitor`) directly on the watched collections and reacts to whatever it sees change at the database layer, no matter who wrote it.
+  ```java
+  new WatchingCacheSynchronizer(morphium); // no messaging required
+  ```
+  - Requirements: Change Streams need a replica set (same restriction as `messagingSettings().setUseChangeStream(true)`, see [Messaging](./messaging.md)) — it does **not** work against a standalone/single MongoDB node. Does not need Morphium's messaging running at all.
+  - Strength: catches every change to the underlying collection regardless of the writer — other services, migrations, mongosh, etc. — because it watches the data, not Morphium's write path.
+
+- **Which one to use:**
+  - Only Morphium instances ever write the cached collections, and you're on a standalone/single‑node backend without replica‑set/Change‑Stream support (e.g. a lone MongoDB, or you don't want the extra long‑lived watch connection): use `MessagingCacheSynchronizer`.
+  - Cache invalidation needs to be more than the built‑in clear/remove/update policies — e.g. other nodes (possibly non‑Java) should react to the same event with custom logic: use `MessagingCacheSynchronizer`. Its messages are just documents on a known topic, so anything that can read that topic can hook in, not only Morphium instances running `WatchingCacheSynchronizer`.
+  - Other processes/services (not just this Morphium cluster) can write the cached collections directly, or you'd rather not depend on messaging being up on every node, and you have a replica set: use `WatchingCacheSynchronizer` — it invalidates on *any* write to the collection, not just ones that went through Morphium's own listener.
+  - Both can run in parallel if you want belt‑and‑suspenders coverage, but that's usually unnecessary — pick the one that matches your write paths and backend topology.
 
 ## Encryption
 - Annotate sensitive fields with `@Encrypted` and configure providers/keys via `cfg.encryptionSettings()`.

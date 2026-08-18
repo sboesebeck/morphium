@@ -8,6 +8,7 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -49,9 +50,9 @@ public class CollectionNameOverrideTest extends MultiDriverTestBase {
             Thread.sleep(1000);
 
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-            assert (q.countAll() == 0);
+            assertTrue((q.countAll() == 0));
             q.setCollectionName("uncached_collection_test_2");
-            assert (q.countAll() == 1);
+            assertTrue((q.countAll() == 1));
         }
     }
 

@@ -10,6 +10,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("core")
 public class QueryProjectionTest extends MultiDriverTestBase {
@@ -24,16 +25,16 @@ public class QueryProjectionTest extends MultiDriverTestBase {
 
         while (morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).countAll() == 0) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < morphium.getConfig().connectionSettings().getMaxWaitTime());
+            assertTrue((System.currentTimeMillis() - s < morphium.getConfig().connectionSettings().getMaxWaitTime()));
         }
 
         Thread.sleep(150);
         List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(2)
             .setProjection(UncachedObject.Fields.counter, UncachedObject.Fields.dval).asList();
         assertEquals(lst.size(), 1);
-        assert (lst.get(0).getStrValue() == null);
-        assert (lst.get(0).getDval() != 0);
-        assert (lst.get(0).getCounter() != 0);
+        assertTrue((lst.get(0).getStrValue() == null));
+        assertTrue((lst.get(0).getDval() != 0));
+        assertTrue((lst.get(0).getCounter() != 0));
     }
 
     @ParameterizedTest
@@ -49,14 +50,14 @@ public class QueryProjectionTest extends MultiDriverTestBase {
 
         while (lst.size() == 0) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < morphium.getConfig().connectionSettings().getMaxWaitTime());
+            assertTrue((System.currentTimeMillis() - s < morphium.getConfig().connectionSettings().getMaxWaitTime()));
             lst = q.asList();
         }
 
         assertEquals(lst.size(), 1, "Count wrong: " + lst.size() + " count is:" + q.countAll());
-        assert (lst.get(0).getStrValue() == null);
-        assert (lst.get(0).getDval() != 0);
-        assert (lst.get(0).getCounter() != 0);
+        assertTrue((lst.get(0).getStrValue() == null));
+        assertTrue((lst.get(0).getDval() != 0));
+        assertTrue((lst.get(0).getCounter() != 0));
     }
 
     @ParameterizedTest
@@ -69,10 +70,10 @@ public class QueryProjectionTest extends MultiDriverTestBase {
         while (lst.size() < 1) {
             lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(2).hideFieldInProjection(UncachedObject.Fields.strValue).asList();
             Thread.sleep(50);
-            assert (System.currentTimeMillis() - s < morphium.getConfig().connectionSettings().getMaxWaitTime());
+            assertTrue((System.currentTimeMillis() - s < morphium.getConfig().connectionSettings().getMaxWaitTime()));
         }
 
         assertEquals(lst.size(), 1);
-        assert (lst.get(0).getStrValue() == null);
+        assertTrue((lst.get(0).getStrValue() == null));
     }
 }

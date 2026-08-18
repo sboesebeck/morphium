@@ -14,6 +14,7 @@ import java.util.Map;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -62,7 +63,7 @@ public class NetworkRetryTest extends MultiDriverTestBase {
         for (int i = 1; i <= 1000; i++) {
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             q = q.f("counter").eq(i);
-            assert (q.get().getCounter() == i);
+            assertTrue((q.get().getCounter() == i));
             log.info("read " + i);
             Thread.sleep(500);
         }
@@ -84,7 +85,7 @@ public class NetworkRetryTest extends MultiDriverTestBase {
             Map<String, Object> o = UtilsMap.of("counter", i + 1);
             List<UncachedObject> lst = q.rawQuery(o).asList();
             log.info("read " + i);
-            assert (lst.get(0).getCounter() == i + 1);
+            assertTrue((lst.get(0).getCounter() == i + 1));
             Thread.sleep(500);
         }
     }
@@ -106,7 +107,7 @@ public class NetworkRetryTest extends MultiDriverTestBase {
         Iterable<UncachedObject> it = q.asIterable(10);
         for (UncachedObject ob : it) {
             last++;
-            assert (ob.getCounter() == last);
+            assertTrue((ob.getCounter() == last));
             Thread.sleep(500);
         }
     }
@@ -199,7 +200,7 @@ public class NetworkRetryTest extends MultiDriverTestBase {
             morphium.push(lc, "long_list", 12346L);
             morphium.push(lc, "long_list", 12347L);
             ListContainer cont = lc.get();
-            assert (cont.getLongList().contains(12345L)) : "No push?";
+            assertTrue((cont.getLongList().contains(12345L)), "No push?");
             log.info("Pushed...");
             Thread.sleep(1000);
         }
@@ -232,7 +233,7 @@ public class NetworkRetryTest extends MultiDriverTestBase {
             lst.add(12L);
             morphium.pushAll(lc, "long_list", lst, false, false);
             ListContainer cont = lc.get();
-            assert (cont.getLongList().contains(12345L)) : "No push?";
+            assertTrue((cont.getLongList().contains(12345L)), "No push?");
             log.info("Pushed...");
             Thread.sleep(1000);
         }

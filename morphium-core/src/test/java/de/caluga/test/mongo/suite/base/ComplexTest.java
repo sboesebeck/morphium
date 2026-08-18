@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stpehan Bösebeck
@@ -56,7 +57,7 @@ public class ComplexTest extends MultiDriverTestBase {
             ComplexObject co2 = morphium.findById(ComplexObject.class, co.getId());
             log.info("Just loaded: " + co2.toString());
             log.info("Stored     : " + co);
-            assert(co2.getId().equals(co.getId())) : "Ids not equal?";
+            assertTrue((co2.getId().equals(co.getId())), "Ids not equal?");
         }
     }
 
@@ -71,12 +72,12 @@ public class ComplexTest extends MultiDriverTestBase {
             o.setNullValue(15);
             //And test for null-References!
             morphium.store(o);
-            assert(o.getChanged() != 0) : "Last change not set!?!?";
+            assertTrue((o.getChanged() != 0), "Last change not set!?!?");
             TestUtils.waitForConditionToBecomeTrue(2000, "ComplexObject not persisted",
                 () -> morphium.createQueryFor(ComplexObject.class).f("ein_text").eq("A test").get() != null);
             Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class).f("ein_text").eq("A test");
             o = q.get();
-            assert(o.getLastAccess() != 0) : "Last access not set!";
+            assertTrue((o.getLastAccess() != 0), "Last access not set!");
             o = new ComplexObject();
             o.setEinText("A test2");
             o.setTrans("Tansient");
@@ -84,7 +85,7 @@ public class ComplexTest extends MultiDriverTestBase {
             List<ComplexObject> lst = morphium.readAll(ComplexObject.class);
 
             for (ComplexObject co : lst) {
-                assert(co.getChanged() != 0) : "Last Access not set!";
+                assertTrue((co.getChanged() != 0), "Last Access not set!");
             }
         }
     }
@@ -105,28 +106,28 @@ public class ComplexTest extends MultiDriverTestBase {
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             q.f("counter").lt(50).or(q.q().f("counter").eq(10), q.q().f("str_value").eq("Uncached 15"));
             List<UncachedObject> lst = q.asList();
-            assert(lst.size() == 2) : "List size wrong: " + lst.size();
+            assertTrue((lst.size() == 2), String.valueOf("List size wrong: " + lst.size()));
 
             for (UncachedObject o : lst) {
-                assert(o.getCounter() < 50 && (o.getCounter() == 10 || o.getCounter() == 15)) : "Counter wrong: " + o.getCounter();
+                assertTrue((o.getCounter() < 50 && (o.getCounter() == 10 || o.getCounter() == 15)), () -> String.valueOf("Counter wrong: " + o.getCounter()));
             }
 
             q = morphium.createQueryFor(UncachedObject.class);
             q.f("counter").lt(50).or(q.q().f("counter").eq(10), q.q().f("strValue").eq("Uncached 15"), q.q().f("counter").eq(52));
             lst = q.asList();
-            assert(lst.size() == 2) : "List size wrong: " + lst.size();
+            assertTrue((lst.size() == 2), String.valueOf("List size wrong: " + lst.size()));
 
             for (UncachedObject o : lst) {
-                assert(o.getCounter() < 50 && (o.getCounter() == 10 || o.getCounter() == 15)) : "Counter wrong: " + o.getCounter();
+                assertTrue((o.getCounter() < 50 && (o.getCounter() == 10 || o.getCounter() == 15)), () -> String.valueOf("Counter wrong: " + o.getCounter()));
             }
 
             q = morphium.createQueryFor(UncachedObject.class);
             q.f("counter").lt(50).f("counter").gt(10).or(q.q().f("counter").eq(22), q.q().f("str_value").eq("Uncached 15"), q.q().f("counter").gte(70));
             lst = q.asList();
-            assert(lst.size() == 2) : "List size wrong: " + lst.size();
+            assertTrue((lst.size() == 2), String.valueOf("List size wrong: " + lst.size()));
 
             for (UncachedObject o : lst) {
-                assert(o.getCounter() < 50 && o.getCounter() > 10 && (o.getCounter() == 22 || o.getCounter() == 15)) : "Counter wrong: " + o.getCounter();
+                assertTrue((o.getCounter() < 50 && o.getCounter() > 10 && (o.getCounter() == 22 || o.getCounter() == 15)), () -> String.valueOf("Counter wrong: " + o.getCounter()));
             }
         }
     }
@@ -149,10 +150,10 @@ public class ComplexTest extends MultiDriverTestBase {
             q.nor(q.q().f("counter").lt(90), q.q().f("counter").gt(95));
             log.info("Query: " + q.toQueryObject().toString());
             List<UncachedObject> lst = q.asList();
-            assert(lst.size() == 6) : "List size wrong: " + lst.size();
+            assertTrue((lst.size() == 6), () -> String.valueOf("List size wrong: " + lst.size()));
 
             for (UncachedObject o : lst) {
-                assert(!(o.getCounter() < 90 || o.getCounter() > 95)) : "Counter wrong: " + o.getCounter();
+                assertTrue((!(o.getCounter() < 90 || o.getCounter() > 95)), () -> String.valueOf("Counter wrong: " + o.getCounter()));
             }
         }
     }
@@ -175,22 +176,22 @@ public class ComplexTest extends MultiDriverTestBase {
             query.put("counter", UtilsMap.of("$lt", 10));
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             List<UncachedObject> lst = q.rawQuery(query).asList();
-            assert(lst != null && !lst.isEmpty()) : "Nothing found?";
-            assert(lst.size() == 9);
+            assertTrue((lst != null && !lst.isEmpty()), "Nothing found?");
+            assertTrue((lst.size() == 9));
 
             for (UncachedObject o : lst) {
-                assert(o.getCounter() < 10) : "Wrong counter: " + o.getCounter();
+                assertTrue((o.getCounter() < 10), () -> String.valueOf("Wrong counter: " + o.getCounter()));
             }
 
             //test for iterator
             int cnt = 0;
 
             for (UncachedObject o : q.asIterable()) {
-                assert(o.getCounter() < 10) : "Wrong counter: " + o.getCounter();
+                assertTrue((o.getCounter() < 10), () -> String.valueOf("Wrong counter: " + o.getCounter()));
                 cnt++;
             }
 
-            assert(cnt == 9);
+            assertTrue((cnt == 9));
         }
     }
 
@@ -214,8 +215,8 @@ public class ComplexTest extends MultiDriverTestBase {
             qc.f("ref").eq(o);
             ComplexObject fnd = qc.get();
             assertNotNull(fnd, "not found?!?!");
-            assert(fnd.getEinText().equals(co.getEinText())) : "Text different?";
-            assert(fnd.getRef().getCounter() == co.getRef().getCounter()) : "Reference broken?";
+            assertTrue((fnd.getEinText().equals(co.getEinText())), "Text different?");
+            assertTrue((fnd.getRef().getCounter() == co.getRef().getCounter()), "Reference broken?");
         }
     }
 
@@ -245,8 +246,8 @@ public class ComplexTest extends MultiDriverTestBase {
             ;
             assertNotNull(co.getEmbed());
             ;
-            assert(co.getEmbed().getName().equals("embedded1"));
-            assert(co.getEinText().equals("Text"));
+            assertTrue((co.getEmbed().getName().equals("embedded1")));
+            assertTrue((co.getEinText().equals("Text")));
         }
     }
 
@@ -260,9 +261,9 @@ public class ComplexTest extends MultiDriverTestBase {
                 () -> morphium.createQueryFor(UncachedObject.class).countAll() == 100);
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             UncachedObject uc = q.rawQuery(UtilsMap.of("counter", 10)).asList().get(0);
-            assert(uc.getCounter() == 10);
-            assert(q.q().rawQuery(UtilsMap.of("counter", UtilsMap.of("$lte", 50))).countAll() == 51);  // 0-50 inclusive = 51
-            assert(q.q().rawQuery(UtilsMap.of("counter", UtilsMap.of("$lte", 50))).asList().size() == 51);
+            assertTrue((uc.getCounter() == 10));
+            assertTrue((q.q().rawQuery(UtilsMap.of("counter", UtilsMap.of("$lte", 50))).countAll() == 51)); // 0-50 inclusive = 51
+            assertTrue((q.q().rawQuery(UtilsMap.of("counter", UtilsMap.of("$lte", 50))).asList().size() == 51));
         }
     }
 }

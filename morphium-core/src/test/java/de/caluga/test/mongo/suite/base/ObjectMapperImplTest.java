@@ -27,6 +27,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SuppressWarnings({"unchecked", "rawtypes"})
 @Tag("core")
@@ -40,7 +41,7 @@ public class ObjectMapperImplTest {
         UncachedObject o = new UncachedObject("test", 1234);
         o.setMorphiumId(new MorphiumId());
         Map<String, Object> m = OM.serialize(o);
-        assert (m.get("_id") instanceof ObjectId);
+        assertTrue((m.get("_id") instanceof ObjectId));
         UncachedObject uc = OM.deserialize(UncachedObject.class, m);
         assertNotNull(uc.getMorphiumId());
         ;
@@ -51,7 +52,7 @@ public class ObjectMapperImplTest {
     public void simpleParseFromStringTest() throws Exception {
         String json = "{ \"value\":\"test\",\"counter\":123}";
         UncachedObject uc = OM.deserialize(UncachedObject.class, json);
-        assert (uc.getCounter() == 123);
+        assertTrue((uc.getCounter() == 123));
     }
 
     @Test
@@ -62,8 +63,8 @@ public class ObjectMapperImplTest {
         o.setCounter(1234);
         Map<String, Object> dbo = OM.serialize(o);
         UncachedObject uc = OM.deserialize(UncachedObject.class, dbo);
-        assert (uc.getCounter() == 1234);
-        assert (uc.getLongData()[0] == 1);
+        assertTrue((uc.getCounter() == 1234));
+        assertTrue((uc.getLongData()[0] == 1));
     }
 
 
@@ -77,16 +78,16 @@ public class ObjectMapperImplTest {
         o.addString("string4");
         Map<String, Object> dbo = OM.serialize(o);
         ListContainer uc = OM.deserialize(ListContainer.class, dbo);
-        assert (uc.getStringList().size() == 4);
-        assert (uc.getStringList().get(0).equals("string1"));
-        assert (uc.getLongList().size() == 1);
+        assertTrue((uc.getStringList().size() == 4));
+        assertTrue((uc.getStringList().get(0).equals("string1")));
+        assertTrue((uc.getLongList().size() == 1));
     }
 
     @Test
     public void testCreateCamelCase() {
         AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper(true);
-        assert (om.createCamelCase("this_is_a_test", false).equals("thisIsATest")) : "Error camel case translation not working";
-        assert (om.createCamelCase("a_test_this_is", true).equals("ATestThisIs")) : "Error - capitalized String wrong";
+        assertTrue((om.createCamelCase("this_is_a_test", false).equals("thisIsATest")), "Error camel case translation not working");
+        assertTrue((om.createCamelCase("a_test_this_is", true).equals("ATestThisIs")), "Error - capitalized String wrong");
 
 
     }
@@ -94,7 +95,7 @@ public class ObjectMapperImplTest {
     @Test
     public void testConvertCamelCase() {
         AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper(true);
-        assert (om.convertCamelCase("thisIsATest").equals("this_is_a_test")) : "Conversion failed!";
+        assertTrue((om.convertCamelCase("thisIsATest").equals("this_is_a_test")), "Conversion failed!");
     }
 
     @Test
@@ -102,18 +103,18 @@ public class ObjectMapperImplTest {
         AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper(false);
         String fn = om.getMongoFieldName(UncachedObject.class, "intData");
 
-        assert (fn.equals("intData")) : "Conversion failed! " + fn;
+        assertTrue((fn.equals("intData")), String.valueOf("Conversion failed! " + fn));
 
         om = new AnnotationAndReflectionHelper(true);
         fn = om.getMongoFieldName(UncachedObject.class, "intData");
 
-        assert (fn.equals("int_data")) : "Conversion failed! " + fn;
+        assertTrue((fn.equals("int_data")), String.valueOf("Conversion failed! " + fn));
     }
 
     @Test
     public void testGetCollectionName() {
-        assert (OM.getCollectionName(CachedObject.class).equals("cached_object")) : "Cached object test failed";
-        assert (OM.getCollectionName(UncachedObject.class).equals("uncached_object")) : "Uncached object test failed";
+        assertTrue((OM.getCollectionName(CachedObject.class).equals("cached_object")), "Cached object test failed");
+        assertTrue((OM.getCollectionName(UncachedObject.class).equals("uncached_object")), "Uncached object test failed");
     }
 
     @Test
@@ -121,11 +122,11 @@ public class ObjectMapperImplTest {
 
         for (int i = 0; i < 2; i++) {
             new Thread(() -> {
-                assert (OM.getCollectionName(CachedObject.class).equals("cached_object")) : "Cached object test failed";
+                assertTrue((OM.getCollectionName(CachedObject.class).equals("cached_object")), "Cached object test failed");
                 Thread.yield();
-                assert (OM.getCollectionName(UncachedObject.class).equals("uncached_object")) : "Uncached object test failed";
+                assertTrue((OM.getCollectionName(UncachedObject.class).equals("uncached_object")), "Uncached object test failed");
                 Thread.yield();
-                assert (OM.getCollectionName(ComplexObject.class).equals("ComplexObject")) : "complex object test failed";
+                assertTrue((OM.getCollectionName(ComplexObject.class).equals("ComplexObject")), "complex object test failed");
             }).start();
         }
         Thread.yield();
@@ -141,8 +142,11 @@ public class ObjectMapperImplTest {
 
         String s = Utils.toJsonString(dbo);
         System.out.println("Marshalling was: " + s);
-        // With new behavior, null values are serialized as explicit nulls (not omitted)
-        assert (MultiDriverTestBase.stringWordCompare(s, "{ \"float_data\" : null, \"dval\" : 0.0, \"double_data\" : null, \"str_value\" : \"This \" is $ test\", \"long_data\" : null, \"binary_data\" : null, \"counter\" : 12345, \"int_data\" : null } ")) : "String creation failed?" + s;
+        // With new behavior, null values are serialized as explicit nulls (not omitted).
+        // The quote inside str_value MUST come out escaped (#306): this assertion used to
+        // expect it raw, which is invalid JSON - and pinned exactly the defect that made every
+        // dump of real data unparseable.
+        assertTrue((MultiDriverTestBase.stringWordCompare(s, "{ \"float_data\" : null, \"dval\" : 0.0, \"double_data\" : null, \"str_value\" : \"This \\\" is $ test\", \"long_data\" : null, \"binary_data\" : null, \"counter\" : 12345, \"int_data\" : null } ")), () -> String.valueOf("String creation failed?" + s));
         o = OM.deserialize(UncachedObject.class, dbo);
         log.info("Text is: " + o.getStrValue());
     }
@@ -163,16 +167,16 @@ public class ObjectMapperImplTest {
         o.setStrValue("This \" is $ test");
         o.setMorphiumId(new MorphiumId());
         Object id = an.getId(o);
-        assert (id.equals(o.getMorphiumId())) : "IDs not equal!";
+        assertTrue((id.equals(o.getMorphiumId())), "IDs not equal!");
     }
 
 
     @Test
     public void testIsEntity() {
         AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper(true);
-        assert (om.isEntity(UncachedObject.class)) : "Uncached Object no Entity?=!?=!?";
-        assert (om.isEntity(new UncachedObject())) : "Uncached Object no Entity?=!?=!?";
-        assert (!om.isEntity("")) : "String is an Entity?";
+        assertTrue((om.isEntity(UncachedObject.class)), "Uncached Object no Entity?=!?=!?");
+        assertTrue((om.isEntity(new UncachedObject())), "Uncached Object no Entity?=!?=!?");
+        assertTrue((!om.isEntity("")), "String is an Entity?");
     }
 
     @Test
@@ -181,7 +185,7 @@ public class ObjectMapperImplTest {
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
         o.setStrValue("This \" is $ test");
-        assert (an.getValue(o, "counter").equals(12345)) : "Value not ok!";
+        assertTrue((an.getValue(o, "counter").equals(12345)), "Value not ok!");
 
     }
 
@@ -191,7 +195,7 @@ public class ObjectMapperImplTest {
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
         om.setValue(o, "A test", "str_value");
-        assert ("A test".equals(o.getStrValue())) : "Value not set";
+        assertTrue(("A test".equals(o.getStrValue())), "Value not set");
 
     }
 
@@ -221,12 +225,12 @@ public class ObjectMapperImplTest {
 
         // Unmarshalling stuff
         co = OM.deserialize(ComplexObject.class, marshall);
-        assert (co.getEntityEmbeded().getMorphiumId() == null) : "Embeded entity got a mongoID?!?!?!";
+        assertTrue((co.getEntityEmbeded().getMorphiumId() == null), "Embeded entity got a mongoID?!?!?!");
         co.getEntityEmbeded().setMorphiumId(embedId); // need to set ID
         // manually, as it won't
         // be stored!
         String st2 = Utils.toJsonString(co);
-        assert (MultiDriverTestBase.stringWordCompare(st, st2)) : "Strings not equal?\n" + st + "\n" + st2;
+        assertTrue((MultiDriverTestBase.stringWordCompare(st, st2)), () -> String.valueOf("Strings not equal?\n" + st + "\n" + st2));
         assertNotNull(co.getEmbed(), "Embedded value not found!");
     }
 
@@ -237,7 +241,7 @@ public class ObjectMapperImplTest {
 
         Map<String, Object> tst = OM.serialize(uc);
         UncachedObject uc2 = OM.deserialize(UncachedObject.class, tst);
-        assert (uc2.getMorphiumId().equals(uc.getMorphiumId()));
+        assertTrue((uc2.getMorphiumId().equals(uc.getMorphiumId())));
     }
 
     @Test
@@ -251,7 +255,7 @@ public class ObjectMapperImplTest {
         }
         o.setEinText("Ein Text");
         obj = OM.serialize(o);
-        assert (!obj.containsKey("trans")) : "Transient field used?!?!?";
+        assertTrue((!obj.containsKey("trans")), "Transient field used?!?!?");
     }
 
     @Test
@@ -272,17 +276,17 @@ public class ObjectMapperImplTest {
         // class_name=de.caluga.test.mongo.suite.data.UncachedObject}],
         // name=Simple List}")) : "Marshall not ok: " + m;
         // With new behavior, null values are serialized as explicit nulls (not omitted)
-        assert (MultiDriverTestBase.stringWordCompare(m, "{list_value=[A Value, 27.0, {float_data=null, dval=0.0, double_data=null, str_value=null, long_data=null, binary_data=null, counter=0, class_name=uc, int_data=null}], map_value=null, name=Simple List, map_list_value=null}"));
+        assertTrue((MultiDriverTestBase.stringWordCompare(m, "{list_value=[A Value, 27.0, {float_data=null, dval=0.0, double_data=null, str_value=null, long_data=null, binary_data=null, counter=0, class_name=uc, int_data=null}], map_value=null, name=Simple List, map_list_value=null}")));
 
         MapListObject mo = OM.deserialize(MapListObject.class, marshall);
         System.out.println("Mo: " + mo.getName());
         System.out.println("lst: " + mo.getListValue());
-        assert (mo.getName().equals(o.getName())) : "Names not equal?!?!?";
+        assertTrue((mo.getName().equals(o.getName())), "Names not equal?!?!?");
         for (int i = 0; i < lst.size(); i++) {
             Object listValueNew = mo.getListValue().get(i);
             Object listValueOrig = o.getListValue().get(i);
-            assert (listValueNew.getClass().equals(listValueOrig.getClass())) : "Classes differ: " + listValueNew.getClass() + " - " + listValueOrig.getClass();
-            assert (listValueNew.equals(listValueOrig)) : "Value not equals in list: " + listValueNew + " vs. " + listValueOrig;
+            assertTrue((listValueNew.getClass().equals(listValueOrig.getClass())), () -> String.valueOf("Classes differ: " + listValueNew.getClass() + " - " + listValueOrig.getClass()));
+            assertTrue((listValueNew.equals(listValueOrig)), () -> String.valueOf("Value not equals in list: " + listValueNew + " vs. " + listValueOrig));
         }
         System.out.println("test Passed!");
 
@@ -310,18 +314,18 @@ public class ObjectMapperImplTest {
         // \"This is a string\" } , \"name\" : \"A map-value\" } ")) : "Value
         // not marshalled corectly";
         // With new behavior, null values are serialized as explicit nulls (not omitted)
-        assert (MultiDriverTestBase.stringWordCompare(m, "{ \"list_value\" : null, \"map_value\" : { \"Entity\" : { \"float_data\" : null, \"dval\" : 0.0, \"double_data\" : null, \"str_value\" : null, \"long_data\" : null, \"binary_data\" : null, \"counter\" : 0, \"class_name\" : \"uc\", \"int_data\" : null } , \"a primitive value\" : 42, \"null\" : null, \"double\" : 42.0, \"a_string\" : \"This is a string\" } , \"name\" : \"A map-value\", \"map_list_value\" : null }")) : "Value not marshalled corectly";
+        assertTrue((MultiDriverTestBase.stringWordCompare(m, "{ \"list_value\" : null, \"map_value\" : { \"Entity\" : { \"float_data\" : null, \"dval\" : 0.0, \"double_data\" : null, \"str_value\" : null, \"long_data\" : null, \"binary_data\" : null, \"counter\" : 0, \"class_name\" : \"uc\", \"int_data\" : null } , \"a primitive value\" : 42, \"null\" : null, \"double\" : 42.0, \"a_string\" : \"This is a string\" } , \"name\" : \"A map-value\", \"map_list_value\" : null }")), "Value not marshalled corectly");
 
         MapListObject mo = OM.deserialize(MapListObject.class, marshall);
-        assert (mo.getName().equals("A map-value")) : "Name error";
+        assertTrue((mo.getName().equals("A map-value")), "Name error");
         assertNotNull(mo.getMapValue(), "map value is null????");
         for (String k : mo.getMapValue().keySet()) {
             Object v = mo.getMapValue().get(k);
             if (v == null) {
-                assert (o.getMapValue().get(k) == null) : "v==null but original not?";
+                assertTrue((o.getMapValue().get(k) == null), "v==null but original not?");
             } else {
-                assert (o.getMapValue().get(k).getClass().equals(v.getClass())) : "Classes differ: " + o.getMapValue().get(k).getClass().getName() + " != " + v.getClass().getName();
-                assert (o.getMapValue().get(k).equals(v)) : "Value not equal, key: " + k;
+                assertTrue((o.getMapValue().get(k).getClass().equals(v.getClass())), () -> String.valueOf("Classes differ: " + o.getMapValue().get(k).getClass().getName() + " != " + v.getClass().getName()));
+                assertTrue((o.getMapValue().get(k).equals(v)), () -> String.valueOf("Value not equal, key: " + k));
             }
         }
 
@@ -346,14 +350,14 @@ public class ObjectMapperImplTest {
         long dur = System.currentTimeMillis() - start;
 
         log.info("Mapping of UncachedObject 25000 times took " + dur + "ms");
-        assert (dur < 5000);
+        assertTrue((dur < 5000));
         start = System.currentTimeMillis();
         for (int i = 0; i < 25000; i++) {
             UncachedObject uc = OM.deserialize(UncachedObject.class, marshall);
         }
         dur = System.currentTimeMillis() - start;
         log.info("De-Marshalling of UncachedObject 25000 times took " + dur + "ms");
-        assert (dur < 5000);
+        assertTrue((dur < 5000));
     }
 
     @Test
@@ -374,14 +378,14 @@ public class ObjectMapperImplTest {
         long dur = System.currentTimeMillis() - start;
 
         log.info("Mapping of UncachedObject 25000 times took " + dur + "ms");
-        assert (dur < 5000);
+        assertTrue((dur < 5000));
         start = System.currentTimeMillis();
         for (int i = 0; i < 25000; i++) {
             UncachedObject uc = OM.deserialize(UncachedObject.class, marshall);
         }
         dur = System.currentTimeMillis() - start;
         log.info("De-Marshalling of UncachedObject 25000 times took " + dur + "ms");
-        assert (dur < 5000);
+        assertTrue((dur < 5000));
     }
 
     @Test
@@ -390,7 +394,7 @@ public class ObjectMapperImplTest {
         ReplicaSetConf c = OM.deserialize(ReplicaSetConf.class, json);
         assertNotNull(c);
         ;
-        assert (c.getMembers().size() == 3);
+        assertTrue((c.getMembers().size() == 3));
     }
 
     @Test
@@ -402,9 +406,9 @@ public class ObjectMapperImplTest {
         Map<String, Object> obj = OM.serialize(co);
         assertNotNull(obj.get("embeddedObjectList"));
         ;
-        assert (((List) obj.get("embeddedObjectList")).size() == 2);
+        assertTrue((((List) obj.get("embeddedObjectList")).size() == 2));
         ComplexObject co2 = OM.deserialize(ComplexObject.class, obj);
-        assert (co2.getEmbeddedObjectList().size() == 2);
+        assertTrue((co2.getEmbeddedObjectList().size() == 2));
         assertNotNull(co2.getEmbeddedObjectList().get(0).getName());
         ;
 
@@ -418,8 +422,8 @@ public class ObjectMapperImplTest {
         Map<String, Object> obj = OM.serialize(o);
         assertNotNull(obj.get("binary_data"));
         ;
-        assert (obj.get("binary_data").getClass().isArray());
-        assert (obj.get("binary_data").getClass().getComponentType().equals(byte.class));
+        assertTrue((obj.get("binary_data").getClass().isArray()));
+        assertTrue((obj.get("binary_data").getClass().getComponentType().equals(byte.class)));
     }
 
     @Test
@@ -431,8 +435,8 @@ public class ObjectMapperImplTest {
         o = OM.deserialize(NoDefaultConstructorUncachedObject.class, serialized);
         assertNotNull(o);
         ;
-        assert (o.getCounter() == 15);
-        assert (o.getStrValue().equals("test"));
+        assertTrue((o.getCounter() == 15));
+        assertTrue((o.getStrValue().equals("test")));
     }
 
     @Test
@@ -458,9 +462,9 @@ public class ObjectMapperImplTest {
 
         assertNotNull(obj.get("str_value"));
         ;
-        assert (obj.get("str_value") instanceof String);
-        assert (obj.get("counter") instanceof Integer);
-        assert (obj.get("long_data") instanceof ArrayList);
+        assertTrue((obj.get("str_value") instanceof String));
+        assertTrue((obj.get("counter") instanceof Integer));
+        assertTrue((obj.get("long_data") instanceof ArrayList));
 
         MappedObject mo = new MappedObject();
         mo.id = "test";
@@ -471,7 +475,7 @@ public class ObjectMapperImplTest {
         obj = OM.serialize(mo);
         assertNotNull(obj.get("uc"));
         ;
-        assert (((Map) obj.get("uc")).get("_id") == null);
+        assertTrue((((Map) obj.get("uc")).get("_id") == null));
 
         BIObject bo = new BIObject();
         bo.id = new MorphiumId();
@@ -479,8 +483,8 @@ public class ObjectMapperImplTest {
         bo.biValue = new BigInteger("123afd33", 16);
 
         obj = OM.serialize(bo);
-        assert (obj.get("_id") instanceof ObjectId || obj.get("_id") instanceof String || obj.get("_id") instanceof MorphiumId);
-        assert (obj.get("bi_value") instanceof Map);
+        assertTrue((obj.get("_id") instanceof ObjectId || obj.get("_id") instanceof String || obj.get("_id") instanceof MorphiumId));
+        assertTrue((obj.get("bi_value") instanceof Map));
 
     }
 
@@ -513,9 +517,9 @@ public class ObjectMapperImplTest {
         Map<String, Object> m = OM.serialize(so);
         assertNotNull(m.get("set_of_strings"));
         ;
-        assert (m.get("set_of_strings") instanceof List);
-        assert (((List) m.get("set_of_strings")).size() == 3);
-        assert (((List) m.get("set_of_u_c")).size() == 1);
+        assertTrue((m.get("set_of_strings") instanceof List));
+        assertTrue((((List) m.get("set_of_strings")).size() == 3));
+        assertTrue((((List) m.get("set_of_u_c")).size() == 1));
 
         SetObject setObject = OM.deserialize(SetObject.class, m);
         assertNotNull(setObject);
@@ -523,24 +527,24 @@ public class ObjectMapperImplTest {
         setObject.setOfStrings.contains("test");
         setObject.setOfStrings.contains("test2");
         setObject.setOfStrings.contains("test3");
-        assert (setObject.setOfUC.iterator().next() instanceof UncachedObject);
+        assertTrue((setObject.setOfUC.iterator().next() instanceof UncachedObject));
 
-        assert (setObject.listOfSetOfStrings.size() == 2);
+        assertTrue((setObject.listOfSetOfStrings.size() == 2));
         Set<String> firstSetOfStrings = setObject.listOfSetOfStrings.get(0);
-        assert (firstSetOfStrings.size() == 2);
-        assert (firstSetOfStrings.contains("Test1"));
-        assert (firstSetOfStrings.contains("Test2"));
+        assertTrue((firstSetOfStrings.size() == 2));
+        assertTrue((firstSetOfStrings.contains("Test1")));
+        assertTrue((firstSetOfStrings.contains("Test2")));
         Set<String> secondSetOfStrings = setObject.listOfSetOfStrings.get(1);
-        assert (secondSetOfStrings.size() == 2);
-        assert (secondSetOfStrings.contains("Test3"));
-        assert (secondSetOfStrings.contains("Test4"));
+        assertTrue((secondSetOfStrings.size() == 2));
+        assertTrue((secondSetOfStrings.contains("Test3")));
+        assertTrue((secondSetOfStrings.contains("Test4")));
 
         Set<String> t1 = setObject.mapOfSetOfStrings.get("t1");
-        assert (t1.contains("test1"));
-        assert (t1.contains("test11"));
+        assertTrue((t1.contains("test1")));
+        assertTrue((t1.contains("test11")));
         Set<String> t2 = setObject.mapOfSetOfStrings.get("t2");
-        assert (t2.contains("test2"));
-        assert (t2.contains("test21"));
+        assertTrue((t2.contains("test2")));
+        assertTrue((t2.contains("test21")));
     }
 
     @Test
@@ -579,24 +583,24 @@ public class ObjectMapperImplTest {
         setObject.setOfStrings.contains("test");
         setObject.setOfStrings.contains("test2");
         setObject.setOfStrings.contains("test3");
-        assert (setObject.setOfUC.iterator().next() instanceof UncachedObject);
+        assertTrue((setObject.setOfUC.iterator().next() instanceof UncachedObject));
 
-        assert (setObject.listOfSetOfStrings.size() == 2);
+        assertTrue((setObject.listOfSetOfStrings.size() == 2));
         Set<String> firstSetOfStrings = setObject.listOfSetOfStrings.get(0);
-        assert (firstSetOfStrings.size() == 2);
-        assert (firstSetOfStrings.contains("Test1"));
-        assert (firstSetOfStrings.contains("Test2"));
+        assertTrue((firstSetOfStrings.size() == 2));
+        assertTrue((firstSetOfStrings.contains("Test1")));
+        assertTrue((firstSetOfStrings.contains("Test2")));
         Set<String> secondSetOfStrings = setObject.listOfSetOfStrings.get(1);
-        assert (secondSetOfStrings.size() == 2);
-        assert (secondSetOfStrings.contains("Test3"));
-        assert (secondSetOfStrings.contains("Test4"));
+        assertTrue((secondSetOfStrings.size() == 2));
+        assertTrue((secondSetOfStrings.contains("Test3")));
+        assertTrue((secondSetOfStrings.contains("Test4")));
 
         Set<String> t1 = setObject.mapOfSetOfStrings.get("t1");
-        assert (t1.contains("test1"));
-        assert (t1.contains("test11"));
+        assertTrue((t1.contains("test1")));
+        assertTrue((t1.contains("test11")));
         Set<String> t2 = setObject.mapOfSetOfStrings.get("t2");
-        assert (t2.contains("test2"));
-        assert (t2.contains("test21"));
+        assertTrue((t2.contains("test2")));
+        assertTrue((t2.contains("test21")));
     }
 
     @Test
@@ -611,19 +615,19 @@ public class ObjectMapperImplTest {
         Map<String, Object> obj = OM.serialize(lst);
         assertNotNull(obj.get("list"));
         ;
-        assert (obj.get("list") instanceof List);
-        assert (((List) obj.get("list")).get(0) instanceof Map);
+        assertTrue((obj.get("list") instanceof List));
+        assertTrue((((List) obj.get("list")).get(0) instanceof Map));
 
         ListOfEmbedded lst2 = OM.deserialize(ListOfEmbedded.class, obj);
         assertNotNull(lst2.list);
         ;
-        assert (lst2.list.size() == 4);
-        assert (lst2.list.get(0).getName().equals("nam"));
+        assertTrue((lst2.list.size() == 4));
+        assertTrue((lst2.list.get(0).getName().equals("nam")));
 
         ((Map) ((List) obj.get("list")).get(0)).remove("class_name");
 
         lst2 = OM.deserialize(ListOfEmbedded.class, obj);
-        assert (lst2.list.get(0) instanceof EmbeddedObject);
+        assertTrue((lst2.list.get(0) instanceof EmbeddedObject));
 
     }
 
@@ -637,16 +641,16 @@ public class ObjectMapperImplTest {
         lst3.list.get(0).get(0).add(new UncachedObject("test", 123));
 
         Map<String, Object> obj = OM.serialize(lst3);
-        assert (obj.get("list") instanceof List);
-        assert (((List) obj.get("list")).get(0) instanceof List);
-        assert (((List) ((List) obj.get("list")).get(0)).get(0) instanceof List);
-        assert (((List) ((List) ((List) obj.get("list")).get(0)).get(0)).get(0) instanceof Map);
+        assertTrue((obj.get("list") instanceof List));
+        assertTrue((((List) obj.get("list")).get(0) instanceof List));
+        assertTrue((((List) ((List) obj.get("list")).get(0)).get(0) instanceof List));
+        assertTrue((((List) ((List) ((List) obj.get("list")).get(0)).get(0)).get(0) instanceof Map));
 
         ListOfListOfListOfUncached lst4 = OM.deserialize(ListOfListOfListOfUncached.class, obj);
-        assert (lst4.list.size() == 2);
-        assert (lst4.list.get(0).size() == 1);
-        assert (lst4.list.get(0).get(0).size() == 1);
-        assert (lst4.list.get(0).get(0).get(0).getStrValue().equals("test"));
+        assertTrue((lst4.list.size() == 2));
+        assertTrue((lst4.list.get(0).size() == 1));
+        assertTrue((lst4.list.get(0).get(0).size() == 1));
+        assertTrue((lst4.list.get(0).get(0).get(0).getStrValue().equals("test")));
     }
 
     public static class NoDefaultConstructorUncachedObject extends UncachedObject {
@@ -665,13 +669,13 @@ public class ObjectMapperImplTest {
         lst5.list.get(0).put("tst1", new ArrayList<>());
         lst5.list.get(0).get("tst1").add("test");
         Map<String, Object> obj = OM.serialize(lst5);
-        assert (obj.get("list") instanceof List);
-        assert (((List) obj.get("list")).get(0) instanceof Map);
-        assert (((Map) ((List) obj.get("list")).get(0)).get("tst1") instanceof List);
-        assert (((List) ((Map) ((List) obj.get("list")).get(0)).get("tst1")).get(0) instanceof String);
+        assertTrue((obj.get("list") instanceof List));
+        assertTrue((((List) obj.get("list")).get(0) instanceof Map));
+        assertTrue((((Map) ((List) obj.get("list")).get(0)).get("tst1") instanceof List));
+        assertTrue((((List) ((Map) ((List) obj.get("list")).get(0)).get("tst1")).get(0) instanceof String));
 
         ListOfMapOfListOfString lst6 = OM.deserialize(ListOfMapOfListOfString.class, obj);
-        assert (lst6.list.size() == 2);
+        assertTrue((lst6.list.size() == 2));
         assertNotNull(lst6.list.get(0));
         ;
         assertNotNull(lst6.list.get(0).get("tst1"));
@@ -688,16 +692,16 @@ public class ObjectMapperImplTest {
         lst.list.get(0).get(0).add("TEst1");
 
         Map<String, Object> obj = OM.serialize(lst);
-        assert (obj.get("list") instanceof List);
-        assert (((List) obj.get("list")).get(0) instanceof List);
-        assert (((List) ((List) obj.get("list")).get(0)).get(0) instanceof List);
-        assert (((List) ((List) ((List) obj.get("list")).get(0)).get(0)).get(0) instanceof String);
+        assertTrue((obj.get("list") instanceof List));
+        assertTrue((((List) obj.get("list")).get(0) instanceof List));
+        assertTrue((((List) ((List) obj.get("list")).get(0)).get(0) instanceof List));
+        assertTrue((((List) ((List) ((List) obj.get("list")).get(0)).get(0)).get(0) instanceof String));
 
         ListOfListOfListOfString lst2 = OM.deserialize(ListOfListOfListOfString.class, obj);
-        assert (lst2.list.size() == 2);
-        assert (lst2.list.get(0).size() == 1);
-        assert (lst2.list.get(0).get(0).size() == 1);
-        assert (lst2.list.get(0).get(0).get(0).equals("TEst1"));
+        assertTrue((lst2.list.size() == 2));
+        assertTrue((lst2.list.get(0).size() == 1));
+        assertTrue((lst2.list.get(0).get(0).size() == 1));
+        assertTrue((lst2.list.get(0).get(0).get(0).equals("TEst1")));
 
     }
 
@@ -740,7 +744,7 @@ public class ObjectMapperImplTest {
 
         assertNotNull(e2);
         ;
-        assert (e2.equals(e));
+        assertTrue((e2.equals(e)));
     }
 
     @Test
@@ -766,7 +770,7 @@ public class ObjectMapperImplTest {
 
         assertNotNull(e2);
         ;
-        assert (e2.equals(e));
+        assertTrue((e2.equals(e)));
     }
 
     @Test
@@ -792,7 +796,7 @@ public class ObjectMapperImplTest {
 
         assertNotNull(e2);
         ;
-        assert (e2.equals(e));
+        assertTrue((e2.equals(e)));
     }
 
     @Test
@@ -808,7 +812,7 @@ public class ObjectMapperImplTest {
 
         assertNotNull(e2);
         ;
-        assert (e2.equals(e));
+        assertTrue((e2.equals(e)));
     }
 
     @Test
@@ -848,11 +852,11 @@ public class ObjectMapperImplTest {
         MyClass mc = new MyClass();
         mc.theValue = "a little Test";
         Map<String, Object> map = OM.serialize(mc);
-        assert (map.get("class").equals(mc.getClass().getName()));
-        assert (map.get("value").equals("AMMENDED+" + mc.theValue));
+        assertTrue((map.get("class").equals(mc.getClass().getName())));
+        assertTrue((map.get("value").equals("AMMENDED+" + mc.theValue)));
 
         MyClass mc2 = OM.deserialize(MyClass.class, map);
-        assert (mc2.theValue.equals(mc.theValue));
+        assertTrue((mc2.theValue.equals(mc.theValue)));
     }
 
     @Test
@@ -881,18 +885,18 @@ public class ObjectMapperImplTest {
         log.info("Deserialized!");
         assertNotNull(c2);
         ;
-        assert (c2.id.equals(c.id));
-        assert (c2.structureK.size() == c.structureK.size());
-        assert (c2.structureK.get(0).get("String") instanceof String);
-        assert (c2.structureK.get(0).get("Integer") instanceof Integer);
-        assert (c2.structureK.get(0).get("List") instanceof List);
-        assert (c2.structureK.get(0).get("Map") == null);
-        assert (c2.structureK.get(1).get("String") instanceof String);
-        assert (c2.structureK.get(1).get("Integer") instanceof Integer);
-        assert (c2.structureK.get(1).get("List") instanceof List);
+        assertTrue((c2.id.equals(c.id)));
+        assertTrue((c2.structureK.size() == c.structureK.size()));
+        assertTrue((c2.structureK.get(0).get("String") instanceof String));
+        assertTrue((c2.structureK.get(0).get("Integer") instanceof Integer));
+        assertTrue((c2.structureK.get(0).get("List") instanceof List));
+        assertTrue((c2.structureK.get(0).get("Map") == null));
+        assertTrue((c2.structureK.get(1).get("String") instanceof String));
+        assertTrue((c2.structureK.get(1).get("Integer") instanceof Integer));
+        assertTrue((c2.structureK.get(1).get("List") instanceof List));
         assertNotNull(c2.structureK.get(1).get("Map"));
         ;
-        assert (((Map) c2.structureK.get(1).get("Map")).get("key").equals(123));
+        assertTrue((((Map) c2.structureK.get(1).get("Map")).get("key").equals(123)));
 
         log.info("All fine!");
     }
@@ -918,10 +922,10 @@ public class ObjectMapperImplTest {
         Map<String, Object> obj = OM.serialize(a);
         ArrayTestObj a2 = OM.deserialize(ArrayTestObj.class, obj);
 
-        assert (Arrays.equals((byte[]) obj.get("byte_arr"), a.byteArr)) : "Byte array should be sento to mongo as is: " + obj.get("byteArr");
+        assertTrue((Arrays.equals((byte[]) obj.get("byte_arr"), a.byteArr)), () -> String.valueOf("Byte array should be sento to mongo as is: " + obj.get("byteArr")));
         assertNotNull(a2);
         ;
-        assert (a2.equals(a));
+        assertTrue((a2.equals(a)));
     }
 
     @Embedded

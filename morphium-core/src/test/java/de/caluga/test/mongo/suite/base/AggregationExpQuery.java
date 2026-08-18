@@ -11,6 +11,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.List;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("core")
 public class AggregationExpQuery extends MultiDriverTestBase {
@@ -24,7 +25,7 @@ public class AggregationExpQuery extends MultiDriverTestBase {
             q.expr(Expr.gt(Expr.field(UncachedObject.Fields.counter), Expr.intExpr(50)));
             log.debug(Utils.toJsonString(q.toQueryObject()));
             List<UncachedObject> lst = q.asList();
-            assert (lst.size() == 49) : "Size wrong: " + lst.size();  // 0-based counters: 51-99 = 49 objects
+            assertTrue(lst.size() == 49, "Size wrong: " + lst.size()); // 0-based counters: 51-99 = 49 objects
 
 
             // Update all objects with random dval values
@@ -39,10 +40,10 @@ public class AggregationExpQuery extends MultiDriverTestBase {
 
             q = q.q().expr(Expr.gt(Expr.field(UncachedObject.Fields.counter), Expr.field(UncachedObject.Fields.dval)));
             lst = q.asList();
-            assert (lst.size() > 0);
-            assert (lst.size() < 100);
+            assertTrue((lst.size() > 0));
+            assertTrue((lst.size() < 100));
             for (UncachedObject u : lst) {
-                assert (u.getCounter() > u.getDval());
+                assertTrue((u.getCounter() > u.getDval()));
             }
         }
     }

@@ -179,7 +179,7 @@ public class IteratorTest extends MultiDriverTestBase {
                     Thread.sleep(200);
                 }
 
-                assert(count.get() == totals) : "Count wrong, " + count.get() + " should be " + totals;
+                assertTrue((count.get() == totals), () -> String.valueOf("Count wrong, " + count.get() + " should be " + totals));
             }
         }
     }
@@ -190,12 +190,12 @@ public class IteratorTest extends MultiDriverTestBase {
         try (morphium) {
             for (UncachedObject uc : morphium.createQueryFor(UncachedObject.class).asIterable(1000)) {
                 //noinspection ConstantConditions
-                assert(false);
+                assertTrue((false));
             }
 
             for (UncachedObject uc : morphium.createQueryFor(UncachedObject.class).sort("-counter").asIterable(1000)) {
                 //noinspection ConstantConditions
-                assert(false);
+                assertTrue((false));
             }
         }
     }
@@ -219,7 +219,7 @@ public class IteratorTest extends MultiDriverTestBase {
 
                     for (MorphiumIterator<UncachedObject> it : toTest) {
                         for (UncachedObject uc : it) {
-                            assert(it.getCursor() == uc.getCounter());
+                            assertTrue((it.getCursor() == uc.getCounter()));
 
                             if (it.getCursor() % 2500 == 0) {
                                 log.info("Thread " + myNum + " read " + it.getCursor() + "/" + count);
@@ -264,14 +264,14 @@ public class IteratorTest extends MultiDriverTestBase {
                 for (UncachedObject u : it) {
                     Query<CachedObject> other = morphium.createQueryFor(CachedObject.class).f("counter").gt(u.getCounter() % 100).f("counter").lt(u.getCounter() % 100 + 10).sort("counter");
                     MorphiumIterator<CachedObject> otherIt = other.asIterable();
-                    assert(it.getCursor() == u.getCounter());
+                    assertTrue((it.getCursor() == u.getCounter()));
 
                     for (CachedObject co : otherIt) {
                         // log.info("iterating otherIt "+co.getCounter());
                         //                Thread.sleep(200);
                         assertNotNull(co.getValue());
                         ;
-                        assert(co.getCounter() > u.getCounter() % 100 && co.getCounter() < u.getCounter() % 100 + 10);
+                        assertTrue((co.getCounter() > u.getCounter() % 100 && co.getCounter() < u.getCounter() % 100 + 10));
                     }
 
                     if (it.getCursor() % 100 == 0) {
@@ -387,11 +387,11 @@ public class IteratorTest extends MultiDriverTestBase {
                 while (it.hasNext()) {
                     u = it.next();
                     log.info("Object: " + u.getCounter());
-                    assert(u.getCounter() == read) : "Expected counter " + read + " but got " + u.getCounter();  // 0-based counters
+                    assertTrue((u.getCounter() == read), String.valueOf("Expected counter " + read + " but got " + u.getCounter())); // 0-based counters
                     read++;
                 }
 
-                assert(read == 10000) : "Count wrong: " + read;  // Should have read 10000 objects
+                assertTrue((read == 10000), String.valueOf("Count wrong: " + read)); // Should have read 10000 objects
                 log.info("Took " + (System.currentTimeMillis() - start) + " ms");
             }
         }
@@ -424,7 +424,7 @@ public class IteratorTest extends MultiDriverTestBase {
                     }
                 }
 
-                assert(!error);
+                assertTrue((!error));
                 log.info("Took " + (System.currentTimeMillis() - start) + " ms");
             }
         }
@@ -442,9 +442,9 @@ public class IteratorTest extends MultiDriverTestBase {
             for (final MorphiumIterator<UncachedObject> it : toTest) {
                 long start = System.currentTimeMillis();
                 //        MorphiumIterator<UncachedObject> it = qu.asIterable(3);
-                assert(it.hasNext());
+                assertTrue((it.hasNext()));
                 UncachedObject u = it.next();
-                assert(u.getCounter() == 0);  // 0-based counters
+                assertTrue((u.getCounter() == 0)); // 0-based counters
                 log.info("Got first one: " + u.getCounter() + "  / " + u.getStrValue());
                 u = new UncachedObject();
                 u.setCounter(1800);
@@ -457,7 +457,7 @@ public class IteratorTest extends MultiDriverTestBase {
                     log.info("Object: " + u.getCounter() + "/" + u.getStrValue());
                 }
 
-                assert(u.getCounter() == 16);  // 0-based counters: 0-16 for 17 objects
+                assertTrue((u.getCounter() == 16)); // 0-based counters: 0-16 for 17 objects
                 //cannot check buffersize anymore
                 log.info("Took " + (System.currentTimeMillis() - start) + " ms");
             }
@@ -484,7 +484,7 @@ public class IteratorTest extends MultiDriverTestBase {
                     it.next();
                 }
 
-                assert(count == 10) : "Count wrong: " + count;
+                assertTrue((count == 10), String.valueOf("Count wrong: " + count));
                 log.info("Took " + (System.currentTimeMillis() - start) + " ms");
             }
         }
@@ -556,7 +556,7 @@ public class IteratorTest extends MultiDriverTestBase {
                         log.info("Skipping 15 elements");
                         u = it.next();
                         log.info("After skip, counter: " + u.getCounter());
-                        assert(u.getCounter() == 24) : "Value is " + u.getCounter();  // Skip 15 objects (9-23), next() returns 24
+                        assertTrue((u.getCounter() == 24), String.valueOf("Value is " + u.getCounter())); // Skip 15 objects (9-23), next() returns 24
                     }
 
                     if (u.getCounter() == 9 && !back) {
@@ -565,7 +565,7 @@ public class IteratorTest extends MultiDriverTestBase {
                         back = true;
                         u = it.next();
                         log.info("After skip, counter: " + u.getCounter());
-                        assert(u.getCounter() == 6);
+                        assertTrue((u.getCounter() == 6));
                     }
                 }
 
@@ -622,12 +622,12 @@ public class IteratorTest extends MultiDriverTestBase {
                 while (it.hasNext()) {
                     UncachedObject uc = it.next();
                     // 0-based counters: counter value equals position index, cursor is 1-based count of read objects
-                    assert(uc.getCounter() == it.getCursor() - 1) : "Counter " + uc.getCounter() + " != cursor-1 " + (it.getCursor() - 1);
-                    assert(uc.getCounter() == cnt) : "Counter " + uc.getCounter() + " != cnt " + cnt;
+                    assertTrue((uc.getCounter() == it.getCursor() - 1), () -> String.valueOf("Counter " + uc.getCounter() + " != cursor-1 " + (it.getCursor() - 1)));
+                    assertTrue((uc.getCounter() == cnt), String.valueOf("Counter " + uc.getCounter() + " != cnt " + cnt));
                     cnt++;
                 }
 
-                assert(cnt == query.countAll());
+                assertTrue((cnt == query.countAll()));
             }
         }
     }

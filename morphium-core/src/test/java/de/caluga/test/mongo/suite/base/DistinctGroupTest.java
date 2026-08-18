@@ -9,6 +9,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.ArrayList;
 import java.util.List;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -32,12 +33,12 @@ public class DistinctGroupTest extends MultiDriverTestBase {
             morphium.storeList(lst);
             Thread.sleep(500);
             List values = morphium.distinct("counter", UncachedObject.class);
-            assert (values.size() == 3) : "Size wrong: " + values.size();
+            assertTrue((values.size() == 3), String.valueOf("Size wrong: " + values.size()));
             for (Object o : values) {
                 log.info("counter: " + o.toString());
             }
             values = morphium.distinct("str_value", UncachedObject.class);
-            assert (values.size() == 2) : "Size wrong: " + values.size();
+            assertTrue((values.size() == 2), String.valueOf("Size wrong: " + values.size()));
             for (Object o : values) {
                 log.info("Value: " + o.toString());
             }

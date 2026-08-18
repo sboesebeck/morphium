@@ -62,12 +62,12 @@ public class AsyncOperationTest extends MultiDriverTestBase {
                 }
                 @Override
                 public void onOperationError(AsyncOperationType type, Query<Query<UncachedObject>> q, long duration, String error, Throwable t, Query<UncachedObject> entity, Object... param) {
-                    assert false;
+                    assertTrue(false);
                 }
             });
             TestUtils.waitForConditionToBecomeTrue(30000, "Async delete callback not called",
                 () -> asyncCall);
-            assert(asyncCall);
+            assertTrue((asyncCall));
             asyncCall = false;
             uc = uc.q();
             uc.f(UncachedObject.Fields.counter).mod(3, 2);
@@ -87,8 +87,8 @@ public class AsyncOperationTest extends MultiDriverTestBase {
             TestUtils.waitForConditionToBecomeTrue(10000, "Update operation not persisted",
                 () -> morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(0).countAll() > 0);
             long counter = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(0).countAll();
-assert counter > 0 : "Counter is: " + counter;
-            assert(asyncCall);
+assertTrue(counter > 0, () -> String.valueOf("Counter is: " + counter));
+            assertTrue((asyncCall));
         }
     }
 
@@ -107,11 +107,11 @@ assert counter > 0 : "Counter is: " + counter;
                     asyncCall = true;
                     log.info("got read answer");
                     assertNotNull(result, "Error");
-                    assert(result.size() == 100) : "Error";
+                    assertTrue((result.size() == 100), "Error");
                 }
                 @Override
                 public void onOperationError(AsyncOperationType type, Query<UncachedObject> q, long duration, String error, Throwable t, UncachedObject entity, Object... param) {
-                    assert false;
+                    assertTrue(false);
                 }
             });
             waitForAsyncOperationsToStart(morphium, 3000);
@@ -124,7 +124,7 @@ assert counter > 0 : "Counter is: " + counter;
                     return true;
                 });
 
-            assert(asyncCall);
+            assertTrue((asyncCall));
         }
     }
 
@@ -143,14 +143,14 @@ assert counter > 0 : "Counter is: " + counter;
                     log.info("got async callback!");
                     assertTrue(param != null && param[0] != null);
                     ;
-                    assert(param[0].equals((long) 100));
+                    assertTrue((param[0].equals((long) 100)));
                 }
                 @Override
                 public void onOperationError(AsyncOperationType type, Query<UncachedObject> q, long duration, String error, Throwable t, UncachedObject entity, Object... param) {
                     //To change body of implemented methods use File | Settings | File Templates.
                     log.error("got async error callback", t);
                     //noinspection ConstantConditions
-                    assert(false);
+                    assertTrue((false));
                 }
             });
             //waiting for thread to become active
@@ -158,7 +158,7 @@ assert counter > 0 : "Counter is: " + counter;
             TestUtils.waitForConditionToBecomeTrue(15000, "Pending async count requests not completing",
                 () -> q.getNumberOfPendingRequests() == 0);
 
-            assert(asyncCall);
+            assertTrue((asyncCall));
         }
     }
 

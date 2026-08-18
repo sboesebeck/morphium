@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -35,9 +36,9 @@ public class HierarchyTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void testHierarchy(Morphium morphium) {
-        assert (new AnnotationAndReflectionHelper(true).isAnnotationPresentInHierarchy(SubClass.class, Entity.class)) : "hierarchy not found";
+        assertTrue((new AnnotationAndReflectionHelper(true).isAnnotationPresentInHierarchy(SubClass.class, Entity.class)), "hierarchy not found");
         String n = new ObjectMapperImpl().getCollectionName(HierarchyTest.SubClass.class);
-        assert (!n.equals("uncached_object")) : "Wrong collection name!";
+        assertTrue((!n.equals("uncached_object")), "Wrong collection name!");
     }
 
 

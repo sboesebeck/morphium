@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SuppressWarnings("unchecked")
 @Tag("inmemory")
@@ -63,8 +64,8 @@ public class InMemDumpTest extends MorphiumInMemTestBase {
         assertNotNull(ex);;
         ((InMemoryDriver) morphium.getDriver()).setDatabase(morphium.getDriver().listDatabases().get(0), ex.data);
         List<UncachedObject> result = morphium.createQueryFor(UncachedObject.class).asList();
-        assert(result.size() == 10);
-        assert(result.get(1).getCounter() == 1);
+        assertTrue((result.size() == 10));
+        assertTrue((result.get(1).getCounter() == 1));
     }
 
     @Test

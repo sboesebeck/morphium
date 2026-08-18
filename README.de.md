@@ -1,5 +1,12 @@
 # Morphium
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="branding/morphium-logo-dark.svg">
+    <img src="branding/morphium-logo.svg" alt="Morphium" width="640">
+  </picture>
+</p>
+
 **Feature-reiches MongoDB ODM und Messaging-Framework für Java 21+**
 
 Verfügbare Sprachen: [English](README.md) | Deutsch
@@ -10,11 +17,13 @@ Morphium ist eine umfassende Datenschicht-Lösung für MongoDB mit:
 - ⚡ **Multi-Level Caching** mit automatischer Cluster-Synchronisation
 - 🔌 **Eigener MongoDB Wire-Protocol-Treiber** für direkte Kommunikation
 - 🧪 **In-Memory-Treiber** für schnelle Tests (deutlich weniger Latenz, kein MongoDB nötig)
-- 🌱 **PoppyDB** — MongoDB-kompatibler In-Memory-Server: Replica Sets, Auth/TLS, Messaging-Backend
+- 🌱 **[PoppyDB](https://sboesebeck.github.io/morphium/poppydb/)** — MongoDB-kompatibler In-Memory-Server: Replica Sets, Auth/TLS, Messaging-Backend
 - 🎯 **JMS API (experimentell)** für standardbasiertes Messaging
 - 🚀 **Java 21+** — moderne Sprachbasis (Pattern Matching, Sealed Types)
 
 [![Maven Central](https://img.shields.io/maven-central/v/de.caluga/morphium.svg)](https://search.maven.org/artifact/de.caluga/morphium)
+[![Tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsboesebeck%2Fmorphium%2Ftest-results%2Fbadges%2Ftests.json)](https://github.com/sboesebeck/morphium/releases)
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsboesebeck%2Fmorphium%2Ftest-results%2Fbadges%2Fcoverage.json)](https://github.com/sboesebeck/morphium/releases)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 ## 🎯 Warum Morphium?
@@ -79,6 +88,13 @@ Server-Parallelisierung — nicht 100K+, die kein System ohne Batching erreicht.
 
 ## 🌱 PoppyDB — MongoDB-kompatibler In-Memory-Server
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="branding/poppydb-logo-dark.svg">
+    <img src="branding/poppydb-logo.svg" alt="PoppyDB" width="560">
+  </picture>
+</p>
+
 PoppyDB ist Morphiums Schwesterprodukt: ein In-Memory-Server, der das MongoDB Wire Protocol
 spricht. Jeder Client kann sich verbinden — `mongosh`, Compass, PyMongo, die offiziellen
 Treiber und natürlich Morphium. Startet in Millisekunden, braucht null Infrastruktur: kein
@@ -97,7 +113,7 @@ Docker, kein Testcontainers, keine MongoDB-Installation.
 <dependency>
     <groupId>de.caluga</groupId>
     <artifactId>poppydb</artifactId>
-    <version>6.3.1</version>
+    <version>6.3.2</version>
     <scope>test</scope>
 </dependency>
 ```
@@ -117,12 +133,12 @@ Integrationstests bekommen in Millisekunden einen MongoDB-kompatiblen Server, ke
 Docker-Image, kein Testcontainers, nichts zu installieren:
 
 ```bash
-curl -O https://repo1.maven.org/maven2/de/caluga/poppydb/6.3.1/poppydb-6.3.1-cli.jar
+curl -O https://repo1.maven.org/maven2/de/caluga/poppydb/6.3.2/poppydb-6.3.2-cli.jar
 
 # Start für einen Testlauf: --no-config hält den Lauf isoliert von einer
 # versehentlichen ~/.config/poppydb/config auf Entwickler-Maschinen - gleiche
 # Flags, gleiches Verhalten in der CI
-java -jar poppydb-6.3.1-cli.jar --port 27017 --no-config
+java -jar poppydb-6.3.2-cli.jar --port 27017 --no-config
 ```
 
 Test-Suite auf `mongodb://localhost:27017` zeigen lassen, Prozess danach beenden — der
@@ -139,7 +155,7 @@ ist sie die Empfehlung, siehe das
 ### How-to: Standalone-Server mit Persistenz
 
 ```bash
-java -jar poppydb-6.3.1-cli.jar --port 27017 --dump-dir ./data --dump-interval 300
+java -jar poppydb-6.3.2-cli.jar --port 27017 --dump-dir ./data --dump-interval 300
 ```
 
 Snapshots alle 5 Minuten, finaler Dump beim Shutdown, automatisches Restore beim nächsten
@@ -152,7 +168,7 @@ Ein Prozess pro Knoten, alle mit derselben Seed-Liste — die Wahl bestimmt den 
 Failover passiert automatisch:
 
 ```bash
-java -jar poppydb-6.3.1-cli.jar -p 17017 --rs-name myrs \
+java -jar poppydb-6.3.2-cli.jar -p 17017 --rs-name myrs \
   --rs-seed host1:17017,host2:17017,host3:17017 --rs-priorities 100,50,50
 ```
 
@@ -193,7 +209,8 @@ try (Morphium morphium = new Morphium(cfg)) {          // cfg zeigt auf localhos
 }
 ```
 
-📖 **Vertiefung:** [PoppyDB-Guide](docs/poppydb.md) ·
+📖 **Vertiefung:** [Online-Doku](https://sboesebeck.github.io/morphium/poppydb/) ·
+[PoppyDB-Guide](docs/poppydb.md) ·
 [Production-Deployment-Playbook](docs/howtos/poppydb-deployment.md) ·
 [Migration von MongoDB](docs/howtos/migration-mongodb-to-poppydb.md)
 
@@ -302,7 +319,7 @@ public void doStuff() { ... }
 
 | | 6.1.x | 6.2.x |
 |---|---|---|
-| Maven-Artifact | in `morphium` enthalten | separat: `de.caluga:poppydb:6.3.1` |
+| Maven-Artifact | in `morphium` enthalten | separat: `de.caluga:poppydb:6.3.2` |
 | Package | `de.caluga.morphium.server` | `de.caluga.poppydb` |
 | Hauptklasse | `MorphiumServer` | `PoppyDB` |
 | CLI-JAR | `morphium-*-server-cli.jar` | `poppydb-*-cli.jar` |
@@ -379,7 +396,7 @@ Upgrade von v6.1? → `docs/howtos/migration-v6_1-to-v6_2.md`
 <dependency>
   <groupId>de.caluga</groupId>
   <artifactId>morphium</artifactId>
-  <version>6.3.1</version>
+  <version>6.3.2</version>
 </dependency>
 ```
 
@@ -562,13 +579,13 @@ PoppyDB (ehemals MorphiumServer) ist ein eigenständiger Prozess, der das MongoD
 
 ```bash
 # Server starten
-java -jar poppydb/target/poppydb-6.3.1-cli.jar
+java -jar poppydb/target/poppydb-6.3.2-cli.jar
 
 # Clients verbinden (z.B. MongoDB Compass, mongosh)
 mongosh mongodb://localhost:27017
 
 # Start mit Persistenz (Snapshots)
-java -jar poppydb/target/poppydb-6.3.1-cli.jar --dump-dir ./data --dump-interval 300
+java -jar poppydb/target/poppydb-6.3.2-cli.jar --dump-dir ./data --dump-interval 300
 ```
 
 **Replica Set Unterstützung (experimentell)**
@@ -576,7 +593,7 @@ java -jar poppydb/target/poppydb-6.3.1-cli.jar --dump-dir ./data --dump-interval
 PoppyDB unterstützt eine grundlegende Replica-Set-Emulation. Starten Sie mehrere Instanzen mit demselben Replica-Set-Namen und derselben Seed-Liste:
 
 ```bash
-java -jar poppydb/target/poppydb-6.3.1-cli.jar --rs-name my-rs --rs-seed host1:17017,host2:17018
+java -jar poppydb/target/poppydb-6.3.2-cli.jar --rs-name my-rs --rs-seed host1:17017,host2:17018
 ```
 
 **Use Cases:**

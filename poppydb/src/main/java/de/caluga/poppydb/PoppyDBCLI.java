@@ -300,6 +300,18 @@ public class PoppyDBCLI {
                     idx += 2;
                     break;
 
+                case "--replay-buffer":
+                    opts.replayBuffer = value(effectiveArgs, idx);
+                    opts.sources.put("replay-buffer", src);
+                    idx += 2;
+                    break;
+
+                case "--event-queue-budget":
+                    opts.eventQueueBudget = value(effectiveArgs, idx);
+                    opts.sources.put("event-queue-budget", src);
+                    idx += 2;
+                    break;
+
                 case "--log-level":
                     opts.logLevel = value(effectiveArgs, idx);
                     opts.sources.put("log-level", src);
@@ -484,6 +496,38 @@ public class PoppyDBCLI {
         srv.setMemoryWatermarks(opts.memoryWarnPct, opts.memoryRejectPct);
         srv.setMaxBsonObjectSize(opts.maxBsonSizeBytes);
 
+        long replayBufferBytes;
+
+        try {
+            replayBufferBytes = opts.replayBufferBytes();
+        } catch (IllegalArgumentException e) {
+            throw new ConfigException(e.getMessage(), e);
+        }
+
+        srv.setReplayBufferByteBudget(replayBufferBytes);
+        log.info("Replay buffer byte budget: {} ({} bytes{})", opts.replayBuffer, replayBufferBytes,
+            replayBufferBytes == 0 ? ", byte cap off" : "");
+
+        long eventQueueBudgetBytes;
+
+        try {
+            eventQueueBudgetBytes = opts.eventQueueBudgetBytes();
+        } catch (IllegalArgumentException e) {
+            throw new ConfigException(e.getMessage(), e);
+        }
+
+        srv.setEventQueueByteBudget(eventQueueBudgetBytes);
+        log.info("Replication event queue byte budget: {} ({} bytes{})", opts.eventQueueBudget,
+            eventQueueBudgetBytes, eventQueueBudgetBytes == 0 ? ", byte cap off" : "");
+
+        // The dump directory has to be known BEFORE the replica set is configured: that is
+        // where the election-state file path (next to the dumps) is derived and put into the
+        // ElectionConfig the ElectionManager is built with (#306). Setting it later left the
+        // persistence silently disabled - term/votedFor were neither persisted nor loaded.
+        if (opts.dumpDir != null) {
+            srv.setDumpDirectory(new java.io.File(opts.dumpDir));
+        }
+
         // Configure replica set - election is always enabled for multi-node replica sets
         boolean enableElection = !opts.rsName.isEmpty() && hosts.size() > 1;
         if (enableElection) {
@@ -536,7 +580,6 @@ public class PoppyDBCLI {
 
         if (opts.dumpDir != null) {
             java.io.File dir = new java.io.File(opts.dumpDir);
-            srv.setDumpDirectory(dir);
             log.info("Persistence enabled: dump directory = {}", dir.getAbsolutePath());
 
             if (opts.dumpIntervalSec > 0) {
@@ -544,13 +587,32 @@ public class PoppyDBCLI {
                 log.info("Periodic dumps every {} seconds", opts.dumpIntervalSec);
             }
 
+            // Restore runs synchronously here, BEFORE srv.start() wires up replication and
+            // election - the node never joins the replica set with its restore still pending.
+            // A partial restore (#306: broken dump file) must be unmissable in the startup log,
+            // never mistaken for success: the node continues WITHOUT the failed databases, but
+            // the per-file ERRORs (driver) and this WARN document exactly what is missing.
             try {
-                int restored = srv.restoreFromDump();
-                if (restored > 0) {
-                    log.info("Restored {} databases from previous dump", restored);
+                var restored = srv.restoreFromDump();
+                if (restored.isComplete()) {
+                    if (restored.getTotal() > 0) {
+                        log.info("Restored {} databases from previous dump", restored.getRestored());
+                    }
+                } else {
+                    log.warn("PARTIAL RESTORE on startup: only {} of {} databases restored from the dump "
+                            + "directory - failed dump files: {} (see errors above). Continuing startup "
+                            + "WITHOUT the failed databases, and this node will NOT stand for election "
+                            + "until an authoritative sync from a primary has completed - otherwise it "
+                            + "could become primary and overwrite intact peers with its incomplete "
+                            + "state. If no peer holds a complete copy to sync from, recover manually: "
+                            + "restore or delete the broken dump file(s) and restart this node.",
+                            restored.getRestored(), restored.getTotal(), restored.getFailedFiles());
+                    srv.setLocalDataComplete(false);
                 }
             } catch (Exception e) {
-                log.warn("Failed to restore from dump (starting fresh): {}", e.getMessage());
+                log.error("Failed to restore from dump - this node will NOT stand for election until "
+                        + "an authoritative sync has completed", e);
+                srv.setLocalDataComplete(false);
             }
         }
 
@@ -593,6 +655,13 @@ public class PoppyDBCLI {
         System.out.println("  -b, --bind <host>          : Host to bind to (default: localhost)");
         System.out.println("  --log-level <level>        : Log verbosity: ERROR, WARN, INFO, DEBUG, TRACE (default: INFO)");
         System.out.println("  --memory-warn <percent>    : Log a warning when heap occupancy crosses this percentage (default: 75, 100 = off)");
+        System.out.println("  --replay-buffer <size>     : Byte budget for the change-stream replay buffer backing replication resume.");
+        System.out.println("                               Fixed size with k/m/g suffix (e.g. 512m, 1g) or percent of max heap (e.g. 5%),");
+        System.out.println("                               0 = byte cap off (default: 256m; the 100000-event count limit always applies)");
+        System.out.println("  --event-queue-budget <size>: Byte budget for a secondary's replication event queue (same size syntax as");
+        System.out.println("                               --replay-buffer). Never drops events - the change-stream reader blocks until");
+        System.out.println("                               the apply side frees budget (backpressure, like the queue's count capacity).");
+        System.out.println("                               0 = byte cap off (default: 256m; the 100000-event count capacity always applies)");
         System.out.println("  --memory-reject <percent>  : Reject document-creating writes (code 146 ExceededMemoryLimit) above this");
         System.out.println("                               heap percentage; updates/deletes/TTL keep working (default: 90, 100 = off)");
         System.out.println("  --max-bson-size <bytes>    : BSON document size limit, enforced like mongod (code 10334 BSONObjectTooLarge,");

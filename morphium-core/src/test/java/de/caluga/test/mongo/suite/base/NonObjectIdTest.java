@@ -12,6 +12,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -51,8 +52,8 @@ public class NonObjectIdTest extends MultiDriverTestBase {
             TestUtils.waitForWrites(morphium, log);
             Thread.sleep(1500);
             long cnt = morphium.createQueryFor(Person.class).countAll();
-            assert(cnt == 3) : "Count wrong: " + cnt;
-            assert(morphium.findById(Person.class, "BBC123").getName().equals("CHANGED"));
+            assertTrue((cnt == 3), () -> String.valueOf("Count wrong: " + cnt));
+            assertTrue((morphium.findById(Person.class, "BBC123").getName().equals("CHANGED")));
         }
     }
 

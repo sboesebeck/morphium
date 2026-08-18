@@ -12,6 +12,7 @@ import static de.caluga.test.mongo.suite.base.TestUtils.waitForConditionToBecome
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -28,7 +29,7 @@ public class LastAccessTest extends MultiDriverTestBase {
         TstObjLA tst = new TstObjLA();
         tst.setValue("A value");
         morphium.store(tst);
-        assert(tst.getCreationTime() > 0) : "No creation time set?!?!?!";
+        assertTrue((tst.getCreationTime() > 0), "No creation time set?!?!?!");
         long creationTime = tst.getCreationTime();
 
         // Wait until we can verify the object exists and enough time has passed
@@ -38,10 +39,10 @@ public class LastAccessTest extends MultiDriverTestBase {
 
         tst.setValue("Annother value");
         morphium.store(tst);
-        assert(tst.getLastChange() > 0) : "No last change set?";
-        assert(tst.getLastChange() > creationTime) : "No last change set?";
+        assertTrue((tst.getLastChange() > 0), "No last change set?");
+        assertTrue((tst.getLastChange() > creationTime), "No last change set?");
         long lastChange = tst.getLastChange();
-        assert(tst.getCreationTime() == creationTime) : "Creation time change? was: " + creationTime + " is " + tst.getCreationTime();
+        assertTrue((tst.getCreationTime() == creationTime), String.valueOf("Creation time change? was: " + creationTime + " is " + tst.getCreationTime()));
 
         Query<TstObjLA> q = morphium.createQueryFor(TstObjLA.class);
         // Wait for lastAccess to be set (happens on read)
@@ -53,12 +54,12 @@ public class LastAccessTest extends MultiDriverTestBase {
             });
 
         tst = q.get();
-        assert(tst.getLastAccess() > 0) : "No last_access set?";
+        assertTrue((tst.getLastAccess() > 0), "No last_access set?");
         long lastAccess = tst.getLastAccess();
-        assert(tst.getCreationTime() == creationTime) : "Creation time change?";
-        assert(tst.getLastAccess() != tst.getCreationTime()) : "Last access == creation time";
+        assertTrue((tst.getCreationTime() == creationTime), "Creation time change?");
+        assertTrue((tst.getLastAccess() != tst.getCreationTime()), "Last access == creation time");
         tst = q.asList().get(0);
-        assert(tst.getLastAccess() > 0) : "No last_access set?";
+        assertTrue((tst.getLastAccess() > 0), "No last_access set?");
 
         Query<TstObjLA> q2 = morphium.createQueryFor(TstObjLA.class);
         // Wait for lastAccess to change again
@@ -70,11 +71,11 @@ public class LastAccessTest extends MultiDriverTestBase {
             });
 
         tst = q2.get();
-        assert(tst.getLastAccess() != lastAccess) : "Last Access did not change?";
+        assertTrue((tst.getLastAccess() != lastAccess), "Last Access did not change?");
         // lastChange should not have changed since we only read, didn't store
         // Allow small tolerance for async operations
-        assert(tst.getLastChange() == lastChange) : "Last Change changed unexpectedly from " + lastChange + " to " + tst.getLastChange();
-        assert(tst.getCreationTime() == creationTime) : "Creation time changed from " + creationTime + " to " + tst.getCreationTime();
+        assertTrue((tst.getLastChange() == lastChange), String.valueOf("Last Change changed unexpectedly from " + lastChange + " to " + tst.getLastChange()));
+        assertTrue((tst.getCreationTime() == creationTime), String.valueOf("Creation time changed from " + creationTime + " to " + tst.getCreationTime()));
     }
 
     @ParameterizedTest
@@ -88,9 +89,9 @@ public class LastAccessTest extends MultiDriverTestBase {
             () -> morphium.createQueryFor(TstObjLA.class).countAll() > 0);
 
         TstObjLA tst = morphium.createQueryFor(TstObjLA.class).get();
-        assert(tst.getIntValue() == 12);
-        assert(tst.getValue().equals("a test"));
-        assert(tst.getCreationTime() != 0);
+        assertTrue((tst.getIntValue() == 12));
+        assertTrue((tst.getValue().equals("a test")));
+        assertTrue((tst.getCreationTime() != 0));
     }
 
     @ParameterizedTest
@@ -106,7 +107,7 @@ public class LastAccessTest extends MultiDriverTestBase {
         tst.setId("test1");
         tst.setValue("A value");
         morphium.store(tst);
-        assert(tst.getCreationTime() > 0) : "No creation time set?!?!?!";
+        assertTrue((tst.getCreationTime() > 0), "No creation time set?!?!?!");
         long creationTime = tst.getCreationTime();
 
         // Wait until we can verify the object exists and enough time has passed
@@ -116,10 +117,10 @@ public class LastAccessTest extends MultiDriverTestBase {
 
         tst.setValue("Annother value");
         morphium.store(tst);
-        assert(tst.getLastChange() > 0) : "No last change set?";
-        assert(tst.getLastChange() > creationTime) : "No last change set?";
+        assertTrue((tst.getLastChange() > 0), "No last change set?");
+        assertTrue((tst.getLastChange() > creationTime), "No last change set?");
         long lastChange = tst.getLastChange();
-        assert(tst.getCreationTime() == creationTime) : "Creation time change?";
+        assertTrue((tst.getCreationTime() == creationTime), "Creation time change?");
 
         Query<TstObjAutoValuesStringId> q = morphium.createQueryFor(TstObjAutoValuesStringId.class);
         // Wait for lastAccess to be set (happens on read)
@@ -131,12 +132,12 @@ public class LastAccessTest extends MultiDriverTestBase {
             });
 
         tst = q.get();
-        assert(tst.getLastAccess() > 0) : "No last_access set?";
+        assertTrue((tst.getLastAccess() > 0), "No last_access set?");
         long lastAccess = tst.getLastAccess();
-        assert(tst.getCreationTime() == creationTime) : "Creation time change?";
-        assert(tst.getLastAccess() != tst.getCreationTime()) : "Last access == creation time";
+        assertTrue((tst.getCreationTime() == creationTime), "Creation time change?");
+        assertTrue((tst.getLastAccess() != tst.getCreationTime()), "Last access == creation time");
         tst = q.asList().get(0);
-        assert(tst.getLastAccess() > 0) : "No last_access set?";
+        assertTrue((tst.getLastAccess() > 0), "No last_access set?");
 
         Query<TstObjAutoValuesStringId> q2 = morphium.createQueryFor(TstObjAutoValuesStringId.class);
         // Wait for lastAccess to change again
@@ -148,9 +149,9 @@ public class LastAccessTest extends MultiDriverTestBase {
             });
 
         tst = q2.get();
-        assert(tst.getLastAccess() != lastAccess) : "Last Access did not change?";
-        assert(tst.getLastChange() == lastChange);
-        assert(tst.getCreationTime() == creationTime);
+        assertTrue((tst.getLastAccess() != lastAccess), "Last Access did not change?");
+        assertTrue((tst.getLastChange() == lastChange));
+        assertTrue((tst.getCreationTime() == creationTime));
     }
 
     @ParameterizedTest
@@ -166,8 +167,8 @@ public class LastAccessTest extends MultiDriverTestBase {
             () -> morphium.findById(TstObjLA.class, laId) != null);
 
         morphium.reread(la);
-        assert(la.creationTime != 0);
-        assert(la.lastChange != 0);
+        assertTrue((la.creationTime != 0));
+        assertTrue((la.lastChange != 0));
         la.setValue("new Value");
         morphium.store(la);
 
@@ -181,7 +182,7 @@ public class LastAccessTest extends MultiDriverTestBase {
 
         morphium.reread(la);
         long lc = la.getLastChange();
-        assert(la.getCreationTime() != la.getLastChange());
+        assertTrue((la.getCreationTime() != la.getLastChange()));
         morphium.setInEntity(la, "value", "set");
         // Wait for setInEntity to be visible on replica sets
         final long lcBeforeSet = lc;
@@ -191,7 +192,7 @@ public class LastAccessTest extends MultiDriverTestBase {
                 return found != null && found.getLastChange() != lcBeforeSet;
             });
         morphium.reread(la);
-        assert(lc != la.getLastChange());
+        assertTrue((lc != la.getLastChange()));
         lc = la.getLastChange();
         la.setIntValue(41);
         Thread.sleep(50); // Small delay to ensure timestamp difference
@@ -206,7 +207,7 @@ public class LastAccessTest extends MultiDriverTestBase {
             });
 
         morphium.reread(la);
-        assert(lc != la.getLastChange());
+        assertTrue((lc != la.getLastChange()));
         lc = la.getLastChange();
         morphium.inc(la, "int_value", 1);
 
@@ -219,8 +220,8 @@ public class LastAccessTest extends MultiDriverTestBase {
             });
 
         morphium.reread(la);
-        assert(la.getIntValue() == 42);
-        assert(lc != la.getLastChange());
+        assertTrue((la.getIntValue() == 42));
+        assertTrue((lc != la.getLastChange()));
 
         // Now using ID query
         lc = la.getLastChange();
@@ -236,8 +237,8 @@ public class LastAccessTest extends MultiDriverTestBase {
             });
 
         morphium.reread(la);
-        assert(la.getIntValue() == 1);
-        assert(lc != la.getLastChange());
+        assertTrue((la.getIntValue() == 1));
+        assertTrue((lc != la.getLastChange()));
         lc = la.getLastChange();
         Thread.sleep(50); // Ensure timestamp difference from previous operation
         morphium.inc(q, "int_value", 41);
@@ -250,8 +251,8 @@ public class LastAccessTest extends MultiDriverTestBase {
             });
 
         morphium.reread(la);
-        assert(la.getIntValue() == 42);
-        assert(lc != la.getLastChange());
+        assertTrue((la.getIntValue() == 42));
+        assertTrue((lc != la.getLastChange()));
     }
 
     @Entity

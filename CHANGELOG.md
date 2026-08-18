@@ -8,6 +8,742 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+#### PoppyDB: byte budget for the secondary-side replication event queue (`--event-queue-budget`)
+The queue a secondary buffers incoming change events in before applying them was count-capped
+(100k events) but unbounded by bytes — with ~300KB bulk-export messages on a busy message bus,
+100k queued events blow any heap, the same failure family as the replay-buffer incident the
+`--replay-buffer` budget fixed. Unlike the replay buffer, evicting is not an option here:
+queued events have not been applied yet, dropping one would be silent data loss on that
+secondary. The byte budget therefore extends the queue's existing count backpressure to bytes:
+once the estimated queued bytes (same `estimateBsonSize` estimate as the replay buffer) would
+exceed the budget, the change-stream reader blocks until the apply side drains — exactly the
+semantics the count capacity always had, including during initial sync (the snapshot runs on
+its own thread and connections, so blocking the watch reader cannot deadlock it). An event
+larger than the whole budget is always admitted into an empty queue, so it can never block
+forever. Configured via `--event-queue-budget` / config key `event-queue-budget` with the same
+size syntax as `--replay-buffer` (`k`/`m`/`g`, percent of max heap, `0` = byte cap off;
+default 256m); replication stats report `eventQueueBytes`, `eventQueueByteBudget` and
+`eventQueueBytePressureCount` (how often the reader had to wait).
+
+#### `usersInfo` — `db.getUsers()` now works against PoppyDB
+Listing users in mongosh failed with "no such command: 'usersInfo'": the in-memory driver
+implemented `createUser`/`updateUser`/`dropUser`, but not the command every user-listing helper
+sends. It reads the same `admin.system.users` documents and answers in mongod's shape,
+supporting the argument forms mongod takes (`1`, a name, a `{user, db}` document, a list of
+those) plus `forAllDBs`. Stored credentials stay out of the answer unless `showCredentials` is
+requested — listing users must not hand out password material — while the available SCRAM
+mechanisms are always reported, since clients need them to authenticate. An unknown user
+yields an empty list rather than an error, as mongod does.
+
+#### Decoupled test-results store, release report and badges
+Test runs (full CI phases as well as partial developer runs) can now publish a JSON record
+of their results to the append-only `test-results` orphan branch via
+`runtests.sh --publish-results` — decoupled from the machine that produced them, so any
+contributor can supply results without homelab infrastructure. `release.sh` aggregates the
+records per (commit, phase) — newest run wins, only complete phase runs qualify, results
+from earlier commits stay valid when only docs/tests/tooling changed since — and posts the
+honest result table to the GitHub release notes, missing or broken phases included, plus
+optional JaCoCo coverage (from `-Pcoverage`). The report is a *living* one: it is not frozen
+at release time. The markdown section is wrapped in `<!-- morphium-test-report:start/end -->`
+markers, and `scripts/updateReleaseReport.sh` — called best-effort after every
+`runtests.sh --publish-results` — resolves the latest (or a given `--tag`) release, replaces
+that marked section in its GitHub notes with a report for the *tag's* commit, and regenerates
+the `tests`/`coverage` badges into the `test-results` store branch, so both the release notes
+and the README badges (now served from `.../test-results/badges/*.json` instead of `master`)
+keep refreshing automatically as new results come in, without another release being cut.
+This is a report, not a gate: `release.sh` never aborts on an incomplete or red matrix, it
+just says so in the release notes ("Transparenz statt Türsteher"). The aggregator itself
+(`scripts/test_report.py`) still exits 0/1/3 for complete-and-green / gaps-or-broken /
+store-unreachable, so a future caller or CI job that *does* want to gate on the matrix can
+build that policy on top without changing the tool. Coverage records themselves are produced
+by whatever runs `-Pcoverage` and passes `--coverage-xml` to `runtests.sh --publish-results`
+— the CI orchestrator wiring for that is a follow-up; for now it's manual runs.
+
+#### PoppyDB: honest capability advertisement in the hello reply (`poppyCapabilities`)
+The hello reply advertises replica-set topology and logical sessions, which makes modern
+drivers enable retryable writes by default — a capability PoppyDB does not have (no
+`(lsid, txnNumber)` deduplication; the road to real support is specced in #293). There is no
+standard hello field to say "sessions yes, retryable writes no", so the reply now carries an
+explicit `poppyCapabilities` document (`retryableWrites: false`, `journal: false`,
+`durability: "snapshot"`, `readConcern: "local"`, `transactions: "partial"`,
+`textSearch: "simplified"`). Non-Morphium clients should connect with `retryWrites=false`;
+documented in `docs/poppydb.md` together with the other honesty changes below.
+
+#### PoppyDB: mongodump/mongorestore work against PoppyDB (mongo-tools compatibility)
+`mongorestore` against a PoppyDB used to die at the handshake, and dumps of real-world schemas
+could not be loaded at all. A restore is the natural way to seed a PoppyDB from an existing
+MongoDB (and a dump the natural way to persist one), so the whole tool chain was fixed
+end-to-end; a full dump → restore → dump round trip including secondary indexes now passes.
+Individual fixes, each observable on its own:
+
+- The legacy `isMaster` (OP_QUERY) reply carried the `QueryFailure` flag, making strict drivers
+  (mongo-tools' Go driver) treat the hello document as an error and drop the connection.
+  Lenient drivers (Node, morphium) ignore OP_REPLY flags, which is why this never surfaced.
+- `buildInfo` now reports a `versionArray` — mongorestore refuses servers announcing fewer
+  than 3 version components.
+- OP_MSG kind-1 document sequences (how mongo-tools ship bulk inserts; morphium clients only
+  ever send kind 0) are now merged into the command body per wire spec. The kind-1 *writer*
+  in `OpMsg.getPayload` was rewritten as well — it never emitted the section content.
+- `OpMsg.parsePayload` bounds parsing by the wire-header message size instead of the buffer
+  length: with PoppyDB's zero-copy Netty path, a pipelining client (mongo-tools) made the
+  parser run into the next message's bytes.
+- BSON type 0x13 (Decimal128) is now encoded and decoded (`BigDecimal`, NaN/Infinity as
+  `Decimal128`) — previously any document containing a `NumberDecimal` was unparsable.
+- A message that fails to decode now gets an error reply instead of being silently skipped,
+  which left clients hanging until their timeout.
+
+### Changed
+
+#### Object mapper: type-id class resolution and no-arg-constructor lookup cached
+An in-JVM mapping benchmark (POJO with a `List<List<Map<String,Customer>>>` payload, no
+network) showed `ObjectMapperImpl` roundtrips at ~100µs/op — 3.3x slower than the official
+driver's `PojoCodecProvider`. Profiling (JFR, 1ms sampling) put the single biggest avoidable
+cost in `AnnotationAndReflectionHelper.getClassForTypeId()`, which ran
+`Class.forName()` on every call — once per embedded object carrying a `class_name`
+attribute, i.e. dozens of times per deserialized document. That lookup is now cached per
+helper instance (typeId → Class, successful lookups only, so hot-reload scenarios get a
+fresh cache with a fresh helper). In addition, `deserialize()` now caches the resolved
+no-arg constructor per class (with a sentinel for classes without one, so the
+exception-based probe runs once instead of per call — measured at ~0.4µs per miss), and the
+hot `customMappers` checks use a single `get()` instead of `containsKey()`+`get()`.
+Deserialization of the benchmark payload drops from ~57µs to ~38µs (−34%), full roundtrip
+from ~100µs to ~76µs; the remaining gap to `PojoCodecProvider` (~2.5x) is structural —
+per-value map lookups against per-class precompiled codecs. Behavior is unchanged.
+
+#### Test suite: timing-sensitive sleep+assert patterns replaced with condition waits (#292)
+A `BulkInsertTest` flake on the CI matrix (count asserted immediately after `storeList`) turned
+out to be one instance of a suite-wide pattern: `Thread.sleep` followed by an assertion on DB or
+messaging state. The nine files with the highest density — BulkInsertTest, MorphiumTest,
+MapListTest, DataTypeTests, QueryUpdateOperatorsTest, UpdateTest, CacheSyncTest and the two
+(class-level disabled) ncmessaging suites — now use bounded
+`TestUtils.waitForConditionToBecomeTrue` waits instead; unbounded poll loops got bounds too.
+Sleeps that are load-bearing (negative "must-NOT-arrive" windows, exactly-once settle windows,
+TTL waits, pause-semantics and throughput measurements) were deliberately kept. No production
+code affected; the remaining sleep+assert files are tracked in #292.
+
+#### Test suite: retired the ncmessaging (polling-only) test package (#292)
+The `ncmessaging` suites were aging copies of the regular messaging tests with
+`setUseChangeStream(false)` hard-coded — mostly class-level `@Disabled` and drifting. The
+polling-only mode itself stays fully supported (it is what morphium auto-selects on standalone
+MongoDB, where change streams don't exist) and remains tested: the MongoDB-Single CI phase runs
+the entire messaging test set in exactly that mode. The one scenario without a counterpart —
+request/reply round trips forced to polling on a replica set — moved to
+`AnsweringTests.waitForAnswerPollingOnlyTest`.
+
+#### Test suite: all bare `assert` statements migrated to JUnit assertions (#292)
+1114 bare Java `assert` statements across 97 test files only ever ran because surefire enables
+`-ea` by default — as `assertTrue(...)` they are independent of JVM flags and produce proper
+assertion errors. Messages are preserved; dynamic messages keep the `assert` statement's lazy
+evaluation via supplier arguments (except where a lambda could not capture the local, which use
+eager `String.valueOf`). Behavior-preserving by construction: assertions were already enabled in
+the test JVMs.
+
+#### Messaging: "CHANGESTREAM DUPLICATE CAUGHT" dropped from WARN to DEBUG
+The guard fires whenever the change stream and the fallback poll both find the same message,
+which at a 10s fallback interval is simply normal operation — production logs showed ~135 lines
+a day of it, burying the handful of warnings that actually matter (found during the #285
+analysis). The deduplication behavior is unchanged, only the log level.
+
+### Fixed
+
+#### PoppyDB election: a failed retry-persist forgot a durably granted vote (#306 review round 2)
+The persist-failure rollback in `handleVoteRequest` reset `votedFor` to null unconditionally.
+On a *retry* from the candidate the node had already durably voted for (Raft standard: the
+response got lost, the candidate asks again), a transient persist failure therefore erased the
+earlier, still-durable vote from memory — and a *second* candidate asking next could be
+granted the same term: two votes in one term, two leaders. The rollback now restores the
+previous `votedFor` (the same pattern `becomeCandidate` already used), so a failed persist
+denies the retry without forgetting the vote that actually stands.
+
+#### PoppyDB election: a leader demoted by a straggling higher-term vote response went permanently silent (#306 review round 2)
+The higher-term check in `handleVoteResponse` runs before round correlation (correct — a
+higher term is authoritative whatever RPC carried it), but demoted with `resetTimer` only for
+candidates. A node that had already *won* (its election timer cancelled by `becomeLeader()`)
+ended up as a follower with neither heartbeats to receive nor an election timer to fire: if
+the higher-term peer never made contact (died, partitioned), the node never campaigned again.
+Every other leader-demotion path re-arms the timer; this one now does too.
+
+#### PoppyDB election: the partial-restore guard deadlocked peer-less nodes, and only the CLI ever armed it (#306 review round 2)
+Two halves. First, the guard's only release path is a completed initial sync *from a primary*
+— which a single-node replica set can never have: one broken dump file and the node held back
+candidacy forever, with no runtime override. A node without peers now skips the hold-back
+(there is no one to sync from and no intact peer a partial primary could overwrite), and the
+CLI's PARTIAL-RESTORE warning explains the manual way out (restore or delete the broken dump
+files, restart). Second, only `PoppyDBCLI` called `setLocalDataComplete(false)` — an embedder
+following the documented pattern (`restoreFromDump()`, check `isComplete()`, `start()`) booted
+a gutted node that still considered itself electable, recreating the empty-node-wipe after a
+cluster-wide restart. `restoreFromDump()` itself now drops the guard on a partial result.
+
+#### PoppyDB: the replication-manager field was assigned after start(), losing fast sync-complete notifications (#306 review round 2)
+The initial-sync completion notification is one-shot (`maybeFireSyncCompleteNotify` consumes
+its flag via CAS). On a fast sync — e.g. the consistency shortcut against a loopback peer —
+the batch processor could fire it before `startReplicationToLeader` assigned the new manager
+to the field; the receiver then discarded the release as coming from a superseded manager, and
+the partial-restore guard stayed stuck until some unrelated resync. The field is now assigned
+before `start()` (as the static-mode path already did), with the assignment rolled back if
+`start()` throws.
+
+#### PoppyDB election: the state-file quarantine bricked every upgrade from a pre-checksum build (#306 follow-up)
+The mandatory three-key state-file schema (currentTerm, explicitly-empty votedFor, CRC32
+checksum) quarantined *every* file written by the immediately preceding builds — which wrote
+no checksum at all and omitted votedFor when null. On upgrade, all nodes of an RS therefore
+came up "holding back candidacy: persisted election state exists but is unreadable" at once:
+no candidate, no primary, every client failing with "No primary node found" (observed
+cluster-wide on the testrunner RS, 2026-08-17). A missing checksum *key* is now recognized as
+the legacy signature — checksum-era files are written atomically (tmp+move) and cannot lose
+single lines undetected, so "no checksum key" means an older build's complete write, not a
+truncation. Legacy files are restored (votedFor optional, exactly as the legacy writer
+produced them) and immediately rewritten in the current format, closing the unprotected
+window; empty files, files without currentTerm, checksum mismatches and checksum-era files
+missing votedFor are still quarantined as before.
+
+#### PoppyDB election: a vote could be granted without being durable, and a broken state file reset the node to term 0 (#306)
+`persistElectionState()` swallowed every write failure, yet the voter confirmed the vote (and
+a candidate its self-vote) anyway — despite the "votedFor must be durable before the response
+leaves" contract at exactly that call site. A crash after such a phantom persist lets the
+restarted node forget its vote and vote a second time in the same term: two leaders in one
+term, the one failure mode Raft's persistence rule exists to prevent. A failed persist now
+turns the grant into a denial (votedFor rolled back in memory too) and aborts a candidacy
+outright, term increment included — the node simply retries on the next election timeout.
+Relatedly, `loadPersistedState()` treated an *existing but unreadable* state file like a
+missing one and restarted at term 0, arguing PreVote makes that safe — which holds for term
+inflation, not for double voting: an unreadable file means the node may have voted at any
+term. The two cases are now distinguished: a missing file (first start, persistence newly
+enabled) still starts clean and participates normally, while an unreadable one keeps the node
+out of elections entirely (no votes, no PreVote grants, no candidacy — it still starts and
+serves data) until the operator restores the file or deliberately deletes it; the condition is
+logged on ERROR with those instructions and exposed as `stateFileUnreadable` in the election
+stats. The quarantine is also self-preserving: while it holds, nothing writes the state file —
+without that, the next higher-term heartbeat would run through `becomeFollower()` →
+`persistElectionState()` and overwrite the broken file with the made-up in-memory state,
+perfectly readable on the next restart, silently lifting the quarantine while the unknown
+earlier vote stays lost (the untouched file is also the operator's evidence). And "durable"
+now means durable across power/kernel failures too, not just JVM crashes: the state write
+fsyncs the tmp file before the atomic rename and the parent directory after it (directory
+fsync best-effort, since not every platform supports it). The persisted state also carries a
+mandatory schema now — `currentTerm`, an *explicitly empty* `votedFor` when no vote is held,
+and a CRC32 checksum over both — and a file missing any key or failing the checksum is
+quarantined like an unparsable one: `Properties.load()` happily parses an empty or truncated
+file, and the old `getProperty("currentTerm", "0")` default would have quietly turned "file
+lost its content" (possibly including the votedFor line for a term whose vote is already
+given away) into "term 0, never voted". Bare term adoption stays best-effort by design:
+losing an adopted term to a crash costs no safety, because every grant re-persists both
+values or is denied.
+
+#### PoppyDB election: the partial-restore candidacy guard was never released in election mode (#306)
+A node that starts with an incomplete dump restore is barred from candidacy until an
+authoritative initial sync has replaced its local state (it would otherwise win a
+cluster-wide-restart election — where every node reports index 0 — and push its gutted
+dataset onto the intact peers). But the release of that guard lived only in the static-mode
+replication path (`startReplication()`, with its synchronous `waitForInitialSync`); election
+mode replicates through `startReplicationToLeader()`, which had no sync-completion hook at
+all. So the guarded node synced fine and then stayed barred forever: with an intact primary A
+and partially-restored B and C, everything worked until A died — then B and C refused every
+candidacy and the cluster stayed without a primary despite both holding full authoritative
+copies. `ReplicationManager` now exposes an `onInitialSyncComplete` hook wired by both
+replication paths to the release — which also fixes the static path's own gap of a sync
+finishing only after the bounded 30s wait had given up. The hook's firing point is
+deliberately *not* the gate-opening moment: "initial sync complete" there only means the
+snapshot is copied, while the change events buffered during it (up to 100k) are still queued
+— a guard released that early hands candidacy back to a node that is measurably behind, and
+if the primary dies inside that window the node can win the election while its stop()-time
+flush only applies a single further batch. The sync thread therefore only *arms* the
+notification and the batch processor fires it once the backlog has actually drained — and
+only while that manager is still running: a superseded `ReplicationManager`'s sync thread can
+outlive `stop()` by design (bounded 5s join) and complete its snapshot against a primary that
+no longer leads, so a stopped manager never fires, and the receiving side additionally
+ignores completions from any manager instance that is no longer the current one.
+
+#### PoppyDB election: vote responses from earlier rounds were credited to the current PreVote round (#306)
+`handleVoteResponse()` tallied every incoming grant into whatever round happened to be open —
+no round correlation, no request-type check. In a three-node set, the self-vote plus one
+grant straggling in from an *earlier* PreVote round already forms a "majority", starting a
+real election (term bump included) that no current peer agreed to — under network latency the
+livelock PreVote was built to end could return through this side door. Every outgoing batch
+of (Pre)Vote requests now carries a sender-local round id (never serialized: the response
+travels back on the same code path that sent the request, so `ElectionNetworkClient` simply
+hands the original request back with the answer), and responses whose request is not of the
+current round — or answers the wrong kind of request — are discarded. Higher response terms
+are still honored before correlation, from any round: discovering a higher term is
+authoritative cluster news whatever RPC delivered it. Within the current PreVote round, lower
+response terms remain deliberately acceptable — a voter whose term is behind may legitimately
+pre-grant, since PreVote adopts no terms on either side.
+
+#### InMemory dump restore: ORM-written documents made a whole database unrestorable (#306)
+On the customer acceptance environment, 4 of 8 databases could not be restored from freshly
+written dumps — exactly the ones containing ORM-written documents. Those carry a `class_name`,
+which made the restore path run them through the entity-aware `ObjectMapperImpl`
+deserialization: any entity field of a dump-marked type (`Date`, `UUID`, `byte[]`, ids) that
+was *absent* from a document handed `null` to the restore type mapper and NPE'd the entire
+database ("Parsing failed … 'd' is null") — and even without absent fields, entity resolution
+would have replaced the stored document maps with entity objects and dropped their
+`class_name`. The restore now converts the dump payload at the dump boundary itself, without
+any entity resolution: documents stay plain maps (`class_name` preserved as an ordinary
+field), and only the `{class_name, value}` marker maps the dump writer emits are turned back
+into `Date`/`UUID`/`byte[]`/ids. Id markers are read tolerantly — both the
+`org.bson.types.ObjectId` form that every existing dump on production machines contains and
+the `de.caluga.morphium.driver.MorphiumId` form are accepted, and both restore as
+`MorphiumId`, matching what the wire path delivers. The wire and store paths are untouched
+(the store legitimately holds both id types; the translation happens only at the dump
+boundary). Restore failures now name the offending field path and marker type instead of a
+bare "Parsing failed", and `ObjectMapperImpl` itself no longer hands `null` to custom field
+mappers for absent fields (the standard null handling applies instead) and wraps mapper
+failures with the field name, field type and entity class.
+
+#### PoppyDB replication: a freshly-synced node could report log index 0 forever (seed race)
+On a loaded host, a secondary whose initial sync finished fast (consistency shortcut, tiny
+dataset) could permanently report replication position 0 to the election layer despite holding
+the primary's complete dataset. Root cause is a race between two one-shot reporters on
+different threads: the watch's registration callback flipped `watchLive` — which is what
+releases the initial-sync thread — *before* recording the primary's sequence seed, so a sync
+that outran that gap re-based `lastAppliedSequence` from the still-stale (0) seed and its
+single end-of-sync election report read 0 and was skipped; when the seed then landed, nobody
+reported it anymore, because the only remaining reporter (`processBatch`) fires solely when
+live events are actually drained — a quiet primary means never. Recent sync speedups made the
+sync win this race often enough to surface as the CI-only `InitialSyncElectionSeedTest`
+failure. The consequence is severe since #306: its candidacy restraint treats index 0 as "empty
+node, must not campaign", so the raced node locked itself out of every election — if the other
+nodes fail, the cluster stays leaderless while the one node with the full data sits it out,
+the same damage class #306 closed, from the other side. Fixed structurally, not at one spot:
+the position now *catches up* instead of being reported exactly once — the registration seed
+reports itself when it lands after sync success (gated on `initialSyncComplete`, so a node
+that does not yet hold the data still never claims a position), the batch processor's flush
+tick reconciles the election view periodically even with nothing to drain (safe because
+`ElectionManager#updateLogIndex` is monotonic-max, so re-reporting can only ever raise), and
+the registration callback now records the seed *before* flipping `watchLive`, closing the race
+window at its source. `InitialSyncElectionSeedTest` gained a deterministic reproduction of the
+losing interleaving, so the regression no longer needs CI load to become visible.
+
+#### PoppyDB election: PreVote stops empty/syncing nodes from dethroning a healthy primary (#306)
+A rolling upgrade on a 3-node replica set ended in a permanent leaderless livelock: a freshly
+restarted, still-empty node could never *win* an election — the log-recency vote veto worked —
+but it kept *campaigning* every election timeout, each campaign bumping the term, and every
+higher-term RequestVote forced the healthy primary to step down (~15 terms/min, primary
+flapping, finally no writable primary at all). This is Raft's textbook "disruptive server"
+problem: the vote veto prevents the wrong winner, not the disruption. The election now
+implements PreVote (Raft §4.2.3/§9.6): before any real election, the node asks its peers
+"would you grant me a vote?" *without touching any term*; only a pre-granted majority starts
+the real election. The PreVote answer is strictly read-only on the responder (no term
+adoption, no votedFor, no timer reset) and applies the same log-recency, term and priority
+checks as a real vote — so an empty or log-behind candidate fails the round every time and
+retries forever without inflating a single term. Three companion changes close the remaining
+gaps: **leader stickiness** — a voter that is the leader with a live lease, or heard a leader
+heartbeat within the last minimum election timeout, ignores higher-term (Pre)Vote requests
+*without adopting their term* (the term adoption on denial was exactly the dethroning lever,
+and this also shields new nodes from old, PreVote-unaware campaigners during rolling
+upgrades); **candidacy restraint hardening** — a peer's advertised log index is now recorded
+even from heartbeats rejected as stale-term, so a node whose own term got inflated can no
+longer blind itself to the existence of data-bearing peers (pre-PreVote, a candidate rejected
+all heartbeats as stale and thus never learned it should hold back); and **term/votedFor
+persistence** — Raft-required, opt-in via `morphiumserver.electionStatePath` (a properties
+file written atomically on every term/votedFor change), because a node that came back at
+`term=0` during the incident added to the churn; a node without (or with a corrupt) state
+file still starts cleanly, which PreVote now makes safe. Wire-compatible with old nodes: the
+PreVote probe rides as an extra `preVote` field on the existing `requestVote` command,
+carrying the sender's *current* term, so an old node misreads it as a harmless same-term vote
+request and its plain grant/deny counts toward the PreVote majority — a new node in an old
+cluster is never blocked.
+
+#### PoppyDB: restore-on-startup silently aborted on the first broken dump file, starting the node near-empty (#306)
+During a rolling upgrade, a node whose shutdown had correctly dumped all 8 databases came back
+with only 2 of them: `restoreAllFromDirectory` looped over the dump files without any per-file
+error handling, so the first file that failed to parse threw straight out of the loop — the
+databases already restored stayed, everything after the broken file was silently skipped, and
+the node joined the replica set as a near-empty (and, per #306, election-disrupting) member.
+The failure was invisible three times over: the loop never logged which file broke, the
+summary line lived *after* the call and thus never appeared, and the CLI's catch logged only
+`e.getMessage()` — which for the actual `RuntimeException("Parsing failed")` says nothing, and
+for an NPE is literally `null`. Losing 6 databases because 1 file is broken is the wrong
+trade for a startup restore, so each dump file is now restored under its own try/catch: a
+broken file is logged on ERROR with its name and full stack trace, all remaining dumps are
+still attempted, and a summary line is *always* emitted — INFO (`Restored N of N`) when
+complete, an unmissable WARN with restored/total counts and the failed file names when
+partial. `PoppyDB.restoreFromDump()` now returns that result instead of a bare count, and the
+CLI uses it to log its own PARTIAL-RESTORE warning (with stack traces in the residual failure
+path) rather than treating any non-exception as success. Note the restore itself always ran
+synchronously *before* `start()` wires up replication and election — the suspected race with
+the ElectionManager did not exist; the node joined empty purely because the aborted loop
+reported nothing.
+
+#### InMemoryDriver/PoppyDB: dumps of any database with real data were unrestorable — "Parsing failed" (#306)
+The fault-tolerant restore above immediately surfaced the bug it had been hiding: on the
+customer acceptance environment 5 of 8 databases failed to restore with
+`RuntimeException: Parsing failed` — exactly the data-bearing ones, while the quasi-empty ones
+went through. The dump writer (`Utils.writeJson`) never produced parseable JSON for real
+content: strings were written verbatim (one quote, backslash or control character in a news
+text and the JSON is broken — json-simple: `Unexpected character (S) at position 60`), and
+`Date`/`UUID` values were written as bare unquoted `toString()` tokens (`Mon Aug 17 ...` —
+`Unexpected character (M) at position 40`), so a single timestamp field was enough to lose the
+whole database. On top, `byte[]` silently came back as a `List<Long>` and
+`MorphiumId`/`ObjectId` ids as plain `String`s — documents unfindable by id after a restart —
+and both sides of the roundtrip used the platform default charset (`new OutputStreamWriter(gzip)`
+/ `new InputStreamReader(bin)`), so a dump written under one default and read under another
+mojibake'd every umlaut without any error. Dumps are now written as UTF-8 with proper JSON
+string escaping, and Date/UUID/ObjectId/byte[] as `class_name`-marked maps the restore converts
+back into the exact storage types (ids restore as `MorphiumId`, which is what the wire protocol
+stores and queries compare against). The restore side reads UTF-8 strictly and falls back to
+ISO-8859-1 with a WARN for legacy dumps written under a non-UTF-8 platform default, and decodes
+the stream as a whole instead of the old `readLine()` join that silently deleted raw newlines
+inside string values. `Utils.writeJson` itself now escapes strings too (it also feeds
+`@Encrypted` field serialization and log output), and `ObjectMapperImpl.deserialize` includes
+the wrapped cause plus the JSON context around the parse position in its message — a bare
+"Parsing failed" through a `getMessage()`-only log line is how this bug stayed invisible in the
+first place. Honest limits for existing dump files: legacy dumps restore as far as they ever
+could — content whose strings contain quotes/backslashes or that carries `Date`/`UUID` values
+was written as structurally broken JSON by the old code and cannot be recovered; legacy dumps
+without those (plain text, numbers, ids) restore fine, now even with correct umlauts across
+platform-default changes and with raw newlines preserved.
+
+#### PoppyDB CLI: election-state persistence was silently inactive — dump directory was set after `configureReplicaSet()` (#306)
+The term/votedFor persistence introduced for the #306 election churn never engaged on the
+customer environment: no `election-state.properties`, not even the "Election state persisted
+to" log line. `configureReplicaSet()` is the place that derives the state-file path from the
+dump directory and bakes it into the `ElectionConfig`, but the CLI set the dump directory only
+afterwards, in the persistence/restore block — so the config never got a path and neither
+persisting nor loading ever ran. The CLI now sets the dump directory before configuring the
+replica set (the restore itself still runs synchronously before `start()`, unchanged), and
+`PoppyDB.setDumpDirectory()` logs an unmissable WARN when it is called after an
+election-enabled `configureReplicaSet()` without persistence, so embedded users cannot fall
+into the same silent ordering trap.
+
+#### PooledDriver: a client could stay stuck on "No primary node found" forever after a replica-set restart sequence (#304)
+Nine service instances kept failing every operation for 30+ minutes after their PoppyDB
+replica set had been restarted node by node, and only an application restart brought them
+back — while other instances of the same services recovered on their own. Nothing but the
+heartbeat ever sets `primaryNode`, so anything that stops the heartbeat from probing turns a
+temporary outage into a permanent one, and two independent defects could do exactly that.
+First, the heartbeat's whole cycle ran unguarded inside `scheduleWithFixedDelay`, which
+cancels a periodic task for good the moment one execution throws — one unexpected failure
+(creating a platform thread can fail with an `Error` under load) and discovery was over.
+Second, the per-host check registered its bookkeeping entry *after* starting the thread,
+while the thread removes its own entry when it finishes: against a host that refuses
+connections the check completes in microseconds, so its removal could run before the
+registration, leaving an entry that no later cycle ever clears — and every later cycle skips
+a host it believes is already being checked. The cycle is now wrapped so nothing escapes it,
+the claim is written before the thread starts (and removed again if the start fails), a stale
+claim whose thread is no longer alive heals itself on the next cycle, `close()` clears the
+bookkeeping, and asking for the primary restarts a heartbeat that is no longer scheduled —
+so discovery can resume from every state, which is what a driver must guarantee.
+
+#### InMemoryDriver/PoppyDB: index buckets leaked every deleted document whose indexed array or sub-document had been updated (#303)
+A PoppyDB message bus ran its 12 GB heap over the watermark and rejected all writes for ~36h;
+the dump showed a single `CollectionIndexStore` retaining 10.5 GB in 34,859 long-deleted
+documents. The cause was an index key that keeps changing after it has been filed: `IndexKey`
+stored the document's own `List`/`Map` instance as the key's value while `equals`/`hashCode`
+are content-based, and the driver mutates documents in place — `$push`/`$addToSet` append to
+that very list, a dotted-path `$set` writes into that very map. The key is a `HashMap` key in
+the bucket map, so the moment the document is updated, the filed key no longer matches: the
+lookup either misses the bin or fails `equals` against the mutated stored key, removal
+silently no-ops, and the bucket keeps the document forever. Messaging is the perfect trigger —
+every message is inserted with an empty `processed_by` list (part of five of `Msg`'s indexes)
+and gets a push on it before being deleted, so every processed message leaked its full
+payload. Keys now snapshot mutable container values deeply when they are extracted, which
+keeps hash, `equals` and the comparator consistent for the key's whole lifetime. Note this was
+*not* the reference-identity removal suspected in the issue: every caller of `onRemove` passes
+the live document, and the bucket iteration that compares by identity is never even reached.
+
+#### Messaging listener registration could silently drop listeners (and throw an NPE)
+`SingleCollectionMessaging` and `DualChannelMessaging` published their topic→listener map
+lock-free to the poll thread, which is why it was only ever written by clone-and-swap on a
+`volatile` field. That read-modify-write was unsynchronized, though: two writers cloning the
+same map made the later swap discard the other's entry. The visible symptom was an NPE in
+`addListenerForTopic` when a just-created entry vanished between the `contains()` check and
+the `add()` — the flaky `MessagingRequeueEventTest`, where the application thread registers
+its listener while the freshly started messaging thread installs the status-info listener as
+its first action in `run()`. The silent variant is worse and was never diagnosed as such: no
+exception, the listener is simply gone and its messages are never delivered. Any application
+registering listeners from more than one thread, or registering right after `start()`, could
+hit it. The map is now a `ConcurrentHashMap` of `CopyOnWriteArrayList`s mutated under the
+map's per-key lock, so concurrent registration composes and the lock-free iteration in the
+poll thread stays safe without the clone-and-swap discipline that was easy to violate.
+One deliberate behaviour change came out of this: installing the status-info listener now
+*adds* it to whatever is registered under its name instead of replacing that entry, and
+disabling it removes only the status-info listener instead of the whole topic — an
+application listener that happens to use the status-info name is no longer silently thrown
+away on `start()`, and `isStatusInfoListenerEnabled()` can no longer report `true` while no
+status listener is installed. `setStatusInfoListenerName()` is in exchange no longer atomic —
+it now removes under the old name and installs under the new one in two steps, so a status
+query hitting the nanosecond-wide gap between them goes unanswered.
+
+#### `MultiCollectionMessaging.removeListenerForTopic()` removed the wrong listener
+The lookup walked the topic's entries with an index that kept counting when no match was
+found, so removing a listener that was never registered for that topic silently evicted the
+*last* one instead — including terminating its change stream monitor, leaving the topic
+subscribed-but-deaf. Removing from a topic with no listeners at all threw an NPE. The lookup
+now matches by identity or does nothing, and — like the listener maps in the other two
+messaging implementations — runs under the map's per-key lock with a `CopyOnWriteArrayList`
+behind it, so a concurrent registration cannot land in an entry that is about to be dropped.
+
+#### PoppyDB: a restarted empty node could wipe the whole replica set
+Reproduced kill chain: kill one node of a 3-node RS, restart it empty (fresh data dir), and it
+could both win the next election and cause the surviving, data-bearing followers to drop their
+local databases to match it. Two independent holes made this possible. First,
+`ElectionManager`'s Raft log-recency check existed but was vacuous — `lastLogIndex` had no
+production writer, so it stayed 0 on every node and an empty restarted candidate compared as
+"at least as up to date" as a voter sitting on real data. Second, on the follower side, a
+replication resume that finds its window already gone falls back to a full resync, and that
+fallback trusted whatever the primary reported unconditionally — reconnecting to a now-empty
+primary meant "wipe local data to match" with no discriminator between a legitimately empty
+primary (post-`dropDatabase`) and a stale one that had simply forgotten everything.
+
+The fix has three parts, each closing a different leg:
+- **Vote safety**: the log-recency check now enforces the one invariant that can be honestly
+  made without a real replicated log — a candidate reporting index 0 never wins against a voter
+  sitting above 0; three empty nodes still elect cleanly on cold start. A related hole let a
+  freshly-synced node still report index 0 to the election (initial sync suppresses the change
+  stream, so the normal live-write feed never fired) — such nodes now seed their true position
+  right after sync completes, so they neither wrongly grant votes to an empty candidate nor get
+  wrongly denied candidacy themselves.
+- **Candidacy restraint**: an empty node now holds off campaigning for as long as it can see a
+  data-bearing peer, preventing the term churn an empty node's repeated candidacies would
+  otherwise cause even after vote safety alone denies it the win.
+- **Fail-closed resync**: a follower now refuses a destructive drop-to-match resync whenever
+  the primary's replication sequence at registration is *behind* the sequence the follower's own
+  data was last known to reflect — the discriminator that tells a restarted/stale primary apart
+  from a legitimately empty one, since a real primary's sequence only ever advances, including
+  across a replicated `dropDatabase`. The refusal logs an ERROR, keeps local data intact, and
+  retries with watch re-registration paced at 2s and sync-loop retry backing off exponentially
+  from 1s to 30s, until a genuinely caught-up primary answers or an operator intervenes; the
+  replication stats now expose `refusingDestructiveResync` / `refusedResyncCount` so this state
+  is observable rather than silent. Sequence knowledge now also carries over across leader
+  changes — a freshly constructed replication manager used to start its own sequence at 0 and
+  immediately self-seed from whatever the new leader reported, which made the guard structurally
+  unable to fire on that path. Change-stream sequences are primary-local: after a successful
+  sync/shortcut against a primary, a follower now *adopts* that primary's own counter as its new
+  base rather than keeping the higher of the two — the old and new primaries' counters are
+  unrelated numbers, and keeping a stale, inflated one made every later reconnect to that (still
+  perfectly healthy) primary look like a resume-window loss, which then tripped the guard against
+  the new primary's own honest, lower counter and refused every subsequent legitimate resync.
+
+Composition note, stated plainly: the resync guard is a sequence-height heuristic, not a
+lineage check. A wrongly-promoted empty primary that manages to take on enough fresh writes
+before a follower reconnects could, in principle, still pass it — the guard alone is not the
+safety boundary. The actual barrier against that scenario is the election-side fix: an empty
+node must never be able to win the election in the first place, which is what vote safety and
+candidacy restraint together guarantee — guaranteed for the single-restart case; if a majority
+of nodes restart empty simultaneously, an empty node can still be elected (the fail-closed resync
+then still protects each surviving node's local data, but the cluster serves empty until a
+data-bearing node takes over). The resync guard is defense in depth on top of that, not a
+substitute for it.
+
+Operator note: if the *last* data-bearing node in a cluster dies permanently, the surviving
+empty nodes deliberately hold back candidacy indefinitely rather than elect one of themselves —
+restarting any one of the survivors clears its peer-index memory and lets the cluster elect
+again, so recovery is "restart one node", not "restart the cluster".
+
+Regression coverage: `EmptyNodeRestartWipeTest` reproduces both directions of the original bug
+(empty node restarted as would-be primary, and as a would-be follower reconnecting to an empty
+primary) against a real in-process 3-node replica set.
+
+#### PoppyDB: j:true write concern no longer promises durability that does not exist
+A `j: true` write concern was silently accepted and acknowledged although PoppyDB has no
+journal (persistence is periodic snapshots). Like mongod running without journaling, the
+write is still executed but the answer now carries `writeConcernError` code 2 (`BadValue`),
+so clients relying on journal durability learn the truth instead of getting a hollow
+acknowledgement.
+
+#### PoppyDB: secondaries no longer serve reads that defaulted to primary read preference
+MongoDB's default read preference *is* `primary`, but only an explicit `mode: "primary"` was
+rejected on secondaries — a read without `$readPreference` was silently served, returning
+possibly-stale data to a client that (by default) asked for primary consistency. Such reads
+now get `NotPrimaryNoSecondaryOk` (13435), matching mongod's handling of a direct secondary
+connection without `secondaryOk`. Morphium's own wire commands always send a read preference
+(default `primaryPreferred`) and are unaffected.
+
+#### InMemoryDriver: MongoDB collation strength mapped to the wrong Java collator level
+MongoDB collation strength (1=primary..5=identical) was passed straight to
+`java.text.Collator.setStrength()`, whose constants are 0-3. Every level was silently shifted
+by one — `strength: 1` behaved as SECONDARY (diacritics significant) instead of PRIMARY — and
+`strength: 4`/`5` threw an `IllegalArgumentException` instead of working at all. The values are
+now mapped explicitly; Java has no quaternary level, so 4 and 5 both map to IDENTICAL, the
+closest level at least as strong as what mongo promises.
+
+#### PoppyDB: find fast path ignored the client's collation (#252 follow-up)
+The #252 fix wired the request's `collation` through the update/delete/count/distinct wire
+fast paths but missed `find`: a collation-aware find matched differently depending on which
+internal dispatch path the request happened to take. The collation now reaches the driver on
+both the single-shot and the cursor-window path, and the server-side find cursor carries it so
+`getMore` refills re-execute the query with the same collation as the first batch.
+
+#### InMemoryDriver: bulk-insert writeErrors pointed at the wrong batch positions, n overcounted
+The insert path removes failed documents from its working list between its three
+error-detection passes (oversize, duplicate against committed docs, intra-batch duplicate), so
+every `writeErrors.index` reported after an earlier removal referred to the shrunken working
+list — but clients resolve those indexes against the batch *they* sent. A parallel
+original-index list now keeps the reported indexes stable; removal is position-based, which
+also stops an equal-but-different document elsewhere in the batch from being dropped
+collaterally. In addition, `n` was computed as `batchSize - writeErrors.size()` on both the
+generic and the PoppyDB fast path — correct for unordered inserts only. An ordered insert
+stops at the first error, so the never-attempted tail was counted as inserted; both paths now
+derive the committed count from the first error's batch index.
+
+#### PoppyDB: commitTransaction/abortTransaction failures were swallowed
+A `commitTransaction`/`abortTransaction` that threw was only logged — the client received an
+unconditional `ok:1` and believed its transaction was committed. Failures are now answered as
+a mongo-shaped error (code 8 `UnknownError`, or the driver's mongo code if it attached one).
+Commit/abort without an active transaction remains a lenient `ok:1` no-op; a full per-session
+transaction state machine (txnNumber validation, `NoSuchTransaction`) is deliberately out of
+scope here.
+
+#### Write buffer: remove-by-query deleted only a single document
+`BufferedMorphiumWriterImpl.remove(Query, multiple, callback)` accepted the `multiple` flag but
+never passed it on to the queued `DeleteBulkRequest`, whose default is `multiple = false`. All
+drivers translate that faithfully into `delete ... limit: 1` — so for any `@WriteBuffer` entity,
+`morphium.remove(query)` and `clearCollection()` silently deleted exactly one matching document
+and left the rest in place. The bug had been masked for years because the InMemoryDriver bypasses
+the buffered writer entirely (`getWriterForClass`), so no in-memory test could see it, and the
+one test that exercised the path against real servers (`CacheSyncTest.idCacheTest`) tolerated
+lost objects until the #292 sleep→condition hardening turned its settle sleep into a hard count
+assertion — which then failed on all four CI server phases and exposed the root cause. The flag
+is now propagated; a regression test (`BufferedWriterTest.testWriteBufferRemoveByQuery`) covers
+partial and full remove-by-query on a write-buffered entity. The dead skeleton
+`driver/wire/BulkContext` (every driver call commented out, no remaining references) was removed
+in the same change.
+
+#### Messaging: legacy documents with processed_by: null are deliverable again (#291)
+A stored message whose `processed_by` is an explicit `null` made the pre-exec marking fail on
+mongod ("Cannot apply $addToSet to non-array field … has non-array type null") — and since
+6.3.x requires exclusive messages to be marked *before* the listener runs, that turned into a
+hard non-delivery: no listener call, no answer, `sendAndAwait` timeout. Morphium senders can't
+produce such documents (Msg's `@PreStore` initializes the field), but foreign writers mapping
+the same collection without that guard, raw-driver writers and restored dumps can — observed in
+production against a consumer upgraded from 6.2.4, where the same failed write had merely been
+log noise after processing. All marking sites in all three implementations (plus the rejection
+handler) now fall back to an atomic repair: `{processed_by: null}` → `{$set: [own id]}`,
+guarded so an existing array is never clobbered. The InMemoryDriver previously masked the whole
+class by treating explicit null like a missing field for `$addToSet`/`$push` (creating the
+array); it now rejects it exactly like mongod, so the scenario is testable in-memory.
+`getIndexStore()` is reachable without the collection lock (explain and slow-query logging), so
+its from-scratch build could race any write that invalidates the store — most visibly
+`createUser`: the build snapshots the documents, the write lands and invalidates, and the build
+then publishes its pre-mutation snapshot anyway. That store passed the provenance check for
+every later reader and stayed authoritative until the next invalidate; in the worst case the
+duplicate-`_id` check ran against it and admitted a second document with the same `_id`. Every
+invalidation now bumps a per-collection epoch *before* removing the store, builds sample it
+before snapshotting, and a build whose epoch moved is not published (checked again after the
+publish, so a full invalidate landing between check and publish is undone too). Whole-DB drops
+and `resetData()`, which discard stores in bulk without `invalidateIndexStore()`, get the same
+fencing via a global drop epoch — a build racing a `dropDatabase` could previously resurrect
+the dropped collection's index store, pre-drop documents included. The explain/slow-query paths
+stay lock-free: a refused build is still returned to its caller for that one read, it just
+never becomes visible to anyone else.
+
+#### InMemoryDriver: literal array queries support whole-array equality ({field: []} et al.)
+A literal query with an array operand only ever matched via the multikey "array contains the
+operand as an element" rule; MongoDB additionally matches when the document's array *is* the
+operand (order-sensitive). Most visibly, `{processed_by: []}` — the empty-array form services
+use against messaging collections — matched nothing at all, and on dotted paths the resolver
+flattened leaf arrays into their elements so an empty array contributed no match candidates
+whatsoever. Both query engines (interpreter and compiled) now check whole-array equality with
+the same id/number normalization as scalar comparison ([1, 2] matches [1L, 2.0]), on plain and
+dotted paths. Found during the mongorestore rehearsal for the acceptance drop-in test.
+
+#### InMemoryDriver: unique+sparse indexes no longer throw false duplicate-key errors
+A `unique: true, sparse: true` index (the classic optional-email pattern) rejected the second
+document that lacked the indexed field with E11000 — both the index store and the insert-path
+pre-check treated the missing key as a colliding value. Per MongoDB semantics, documents
+containing none of a sparse index's fields are not part of the index and cannot collide; the
+uniqueness check now skips them (documents with present fields are still enforced). Also fixed
+in passing: decoding a BSON MaxKey threw "unknown data type" due to a missing `break`.
+
+#### InMemoryDriver: unique partial indexes enforced uniqueness over the whole collection
+A `unique` index with a `partialFilterExpression` was created and reported with its filter, but
+the filter was never evaluated: uniqueness was enforced against every document, so a schema like
+JEF's task queue (`{msg_id:1}, unique, partialFilterExpression {msg_id:{$type:"objectId"}}`)
+rejected the *second* document without an `msg_id` — or with a non-ObjectId one — with E11000,
+where mongod accepts any number of them. Documents outside the filter are not part of a partial
+index in MongoDB and cannot collide in it; the index store now honours that. The filter cuts both
+ways: a stored document that does not match no longer counts as a collision partner either, which
+matters when the filter selects on a field outside the index key (uncovered and covered documents
+then share a key bucket). Found during the PoppyDB drop-in rehearsal for the acceptance messageBus
+cluster, verified against mongod 8.0.
+
+The follow-up review of this fix surfaced three more gaps, all closed:
+- `insert()`'s legacy O(collection)-scan unique pre-check had gotten the cuts-both-ways half
+  wrong (it exempted only the incoming document, still raising the false E11000 the store fix
+  removed). It re-implemented the index-membership rules separately from the store, which its own
+  comments already declared the single uniqueness authority — deleted outright; committed and
+  intra-batch conflicts alike now surface via `CollectionIndexStore.onInsert`, with mongod's
+  actual ordered semantics (stop at the first error).
+- An update that leaves the index key untouched but moves a document *into* the partial filter
+  now runs the uniqueness check too — before, it silently created two covered documents on one
+  unique key, a state mongod rejects with E11000 and the store's own rebuild would refuse.
+- TTL expiry honours `partialFilterExpression`: a TTL index with a filter no longer deletes
+  uncovered documents (mongod's TTL monitor never touches them). The partial filter is also
+  compiled once per index definition now instead of being re-interpreted through the global
+  query cache on every write.
+
+## [6.3.1] - 2026-08-11
+
+### Added
+
+#### Messaging: implementation mismatches between queue participants are detected (#280)
+All three messaging implementations use incompatible collection layouts, and a mixed queue used
+to fail *silently* in the worst direction: broadcasts kept flowing while answers landed in a
+collection the other side never reads. Every messaging instance now announces its implementation
+on startup in a layout-independent `<queue>_participants` collection (heartbeat on the
+`messagingRegistryUpdateInterval`, stale entries pruned, withdrawn on `terminate()`) and checks
+what the other participants run. The channel is deliberately *not* the messaging itself — between
+two implementations without a shared collection, a messaging-based warning would never arrive.
+On a mismatch the default is a WARN log; `MessagingSettings.ImplementationCheck.THROW` makes a
+mismatched instance refuse startup with an `IllegalStateException`, `IGNORE` disables
+announcement and check entirely. Detection and diagnostics only — no bridging. The participants
+entity reads from the primary on purpose: under replication lag a secondary read could miss an
+announcement made moments ago (seen as exactly that on the loaded replica-set test phase).
+
+### Changed
+
+#### Messaging: the main change stream filters server-side (#283)
+Every consumer's change-stream cursor used to receive every insert into the messaging
+collection — including messages addressed to other recipients, full payloads of large foreign
+answers included. Under high traffic the cursor fell behind and delivery degraded to
+fallback-poll latency. The main change stream is now built with a server-side `$match` restricted
+to what the instance can actually process: messages addressed to it, broadcasts for topics with a
+registered listener, and answers (broadcast answers bypass the topic clause). The stream is
+rebuilt when the registered topic set changes. V5-legacy senders store only `name` instead of
+`topic` — the filter matches both, so legacy documents keep flowing.
+
+#### PoppyDB: replication applies events on arrival
+Replication events were applied on a 5 ms flush tick; they are now applied when they arrive,
+noticeably reducing secondary lag.
+
+### Fixed
+
+- **Messaging: the lock-release change-stream callback no longer queries (#286).** It ran a
+  `countAll` per deleted lock on the change-stream thread itself, so a burst of lock releases
+  stalled the stream (`msg_lck` stalls). Replaced by a counter that coalesces any number of lock
+  events into a single poll.
+- **InMemoryDriver: equality queries on an indexed array field silently returned nothing (#289).**
+  The index store does not implement multikey indexes, but the planner used such indexes anyway —
+  an index-backed `find`/`count` on e.g. `processed_by == "X"` returned an empty result. Indexes
+  are now flagged multikey as soon as a document stores a list in an indexed field — including
+  arrays crossed *mid-path* (an index on `a.b` over `{a: [{b: …}]}`) — and excluded from query
+  planning; such queries scan and evaluate MongoDB's array semantics correctly.
+- **InMemoryDriver: change-stream events could arrive out of order under load.** Client-mode
+  dispatch submitted each event as its own task to a cached thread pool, which preserves no
+  submission order — two back-to-back events could reach a subscriber swapped, or even
+  concurrently. Delivery now runs on a single dispatcher thread (unbounded queue, writers never
+  block), restoring mongod's per-cursor ordering guarantee.
+- **InMemoryDriver: `update` and `replace` change-stream types now match mongod (#288).** An
+  update without `$` operators (a client's `replaceOne`) emitted no event at all — invisible to
+  every watcher including PoppyDB replication; it now emits `replace` with the new `fullDocument`
+  and no `updateDescription`. And `store()` of an existing document emitted `replace`, where the
+  ORM's store goes out on the wire as a `$set` update that mongod reports as `update` — it now
+  emits `update` with a computed `updateDescription`.
+- **InMemoryDriver: collection and index-descriptor creation are atomic.** Two racing first
+  writes (e.g. concurrent `createUser`) could both observe "collection absent" and both win.
+- **Messaging: a failed main-change-stream rebuild is retried.** The topic-filter snapshot was
+  committed before the new monitor had started; if starting it failed, the staleness check
+  considered the filter current and the instance kept running without a main change stream.
+- **Messaging: the listener registry is no longer mutated in place** (status-info listener
+  toggles, `terminate()`) while the poll thread iterates it — a
+  `ConcurrentModificationException` risk; the field is volatile now and all mutations
+  clone-and-swap.
+- **Build: the parent POM's `<scm><tag>` had regressed to `v6.2.7`**; development iterations
+  point at `HEAD` again.
+
 
 ## [6.3.1] - 2026-08-11
 
@@ -188,6 +924,51 @@ package renames, no API changes, only the Maven coordinates move. The code origi
 [Bardioc1977/quarkus-morphium](https://github.com/Bardioc1977/quarkus-morphium), which is
 being archived now that its content has moved into the main Morphium repository. See
 [Quarkus Extension](docs/quarkus-extension.md).
+
+#### `spring-boot-morphium` — optional Spring Boot integration module
+A new optional module, `spring-boot-morphium`, integrates Morphium into
+[Spring Boot](https://spring.io/projects/spring-boot) applications: `MorphiumAutoConfiguration`
+creates the application's `Morphium` bean from `morphium.*` properties (type-safe
+`@ConfigurationProperties`, with `spring-boot-configuration-processor`-generated metadata for
+IDE autocompletion), and connection retry with linear backoff on transient failures.
+Jakarta Data `@Repository`
+interfaces (`CrudRepository`/`MorphiumRepository` from `morphium-jakarta-data`) are wired via
+`MorphiumRepositoryRegistrar` at Spring context-startup time, backed by a JDK dynamic proxy
+(`java.lang.reflect.Proxy`) per repository interface — in contrast to `quarkus-morphium`, which
+generates repository implementations as Gizmo bytecode at build time; here everything is
+runtime reflection, no annotation processor or build-time codegen involved. Declarative
+`@MorphiumTransactional` transactions wrap the annotated method body in
+`startTransaction()`/`commitTransaction()`/`abortTransaction()` via an AspectJ `@Around` advice,
+active only when `spring-boot-starter-aop` is on the classpath. An Actuator `HealthIndicator`
+reports live MongoDB connection status (database, driver, replica-set state) under
+`/actuator/health`, active only when `spring-boot-actuator` is present and a `Morphium` bean
+already exists; a user-defined bean named `morphiumHealthIndicator` correctly overrides the
+auto-configured one. The module publishes three artifacts — `morphium-spring-boot-starter`,
+`morphium-spring-boot-autoconfigure`, and `morphium-spring-boot-test` (a `@MorphiumTest`
+composite annotation that wires `InMemDriver` into a `@SpringBootTest`, so repository tests run
+without a MongoDB instance or container) — and, unlike `quarkus-morphium/integration-tests`,
+`morphium-spring-boot-test` is a genuine end-user artifact, not an internal test suite, and is
+published to Central like the other two. Like `morphium-jakarta-data` and `quarkus-morphium`,
+the core has zero compile- or runtime dependency on this module; building the reactor with
+`-DskipExtensions` produces an unchanged core-only build. No Docker/Testcontainers dependency
+anywhere in the module — all tests run against Morphium's `InMemDriver`, unlike
+`quarkus-morphium`'s integration tests, which need a running Docker daemon.
+**Two coordinate/naming corrections made during the pre-integration conversion:** the three
+modules were renamed from `spring-boot-morphium-*` to `morphium-spring-boot-*`, following the
+Spring Boot starter naming convention (the `spring-boot-` prefix is reserved for Spring's own
+starters); and the configuration property prefix was renamed from `spring.morphium.*` to
+`morphium.*`, since the `spring.*` namespace is reserved for Spring Boot's own configuration
+keys. Both renames happened before any Maven Central release of this module existed, so they
+carry zero breaking-change cost. **Existing users of the pre-integration
+`de.caluga:spring-boot-morphium-starter:1.0.0-SNAPSHOT`** must update their dependency's
+artifactId to `morphium-spring-boot-starter`, its version to the Morphium version they adopt
+(currently `6.3.x`), and rename every `spring.morphium.*` key in their
+`application.properties`/`.yml` to `morphium.*` (e.g. `spring.morphium.database` →
+`morphium.database`) — no Java API changes; `MorphiumProperties`, `@EnableMorphiumRepositories`,
+`@MorphiumTransactional`, and all other public types are unaffected. The code originates from
+[Bardioc1977/spring-boot-morphium](https://github.com/Bardioc1977/spring-boot-morphium), which
+is being archived now that its content has moved into the main Morphium repository. See
+[Spring Boot](docs/spring-boot.md).
 
 #### PoppyDB: `--users-file` — declarative user provisioning (bootstrap, upsert, version-gated)
 Builds on user replication: `--rootUser`/`--rootPassword` only ever provisioned one admin user,

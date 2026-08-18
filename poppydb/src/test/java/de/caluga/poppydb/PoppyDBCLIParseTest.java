@@ -170,4 +170,81 @@ public class PoppyDBCLIParseTest {
         ServerOptions opts = PoppyDBCLI.parse(new String[] {"--help", "--port", "4711"}, 0);
         assertThat(opts.port).isEqualTo(4711);
     }
+
+    // --- replay-buffer (spec 2026-08-14-replay-buffer-byte-budget.md) ---
+
+    @Test
+    void replayBufferDefaultsTo256mAndIsParsedFromCli() {
+        ServerOptions defaults = PoppyDBCLI.parse(new String[0], 0);
+        assertThat(defaults.replayBuffer).isEqualTo("256m");
+        assertThat(defaults.sourceOf("replay-buffer")).isEqualTo(ServerOptions.Source.DEFAULT);
+
+        ServerOptions opts = PoppyDBCLI.parse(new String[] {"--replay-buffer", "5%"}, 0);
+        assertThat(opts.replayBuffer).isEqualTo("5%");
+        assertThat(opts.sourceOf("replay-buffer")).isEqualTo(ServerOptions.Source.CLI);
+    }
+
+    @Test
+    void replayBufferSizesResolveFixedAndPercent() {
+        long heap = 1024L * 1024 * 1024; // pretend 1 GB max heap
+        assertThat(ServerOptions.parseReplayBufferBytes("256m", heap)).isEqualTo(256L * 1024 * 1024);
+        assertThat(ServerOptions.parseReplayBufferBytes("1g", heap)).isEqualTo(1024L * 1024 * 1024);
+        assertThat(ServerOptions.parseReplayBufferBytes("64k", heap)).isEqualTo(64L * 1024);
+        assertThat(ServerOptions.parseReplayBufferBytes("12345", heap)).isEqualTo(12345L);
+        assertThat(ServerOptions.parseReplayBufferBytes("5%", heap)).isEqualTo(heap / 20);
+        assertThat(ServerOptions.parseReplayBufferBytes("0", heap)).isZero();
+        assertThat(ServerOptions.parseReplayBufferBytes(" 1G ", heap)).isEqualTo(1024L * 1024 * 1024);
+    }
+
+    @Test
+    void replayBufferInvalidValuesAreRejected() {
+        long heap = 1024L * 1024 * 1024;
+        assertThatThrownBy(() -> ServerOptions.parseReplayBufferBytes("abc", heap))
+            .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("abc");
+        assertThatThrownBy(() -> ServerOptions.parseReplayBufferBytes("150%", heap))
+            .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("150%");
+        assertThatThrownBy(() -> ServerOptions.parseReplayBufferBytes("-5m", heap))
+            .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> ServerOptions.parseReplayBufferBytes("", heap))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void replayBufferInvalidValueIsReportedByValidate() {
+        ServerOptions opts = PoppyDBCLI.parse(new String[] {"--replay-buffer", "lots"}, 0);
+        ConfigInspector.Result result = ConfigInspector.validate(opts);
+        assertThat(result.errors()).anyMatch(e -> e.contains("lots"));
+    }
+
+    // --- event-queue-budget (byte backpressure for the secondary's replication event queue) ---
+
+    @Test
+    void eventQueueBudgetDefaultsTo256mAndIsParsedFromCli() {
+        ServerOptions defaults = PoppyDBCLI.parse(new String[0], 0);
+        assertThat(defaults.eventQueueBudget).isEqualTo("256m");
+        assertThat(defaults.sourceOf("event-queue-budget")).isEqualTo(ServerOptions.Source.DEFAULT);
+
+        ServerOptions opts = PoppyDBCLI.parse(new String[] {"--event-queue-budget", "64m"}, 0);
+        assertThat(opts.eventQueueBudget).isEqualTo("64m");
+        assertThat(opts.sourceOf("event-queue-budget")).isEqualTo(ServerOptions.Source.CLI);
+    }
+
+    @Test
+    void eventQueueBudgetUsesTheSharedSizeParser() {
+        long heap = 1024L * 1024 * 1024; // pretend 1 GB max heap
+        assertThat(ServerOptions.parseByteSize("event-queue-budget", "64m", heap)).isEqualTo(64L * 1024 * 1024);
+        assertThat(ServerOptions.parseByteSize("event-queue-budget", "5%", heap)).isEqualTo(heap / 20);
+        assertThat(ServerOptions.parseByteSize("event-queue-budget", "0", heap)).isZero();
+        assertThatThrownBy(() -> ServerOptions.parseByteSize("event-queue-budget", "lots", heap))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("event-queue-budget")
+            .hasMessageContaining("lots");
+    }
+
+    @Test
+    void eventQueueBudgetInvalidValueIsReportedByValidate() {
+        ServerOptions opts = PoppyDBCLI.parse(new String[] {"--event-queue-budget", "plenty"}, 0);
+        ConfigInspector.Result result = ConfigInspector.validate(opts);
+        assertThat(result.errors()).anyMatch(e -> e.contains("plenty"));
+    }
 }

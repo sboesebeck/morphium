@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SuppressWarnings("AssertWithSideEffects")
 @Tag("core")
@@ -22,11 +23,11 @@ public class FieldShadowingTest extends MultiDriverTestBase {
         it.value = "A test";
         String marshall = Utils.toJsonString(morphium.getMapper().serialize(it));
         log.info(marshall);
-        assert (marshall.contains("A test"));
+        assertTrue((marshall.contains("A test")));
 
         assertNotNull(morphium.getMapper().deserialize(Shadowed.class, marshall).value);
         ;
-        assert (morphium.getMapper().deserialize(Shadowed.class, marshall).value.equals("A test"));
+        assertTrue((morphium.getMapper().deserialize(Shadowed.class, marshall).value.equals("A test")));
 
         ReShadowed rs = new ReShadowed();
         rs.value = "A 2nd test";

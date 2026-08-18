@@ -136,6 +136,17 @@ public class CompiledQueryTest {
         cases.add(new Case("explicit $eq against list field, any element matches", Doc.of("a", Doc.of("$eq", 2)), Doc.of("a", List.of(1, 2, 3)), true));
         cases.add(new Case("explicit $eq null==null", Doc.of("a", Doc.of("$eq", null)), Doc.of("a", null), true));
         cases.add(new Case("explicit $eq value vs missing field", Doc.of("a", Doc.of("$eq", 1)), Doc.of("b", 1), false));
+        // whole-array equality (mongod: {a: <array>} matches a == <array> OR a contains <array> as element;
+        // found via mongorestore rehearsal: {processed_by: []} returned nothing)
+        cases.add(new Case("implicit eq empty array matches empty array field", Doc.of("a", List.of()), Doc.of("a", List.of()), true));
+        cases.add(new Case("implicit eq empty array vs non-empty array field", Doc.of("a", List.of()), Doc.of("a", List.of(1)), false));
+        cases.add(new Case("implicit eq empty array vs missing field", Doc.of("a", List.of()), Doc.of("b", 1), false));
+        cases.add(new Case("implicit eq whole array match", Doc.of("a", List.of(1, 2)), Doc.of("a", List.of(1, 2)), true));
+        cases.add(new Case("implicit eq whole array is order-sensitive", Doc.of("a", List.of(1, 2)), Doc.of("a", List.of(2, 1)), false));
+        cases.add(new Case("implicit eq array as element of array field", Doc.of("a", List.of(1, 2)), Doc.of("a", List.of(List.of(1, 2), 3)), true));
+        cases.add(new Case("implicit eq whole array numeric tolerance", Doc.of("a", List.of(1, 2)), Doc.of("a", List.of(1L, 2.0)), true));
+        cases.add(new Case("implicit eq empty array dotted path", Doc.of("s.a", List.of()), Doc.of("s", Doc.of("a", List.of())), true));
+        cases.add(new Case("implicit eq whole array dotted path", Doc.of("s.a", List.of(1, 2)), Doc.of("s", Doc.of("a", List.of(1, 2))), true));
         cases.add(new Case("implicit eq MorphiumId vs string form", Doc.of("_id", new MorphiumId().toString()), Doc.of("_id", new MorphiumId()), false));
 
         // ---------------------------------------------------------------- $ne

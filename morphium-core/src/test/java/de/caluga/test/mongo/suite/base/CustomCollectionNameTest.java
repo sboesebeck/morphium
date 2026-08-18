@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -37,8 +38,8 @@ public class CustomCollectionNameTest extends MultiDriverTestBase {
         Query<EntityCollectionName> q = m.createQueryFor(EntityCollectionName.class).f("value").eq(1);
         q.setCollectionName(collectionName);
         EntityCollectionName eFetched = q.get();
-assert eFetched != null : "fetched before update";
-assert eFetched.value == 1 : "fetched s2:";
+assertTrue(eFetched != null, "fetched before update");
+assertTrue(eFetched.value == 1, "fetched s2:");
         e.value = 2;
         m.updateUsingFields(e, collectionName, null, new String[] {"value"});
         Query<EntityCollectionName> q2 = m.createQueryFor(EntityCollectionName.class).f("value").eq(2);
@@ -62,7 +63,7 @@ assert eFetched.value == 1 : "fetched s2:";
         // Wait for store to be visible on replica sets
         TestUtils.waitForConditionToBecomeTrue(10000, "Store not visible", () -> q.get() != null);
         EntityCollectionName eFetched = q.get();
-        assert eFetched != null : "fetched before delete";
+        assertTrue(eFetched != null, "fetched before delete");
         m.delete(q, (AsyncOperationCallback<EntityCollectionName>) null);
         // Wait for delete to be visible (replication lag on replica sets)
         TestUtils.waitForConditionToBecomeTrue(10000, "Delete not visible", () -> q.get() == null);

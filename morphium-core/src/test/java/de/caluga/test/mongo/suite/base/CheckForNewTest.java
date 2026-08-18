@@ -14,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Created with IntelliJ IDEA.
@@ -44,22 +45,22 @@ public class CheckForNewTest extends MultiDriverTestBase {
         tst.theId = "2";
         tst.theValue = "value2";
         morphium.store(tst);
-        assert (tst.created == null);
+        assertTrue((tst.created == null));
 
         tst = new TestID();
         tst.theId = "2";
         tst.theValue = "value";
         morphium.store(tst);
-        assert (tst.created == null);
+        assertTrue((tst.created == null));
 
         tst.created = new Date();
         Date cr = tst.created;
 
         morphium.store(tst);
-        assert (cr.equals(tst.created));
+        assertTrue((cr.equals(tst.created)));
 
         morphium.reread(tst);
-        assert (cr.equals(tst.created));
+        assertTrue((cr.equals(tst.created)));
 
         morphium.getConfig().objectMappingSettings().setCheckForNew(false);
     }

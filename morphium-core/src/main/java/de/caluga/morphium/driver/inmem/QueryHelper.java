@@ -1469,6 +1469,10 @@ public class QueryHelper {
 
                             for (Object candidate : lookup.values) {
                                 if (candidate instanceof List) {
+                                    if (expected instanceof List && listEquals((List<?>) candidate, (List<?>) expected, coll)) {
+                                        return true;
+                                    }
+
                                     for (Object element : (List) candidate) {
                                         if (compareValues(element, expected, coll)) {
                                             return true;
@@ -1515,6 +1519,10 @@ public class QueryHelper {
                                     }
                                     return false;
                                 }
+                            }
+                            if (qv instanceof List
+                                    && listEquals(lst, (List<?>) qv, collation != null ? getCollator(collation) : null)) {
+                                return true;
                             }
                             return lst.contains(qv);
                         }
@@ -2537,6 +2545,11 @@ public class QueryHelper {
                     result.values.add(element);
                 }
 
+                // The array itself is a match candidate too, not only its elements:
+                // {path: [..]} must support whole-array equality (and {path: []} would
+                // otherwise contribute no candidates at all). Only the literal-equality
+                // branches consume values; $exists only reads pathExists.
+                result.values.add(current);
                 return result;
             }
 
@@ -2662,6 +2675,27 @@ public class QueryHelper {
         }
 
         return normalizedLeft.equals(normalizedRight);
+    }
+
+    /**
+     * MongoDB whole-array equality: a literal query {@code {field: [..]}} matches a document
+     * whose array IS equal to the operand (order-sensitive, element count equal) — in addition
+     * to the multikey "array contains the operand as an element" case the callers handle.
+     * Elements are compared via {@link #compareValues} so id and numeric-type normalization
+     * stay consistent with scalar equality ([1, 2] matches [1L, 2.0]).
+     */
+    static boolean listEquals(List<?> docList, List<?> expected, Collator coll) {
+        if (docList.size() != expected.size()) {
+            return false;
+        }
+
+        for (int i = 0; i < docList.size(); i++) {
+            if (!compareValues(docList.get(i), expected.get(i), coll)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     static Object normalizeId(Object value) {
@@ -3309,9 +3343,31 @@ public class QueryHelper {
         }
 
         if (collation.containsKey("strength")) {
-            coll.setStrength((Integer) collation.get("strength"));
+            coll.setStrength(mapMongoStrength((Integer) collation.get("strength")));
         }
 
         return coll;
+    }
+
+    /**
+     * MongoDB collation strength is 1-5 (primary..identical), {@link Collator} strength is 0-3
+     * (PRIMARY..IDENTICAL). Passed through unmapped, every level shifted by one and 4/5 threw
+     * IllegalArgumentException. Java has no quaternary level, so 4 and 5 both map to IDENTICAL -
+     * the closest level at least as strong as what mongo promises.
+     */
+    private static int mapMongoStrength(int mongoStrength) {
+        switch (mongoStrength) {
+            case 1:
+                return Collator.PRIMARY;
+            case 2:
+                return Collator.SECONDARY;
+            case 3:
+                return Collator.TERTIARY;
+            case 4:
+            case 5:
+                return Collator.IDENTICAL;
+            default:
+                throw new IllegalArgumentException("Invalid collation strength: " + mongoStrength + " (must be 1-5)");
+        }
     }
 }

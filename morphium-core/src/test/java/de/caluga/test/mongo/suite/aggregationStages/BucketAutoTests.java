@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
 @Tag("aggregation")
@@ -35,7 +36,7 @@ public class BucketAutoTests extends MultiDriverTestBase {
 
         for (Map m : list) {
             log.info("Entry: " + m.toString());
-            assert(m.get("count").equals(2));
+            assertTrue((m.get("count").equals(2)));
             Double max = (Double)((Map) m.get("_id")).get("max");
             Double min = (Double)((Map) m.get("_id")).get("min");
             assertNotNull(min);
@@ -44,7 +45,7 @@ public class BucketAutoTests extends MultiDriverTestBase {
             ;
 
             if (lastMax != null) {
-                assert(min.equals(lastMax));
+                assertTrue((min.equals(lastMax)));
             }
 
             lastMax = max;

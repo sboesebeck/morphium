@@ -85,7 +85,7 @@ public class BufferedWriterTest extends MultiDriverTestBase {
         TestUtils.waitForConditionToBecomeTrue(5000, "Update operations not persisted",
             () -> morphium.createQueryFor(BufferedBySizeObject.class).countAll() == 3);
         q = morphium.createQueryFor(BufferedBySizeObject.class);
-        assert(q.countAll() == 3);
+        assertTrue((q.countAll() == 3));
 
         for (BufferedBySizeObject o : q.asList()) {
             log.info("Counter: " + o.getCounter());
@@ -121,18 +121,18 @@ public class BufferedWriterTest extends MultiDriverTestBase {
         TestUtils.waitForWrites(morphium, log);
         TestUtils.waitForConditionToBecomeTrue(5000, "Expected 100 BufferedByTimeObject documents",
             () -> morphium.createQueryFor(BufferedByTimeObject.class).countAll() == 100);
-        assert(morphium.createQueryFor(BufferedByTimeObject.class).f(UncachedObject.Fields.counter).eq(101).countAll() == 100);
-        assert(morphium.createQueryFor(BufferedByTimeObject.class).f(UncachedObject.Fields.dval).eq(1.1).countAll() == 100);
+        assertTrue((morphium.createQueryFor(BufferedByTimeObject.class).f(UncachedObject.Fields.counter).eq(101).countAll() == 100));
+        assertTrue((morphium.createQueryFor(BufferedByTimeObject.class).f(UncachedObject.Fields.dval).eq(1.1).countAll() == 100));
         q = morphium.createQueryFor(BufferedByTimeObject.class).f("counter").eq(201);
         morphium.inc(q, toInc, true, false, null);
         waitForAsyncOperationsToStart(morphium, 1000);
         TestUtils.waitForWrites(morphium, log);
         TestUtils.waitForConditionToBecomeTrue(5000, "Expected 101 BufferedByTimeObject documents",
             () -> morphium.createQueryFor(BufferedByTimeObject.class).countAll() == 101);
-        assert(morphium.createQueryFor(BufferedByTimeObject.class).f(UncachedObject.Fields.counter).eq(101).countAll() == 100);
-        assert(morphium.createQueryFor(BufferedByTimeObject.class).f(UncachedObject.Fields.counter).eq(202).countAll() == 1);
-        assert(morphium.createQueryFor(BufferedByTimeObject.class).f(UncachedObject.Fields.dval).eq(0.1).countAll() == 1);
-        assert(morphium.createQueryFor(BufferedByTimeObject.class).f(UncachedObject.Fields.dval).eq(1.1).countAll() == 100);
+        assertTrue((morphium.createQueryFor(BufferedByTimeObject.class).f(UncachedObject.Fields.counter).eq(101).countAll() == 100));
+        assertTrue((morphium.createQueryFor(BufferedByTimeObject.class).f(UncachedObject.Fields.counter).eq(202).countAll() == 1));
+        assertTrue((morphium.createQueryFor(BufferedByTimeObject.class).f(UncachedObject.Fields.dval).eq(0.1).countAll() == 1));
+        assertTrue((morphium.createQueryFor(BufferedByTimeObject.class).f(UncachedObject.Fields.dval).eq(1.1).countAll() == 100));
     }
 
     @ParameterizedTest
@@ -145,13 +145,13 @@ public class BufferedWriterTest extends MultiDriverTestBase {
         BufferedMorphiumWriterImpl wr = (BufferedMorphiumWriterImpl) morphium.getWriterForClass(BufferedBySizeObject.class);
         Query<BufferedBySizeObject> q = morphium.createQueryFor(BufferedBySizeObject.class).f(UncachedObject.Fields.counter).eq(100);
         morphium.inc(q, "dval", 1, true, false);
-        assert(wr.writeBufferCount() >= 1);
+        assertTrue((wr.writeBufferCount() >= 1));
         q = morphium.createQueryFor(BufferedBySizeObject.class).f(UncachedObject.Fields.counter).eq(100);
         morphium.inc(q, "dval", 1.0, true, false);
-        assert(wr.writeBufferCount() >= 1);
+        assertTrue((wr.writeBufferCount() >= 1));
         q = morphium.createQueryFor(BufferedBySizeObject.class).f(UncachedObject.Fields.counter).eq(100);
         morphium.dec(q, "dval", 1.0, true, false);
-        assert(wr.writeBufferCount() >= 1);
+        assertTrue((wr.writeBufferCount() >= 1));
 
         TestUtils.waitForConditionToBecomeTrue(10000, "Write buffer not flushing",
             () -> {
@@ -164,11 +164,11 @@ public class BufferedWriterTest extends MultiDriverTestBase {
         TestUtils.waitForConditionToBecomeTrue(10000, "Inc operations not persisted",
             () -> morphium.createQueryFor(BufferedBySizeObject.class).countAll() == 1);
         q = morphium.createQueryFor(BufferedBySizeObject.class);
-        assert(q.countAll() == 1) : "Counted " + q.countAll();
+        assertTrue((q.countAll() == 1), String.valueOf("Counted " + q.countAll()));
         BufferedBySizeObject o = q.get();
         log.info("Counter: " + o.getCounter());
-        assert(o.getCounter() == 100);
-        assert(o.getDval() == 1.0);
+        assertTrue((o.getCounter() == 100));
+        assertTrue((o.getDval() == 1.0));
     }
 
     @ParameterizedTest
@@ -223,7 +223,7 @@ public class BufferedWriterTest extends MultiDriverTestBase {
                 return writeBufferCount == 0 && count == 1500;
             });
 
-        assert(System.currentTimeMillis() - start < 120000);
+        assertTrue((System.currentTimeMillis() - start < 120000));
     }
 
     @ParameterizedTest
@@ -252,7 +252,7 @@ public class BufferedWriterTest extends MultiDriverTestBase {
             });
         log.info("Found proper amount...");
 
-        assert(System.currentTimeMillis() - start < 120000);
+        assertTrue((System.currentTimeMillis() - start < 120000));
     }
 
     @ParameterizedTest
@@ -301,7 +301,7 @@ public class BufferedWriterTest extends MultiDriverTestBase {
         TestUtils.waitForConditionToBecomeTrue(10000, "Waiting for buffer to flush",
             () -> morphium.getWriteBufferCount() == 0);
         long count = morphium.createQueryFor(BufferedBySizeIgnoreNewObject.class).countAll();
-        assert(count < 1500);
+        assertTrue((count < 1500));
     }
 
     @ParameterizedTest
@@ -326,7 +326,7 @@ public class BufferedWriterTest extends MultiDriverTestBase {
         TestUtils.waitForConditionToBecomeTrue(10000, "Waiting for buffer to flush",
             () -> morphium.getWriteBufferCount() == 0);
         long count = morphium.createQueryFor(BufferedBySizeIgnoreNewObject.class).countAll();
-        assert(count < 1500);
+        assertTrue((count < 1500));
     }
 
     @ParameterizedTest
@@ -359,7 +359,7 @@ public class BufferedWriterTest extends MultiDriverTestBase {
             () -> m.createQueryFor(ComplexObjectBuffered.class).countAll() == 100);
         ComplexObjectBuffered buf = m.createQueryFor(ComplexObjectBuffered.class).f("ein_text").eq("The text " + 0).get();
         assertNotNull(buf);;
-        assert(m.createQueryFor(ComplexObjectBuffered.class).countAll() == 100);
+        assertTrue((m.createQueryFor(ComplexObjectBuffered.class).countAll() == 100));
     }
 
     @ParameterizedTest
@@ -458,7 +458,34 @@ public class BufferedWriterTest extends MultiDriverTestBase {
         TestUtils.waitForConditionToBecomeTrue(10000, "Write buffer not flushing on second batch",
             () -> m.getWriteBufferCount() == 0);
 
-        assert(m.createQueryFor(SimpleObject.class).countAll() == 100);
+        assertTrue((m.createQueryFor(SimpleObject.class).countAll() == 100));
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void testWriteBufferRemoveByQuery(Morphium morphium) throws Exception  {
+        for (int i = 0; i < 100; i++) {
+            SimpleObject o = new SimpleObject();
+            o.setMyId("id_" + i);
+            o.setCount(i);
+            o.setValue("v" + i);
+            morphium.store(o);
+        }
+
+        TestUtils.waitForWrites(morphium, log);
+        TestUtils.waitForConditionToBecomeTrue(10000, "objects not stored",
+            () -> morphium.createQueryFor(SimpleObject.class).countAll() == 100);
+
+        // remove-by-query on a write-buffered entity has to delete ALL matches, not just one
+        morphium.remove(morphium.createQueryFor(SimpleObject.class).f(SimpleObject.Fields.count).lt(50));
+        TestUtils.waitForWrites(morphium, log);
+        TestUtils.waitForConditionToBecomeTrue(10000, "buffered remove did not delete all matches",
+            () -> morphium.createQueryFor(SimpleObject.class).countAll() == 50);
+
+        morphium.clearCollection(SimpleObject.class);
+        TestUtils.waitForWrites(morphium, log);
+        TestUtils.waitForConditionToBecomeTrue(10000, "clearCollection did not empty the collection",
+            () -> morphium.createQueryFor(SimpleObject.class).countAll() == 0);
     }
 
     @WriteBuffer(size = 100, timeout = 1000)

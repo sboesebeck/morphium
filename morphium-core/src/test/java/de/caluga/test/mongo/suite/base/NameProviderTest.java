@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -28,7 +29,7 @@ public class NameProviderTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void testNameProvider(Morphium morphium) {
         String colName = morphium.getMapper().getCollectionName(LogObject.class);
-        assert (colName.endsWith("_Test"));
+        assertTrue((colName.endsWith("_Test")));
     }
 
     @ParameterizedTest
@@ -46,10 +47,10 @@ public class NameProviderTest extends MultiDriverTestBase {
         waitForAsyncOperationsToStart(morphium, 1000);
         TestUtils.waitForWrites(morphium, log);
         String colName = morphium.getMapper().getCollectionName(LogObject.class);
-        assert (colName.endsWith("_Test"));
+        assertTrue((colName.endsWith("_Test")));
         //        DBCollection col = morphium.getDatabase().getCollection(colName);
         long count = morphium.createQueryFor(LogObject.class, colName).countAll();
-        assert (count == 100) : "Error - did not store?? " + count;
+        assertTrue((count == 100), () -> String.valueOf("Error - did not store?? " + count));
     }
 
 
@@ -59,7 +60,7 @@ public class NameProviderTest extends MultiDriverTestBase {
         morphium.clearCollection(UncachedObject.class);
         morphium.getMapper().setNameProviderForClass(UncachedObject.class, new MyNp());
         String col = morphium.getMapper().getCollectionName(UncachedObject.class);
-        assert (col.equals("UncachedObject_Test")) : "Error - name is wrong: " + col;
+        assertTrue((col.equals("UncachedObject_Test")), () -> String.valueOf("Error - name is wrong: " + col));
         morphium.getMapper().setNameProviderForClass(UncachedObject.class, new DefaultNameProvider());
     }
 

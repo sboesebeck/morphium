@@ -87,6 +87,20 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         }
     }
 
+    /**
+     * Per-class cache for the no-arg constructor used in {@link #deserialize(Class, Map)}.
+     * Values are either the resolved {@link Constructor} (with {@code setAccessible(true)}
+     * already applied) or the {@link #NO_NOARG_CONSTRUCTOR} sentinel for classes without an
+     * accessible no-arg constructor — so the exception-based probe runs only once per class
+     * instead of on every deserialization (throw/catch in a hot path is expensive).
+     * {@code null} values cannot be used as the marker: {@code ConcurrentHashMap} treats a
+     * null mapping as absent and would re-run the probe every call.
+     * Deliberately an instance (not static) cache — a static {@code Map<Class, ...>} would
+     * hold strong references to entity classes and pin their classloader across redeploys.
+     */
+    private final ConcurrentHashMap < Class<?>, Object > noArgConstructorCache = new ConcurrentHashMap<>();
+    private static final Object NO_NOARG_CONSTRUCTOR = new Object();
+
     private final Map < Class<?>, NameProvider > nameProviders;
     private final JSONParser jsonParser = new JSONParser();
 
@@ -360,9 +374,10 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
         try {
         Class<?> cls = annotationHelper.getRealClass(o.getClass());
+        MorphiumTypeMapper customMapper = customMappers.get(cls);
 
-        if (customMappers.containsKey(cls)) {
-            Object ret = customMappers.get(cls).marshall(o);
+        if (customMapper != null) {
+            Object ret = customMapper.marshall(o);
 
             if (ret instanceof Map) {
                 String typeIdForClass = null;
@@ -959,7 +974,23 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 return (T) jsonParser.parse(jsonString);
             }
         } catch (Exception e) {
-            throw new RuntimeException("Parsing failed", e);
+            // The cause must be part of the message: many callers only log getMessage(), and a
+            // bare "Parsing failed" hides what actually went wrong (#306 cost a day that way).
+            StringBuilder msg = new StringBuilder("Parsing failed for ").append(cls.getName())
+            .append(" (json length ").append(jsonString.length()).append("): ").append(e);
+
+            if (e instanceof org.json.simple.parser.ParseException) {
+                int pos = ((org.json.simple.parser.ParseException) e).getPosition();
+                int from = Math.max(0, pos - 40);
+                int to = Math.min(jsonString.length(), pos + 40);
+
+                if (from < to) {
+                    msg.append(" - context around position ").append(pos).append(": ...")
+                    .append(jsonString.substring(from, to).replaceAll("[\\r\\n\\t]", " ")).append("...");
+                }
+            }
+
+            throw new RuntimeException(msg.toString(), e);
         }
     }
 
@@ -972,8 +1003,10 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
         Class cls = theClass;
 
-        if (customMappers.containsKey(cls)) {
-            return (T) customMappers.get(cls).unmarshall(objectMap);
+        MorphiumTypeMapper classMapper = customMappers.get(cls);
+
+        if (classMapper != null) {
+            return (T) classMapper.unmarshall(objectMap);
         }
 
         try {
@@ -1022,12 +1055,27 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             }
 
             Object ret = null;
+            Object cachedCons = noArgConstructorCache.get(cls);
 
-            try {
-                Constructor<?> cons = cls.getDeclaredConstructor();
-                cons.setAccessible(true);
-                ret = cons.newInstance();
-            } catch (Exception ignored) {
+            if (cachedCons == null) {
+                // resolve once per class: no-arg constructor (made accessible) or sentinel
+                try {
+                    Constructor<?> cons = cls.getDeclaredConstructor();
+                    cons.setAccessible(true);
+                    cachedCons = cons;
+                } catch (Exception e) {
+                    cachedCons = NO_NOARG_CONSTRUCTOR;
+                }
+
+                noArgConstructorCache.putIfAbsent(cls, cachedCons);
+            }
+
+            if (cachedCons instanceof Constructor) {
+                try {
+                    ret = ((Constructor<?>) cachedCons).newInstance();
+                } catch (Exception ignored) {
+                    // constructor exists but threw — fall through to Unsafe, as before
+                }
             }
 
             if (ret == null) {
@@ -1062,11 +1110,6 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     continue;
                 }
 
-                if (customMappers.containsKey(fldType)) {
-                    fld.set(ret, customMappers.get(fldType).unmarshall(valueFromDb));
-                    continue;
-                }
-
                 if (fld.isAnnotationPresent(Aliases.class) && valueFromDb == null) {
                     Aliases al = fld.getAnnotation(Aliases.class);
 
@@ -1076,6 +1119,24 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                             break;
                         }
                     }
+                }
+
+                MorphiumTypeMapper fieldMapper = customMappers.get(fldType);
+
+                // A custom mapper must never be handed a null value: a field that is absent
+                // from the document would NPE inside the mapper ("Parsing failed ... 'd' is
+                // null", #306). Null falls through to the standard null handling below, which
+                // keeps the default value or sets null just like for unmapped field types.
+                if (fieldMapper != null && valueFromDb != null) {
+                    try {
+                        fld.set(ret, fieldMapper.unmarshall(valueFromDb));
+                    } catch (Exception e) {
+                        throw new RuntimeException("Deserialization failed for field '" + f + "' (type "
+                            + fldType.getName() + ") of " + cls.getName()
+                            + ": custom mapper could not unmarshall value " + valueFromDb, e);
+                    }
+
+                    continue;
                 }
 
                 if (fld.isAnnotationPresent(AdditionalData.class)) {

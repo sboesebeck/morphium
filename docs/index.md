@@ -1,6 +1,33 @@
 # Morphium v6 Documentation
 
+<p align="center">
+  <img class="logo-light" src="assets/brand/morphium-logo.svg" alt="Morphium" width="640">
+  <img class="logo-dark" src="assets/brand/morphium-logo-dark.svg" alt="Morphium" width="640">
+</p>
+
 Morphium is a Java 21+ Object Document Mapper (ODM) and MongoDB‑backed messaging system. It includes a custom MongoDB wire‑protocol driver, distributed caching, and a topic‑based message queue.
+
+---
+
+<p align="center">
+  <a href="poppydb/"><img class="logo-light" src="assets/brand/poppydb-logo.svg" alt="PoppyDB" width="480"><img class="logo-dark" src="assets/brand/poppydb-logo-dark.svg" alt="PoppyDB" width="480"></a>
+</p>
+
+## PoppyDB — MongoDB‑compatible Server
+
+PoppyDB is the project's second product: a standalone, self‑contained server that speaks the
+MongoDB wire protocol — any MongoDB client (Java, Python, Node.js, Go, `mongosh`, ...) can
+connect to it. Perfect for CI/CD pipelines, integration testing, and lightweight deployments.
+
+- **Replica Sets** with Raft‑based failover
+- Opt‑in **Authentication (SCRAM)** and **TLS**
+- **Persistence** via snapshots
+
+```bash
+java -jar poppydb-<version>-cli.jar --port 27017
+```
+
+→ **[PoppyDB Documentation](./poppydb.md)** · [Production Deployment Playbook](./howtos/poppydb-deployment.md) · [Migrating from MongoDB](./howtos/migration-mongodb-to-poppydb.md)
 
 ---
 
@@ -26,11 +53,7 @@ Morphium includes a complete in-memory MongoDB-compatible implementation for tes
 - **[Developer Testing Guide](./developer-testing-guide.md)** - How to run and write tests, MultiDriverTestBase, runtests.sh
 - **[Test Runner](./test-runner.md)** - Quick reference for the `runtests.sh` script
 - **[InMemory Driver](./howtos/inmemory-driver.md)** - Embedded in-memory driver for unit tests (no MongoDB installation required!)
-- **[PoppyDB](./poppydb.md)** - Standalone MongoDB-compatible server that speaks the wire protocol (formerly MorphiumServer)
-  - Perfect for CI/CD pipelines, integration testing, and microservices development
-  - Any MongoDB client (Java, Python, Node.js, Go, etc.) can connect to it
-  - Supports **Replica Sets** with Raft failover, **opt-in Authentication (SCRAM) & TLS**, and **Persistence (Snapshots)**
-  - Run with: `java -jar poppydb/target/poppydb-<version>-cli.jar --port 27017`
+- **[PoppyDB](./poppydb.md)** - Standalone MongoDB-compatible server that speaks the wire protocol — see the [PoppyDB section](#poppydb-mongodbcompatible-server) above
 
 ## Production Deployment
 - **[Production Deployment Guide](./production-deployment-guide.md)** - Complete guide for deploying Morphium in production environments
@@ -62,6 +85,14 @@ any of the following. These are additional, opt-in modules built on top of the c
   checks, Dev Services, Dev UI, and build-time Jakarta Data repository generation via Gizmo
   - GraalVM native-image support and `MorphiumId` JSON (de)serialization out of the box
   - Zero dependency from the core: build with `-DskipExtensions` for a core-only artifact
+- **[Spring Boot](./spring-boot.md)** - Optional module integrating Morphium into
+  [Spring Boot](https://spring.io/projects/spring-boot) applications via auto-configuration,
+  type-safe `@ConfigurationProperties` (`morphium.*`), `@MorphiumTransactional` via AspectJ, an
+  Actuator health indicator, and Jakarta Data `@Repository` interfaces backed by JDK dynamic
+  proxies at runtime (no build-time bytecode generation, unlike `quarkus-morphium`'s Gizmo
+  approach)
+  - No Docker/Testcontainers needed — all tests run against Morphium's `InMemDriver`
+  - Zero dependency from the core: build with `-DskipExtensions` for a core-only artifact
 
 Minimum requirements
 - Java 21+
@@ -91,7 +122,7 @@ Benefits
 - Tailored to Morphium’s mapping and lifecycle needs; minimal impedance with Morphium’s object mapper.
 - Full control over retry/failover semantics and performance trade‑offs.
 - SSL/TLS support for secure connections (since v6.0).
+- MongoDB Atlas support via `mongodb+srv://` connection strings (DNS SRV/TXT resolution, TLS enabled automatically); see the [SSL/TLS guide](./ssl-tls.md#mongodb-atlas-example).
 
 Limitations
-- No MongoDB Atlas support.
 - Some advanced features of the official driver are not available.

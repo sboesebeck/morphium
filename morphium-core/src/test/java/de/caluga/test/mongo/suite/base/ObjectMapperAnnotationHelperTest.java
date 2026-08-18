@@ -28,7 +28,7 @@ public class ObjectMapperAnnotationHelperTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void testConvertCamelCase(Morphium morphium) {
         AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper(true);
-        assert (om.convertCamelCase("thisIsATest").equals("this_is_a_test")) : "Conversion failed!";
+        assertTrue((om.convertCamelCase("thisIsATest").equals("this_is_a_test")), "Conversion failed!");
     }
 
     @ParameterizedTest
@@ -49,8 +49,8 @@ public class ObjectMapperAnnotationHelperTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void testGetCollectionName(Morphium morphium) {
         MorphiumObjectMapper om = morphium.getMapper();
-        assert (om.getCollectionName(CachedObject.class).equals("cached_object")) : "Cached object test failed";
-        assert (om.getCollectionName(UncachedObject.class).equals("uncached_object")) : "Uncached object test failed";
+        assertTrue((om.getCollectionName(CachedObject.class).equals("cached_object")), "Cached object test failed");
+        assertTrue((om.getCollectionName(UncachedObject.class).equals("uncached_object")), "Uncached object test failed");
     }
 
 

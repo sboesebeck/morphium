@@ -3,6 +3,7 @@ package de.caluga.test.morphium.driver.inmem;
 import de.caluga.morphium.IndexDescription;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.commands.CreateIndexesCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import org.junit.jupiter.api.Tag;
@@ -133,6 +134,123 @@ public class UniqueIndexTest {
         assertTrue(drv.find(db, coll, Doc.of("_id", 2), null, null, 0, 10).isEmpty());
         assertTrue(drv.find(db, coll, Doc.of("_id", 3), null, null, 0, 10).isEmpty(),
                 "ordered: the doc after the failing one must not even be attempted");
+    }
+
+    @Test
+    void partialUniqueIndex_docsOutsideTheFilterDoNotCollide() throws Exception {
+        // JEF's tasks index, end to end through the driver's insert path:
+        // {msg_id:1}, unique, partialFilterExpression {msg_id:{$type:"objectId"}}
+        InMemoryDriver drv = freshDriver();
+        String coll = "partialUnique";
+        new CreateIndexesCommand(drv).setDb(db).setColl(coll)
+                .addIndex(new IndexDescription().setKey(Doc.of("msg_id", 1)).setUnique(true)
+                        .setPartialFilterExpression(Doc.of("msg_id", Doc.of("$type", "objectId"))))
+                .execute();
+
+        List<Map<String, Object>> writeErrors = drv.insert(db, coll, List.of(
+                Doc.of("_id", 1, "name", "task without msg_id"),
+                Doc.of("_id", 2, "name", "another one without msg_id"),
+                Doc.of("_id", 3, "msg_id", "x"),
+                Doc.of("_id", 4, "msg_id", "x")), null, false);
+
+        assertTrue(writeErrors.isEmpty(), "documents outside the partial filter must not collide: " + writeErrors);
+        assertEquals(4, drv.find(db, coll, Doc.of(), null, null, 0, 10).size());
+    }
+
+    @Test
+    void partialUniqueIndex_stillEnforcedForCoveredDocs() throws Exception {
+        InMemoryDriver drv = freshDriver();
+        String coll = "partialUniqueCovered";
+        new CreateIndexesCommand(drv).setDb(db).setColl(coll)
+                .addIndex(new IndexDescription().setKey(Doc.of("msg_id", 1)).setUnique(true)
+                        .setPartialFilterExpression(Doc.of("msg_id", Doc.of("$type", "objectId"))))
+                .execute();
+
+        MorphiumId shared = new MorphiumId();
+        List<Map<String, Object>> writeErrors = drv.insert(db, coll, List.of(
+                Doc.of("_id", 1, "msg_id", shared),
+                Doc.of("_id", 2, "msg_id", shared)), null, false);
+
+        assertEquals(1, writeErrors.size(), "the second covered document must be rejected");
+        assertEquals(11000, writeErrors.get(0).get("code"));
+    }
+
+    @Test
+    void partialUniqueFilterOnNonKeyField_uncoveredStoredDocIsNoCollisionPartner() throws Exception {
+        // The filter selects on a field OUTSIDE the index key, so covered and uncovered
+        // documents share a key bucket. A stored document outside the filter is not part of
+        // mongod's index and must not count as a collision partner for a covered insert.
+        InMemoryDriver drv = freshDriver();
+        String coll = "partialNonKeyFilter";
+        new CreateIndexesCommand(drv).setDb(db).setColl(coll)
+                .addIndex(new IndexDescription().setKey(Doc.of("email", 1)).setUnique(true)
+                        .setPartialFilterExpression(Doc.of("active", true)))
+                .execute();
+
+        List<Map<String, Object>> writeErrors = drv.insert(db, coll,
+                List.of(Doc.of("_id", 1, "email", "a@x.de", "active", false)), null, true);
+        assertTrue(writeErrors.isEmpty(), "uncovered doc must insert cleanly: " + writeErrors);
+
+        writeErrors = drv.insert(db, coll,
+                List.of(Doc.of("_id", 2, "email", "a@x.de", "active", true)), null, true);
+        assertTrue(writeErrors.isEmpty(),
+                "covered doc must not collide with an UNCOVERED stored doc on the same key: " + writeErrors);
+        assertEquals(2, drv.find(db, coll, Doc.of(), null, null, 0, 10).size());
+
+        // sanity: a second COVERED doc on the same key is still a real duplicate
+        writeErrors = drv.insert(db, coll,
+                List.of(Doc.of("_id", 3, "email", "a@x.de", "active", true)), null, false);
+        assertEquals(1, writeErrors.size(), "two covered docs on one key must still collide");
+        assertEquals(11000, writeErrors.get(0).get("code"));
+    }
+
+    @Test
+    void updateIntoPartialFilterWithoutKeyChange_raisesDuplicate() throws Exception {
+        // An update that leaves the index key untouched but moves the document INTO the
+        // partial filter makes it a collision partner - mongod raises E11000 on this update.
+        InMemoryDriver drv = freshDriver();
+        String coll = "partialCoverageTransition";
+        new CreateIndexesCommand(drv).setDb(db).setColl(coll)
+                .addIndex(new IndexDescription().setKey(Doc.of("email", 1)).setUnique(true)
+                        .setPartialFilterExpression(Doc.of("active", true)))
+                .execute();
+
+        drv.insert(db, coll, List.of(
+                Doc.of("_id", 1, "email", "x@x.de", "active", true),
+                Doc.of("_id", 2, "email", "x@x.de", "active", false)), null, true);
+        assertEquals(2, drv.find(db, coll, Doc.of(), null, null, 0, 10).size(), "sanity: both legal");
+
+        try {
+            drv.update(db, coll, Doc.of("_id", 2), null, Doc.of("$set", Doc.of("active", true)),
+                    false, false, null, null);
+            fail("moving a doc INTO the partial filter onto an occupied key must raise E11000");
+        } catch (MorphiumDriverException ex) {
+            assertEquals(11000, ex.getMongoCode());
+        }
+
+        List<Map<String, Object>> found2 = drv.find(db, coll, Doc.of("_id", 2), null, null, 0, 10);
+        assertEquals(1, found2.size());
+        assertEquals(false, found2.get(0).get("active"), "the rejected update must not be applied");
+    }
+
+    @Test
+    void updateIntoPartialFilterWithoutCollision_succeeds() throws Exception {
+        InMemoryDriver drv = freshDriver();
+        String coll = "partialCoverageTransitionFree";
+        new CreateIndexesCommand(drv).setDb(db).setColl(coll)
+                .addIndex(new IndexDescription().setKey(Doc.of("email", 1)).setUnique(true)
+                        .setPartialFilterExpression(Doc.of("active", true)))
+                .execute();
+
+        drv.insert(db, coll, List.of(
+                Doc.of("_id", 1, "email", "a@x.de", "active", true),
+                Doc.of("_id", 2, "email", "b@x.de", "active", false)), null, true);
+
+        drv.update(db, coll, Doc.of("_id", 2), null, Doc.of("$set", Doc.of("active", true)),
+                false, false, null, null);
+
+        List<Map<String, Object>> found2 = drv.find(db, coll, Doc.of("_id", 2), null, null, 0, 10);
+        assertEquals(true, found2.get(0).get("active"), "an uncontested coverage transition must be applied");
     }
 
     @Test
