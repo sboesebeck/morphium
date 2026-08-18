@@ -103,6 +103,70 @@ public class PoppyDBCLIConfigIntegrationTest {
         assertCrudWorks(port);
     }
 
+    /**
+     * election-state-path was added to the CLI parser and ServerOptions first (#316); without
+     * being registered in the config-file schema too, a config file carrying the key is
+     * rejected as unknown - so the option would exist for exactly the invocation style the
+     * production servers do NOT use.
+     */
+    @Test
+    void electionStatePathComesFromTheConfigFile(@TempDir Path dir) throws Exception {
+        int port = freePort();
+        Path stateFile = dir.resolve("election-state.properties");
+        Path cfg = dir.resolve("config");
+        Files.writeString(cfg, "port=" + port + "\nbind=127.0.0.1\nelection-state-path=" + stateFile + "\n",
+                StandardCharsets.UTF_8);
+
+        ConfigLoaderPipeline pipeline = ConfigLoaderPipeline.run(cfg);
+        server = PoppyDBCLI.configureServer(effectiveArgs(pipeline.tokens));
+
+        assertThat(pipeline.tokens).contains("--election-state-path", stateFile.toString());
+    }
+
+    @Test
+    void electionStatePathCliArgumentOverridesTheConfigFile(@TempDir Path dir) throws Exception {
+        int port = freePort();
+        Path fromConfig = dir.resolve("from-config.properties");
+        Path fromCli = dir.resolve("from-cli.properties");
+        Path cfg = dir.resolve("config");
+        Files.writeString(cfg, "port=" + port + "\nbind=127.0.0.1\nelection-state-path=" + fromConfig + "\n",
+                StandardCharsets.UTF_8);
+
+        ConfigLoaderPipeline pipeline = ConfigLoaderPipeline.run(cfg);
+        server = PoppyDBCLI.configureServer(
+                effectiveArgs(pipeline.tokens, "--election-state-path", fromCli.toString()));
+
+        // Config tokens come first and the real CLI args after, so the later one wins - the
+        // same ordering every other overridable key relies on.
+        assertThat(server.getElectionStatePathForTest()).isEqualTo(fromCli.toString());
+    }
+
+    @Test
+    void printConfigShowsTheEffectiveElectionStatePath(@TempDir Path dir) throws Exception {
+        int port = freePort();
+        Path stateFile = dir.resolve("election-state.properties");
+        Path cfg = dir.resolve("config");
+        Files.writeString(cfg, "port=" + port + "\nbind=127.0.0.1\nelection-state-path=" + stateFile + "\n",
+                StandardCharsets.UTF_8);
+
+        ConfigLoaderPipeline pipeline = ConfigLoaderPipeline.run(cfg);
+        ServerOptions opts = PoppyDBCLI.parse(effectiveArgs(pipeline.tokens), pipeline.tokens.size());
+
+        assertThat(ConfigInspector.render(opts, cfg)).contains("election-state-path", stateFile.toString());
+    }
+
+    @Test
+    void deepCheckRejectsAnElectionStatePathWhoseParentIsMissing(@TempDir Path dir) throws Exception {
+        Path missing = dir.resolve("no-such-dir").resolve("election-state.properties");
+        ServerOptions opts = PoppyDBCLI.parse(new String[] {
+            "--no-config", "--port", String.valueOf(freePort()), "--bind", "127.0.0.1",
+            "--election-state-path", missing.toString()}, 0);
+
+        // A path whose parent does not exist fails EVERY persist attempt at runtime, silently
+        // costing the durability guarantee the option exists to provide.
+        assertThat(ConfigInspector.deepCheck(opts).errors()).isNotEmpty();
+    }
+
     @Test
     void realCliArgumentOverridesConfigFileValue(@TempDir Path dir) throws Exception {
         int configPort = freePort();

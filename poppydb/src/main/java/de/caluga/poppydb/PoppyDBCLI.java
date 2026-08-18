@@ -413,6 +413,12 @@ public class PoppyDBCLI {
                     idx += 2;
                     break;
 
+                case "--election-state-path":
+                    opts.electionStatePath = value(effectiveArgs, idx);
+                    opts.sources.put("election-state-path", src);
+                    idx += 2;
+                    break;
+
                 case "--max-connections":
                     opts.maxConnections = intValue(effectiveArgs, idx);
                     opts.sources.put("max-connections", src);
@@ -526,6 +532,12 @@ public class PoppyDBCLI {
         // persistence silently disabled - term/votedFor were neither persisted nor loaded.
         if (opts.dumpDir != null) {
             srv.setDumpDirectory(new java.io.File(opts.dumpDir));
+        }
+
+        // Same ordering requirement as the dump directory above: this has to be known before
+        // configureReplicaSet() builds the ElectionConfig (#316).
+        if (opts.electionStatePath != null && !opts.electionStatePath.isBlank()) {
+            srv.setElectionStatePath(opts.electionStatePath);
         }
 
         // Configure replica set - election is always enabled for multi-node replica sets
@@ -700,6 +712,9 @@ public class PoppyDBCLI {
         System.out.println();
         System.out.println("Connection Management Options:");
         System.out.println("  --max-connections <num>    : Maximum concurrent connections (default: 500)");
+        System.out.println("  --election-state-path <f>  : Where to persist election state (currentTerm/votedFor).");
+        System.out.println("                               Defaults to <dump-dir>/election-state.properties; set this");
+        System.out.println("                               explicitly when the server keeps no dumps.");
         System.out.println("  --socket-timeout <seconds> : Idle connection timeout in seconds (default: 300)");
         System.out.println();
         System.out.println("Configuration File Options:");

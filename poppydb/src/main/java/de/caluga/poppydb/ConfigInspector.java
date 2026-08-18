@@ -133,6 +133,34 @@ class ConfigInspector {
             }
         }
 
+        if (opts.electionStatePath != null) {
+            // The file itself need not exist yet - the election manager creates it - so the
+            // check is on the PARENT: an unwritable or non-directory parent means every
+            // persist attempt fails at runtime, which silently costs the Raft durability
+            // guarantee this option exists to provide (#316).
+            try {
+                Path file = Paths.get(opts.electionStatePath);
+
+                if (Files.isDirectory(file)) {
+                    errors.add("election-state-path " + file + " is a directory, expected a file");
+                } else {
+                    Path parent = file.toAbsolutePath().getParent();
+
+                    if (parent == null || !Files.exists(parent)) {
+                        errors.add("election-state-path parent directory " + parent + " does not exist");
+                    } else if (!Files.isDirectory(parent)) {
+                        errors.add("election-state-path parent " + parent + " is not a directory");
+                    } else if (!Files.isWritable(parent)) {
+                        errors.add("election-state-path parent directory " + parent + " is not writable");
+                    } else if (Files.exists(file) && !Files.isWritable(file)) {
+                        errors.add("election-state-path " + file + " exists but is not writable");
+                    }
+                }
+            } catch (InvalidPathException e) {
+                errors.add("Invalid election-state-path '" + opts.electionStatePath + "': " + e.getMessage());
+            }
+        }
+
         if (opts.dumpDir != null) {
             try {
                 Path dir = Paths.get(opts.dumpDir);
@@ -211,6 +239,7 @@ class ConfigInspector {
         appendSecret(sb, opts, "root-password", opts.rootPassword);
         appendKey(sb, opts, "users-file", opts.usersFile);
         appendKey(sb, opts, "dump-dir", opts.dumpDir);
+        appendKey(sb, opts, "election-state-path", opts.electionStatePath);
         appendKey(sb, opts, "dump-interval", String.valueOf(opts.dumpIntervalSec));
         appendKey(sb, opts, "max-connections", String.valueOf(opts.maxConnections));
         appendKey(sb, opts, "socket-timeout", String.valueOf(opts.socketTimeoutSec));

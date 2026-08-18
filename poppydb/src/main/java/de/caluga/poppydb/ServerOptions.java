@@ -37,6 +37,13 @@ class ServerOptions {
     String dumpDir = null;
     long dumpIntervalSec = 0;
     int maxConnections = 500;
+
+    /**
+     * Where currentTerm/votedFor are persisted (#316). Independent of the dump directory on
+     * purpose: Raft needs this durable even for a server that keeps no dumps, and deriving it
+     * from dump-dir alone left such a set silently running without the guarantee.
+     */
+    String electionStatePath = null;
     int socketTimeoutSec = 300;
     // Replay-buffer byte budget, raw input form (spec: 2026-08-14-replay-buffer-byte-budget.md).
     // Suffix k/m/g = fixed bytes, suffix % = percent of max heap (resolved once at startup),

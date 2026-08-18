@@ -13,6 +13,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -44,7 +46,66 @@ public class PoppyDBCLIElectionPersistenceTest {
         servers.clear();
     }
 
-    private PoppyDB buildViaCli(Path dumpDir) throws Exception {
+    /**
+     * Builds a server through the CLI with whatever extra arguments the test needs, so a case
+     * can leave out --dump-dir entirely (never started, ports stay unbound).
+     */
+    private PoppyDB buildViaCli(String... extra) throws Exception {
+        List<String> args = new ArrayList<>(List.of(
+            "--no-config",
+            "--port", "27393",
+            "--bind", "localhost",
+            "--rs-name", "persistRs",
+            "--rs-seed", "localhost:27393,localhost:27394"));
+        args.addAll(List.of(extra));
+        PoppyDB srv = PoppyDBCLI.configureServer(args.toArray(new String[0]));
+        servers.add(srv);
+        return srv;
+    }
+
+    /**
+     * Raft needs currentTerm/votedFor to be durable, and a server that keeps no dumps must be
+     * able to have that too (#316): the path used to be derivable only from the dump directory,
+     * so a dump-less replica set silently ran without the guarantee.
+     */
+    @Test
+    public void electionStatePathCanBeConfiguredWithoutADumpDirectory(@TempDir Path stateDir) throws Exception {
+        File stateFile = new File(stateDir.toFile(), "election-state.properties");
+        PoppyDB srv = buildViaCli("--election-state-path", stateFile.getAbsolutePath());
+
+        assertNotNull(srv.getElectionConfigForTest(), "election config must exist for a two-member seed");
+        assertTrue(srv.getElectionConfigForTest().isPersistState(),
+            "an explicitly configured state path must switch persistence on");
+        assertEquals(stateFile.getAbsolutePath(), srv.getElectionConfigForTest().getStatePersistencePath());
+    }
+
+    /**
+     * An explicit path is an operator decision and must win over the dump-directory default.
+     */
+    @Test
+    public void explicitElectionStatePathWinsOverTheDumpDirectory(@TempDir Path dumpDir, @TempDir Path stateDir) throws Exception {
+        File stateFile = new File(stateDir.toFile(), "somewhere-else.properties");
+        PoppyDB srv = buildViaCli("--dump-dir", dumpDir.toString(),
+                                  "--election-state-path", stateFile.getAbsolutePath());
+
+        assertEquals(stateFile.getAbsolutePath(), srv.getElectionConfigForTest().getStatePersistencePath(),
+            "the configured path must not be overwritten by the dump-directory derivation");
+    }
+
+    /**
+     * Documents the remaining gap rather than hiding it: with neither a dump directory nor an
+     * explicit path there is still no persistence - but it is now announced at WARN instead of
+     * being inferable only from a missing INFO line.
+     */
+    @Test
+    public void withoutAnyPathPersistenceStaysOffAndIsNotSilent() throws Exception {
+        PoppyDB srv = buildViaCli();
+
+        assertNull(srv.getElectionConfigForTest().getStatePersistencePath());
+        assertFalse(srv.getElectionConfigForTest().isPersistState());
+    }
+
+    private PoppyDB buildViaCliWithDumpDir(Path dumpDir) throws Exception {
         // never started - ports are not bound, so fixed test ports cannot collide
         PoppyDB srv = PoppyDBCLI.configureServer(new String[] {
             "--no-config",
@@ -60,7 +121,7 @@ public class PoppyDBCLIElectionPersistenceTest {
 
     @Test
     public void termConfiguredViaCliSurvivesRestart(@TempDir Path dumpDir) throws Exception {
-        PoppyDB first = buildViaCli(dumpDir);
+        PoppyDB first = buildViaCliWithDumpDir(dumpDir);
         ElectionManager em = first.getElectionManager();
         assertNotNull(em, "multi-node RS via CLI args must enable election");
         em.start(); // persisted state is loaded in start(); PreVote keeps the isolated node from bumping its term
@@ -77,7 +138,7 @@ public class PoppyDBCLIElectionPersistenceTest {
         em.stop();
 
         // "Restart": build a second server through the very same CLI path
-        PoppyDB restarted = buildViaCli(dumpDir);
+        PoppyDB restarted = buildViaCliWithDumpDir(dumpDir);
         assertNotNull(restarted.getElectionManager());
         restarted.getElectionManager().start();
         assertEquals(7, restarted.getElectionManager().getCurrentTerm(),

@@ -95,6 +95,9 @@ public class ConfigLoader {
         define("root-password-file", Type.PATH, null);
         define("users-file", Type.PATH, "--users-file");
         define("dump-dir", Type.PATH, "--dump-dir");
+        // Independent of dump-dir on purpose (#316): a server that keeps no dumps still needs
+        // durable currentTerm/votedFor.
+        define("election-state-path", Type.PATH, "--election-state-path");
         define("dump-interval", Type.LONG, "--dump-interval");
         define("max-connections", Type.INT, "--max-connections");
         define("socket-timeout", Type.INT, "--socket-timeout");

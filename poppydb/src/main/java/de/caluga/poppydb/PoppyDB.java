@@ -673,11 +673,27 @@ public class PoppyDB {
             // term 0 is what turned the ACC rolling upgrade into term churn (#306). A server
             // that persists its data at all should persist this too, so default the state file
             // next to the dump directory unless an operator configured a path explicitly.
-            if (dumpDirectory != null && electionConfig.getStatePersistencePath() == null) {
+            if (electionStatePath != null && !electionStatePath.isBlank()) {
+                // An operator decision beats the derivation below - and it is the only way to
+                // get persistence at all on a server that keeps no dumps (#316).
+                electionConfig.setStatePersistencePath(new File(electionStatePath).getAbsolutePath());
+                electionConfig.setPersistState(true);
+                log.info("Election state persisted to {}", electionConfig.getStatePersistencePath());
+            } else if (dumpDirectory != null && electionConfig.getStatePersistencePath() == null) {
                 electionConfig.setStatePersistencePath(
                         new File(dumpDirectory, "election-state.properties").getAbsolutePath());
                 electionConfig.setPersistState(true);
                 log.info("Election state persisted to {}", electionConfig.getStatePersistencePath());
+            } else if (electionConfig.getStatePersistencePath() == null) {
+                // Said out loud, because the alternative is a MISSING info line - which looks
+                // like one line less of logging, not like a missing guarantee (#316). Raft
+                // requires currentTerm/votedFor to be durable: without them a restarted node
+                // returns at term 0 and can grant a SECOND vote in a term it already voted in,
+                // so two leaders in one term are no longer excluded.
+                log.warn("Election is enabled but election state is NOT persisted: no dump directory and no "
+                        + "election-state-path configured. currentTerm/votedFor are lost on restart, which "
+                        + "allows a node to vote twice in the same term. Set election-state-path (or a dump "
+                        + "directory) to fix this.");
             }
 
             // Create election manager with priority-aware config
@@ -1472,6 +1488,27 @@ public class PoppyDB {
      */
     public void setInternalSslContext(SSLContext internalSslContext) {
         this.internalSslContext = internalSslContext;
+    }
+
+    /**
+     * Explicitly configured location for the election state file (#316). Takes precedence over
+     * the dump-directory derivation, and is the only way to get durable currentTerm/votedFor on
+     * a server that keeps no dumps. Must be set before configureReplicaSet().
+     */
+    private String electionStatePath = null;
+
+    public void setElectionStatePath(String path) {
+        this.electionStatePath = path;
+    }
+
+    /** Test seam: the election-state path this server was configured with (may be null). */
+    String getElectionStatePathForTest() {
+        return electionStatePath;
+    }
+
+    /** Test seam: the ElectionConfig this server was configured with. */
+    ElectionConfig getElectionConfigForTest() {
+        return electionConfig;
     }
 
     public void setDumpDirectory(File dir) {
