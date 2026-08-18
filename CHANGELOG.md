@@ -57,11 +57,35 @@ process — a node that repeatedly redials a flapping peer accumulates one per c
 now shuts the scheduler down, and a driver that is used again builds a fresh one.
 
 Peer connections in `ElectionNetworkClient` additionally run with the driver's own heartbeat
-switched off. Connection liveness belongs to the election client now, which probes and redials
-on every tick; the driver's recovery task, running on its own schedule, could otherwise
-reconnect a driver that had already been evicted and leave it behind as an orphan holding an
-open socket — potentially attached to a different replica-set member than the peer it was
-created for, because the first successful connect enlarges the host seed to every member.
+switched off, and their host seed is pinned back to the one peer they were dialed for.
+Connection liveness belongs to the election client now, which probes and redials on every tick;
+the driver's recovery task, running on its own schedule, could otherwise reconnect a driver
+that had already been evicted and leave it behind as an orphan holding an open socket.
+
+The seed pinning closes a sharper edge of the same mechanism. A successful connect enlarges the
+seed to every replica-set member — the responder's own address first — and a failed connection
+attempt walks to the next seed entry, accepting whatever answers. A driver dialed for a peer
+that happened to be down therefore attached to a different node while the caller went on
+believing it had reached the peer. In the 2026-08-18 incident this turned a candidate's vote
+request for a restarting peer into a request answered by the candidate *itself*, counted under
+the peer's name: a 2/3 majority that no peer had granted, which made a node with an empty log
+primary against the explicit denial of the only up-to-date node.
+
+#### An election could deadlock with no electable node at all (#312)
+The priority check in `ElectionManager` was an absolute veto: a voter that could lead itself
+denied every lower-priority candidate. Together with the log-recency veto this can leave a
+replica set where every candidate is denied by someone, permanently — as happened on
+2026-08-18, when the only node with real log state held the lowest priority while the
+higher-priority nodes were fresh restores reporting index 0. Neither veto is a race; both are
+stable properties, so no amount of retrying dissolves the situation. It took restarting all
+three nodes at once, which works only because they then all report index 0.
+
+Priority is now a preference with a time budget rather than a veto: after the cluster has been
+leaderless for three of the voter's own maximum election timeouts, priority alone no longer
+denies a candidate, and an INFO line records that the escape hatch fired. A healthy cluster is
+unaffected — an election completes well inside that window — and the window re-arms on every
+heartbeat, so repeated failovers each get the full preference. Priority takeover continues to
+hand leadership back once the preferred node becomes electable again.
 
 #### Test-results report: skipped tests were invisible, and no record ever qualified for a tag
 Two independent defects in the test-results reporting made the release table and the README

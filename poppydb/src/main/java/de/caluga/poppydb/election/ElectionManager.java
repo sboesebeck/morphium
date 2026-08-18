@@ -73,6 +73,37 @@ public class ElectionManager {
     private volatile long lastHeartbeatTime = 0;
     private volatile long leaseExpiryTime = 0;
 
+    // Bound for the priority preference in (Pre)Vote handling (#312): how many of this
+    // voter's own MAXIMUM election timeouts the cluster may remain leaderless before the
+    // voter stops denying candidates on priority alone. The bound exists because the priority
+    // check used to be an absolute veto, and combined with the log-recency veto it could
+    // leave a set with NO electable node at all (ACC 2026-08-18: the only data-bearing node
+    // held the lowest priority, the higher-priority nodes were empty restores - every
+    // candidate vetoed by someone, indefinitely, since both vetoes are stable properties).
+    //
+    // WHY 3: the preference only needs to hold long enough for the preferred node to win if
+    // it CAN win. A higher-priority node that is electable campaigns within one of its own
+    // randomized timeouts of leader silence (its effective timeout is at most
+    // electionTimeoutMax, since priority delay shrinks with priority) and completes the
+    // PreVote + real election well within a second timeout period; the third period is
+    // margin for a lost round (split vote, dropped packet). So after 3 leaderless maximum
+    // timeout periods, "the preferred node just hasn't gotten around to it" is no longer a
+    // plausible explanation - it is un-electable (or down), and continuing to deny on
+    // priority alone can only prolong a leaderless state. Any finite value breaks the
+    // deadlock; 3 keeps the window comfortably above one full election attempt (so a healthy
+    // set's preference is untouched) and, at the 4s default max timeout, lifts the hold
+    // after ~12s - the same order as a normal MongoDB failover, instead of the incident's
+    // "until an operator restarts everything".
+    private static final int PRIORITY_HOLD_MAX_TIMEOUTS = 3;
+
+    // Reference point for the leaderless-duration measurement behind PRIORITY_HOLD_MAX_TIMEOUTS:
+    // the last moment this node had no reason yet to give up on the priority preference. Set
+    // at start() (a cold-starting cluster gets the full window, so startup elections still
+    // prefer by priority) and refreshed when THIS node is demoted from LEADER (its followers
+    // measure from their last heartbeat instead - see priorityHoldExpired()). Deliberately
+    // NOT touched from the (Pre)Vote handlers: handlePreVoteRequest must stay read-only.
+    private volatile long priorityHoldBase = 0;
+
     // PreVote bookkeeping (#306, Raft §4.2.3/§9.6): a real election - with its term increment -
     // is only started after a majority has confirmed in a PreVote round that it WOULD grant its
     // vote. The round runs entirely in FOLLOWER state and changes no persistent state on either
@@ -152,6 +183,7 @@ public class ElectionManager {
 
         log.info("Starting ElectionManager for {}", myAddress);
         running = true;
+        priorityHoldBase = System.currentTimeMillis();  // #312: fresh priority-hold window on every start
 
         // Raft requires currentTerm and votedFor to survive restarts (#306: a node coming back
         // at term 0 contributed to the term churn). Loaded before the initial becomeFollower so
@@ -234,6 +266,16 @@ public class ElectionManager {
             boolean wasLeader = (previousState == ElectionState.LEADER);
 
             state = ElectionState.FOLLOWER;
+
+            // #312: a demoted leader's lastHeartbeatTime is stale (it SENT heartbeats instead
+            // of receiving them), so without this refresh its priority hold (see
+            // priorityHoldExpired()) could already be expired the moment it steps down, and it
+            // would immediately endorse any lower-priority candidate. The cluster just lost
+            // its leader NOW - the priority preference gets its full window from this moment,
+            // exactly like on the followers (whose window runs from their last heartbeat).
+            if (wasLeader) {
+                priorityHoldBase = System.currentTimeMillis();
+            }
 
             if (term > currentTerm.get()) {
                 currentTerm.set(term);
@@ -735,16 +777,29 @@ public class ElectionManager {
 
             // Priority-based voting decision:
             // If we're a higher priority node that can become leader and haven't voted yet,
-            // we should not vote for a lower priority candidate (give ourselves a chance first)
+            // we should not vote for a lower priority candidate (give ourselves a chance first).
+            // BOUNDED (#312): this is a preference, not a veto - once the cluster has been
+            // leaderless past the priority hold window (priorityHoldExpired()), the candidate's
+            // priority no longer counts against it, or a set whose only electable node holds
+            // the lowest priority stays leaderless forever.
             boolean priorityOk = true;
             if (canVote && logOk && votedFor == null) {
                 // We haven't voted yet - consider priority
                 if (config.canBecomeLeaderByPriority() && myPriority > candidatePriority) {
-                    // We're higher priority - don't vote for lower priority candidate
-                    // This gives us a chance to start our own election
-                    log.debug("{} (priority {}) not voting for lower priority candidate {} (priority {})",
-                            myAddress, myPriority, request.getCandidateId(), candidatePriority);
-                    priorityOk = false;
+                    if (priorityHoldExpired()) {
+                        // Operator-visible at INFO: this line marks the #312 escape hatch
+                        // firing - the preference had its chance, electing SOMEONE now beats
+                        // staying leaderless.
+                        log.info("{} (priority {}) granting vote to lower-priority candidate {} (priority {}): "
+                                + "leaderless past the priority hold window, no longer denying on priority alone",
+                                myAddress, myPriority, request.getCandidateId(), candidatePriority);
+                    } else {
+                        // We're higher priority - don't vote for lower priority candidate
+                        // This gives us a chance to start our own election
+                        log.debug("{} (priority {}) not voting for lower priority candidate {} (priority {})",
+                                myAddress, myPriority, request.getCandidateId(), candidatePriority);
+                        priorityOk = false;
+                    }
                 }
             }
 
@@ -840,8 +895,12 @@ public class ElectionManager {
         // Mirror of the real vote's priority rule: at the (fresh) term the candidate would
         // campaign at, votedFor is reset on every voter, so the real election's priority check
         // reduces to exactly this comparison - a higher-priority node that can lead itself
-        // would not vote for a lower-priority candidate.
-        if (config.canBecomeLeaderByPriority() && myPriority > candidatePriority) {
+        // would not vote for a lower-priority candidate. Bounded exactly like the real vote's
+        // check (#312, and it MUST stay consistent with it: a pre-grant that the real vote
+        // would then deny only produces doomed candidacies): once the priority hold window
+        // has expired, priority alone no longer pre-denies. priorityHoldExpired() is a pure
+        // read - this handler stays strictly read-only.
+        if (config.canBecomeLeaderByPriority() && myPriority > candidatePriority && !priorityHoldExpired()) {
             log.debug("{} (priority {}) denying PreVote to lower priority candidate {} (priority {})",
                     myAddress, myPriority, request.getCandidateId(), candidatePriority);
             return new VoteResponse(myTerm, false, myAddress);
@@ -862,6 +921,29 @@ public class ElectionManager {
     private boolean heardFromLeaderRecently() {
         long last = lastHeartbeatTime;
         return last > 0 && (System.currentTimeMillis() - last) < config.getElectionTimeoutMinMs();
+    }
+
+    /**
+     * Whether the priority preference has used up its time budget (#312): the cluster has
+     * been leaderless - measured from this voter's last evidence of a working leader (last
+     * heartbeat received, own demotion from LEADER, or process start, whichever is latest) -
+     * for longer than {@link #PRIORITY_HOLD_MAX_TIMEOUTS} of this voter's maximum election
+     * timeouts. Once expired, {@link #handleVoteRequest} and {@link #handlePreVoteRequest}
+     * stop denying candidates on priority alone: the preference may DELAY an election, it
+     * must never prevent one indefinitely (see the constant's javadoc for the incident that
+     * made this necessary and for why the bound sits at 3 timeouts).
+     *
+     * <p>Read-only (volatile reads + clock), so it is safe from the strictly read-only
+     * {@link #handlePreVoteRequest}. The window re-arms by itself: as soon as a leader is
+     * elected its heartbeats advance {@code lastHeartbeatTime}, so the NEXT election starts
+     * with the full priority preference again - the bound never degrades steady-state
+     * behavior, and the existing priority takeover still hands leadership back to the
+     * preferred node once it becomes electable again.
+     */
+    private boolean priorityHoldExpired() {
+        long base = Math.max(lastHeartbeatTime, priorityHoldBase);
+        long holdMs = (long) config.getElectionTimeoutMaxMs() * PRIORITY_HOLD_MAX_TIMEOUTS;
+        return base > 0 && (System.currentTimeMillis() - base) > holdMs;
     }
 
     /**
