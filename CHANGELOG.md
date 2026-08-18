@@ -747,6 +747,76 @@ noticeably reducing secondary lag.
   point at `HEAD` again.
 
 
+## [6.3.1] - 2026-08-11
+
+### Added
+
+#### Messaging: implementation mismatches between queue participants are detected (#280)
+All three messaging implementations use incompatible collection layouts, and a mixed queue used
+to fail *silently* in the worst direction: broadcasts kept flowing while answers landed in a
+collection the other side never reads. Every messaging instance now announces its implementation
+on startup in a layout-independent `<queue>_participants` collection (heartbeat on the
+`messagingRegistryUpdateInterval`, stale entries pruned, withdrawn on `terminate()`) and checks
+what the other participants run. The channel is deliberately *not* the messaging itself — between
+two implementations without a shared collection, a messaging-based warning would never arrive.
+On a mismatch the default is a WARN log; `MessagingSettings.ImplementationCheck.THROW` makes a
+mismatched instance refuse startup with an `IllegalStateException`, `IGNORE` disables
+announcement and check entirely. Detection and diagnostics only — no bridging. The participants
+entity reads from the primary on purpose: under replication lag a secondary read could miss an
+announcement made moments ago (seen as exactly that on the loaded replica-set test phase).
+
+### Changed
+
+#### Messaging: the main change stream filters server-side (#283)
+Every consumer's change-stream cursor used to receive every insert into the messaging
+collection — including messages addressed to other recipients, full payloads of large foreign
+answers included. Under high traffic the cursor fell behind and delivery degraded to
+fallback-poll latency. The main change stream is now built with a server-side `$match` restricted
+to what the instance can actually process: messages addressed to it, broadcasts for topics with a
+registered listener, and answers (broadcast answers bypass the topic clause). The stream is
+rebuilt when the registered topic set changes. V5-legacy senders store only `name` instead of
+`topic` — the filter matches both, so legacy documents keep flowing.
+
+#### PoppyDB: replication applies events on arrival
+Replication events were applied on a 5 ms flush tick; they are now applied when they arrive,
+noticeably reducing secondary lag.
+
+### Fixed
+
+- **Messaging: the lock-release change-stream callback no longer queries (#286).** It ran a
+  `countAll` per deleted lock on the change-stream thread itself, so a burst of lock releases
+  stalled the stream (`msg_lck` stalls). Replaced by a counter that coalesces any number of lock
+  events into a single poll.
+- **InMemoryDriver: equality queries on an indexed array field silently returned nothing (#289).**
+  The index store does not implement multikey indexes, but the planner used such indexes anyway —
+  an index-backed `find`/`count` on e.g. `processed_by == "X"` returned an empty result. Indexes
+  are now flagged multikey as soon as a document stores a list in an indexed field — including
+  arrays crossed *mid-path* (an index on `a.b` over `{a: [{b: …}]}`) — and excluded from query
+  planning; such queries scan and evaluate MongoDB's array semantics correctly.
+- **InMemoryDriver: change-stream events could arrive out of order under load.** Client-mode
+  dispatch submitted each event as its own task to a cached thread pool, which preserves no
+  submission order — two back-to-back events could reach a subscriber swapped, or even
+  concurrently. Delivery now runs on a single dispatcher thread (unbounded queue, writers never
+  block), restoring mongod's per-cursor ordering guarantee.
+- **InMemoryDriver: `update` and `replace` change-stream types now match mongod (#288).** An
+  update without `$` operators (a client's `replaceOne`) emitted no event at all — invisible to
+  every watcher including PoppyDB replication; it now emits `replace` with the new `fullDocument`
+  and no `updateDescription`. And `store()` of an existing document emitted `replace`, where the
+  ORM's store goes out on the wire as a `$set` update that mongod reports as `update` — it now
+  emits `update` with a computed `updateDescription`.
+- **InMemoryDriver: collection and index-descriptor creation are atomic.** Two racing first
+  writes (e.g. concurrent `createUser`) could both observe "collection absent" and both win.
+- **Messaging: a failed main-change-stream rebuild is retried.** The topic-filter snapshot was
+  committed before the new monitor had started; if starting it failed, the staleness check
+  considered the filter current and the instance kept running without a main change stream.
+- **Messaging: the listener registry is no longer mutated in place** (status-info listener
+  toggles, `terminate()`) while the poll thread iterates it — a
+  `ConcurrentModificationException` risk; the field is volatile now and all mutations
+  clone-and-swap.
+- **Build: the parent POM's `<scm><tag>` had regressed to `v6.2.7`**; development iterations
+  point at `HEAD` again.
+
+
 ## [6.3.0] - 2026-08-09
 
 ### Added
