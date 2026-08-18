@@ -4312,6 +4312,67 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return ret;
     }
 
+
+    /**
+     * Orders two field values the way BSON does, which for numbers means BY VALUE ACROSS TYPES:
+     * mongod has a single numeric class, so 1, 1L and 1.0 order by magnitude, not by Java
+     * representation. A raw {@code Comparable.compareTo()} cannot do that - {@code
+     * Long.compareTo(Integer)} throws {@link ClassCastException}, which fails the whole query
+     * rather than merely ordering it oddly.
+     *
+     * <p>Mixed types arise without anyone writing them deliberately: a dumped and restored
+     * document can come back with a different numeric type than one written live, so a sorted
+     * query spanning both blows up. That is how it surfaced - on the ACC message bus on
+     * 2026-08-18, killing the client connection that ran the query.
+     *
+     * <p>Integral values are compared as {@code long} rather than {@code double} on purpose:
+     * past 2^53 a double comparison silently reports two distinct values as equal. Anything
+     * involving {@code BigInteger}/{@code BigDecimal} goes through {@code BigDecimal} for the
+     * same reason. Values of the same type keep the natural comparison they always had.
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    static int compareSortValues(Object v1, Object v2) {
+        if (v1 instanceof Number && v2 instanceof Number && !v1.getClass().equals(v2.getClass())) {
+            Number n1 = (Number) v1;
+            Number n2 = (Number) v2;
+
+            if (n1 instanceof java.math.BigDecimal || n2 instanceof java.math.BigDecimal
+                    || n1 instanceof java.math.BigInteger || n2 instanceof java.math.BigInteger) {
+                return toBigDecimal(n1).compareTo(toBigDecimal(n2));
+            }
+
+            if (isIntegralNumber(n1) && isIntegralNumber(n2)) {
+                return Long.compare(n1.longValue(), n2.longValue());
+            }
+
+            return Double.compare(n1.doubleValue(), n2.doubleValue());
+        }
+
+        return ((Comparable) v1).compareTo(v2);
+    }
+
+    private static boolean isIntegralNumber(Number n) {
+        return n instanceof Byte || n instanceof Short || n instanceof Integer || n instanceof Long
+                || n instanceof java.util.concurrent.atomic.AtomicInteger
+                || n instanceof java.util.concurrent.atomic.AtomicLong;
+    }
+
+    private static java.math.BigDecimal toBigDecimal(Number n) {
+        if (n instanceof java.math.BigDecimal) {
+            return (java.math.BigDecimal) n;
+        }
+
+        if (n instanceof java.math.BigInteger) {
+            return new java.math.BigDecimal((java.math.BigInteger) n);
+        }
+
+        if (isIntegralNumber(n)) {
+            return java.math.BigDecimal.valueOf(n.longValue());
+        }
+
+        return java.math.BigDecimal.valueOf(n.doubleValue());
+    }
+
     private int runCommand(CollStatsCommand cmd) {
         // Real values now (this used to report jol's *shallow* sizeOf - the ArrayList header,
         // not the data): size is the BSON size of all documents, storageSize equals it (no
@@ -5885,7 +5946,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         return r;
                     }
 
-                    var r = ((Comparable) o1.get(f)).compareTo(o2.get(f)) * ((Integer) sort.get(f));
+                    var r = compareSortValues(o1.get(f), o2.get(f)) * ((Integer) sort.get(f));
 
                     if (r == 0) {
                         continue;
