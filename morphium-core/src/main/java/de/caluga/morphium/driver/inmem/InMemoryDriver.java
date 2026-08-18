@@ -527,6 +527,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     // only loosens the bound). Every deque mutation site maintains it via the event's
     // estimatedBytes field.
     private final AtomicLong changeStreamHistoryBytes = new AtomicLong();
+
+    /**
+     * Namespaces on which a pre-image subscription has ever been registered (#313 follow-up).
+     * Buffering the pre-image only while such a subscriber is CONNECTED loses data across a
+     * reconnect: the subscriber drops, updates are then buffered without a pre-image, and the
+     * resuming stream - which requires one - finds the events but cannot use them. Sticky per
+     * namespace, mirroring mongod, where pre-images are a collection setting that stays on
+     * until it is turned off, not a property of who happens to be listening right now. Never
+     * cleared: expiring it would recreate the same race in a subtler form, and the cost stays
+     * confined to namespaces somebody actually watches with pre-images.
+     */
+    private final java.util.Set<String> preImageNamespaces = ConcurrentHashMap.newKeySet();
     // Monotonic count of events evicted because of the byte budget (not the count limit) -
     // diagnostic only, exposed in serverStatus like mongod's oplogTruncation counters.
     private final AtomicLong changeStreamHistoryEvictedForBudget = new AtomicLong();
@@ -9822,6 +9834,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                               ? subscription.db
                               : subscription.db + "." + subscription.collection;
         subscription.namespaceKey = namespaceKey;
+
+        if (subscription.beforeChangeMode != null
+                && subscription.beforeChangeMode != WatchCommand.FullDocumentBeforeChangeEnum.off) {
+            // Sticky from here on - see preImageNamespaces. Recorded at REGISTRATION, so a
+            // stream that reconnects keeps finding pre-images on everything written while it
+            // was away.
+            preImageNamespaces.add(namespaceKey);
+        }
+
         log.debug("registerSubscription: namespaceKey={}", namespaceKey);
         changeStreamSubscribers.computeIfAbsent(namespaceKey, k -> new CopyOnWriteArrayList<>()).add(subscription);
     }
@@ -10030,6 +10051,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * no live consumer reads (#313).
      */
     private boolean anySubscriberWantsPreImage(String db, String collection) {
+        // Sticky first, and deliberately NOT guarded by "are there any subscribers at all":
+        // the whole point is to keep buffering while nobody is connected.
+        if (!preImageNamespaces.isEmpty() && namespaceEverWantedPreImage(db, collection)) {
+            return true;
+        }
+
         if (changeStreamSubscribers.isEmpty()) {
             return false;
         }
@@ -10045,6 +10072,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         return wantsPreImage(changeStreamSubscribers.get("admin"))
                || wantsPreImage(changeStreamSubscribers.get("admin.1"));
+    }
+
+    /** Same namespace keys {@link #anySubscriberWantsPreImage} walks, against the sticky set. */
+    private boolean namespaceEverWantedPreImage(String db, String collection) {
+        return preImageNamespaces.contains(db)
+               || preImageNamespaces.contains(db + ".1")
+               || (collection != null && preImageNamespaces.contains(db + "." + collection))
+               || preImageNamespaces.contains("admin")
+               || preImageNamespaces.contains("admin.1");
     }
 
     private boolean wantsPreImage(List<ChangeStreamSubscription> subs) {
@@ -10342,6 +10378,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         private final boolean showExpandedEvents;
         private final WatchMonitor monitor;
         private volatile boolean active = true;
+        /** One ERROR per subscription, not per lost event - see reportMissingRequiredPreImage. */
+        private volatile boolean preImageLossReported = false;
         private final InMemAggregator aggregator; // reused per subscription
         private final boolean insertOnlyMatchPipeline;
         private String namespaceKey;
@@ -10472,9 +10510,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 return;
             }
 
-            // Early check for required fullDocumentBeforeChange - skip copy if it would be filtered
+            // required + no pre-image is NOT a filter result, it is history this stream cannot
+            // be served from - see reportMissingRequiredPreImage.
             if (beforeChangeMode == WatchCommand.FullDocumentBeforeChangeEnum.required
                     && info.event.get("fullDocumentBeforeChange") == null) {
+                reportMissingRequiredPreImage(info);
                 return;
             }
 
@@ -10486,6 +10526,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             adjustFullDocument(working);
 
             if (!applyFullDocumentBeforeChange(working)) {
+                reportMissingRequiredPreImage(info);
                 return;
             }
 
@@ -10512,6 +10553,33 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     && "update".equals(working.get("operationType"))) {
                 working.remove("fullDocument");
             }
+        }
+
+        /**
+         * A subscription that requires the pre-image has hit an event that carries none. Both
+         * call sites used to just {@code return}, so the consumer silently never saw the event
+         * and its resume looked successful - data loss with no signal anywhere.
+         *
+         * <p>The callback interface has no error channel ({@code incomingData}/{@code
+         * isContinued} only), so the stream is ENDED instead: the consumer's watch call
+         * returns, which is a visible event it can react to with a full resync. Logged at
+         * ERROR once per subscription - repeating it for every event of a lost window would
+         * bury the first, most useful line.
+         *
+         * <p>With pre-image buffering sticky per namespace this should only be reachable for
+         * events written before the namespace was ever watched with pre-images.
+         */
+        private void reportMissingRequiredPreImage(ChangeStreamEventInfo info) {
+            if (!preImageLossReported) {
+                preImageLossReported = true;
+                log.error("Change stream on {}.{} requires fullDocumentBeforeChange, but the event at "
+                        + "resume token {} carries none - it was written before this namespace was watched "
+                        + "with pre-images, or its pre-image has been evicted. Ending the stream instead of "
+                        + "skipping events: the consumer has to resync, silently dropping them would be "
+                        + "undetectable data loss.", db, collection, info.token);
+            }
+
+            deactivate();
         }
 
         @SuppressWarnings("unchecked")
