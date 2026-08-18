@@ -9578,12 +9578,29 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // The after-image is ALWAYS the live, in-place-mutated stored document - it must be
         // deep-copied, no exceptions (see deepCopyAndNormalizeDocument's javadoc and cf3e9cace).
         Map<String, Object> newDocument = deepCopyAndNormalizeDocument((Map<String, Object>) doc);
-        // The before-image may already be an exclusively-owned deep copy the caller hands over -
-        // then the second recursive copy would be pure waste and only the _id normalization is
-        // still needed. See the parameter's contract on notifyWatchers.
-        Map<String, Object> previousDocument = beforeDocumentIsExclusiveCopy
-                                               ? normalizeDocumentIdInPlace((Map<String, Object>) beforeDocument)
-                                               : deepCopyAndNormalizeDocument((Map<String, Object>) beforeDocument);
+        // The pre-image is a SECOND complete copy of the document inside the same event, and it is
+        // only ever delivered to a subscription that explicitly asked for it - every other one
+        // strips it again before the callback (applyFullDocumentBeforeChange). Buffering and
+        // copying it regardless doubles the replay-buffer cost of every update for a payload
+        // nobody reads, which on an update-heavy large-document workload collapses the resume
+        // window (#313). So when no live subscription on this namespace wants it, the raw
+        // before-document is used as-is: it stays local to this method (the delta below takes its
+        // values from the after-image and skips _id, computeRemovedFields returns names only, and
+        // extractDocumentKey normalizes the id itself), so neither the copy nor the normalization
+        // is needed and nothing of it escapes into the event.
+        boolean preImageWanted = beforeDocument != null && anySubscriberWantsPreImage(db, collection);
+        Map<String, Object> previousDocument;
+
+        if (!preImageWanted) {
+            previousDocument = (Map<String, Object>) beforeDocument;
+        } else if (beforeDocumentIsExclusiveCopy) {
+            // Already an exclusively-owned deep copy the caller hands over - the second recursive
+            // copy would be pure waste and only the _id normalization is still needed. See the
+            // parameter's contract on notifyWatchers.
+            previousDocument = normalizeDocumentIdInPlace((Map<String, Object>) beforeDocument);
+        } else {
+            previousDocument = deepCopyAndNormalizeDocument((Map<String, Object>) beforeDocument);
+        }
 
         Map<String, Object> event = new LinkedHashMap<>();
         long token = changeStreamSequence.incrementAndGet();
@@ -9604,7 +9621,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             event.put("fullDocument", newDocument);
         }
 
-        if (previousDocument != null) {
+        if (preImageWanted) {
             event.put("fullDocumentBeforeChange", previousDocument);
         }
 
@@ -9924,6 +9941,50 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     private static Map<String, Object> createResumeToken(long token) {
         return Doc.of("_data", String.format(Locale.ROOT, "%016x", token));
+    }
+
+    /**
+     * True if any live subscription that would receive events for this namespace actually asked for
+     * the pre-image ({@code fullDocumentBeforeChange}). Walks the same namespace keys as
+     * {@link #hasSubscribers(String, String)} - collection-level, database-level (including
+     * PoppyDB's {@code db.1} database watches) and the cluster-wide admin watches.
+     * <p>
+     * Deliberately evaluated at write time: a subscription registered later - including one that
+     * resumes from an older token - will not find the pre-image on already-buffered events. That
+     * matches mongod, where pre-images have to be enabled on the collection BEFORE the write
+     * (changeStreamPreAndPostImages), and is what keeps the replay buffer from paying for a payload
+     * no live consumer reads (#313).
+     */
+    private boolean anySubscriberWantsPreImage(String db, String collection) {
+        if (changeStreamSubscribers.isEmpty()) {
+            return false;
+        }
+
+        if (wantsPreImage(changeStreamSubscribers.get(db))
+                || wantsPreImage(changeStreamSubscribers.get(db + ".1"))) {
+            return true;
+        }
+
+        if (collection != null && wantsPreImage(changeStreamSubscribers.get(db + "." + collection))) {
+            return true;
+        }
+
+        return wantsPreImage(changeStreamSubscribers.get("admin"))
+               || wantsPreImage(changeStreamSubscribers.get("admin.1"));
+    }
+
+    private boolean wantsPreImage(List<ChangeStreamSubscription> subs) {
+        if (subs == null) {
+            return false;
+        }
+
+        for (ChangeStreamSubscription sub : subs) {
+            if (sub.active && sub.beforeChangeMode != WatchCommand.FullDocumentBeforeChangeEnum.off) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private boolean hasSubscribers(String db, String collection) {
