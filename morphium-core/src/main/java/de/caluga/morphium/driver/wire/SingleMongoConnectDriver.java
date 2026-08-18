@@ -69,7 +69,7 @@ public class SingleMongoConnectDriver extends DriverBase {
         // TODO Auto-generated method stub
     }
 
-    private ScheduledFuture<?> heartbeat;
+    private volatile ScheduledFuture<?> heartbeat;
     public static final String driverName = "SingleMongoConnectDriver";
 
     private final Logger log = LoggerFactory.getLogger(SingleMongoConnectDriver.class);
@@ -87,12 +87,16 @@ public class SingleMongoConnectDriver extends DriverBase {
     private volatile boolean cosmosDB = false;
 
     private Map<DriverStatsKey, AtomicDecimal> stats = new HashMap<>();
-    private ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5, r -> {
-        Thread ret = new Thread(r);
-        ret.setName("SCCon_" + (stats.get(DriverStatsKey.THREADS_CREATED).incrementAndGet()));
-        ret.setDaemon(true);
-        return ret;
-    });
+    private volatile ScheduledThreadPoolExecutor executor = createExecutor();
+
+    private ScheduledThreadPoolExecutor createExecutor() {
+        return new ScheduledThreadPoolExecutor(5, r -> {
+            Thread ret = new Thread(r);
+            ret.setName("SCCon_" + (stats.get(DriverStatsKey.THREADS_CREATED).incrementAndGet()));
+            ret.setDaemon(true);
+            return ret;
+        });
+    }
 
     public SingleMongoConnectDriver() {
         for (var e : DriverStatsKey.values()) {
@@ -145,9 +149,32 @@ public class SingleMongoConnectDriver extends DriverBase {
 
             SingleMongoConnection con = connection;
 
-            if (con == null || con.isConnected()) {
+            if (con != null && con.isConnected()) {
                 incStat(DriverStatsKey.CONNECTIONS_BORROWED);
                 return new ConnectionWrapper(con);
+            }
+
+            if (con == null) {
+                // No connection at all - never connected, closed, or a failed heartbeat
+                // reconnect left the driver dead (#310). Never hand out a wrapper around
+                // null: that is a non-null object whose every use throws. Try to
+                // (re)connect while we hold the claim - the heartbeat cannot help here,
+                // it may have been cancelled in exactly this state.
+                try {
+                    connect();
+                } catch (MorphiumDriverException e) {
+                    connectionInUse.set(false);
+                    throw new MorphiumDriverException("could not get connection - no connection and reconnect failed", e);
+                }
+
+                con = connection;
+
+                if (con != null && con.isConnected()) {
+                    incStat(DriverStatsKey.CONNECTIONS_BORROWED);
+                    return new ConnectionWrapper(con);
+                }
+                // connect() returned but the connection is still not usable -
+                // fall through to the heartbeat wait below
             }
 
             // not connected: release the claim so the heartbeat can repair it, then wait
@@ -155,7 +182,9 @@ public class SingleMongoConnectDriver extends DriverBase {
             log.info("Waiting for heartbeat to fix connection...");
             int waitingCount = waitingForHeartbeatCounter.incrementAndGet();
 
-            if (waitingCount > 20) {
+            // heartbeat == null means nobody is repairing anything - restart it right away
+            // instead of handing out failures for 20 more waits (#310)
+            if (waitingCount > 20 || heartbeat == null) {
                 if (heartbeat != null) {
                     heartbeat.cancel(true);
                 }
@@ -293,7 +322,12 @@ public class SingleMongoConnectDriver extends DriverBase {
 
                 if (!getHostSeed().contains(connection.getConnectedTo())) {
                     log.debug("Hostname changed?!?!?");
-                    close();
+                    // Only the connection, never close() (#310): connect() runs both from the
+                    // heartbeat thread - where close() would cancel the heartbeat and interrupt
+                    // the very thread doing the repair, leaving the driver dead again - and from
+                    // getConnection(), which holds the connectionInUse claim that close() would
+                    // silently release out from under it.
+                    closeCurrentConnection();
                     continue;
                 }
 
@@ -407,21 +441,46 @@ public class SingleMongoConnectDriver extends DriverBase {
         // log.info("Connected! "+connection.getConnectedTo()+" / "+getHostSeed().get(connectToIdx));
     }
 
-    protected void startHeartbeat() {
+    protected synchronized void startHeartbeat() {
         if (heartbeat == null) {
+            // close() shuts the executor down (#311) - a driver revived through getConnection()
+            // needs a live one again
+            if (executor.isShutdown()) {
+                executor = createExecutor();
+            }
+
             // log.debug("Starting heartbeat ");
             heartbeat = executor.scheduleWithFixedDelay(()-> {
                 try {
-                    // log.info("checking connection");
-                    if (connection == null)
-                        return;
-
                     // atomically claim the connection - skip this heartbeat if a caller has it
                     if (!connectionInUse.compareAndSet(false, true)) {
                         return;
                     }
 
                     try {
+                        if (connection == null || !connection.isConnected()) {
+                            // no (working) connection - e.g. a previous reconnect attempt failed.
+                            // Retry on every tick so the driver keeps healing itself (#310) -
+                            // but never resurrect a driver that was deliberately closed
+                            ScheduledFuture<?> hb = heartbeat;
+
+                            if (hb == null || hb.isCancelled()) {
+                                return;
+                            }
+
+                            log.info("Heartbeat: no working connection - trying to (re)connect");
+                            closeCurrentConnection();
+
+                            try {
+                                connect(getReplicaSetName());
+                            } catch (MorphiumDriverException e) {
+                                incStat(DriverStatsKey.ERRORS);
+                                log.warn("Reconnect failed - will retry on next heartbeat: {}", e.getMessage());
+                            }
+
+                            return;
+                        }
+
                         HelloCommand cmd = new HelloCommand(connection).setHelloOk(true).setIncludeClient(false);
                         var hello = cmd.execute();
 
@@ -445,12 +504,11 @@ public class SingleMongoConnectDriver extends DriverBase {
                         incStat(DriverStatsKey.ERRORS);
                         log.error("Connection error", e);
                         log.warn("Trying reconnect");
-
-                        try {
-                            close();
-                        } catch (Exception ex) {
-                            //swallow - maybe error because connection died
-                        }
+                        // close only the connection - NOT close(): close() cancels the heartbeat
+                        // (interrupting our own thread!), and when the connect() below failed,
+                        // the driver was left permanently dead: no connection, no scheduled
+                        // heartbeat, no way back (#310)
+                        closeCurrentConnection();
 
                         try {
                             Thread.sleep(1000);
@@ -459,9 +517,14 @@ public class SingleMongoConnectDriver extends DriverBase {
                         }
 
                         try {
-                            connect();
+                            ScheduledFuture<?> hb = heartbeat;
+
+                            if (hb != null && !hb.isCancelled()) {
+                                connect();
+                            }
                         } catch (MorphiumDriverException ex) {
-                            log.error("Could not reconnect", ex);
+                            // heartbeat is still scheduled - it retries on the next tick (#310)
+                            log.error("Could not reconnect - will retry on next heartbeat", ex);
                         }
                     } catch (InterruptedException e) {
                     } catch (Exception e) {
@@ -509,6 +572,28 @@ public class SingleMongoConnectDriver extends DriverBase {
         return getConnection();
     }
 
+    /**
+     * Closes and discards the current connection WITHOUT touching the heartbeat or the
+     * connectionInUse claim. Used by the heartbeat's recovery path, which holds the claim
+     * itself and must stay scheduled so the driver can keep repairing itself (#310) -
+     * close() would cancel the heartbeat (interrupting the very thread running the recovery).
+     */
+    private void closeCurrentConnection() {
+        SingleMongoConnection con = connection;
+        connection = null;
+
+        if (con != null) {
+            try {
+                con.close();
+            } catch (Exception e) {
+                log.warn("Problem when closing connection", e);
+            }
+
+            incStat(DriverStatsKey.CONNECTIONS_CLOSED);
+            decStat(DriverStatsKey.CONNECTIONS_IN_POOL);
+        }
+    }
+
     @Override
     public void close() {
         incStat(DriverStatsKey.CONNECTIONS_CLOSED);
@@ -529,6 +614,13 @@ public class SingleMongoConnectDriver extends DriverBase {
         }
 
         heartbeat = null;
+
+        // Shut the scheduler down too (#311): without this, every discarded driver keeps an
+        // idle SCCon_* daemon thread for the lifetime of the process. A long-lived node that
+        // redials a flapping peer accumulates one per cycle. startHeartbeat() builds a fresh
+        // executor if the driver is used again.
+        executor.shutdownNow();
+
         connectionInUse.set(false);
     }
 
@@ -944,7 +1036,9 @@ public class SingleMongoConnectDriver extends DriverBase {
 
         public MongoConnection getDelegate() {
             if (delegate == null) {
-                throw new RuntimeException("Cannot get delegate - Connection released!");
+                // the driver's exception type, not a plain RuntimeException - callers key
+                // their retry/failover handling on MorphiumDriverException (#310)
+                throw new MorphiumDriverException("Cannot get delegate - Connection released!");
             }
 
             return delegate;
