@@ -103,12 +103,31 @@ public class WatchCommand extends MongoCommand<WatchCommand> {
      */
     private volatile String terminalError = null;
 
+    /**
+     * Invoked once, right after {@link #setTerminalError(String)}, so a server driving this
+     * command asynchronously can react AT THAT MOMENT. Without it a getMore that is already
+     * parked waits out its maxTimeMS and answers empty - a successful-looking reply after the
+     * stream was known to be dead, delaying the visible error by the whole timeout.
+     */
+    private volatile java.util.function.Consumer<String> onTerminalError = null;
+
+    public WatchCommand setOnTerminalError(java.util.function.Consumer<String> onTerminalError) {
+        this.onTerminalError = onTerminalError;
+        return this;
+    }
+
     public String getTerminalError() {
         return terminalError;
     }
 
     public WatchCommand setTerminalError(String terminalError) {
         this.terminalError = terminalError;
+        var hook = onTerminalError;
+
+        if (terminalError != null && hook != null) {
+            hook.accept(terminalError);
+        }
+
         return this;
     }
 

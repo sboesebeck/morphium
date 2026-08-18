@@ -78,6 +78,10 @@ public class WatchCursorManager {
         });
 
         state.wcmd = wcmd;
+        // Woken the moment the watch dies, not on the next poll: a parked getMore would
+        // otherwise sit out its maxTimeMS and answer empty - a successful-looking reply for a
+        // stream already known to be unservable.
+        wcmd.setOnTerminalError(reason -> failUnservable(cursorId, reason));
 
         // Start the watch in the driver - it will register the subscription and return immediately
         // The async loop in InMemoryDriver will handle calling the callback when events arrive
@@ -450,6 +454,35 @@ public class WatchCursorManager {
     public static class ChangeStreamHistoryLostException extends RuntimeException {
         public ChangeStreamHistoryLostException(String message) {
             super(message);
+        }
+    }
+
+    /**
+     * The watch ended unservable. Anything already buffered is still handed over first - it was
+     * legitimately delivered before the stream broke - and only once the queue is empty do the
+     * waiting requests fail. The cursor is dropped either way: it cannot be served again.
+     */
+    private void failUnservable(long cursorId, String reason) {
+        WatchCursorState state = watchCursors.get(cursorId);
+
+        if (state == null) {
+            return;
+        }
+
+        PendingGetMore p;
+
+        while (!state.events.isEmpty() && (p = state.pendingGetMores.poll()) != null) {
+            p.future.complete(drainEvents(state.events));
+        }
+
+        while ((p = state.pendingGetMores.poll()) != null) {
+            p.future.completeExceptionally(new ChangeStreamHistoryLostException(reason));
+        }
+
+        // Kept only while it still holds undelivered events, so the next getMore can collect
+        // them and then hit the terminal check.
+        if (state.events.isEmpty()) {
+            watchCursors.remove(cursorId);
         }
     }
 
