@@ -3,6 +3,7 @@ package de.caluga.poppydb;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -314,9 +315,17 @@ public class ReplicationStartRetryTest {
 
         follower.probeReplicationLiveness(leaderAddress, live);
 
-        // Torn down synchronously by the probe call itself.
-        assertNull(follower.getReplicationManagerForTest(),
-                "a never-live probe target must be stopped and cleared");
+        // Deterministic on purpose - this test gates the whole PoppyDB test run, so it must be
+        // either green or red, never load-dependent. Reading the field for a momentary null was
+        // both: the probe schedules a retry 1s later that installs a FRESH manager, and a
+        // scheduled probe (scheduleReplicationLivenessProbe) can tear the target down before we
+        // call the probe ourselves. Both assertions below are immune to that, because both
+        // properties are monotonic: stopping never un-stops, and the probe target is never
+        // assigned again. Asserting the target was actually stopped is also strictly more than
+        // the null check ever verified.
+        assertFalse(live.running.get(), "a never-live probe target must be stopped by the probe");
+        assertNotSame(live, follower.getReplicationManagerForTest(),
+                "a never-live probe target must no longer be the assigned ReplicationManager");
 
         // ... and the backoff retry chain it feeds must re-establish replication against the
         // still-reachable leader without any further test intervention.
