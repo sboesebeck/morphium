@@ -86,25 +86,42 @@ public class PeerReconnectAfterRestartTest {
         return condition.getAsBoolean();
     }
 
+    private static PoppyDB leaderAmong(PoppyDB... nodes) {
+        for (PoppyDB node : nodes) {
+            if (node.getElectionManager() != null
+                    && node.getElectionManager().getState() == ElectionState.LEADER) {
+                return node;
+            }
+        }
+        return null;
+    }
+
     @Test
     void restartedFollowerIsHeartbeatedAgain() throws Exception {
-        int leaderPort = freePort();
+        int firstPort = freePort();
         int middlePort = freePort();
         int restartPort = freePort();
-        List<String> hosts = List.of("localhost:" + leaderPort, "localhost:" + middlePort,
+        List<String> hosts = List.of("localhost:" + firstPort, "localhost:" + middlePort,
                 "localhost:" + restartPort);
 
-        // Descending priorities: the node we restart (lowest) can never win an election of its
-        // own, so rejoining is only possible through the leader's heartbeats - exactly the
-        // situation on ACC.
-        PoppyDB leader = startNode(leaderPort, hosts, 100);
-        startNode(middlePort, hosts, 50);
+        // Descending priorities: the node we restart (lowest) stays a follower as long as the
+        // leader keeps running, so rejoining is only possible through the leader's heartbeats -
+        // exactly the situation on ACC.
+        //
+        // Which of the two higher-priority nodes wins the initial election is a race, not a
+        // guarantee: the first node spends its blocking start() alone and leaderless, so its
+        // priority hold window (#312) has long expired by the time the second node comes up,
+        // and either of them may legitimately take term 1. The test only needs SOME stable
+        // leader among the two - it must not assume it is the priority-100 node.
+        PoppyDB first = startNode(firstPort, hosts, 100);
+        PoppyDB middle = startNode(middlePort, hosts, 50);
         PoppyDB restarting = startNode(restartPort, hosts, 25);
 
-        assertTrue(waitFor(() -> leader.getElectionManager() != null
-                        && leader.getElectionManager().getState() == ElectionState.LEADER, 10000),
-                "highest-priority node should have become leader");
-        String leaderAddress = "localhost:" + leaderPort;
+        assertTrue(waitFor(() -> leaderAmong(first, middle) != null, 10000),
+                "one of the two higher-priority nodes should have become leader");
+        PoppyDB leader = leaderAmong(first, middle);
+        assertNotNull(leader, "leader disappeared between the wait and the lookup");
+        String leaderAddress = "localhost:" + (leader == first ? firstPort : middlePort);
 
         assertTrue(waitFor(() -> leaderAddress.equals(restarting.getElectionManager().getCurrentLeader()), 10000),
                 "follower should know the leader before the restart");
