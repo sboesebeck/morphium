@@ -5,8 +5,15 @@ Rules (spec 2026-08-13-test-results-store-design.md):
 - only scope.complete records count;
 - per (phase) the record with the newest timestamp wins among records whose
   commit *qualifies* for the target commit;
-- commit C qualifies for target R iff C == R, or C is an ancestor of R and
-  every path in `git diff C..R` matches the allowlist below.
+- commit C qualifies for target R iff C == R, or C and R are related by
+  ancestry IN EITHER DIRECTION and every path in `git diff C..R` matches the
+  allowlist below. The descendant direction (C after R) exists so that a
+  release's results can be corrected after the fact: a post-release run whose
+  only differences to the tag are test/doc/tooling fixes exercises the
+  identical released artifact, and the "living report" (updateReleaseReport.sh)
+  should reflect it - the concrete case being the 2026-08-18 v6.3.3 release,
+  whose matrix could otherwise never be filled because flaky-test fixes only
+  landed after the tag.
 
 This tool only *reports*: it aggregates and renders, it never decides whether
 a release should proceed. Its exit code is a signal, not a gate - it is the
@@ -116,8 +123,15 @@ def pom_bump_only(commit, target, path):
 
 
 def classify_diff(commit, target):
-    """'' if identical, 'clean'/'tests' if allowlisted diff, None otherwise."""
-    if sh("git", "merge-base", "--is-ancestor", commit, target).returncode != 0:
+    """'' if identical, 'clean'/'tests' if allowlisted diff, None otherwise.
+
+    Ancestry may hold in either direction (see the module docstring): the
+    path-allowlist walk and pom_bump_only both compare the two tree states
+    symmetrically, so the direction only matters for establishing that the
+    commits are related at all - an unrelated side branch must never qualify.
+    """
+    if (sh("git", "merge-base", "--is-ancestor", commit, target).returncode != 0
+            and sh("git", "merge-base", "--is-ancestor", target, commit).returncode != 0):
         return None
     diff = sh("git", "diff", "--name-only", "%s..%s" % (commit, target))
     if diff.returncode != 0:
@@ -193,8 +207,9 @@ def render_markdown(chosen, target):
                             (m, v.get("line", 0), v.get("branch", 0))
                             for m, v in sorted(cov["coverage"].items()))]
     if annotate:
-        lines += ["", "_Some results were produced on an earlier commit; only "
-                  "test/doc/tooling files changed since (released artifact identical)._"]
+        lines += ["", "_Some results were produced on a different commit than the "
+                  "target; the two differ only in test/doc/tooling files "
+                  "(released artifact identical)._"]
     body = "\n".join(lines) + "\n"
     return MARK_START + "\n" + body + MARK_END + "\n", cov
 
@@ -323,12 +338,12 @@ def selftest():
     with mock.patch(__name__ + ".classify_diff", return_value="clean"):
         chosen = aggregate([rec], "a" * 40)
     md_clean, _ = render_markdown(chosen, "a" * 40)
-    assert "test/doc/tooling files changed" not in md_clean, \
+    assert "test/doc/tooling files" not in md_clean, \
         "annotation must NOT fire for clean diffs (docs-only)"
     with mock.patch(__name__ + ".classify_diff", return_value="tests"):
         chosen = aggregate([rec], "a" * 40)
     md_tests, _ = render_markdown(chosen, "a" * 40)
-    assert "test/doc/tooling files changed" in md_tests, \
+    assert "test/doc/tooling files" in md_tests, \
         "annotation MUST fire for test-only diffs"
     # A gap-state (missing phases) must still write badges - the tool only
     # reports, it never withholds output because the news is bad.
