@@ -113,7 +113,7 @@ Docker, kein Testcontainers, keine MongoDB-Installation.
 <dependency>
     <groupId>de.caluga</groupId>
     <artifactId>poppydb</artifactId>
-    <version>6.3.1</version>
+    <version>6.3.2</version>
     <scope>test</scope>
 </dependency>
 ```
@@ -133,12 +133,12 @@ Integrationstests bekommen in Millisekunden einen MongoDB-kompatiblen Server, ke
 Docker-Image, kein Testcontainers, nichts zu installieren:
 
 ```bash
-curl -O https://repo1.maven.org/maven2/de/caluga/poppydb/6.3.1/poppydb-6.3.1-cli.jar
+curl -O https://repo1.maven.org/maven2/de/caluga/poppydb/6.3.2/poppydb-6.3.2-cli.jar
 
 # Start für einen Testlauf: --no-config hält den Lauf isoliert von einer
 # versehentlichen ~/.config/poppydb/config auf Entwickler-Maschinen - gleiche
 # Flags, gleiches Verhalten in der CI
-java -jar poppydb-6.3.1-cli.jar --port 27017 --no-config
+java -jar poppydb-6.3.2-cli.jar --port 27017 --no-config
 ```
 
 Test-Suite auf `mongodb://localhost:27017` zeigen lassen, Prozess danach beenden — der
@@ -155,7 +155,7 @@ ist sie die Empfehlung, siehe das
 ### How-to: Standalone-Server mit Persistenz
 
 ```bash
-java -jar poppydb-6.3.1-cli.jar --port 27017 --dump-dir ./data --dump-interval 300
+java -jar poppydb-6.3.2-cli.jar --port 27017 --dump-dir ./data --dump-interval 300
 ```
 
 Snapshots alle 5 Minuten, finaler Dump beim Shutdown, automatisches Restore beim nächsten
@@ -168,7 +168,7 @@ Ein Prozess pro Knoten, alle mit derselben Seed-Liste — die Wahl bestimmt den 
 Failover passiert automatisch:
 
 ```bash
-java -jar poppydb-6.3.1-cli.jar -p 17017 --rs-name myrs \
+java -jar poppydb-6.3.2-cli.jar -p 17017 --rs-name myrs \
   --rs-seed host1:17017,host2:17017,host3:17017 --rs-priorities 100,50,50
 ```
 
@@ -319,7 +319,7 @@ public void doStuff() { ... }
 
 | | 6.1.x | 6.2.x |
 |---|---|---|
-| Maven-Artifact | in `morphium` enthalten | separat: `de.caluga:poppydb:6.3.1` |
+| Maven-Artifact | in `morphium` enthalten | separat: `de.caluga:poppydb:6.3.2` |
 | Package | `de.caluga.morphium.server` | `de.caluga.poppydb` |
 | Hauptklasse | `MorphiumServer` | `PoppyDB` |
 | CLI-JAR | `morphium-*-server-cli.jar` | `poppydb-*-cli.jar` |
@@ -396,7 +396,7 @@ Upgrade von v6.1? → `docs/howtos/migration-v6_1-to-v6_2.md`
 <dependency>
   <groupId>de.caluga</groupId>
   <artifactId>morphium</artifactId>
-  <version>6.3.1</version>
+  <version>6.3.2</version>
 </dependency>
 ```
 
@@ -579,13 +579,13 @@ PoppyDB (ehemals MorphiumServer) ist ein eigenständiger Prozess, der das MongoD
 
 ```bash
 # Server starten
-java -jar poppydb/target/poppydb-6.3.1-cli.jar
+java -jar poppydb/target/poppydb-6.3.2-cli.jar
 
 # Clients verbinden (z.B. MongoDB Compass, mongosh)
 mongosh mongodb://localhost:27017
 
 # Start mit Persistenz (Snapshots)
-java -jar poppydb/target/poppydb-6.3.1-cli.jar --dump-dir ./data --dump-interval 300
+java -jar poppydb/target/poppydb-6.3.2-cli.jar --dump-dir ./data --dump-interval 300
 ```
 
 **Replica Set Unterstützung (experimentell)**
@@ -593,7 +593,7 @@ java -jar poppydb/target/poppydb-6.3.1-cli.jar --dump-dir ./data --dump-interval
 PoppyDB unterstützt eine grundlegende Replica-Set-Emulation. Starten Sie mehrere Instanzen mit demselben Replica-Set-Namen und derselben Seed-Liste:
 
 ```bash
-java -jar poppydb/target/poppydb-6.3.1-cli.jar --rs-name my-rs --rs-seed host1:17017,host2:17018
+java -jar poppydb/target/poppydb-6.3.2-cli.jar --rs-name my-rs --rs-seed host1:17017,host2:17018
 ```
 
 **Use Cases:**
