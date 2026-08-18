@@ -52,6 +52,12 @@ public class CacheTests extends MultiDriverTestBase {
         TestUtils.waitForConditionToBecomeTrue(30000, "Objects not stored",
                                                () -> morphium.createQueryFor(CachedObject.class).countAll() == 10);
 
+        // Precondition, not decoration: the stores above go through a write buffer that flushes
+        // after 500ms (@WriteBuffer), and every flush clears the type cache
+        // (@Cache syncCache=CLEAR_TYPE_CACHE). Measuring cache behaviour while a flush is still
+        // pending measures the invalidation, not the cache.
+        TestUtils.waitForWrites(morphium, log);
+
         // First query - should hit database and populate cache
         long start = System.currentTimeMillis();
         CachedObject first = morphium.createQueryFor(CachedObject.class).f("counter").eq(5).get();
@@ -71,7 +77,22 @@ public class CacheTests extends MultiDriverTestBase {
 
         // Test cache statistics - InMemory driver doesn't use cache
         if (!"InMemDriver".equals(morphium.getDriver().getName())) {
-            assertTrue(morphium.getStatistics().get("CHITS") > 0);
+            // Waited for, not asserted on the single pair above: a cache invalidation can still
+            // land between two individual reads and zero the counter for reasons that say
+            // nothing about caching. What must hold is that repeated identical queries end up
+            // being served from the cache - so retry the pair until a hit is recorded. A cache
+            // that never serves anything fails here just as loudly, only without the load
+            // dependence that cost a CI run on 2026-08-18.
+            // Against a baseline, not against zero: CHITS is cumulative, so "> 0" is satisfied by
+            // any hit earlier in the test and would pass even for a cache that stopped serving
+            // entirely. What is asserted here is that THESE repeated queries add hits.
+            double chitsBefore = morphium.getStatistics().get("CHITS");
+            TestUtils.waitForConditionToBecomeTrue(15000, "identical queries never produced a cache hit",
+                () -> {
+                    morphium.createQueryFor(CachedObject.class).f("counter").eq(5).get();
+                    morphium.createQueryFor(CachedObject.class).f("counter").eq(5).get();
+                    return morphium.getStatistics().get("CHITS") > chitsBefore;
+                });
         } else {
             // For InMemory driver, cache should be disabled, so no cache hits expected
             assertTrue(morphium.getStatistics().get("CHITS") == 0);
