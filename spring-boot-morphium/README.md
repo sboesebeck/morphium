@@ -45,7 +45,7 @@ for Java -- with full **Jakarta Data 1.0** repository support.
 |---|---|
 | Java | 21 |
 | Spring Boot | 3.4.x |
-| Morphium | 6.3.2-SNAPSHOT (built in lockstep as part of the [sboesebeck/morphium](https://github.com/sboesebeck/morphium) reactor) |
+| Morphium | 6.3.3-SNAPSHOT (built in lockstep as part of the [sboesebeck/morphium](https://github.com/sboesebeck/morphium) reactor) |
 
 ## Installation
 
@@ -55,11 +55,11 @@ Add the starter to your `pom.xml`:
 <dependency>
     <groupId>de.caluga</groupId>
     <artifactId>morphium-spring-boot-starter</artifactId>
-    <version>6.3.2-SNAPSHOT</version>
+    <version>6.3.3-SNAPSHOT</version>
 </dependency>
 ```
 
-The Morphium reactor's `${project.version}` is currently 6.3.2-SNAPSHOT. This module
+The Morphium reactor's `${project.version}` is currently 6.3.3-SNAPSHOT. This module
 follows Morphium's regular release versioning -- there is no independent
 version to pin beyond the reactor version.
 
@@ -279,7 +279,7 @@ The `morphium-spring-boot-test` module provides a composite annotation:
 <dependency>
     <groupId>de.caluga</groupId>
     <artifactId>morphium-spring-boot-test</artifactId>
-    <version>6.3.2-SNAPSHOT</version>
+    <version>6.3.3-SNAPSHOT</version>
     <scope>test</scope>
 </dependency>
 ```
