@@ -10,6 +10,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### Replica-set node cut off for good after a restart, with nothing in the leader's log
+A node that restarted could stay outside its replica set indefinitely: the leader kept
+"sending" heartbeats to it but never opened a socket to it again, while continuing to serve
+the other peers normally. The cut-off node saw no leader, ran PreVote rounds forever without
+ever winning (a node the healthy leader is still in contact with is denied by every voter),
+and could therefore neither lead nor follow. Restarting the affected node did not help —
+only restarting the *leader* did, which is the opposite of where the symptom appeared.
+
+The cause was a chain of four layers that each swallowed the problem. `ElectionNetworkClient`
+caches one driver per peer and handed the cached one out without checking whether it still
+worked. Such a driver cannot recover on its own, because `SingleMongoConnectDriver.close()`
+nulls the connection *and* cancels the driver's own heartbeat. `getConnection()` then returned
+a `ConnectionWrapper` around `null` — an object that is not `null`, so the client's null check
+passed it through — whose first use threw a plain `RuntimeException`, which the
+`MorphiumDriverException`-only eviction did not catch. The failure was finally logged at TRACE.
+
+Peer connections are now validated before reuse and evicted on any exception, one dial
+attempt per tick replaces the driver's own retry loop (which only piled up blocked threads
+against a peer that is simply down), concurrent dials no longer leak the loser, and an
+unreachable peer is reported at WARN with a matching INFO once contact returns — a leader that
+cannot reach a follower now says so instead of failing silently.
+
+#### SingleMongoConnectDriver could end up permanently dead (#310)
+The same driver defect, fixed at its source, because it is reachable for any consumer:
+`Morphium` selects this driver whenever no driver name is configured. After a connection loss
+the driver's own recovery path ran `close(); connect();` — and since `close()` cancels the
+heartbeat (interrupting the very thread performing the recovery), a failed `connect()` left
+the driver with no connection, no scheduled repair and no way back, handing out unusable
+connection wrappers from then on. The self-repair that exists in `getConnection()` could not
+help: it requires a non-null connection, and the fatal state is precisely a null one.
+
+`getConnection()` no longer returns a wrapper around `null`; it reconnects or throws
+`MorphiumDriverException`. The recovery path closes only the connection and keeps the
+heartbeat scheduled, so the driver retries on every tick, and a released connection now
+reports `MorphiumDriverException` instead of a plain `RuntimeException`, so callers keying
+their retry and failover handling on the driver exception type actually see it.
+
+**Behaviour change:** a closed driver is now revivable — `getConnection()` on it connects
+again instead of returning a broken wrapper.
+
+#### Discarded drivers kept a scheduler thread and could revive themselves (#311)
+Every driver owns a private scheduler whose threads are named `SCCon_*`, and `close()` never
+shut it down, so each discarded driver cost one idle daemon thread for the lifetime of the
+process — a node that repeatedly redials a flapping peer accumulates one per cycle. `close()`
+now shuts the scheduler down, and a driver that is used again builds a fresh one.
+
+Peer connections in `ElectionNetworkClient` additionally run with the driver's own heartbeat
+switched off. Connection liveness belongs to the election client now, which probes and redials
+on every tick; the driver's recovery task, running on its own schedule, could otherwise
+reconnect a driver that had already been evicted and leave it behind as an orphan holding an
+open socket — potentially attached to a different replica-set member than the peer it was
+created for, because the first successful connect enlarges the host seed to every member.
+
 #### Test-results report: skipped tests were invisible, and no record ever qualified for a tag
 Two independent defects in the test-results reporting made the release table and the README
 badge misleading.

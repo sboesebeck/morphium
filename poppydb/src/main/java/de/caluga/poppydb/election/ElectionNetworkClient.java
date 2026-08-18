@@ -40,6 +40,10 @@ public class ElectionNetworkClient {
     // Heartbeats run every few hundred ms - only every Nth failure is logged.
     private static final int HEARTBEAT_FAILURE_LOG_INTERVAL = 20;
 
+    // Effectively disables the driver's own heartbeat for peer connections (#311). We cannot
+    // pass "off", so this is a period nothing in a process lifetime reaches.
+    private static final int PEER_DRIVER_HEARTBEAT_MS = (int) TimeUnit.DAYS.toMillis(1);
+
     private volatile boolean running = false;
 
     // RS-internal connection security, set once via setInternalConnectionSecurity() before
@@ -257,6 +261,18 @@ public class ElectionNetworkClient {
             // own retry loop (5 tries with a 100ms pause by default) would only pile up threads
             // blocked for seconds against a peer that is simply down.
             driver.setRetriesOnNetworkError(1);
+
+            // No driver-side self-repair for peer connections (#311). Liveness is ours now: we
+            // probe every heartbeat tick and redial. The driver's own recovery task, in
+            // contrast, runs close() -> sleep -> connect() on its own schedule, and a driver we
+            // evicted mid-recovery would reconnect afterwards and live on as an orphan - with
+            // an open socket nothing references, kept alive by that very heartbeat. Worse, the
+            // reconnect walks a host seed that the first successful connect enlarged to every
+            // RS member (the peer's hello answers with all of them), with ConnectionType.ANY -
+            // so the revived orphan can end up attached to a different node than the peer it
+            // was created for. Without the internal heartbeat, none of that machinery runs.
+            driver.setHeartbeatFrequency(PEER_DRIVER_HEARTBEAT_MS);
+
             driver.connect();
 
             log.debug("Created connection to peer {}", peer);

@@ -72,6 +72,36 @@ public class ElectionNetworkClientReconnectTest {
         client.stop();
     }
 
+    /**
+     * Peer drivers must not run the driver's own recovery task (#311). That task does
+     * {@code close() -> sleep -> connect()} on its own schedule, so a driver evicted while it
+     * is mid-recovery reconnects afterwards and lives on as an orphan: an open socket nothing
+     * references, kept healthy by that very heartbeat, possibly attached to a different RS
+     * member than the peer it was created for. This client probes and redials on every
+     * election heartbeat tick, so it does not need driver-side repair at all.
+     */
+    @Test
+    void peerDriversDoNotRunTheirOwnRecoveryHeartbeat() throws Exception {
+        int peerPort = freePort();
+        String peerAddress = "localhost:" + peerPort;
+
+        peer = new PoppyDB(peerPort, "localhost", 100, 60);
+        peer.start();
+
+        ElectionManager em = new ElectionManager("localhost:1", List.of("localhost:1", peerAddress),
+                new ElectionConfig());
+        ElectionNetworkClient client = new ElectionNetworkClient(em);
+
+        SingleMongoConnectDriver driver = client.getOrCreateConnection(peerAddress);
+
+        assertNotNull(driver, "precondition: the peer is reachable");
+        assertTrue(driver.getHeartbeatFrequency() >= (int) java.util.concurrent.TimeUnit.HOURS.toMillis(1),
+                "the driver's own heartbeat must be effectively off, not the 2s default - "
+                        + "otherwise it repairs connections behind this client's back");
+
+        client.stop();
+    }
+
     @Test
     void deadCachedConnectionIsEvictedEvenWhenThePeerStaysUnreachable() throws Exception {
         // Nothing listens here - the redial fails. The dead driver must still be gone, so the
