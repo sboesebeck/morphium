@@ -40,6 +40,14 @@ namespace attributes onto one line. Anything unparsable, added or removed fails 
 disqualifies: the check hands out permission to *ignore* a diff, so uncertainty must never
 mean "ignore it".
 
+#### Coverage badge removed from the READMEs
+It rendered as `custom badge | resource not found`: `badges/coverage.json` is only written when
+a test-results record carries coverage data, and `runtests.sh` invokes the record builder
+without `--coverage-xml`, so no record ever has any. The badge is removed from both READMEs
+until coverage is actually collected in the test runs — a broken badge in the header is worse
+than no badge. The `--coverage-xml` path in `test_results_record.py` and the badge writer in
+`test_report.py` are unchanged and ready for the day coverage data starts flowing.
+
 ## [6.3.2] - 2026-08-18
 
 ### Added
