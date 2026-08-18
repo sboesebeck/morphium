@@ -49,3 +49,8 @@ site/
 .morphiumserver-local
 .poppydb-local
 /default.profraw
+
+# Test-runner infrastructure. Setup-specific (one VM, our hosts, our paths) and deliberately
+# not part of this repo - it lives on the runner and is meant to move into its own repo.
+# Ignored so the runner's own checkout cannot commit it back in by accident.
+ci/
