@@ -93,6 +93,38 @@ public class MixedNumberSortTest {
     }
 
     /**
+     * The mixed integral/floating path, which is where a double conversion actually bites:
+     * {@code 2^53 + 1} as a long is not representable as a double and collapses onto
+     * {@code 2^53}, so comparing the two through {@code double} reports them EQUAL. That is
+     * not merely mis-ordering - it breaks the comparator contract, and since this comparator
+     * feeds a PriorityQueue, a false tie can drop the wrong document from a top-N result.
+     */
+    @Test
+    public void keepsPrecisionBetweenLongAndDoubleAcrossThe53BitBoundary() throws Exception {
+        InMemoryDriver drv = freshDriver();
+        String coll = "longVsDouble";
+
+        long justAbove = 9007199254740993L;       // 2^53 + 1, not representable as a double
+        double atBoundary = 9007199254740992.0d;  // 2^53 - what the long above collapses to
+
+        insert(drv, coll, atBoundary);
+        insert(drv, coll, justAbove);
+
+        List<Map<String, Object>> asc = findSorted(drv, coll, 1);
+
+        assertEquals(2, asc.size());
+        assertTrue(asc.get(0).get("counter") instanceof Double,
+            "the double at 2^53 must sort BELOW the long at 2^53+1");
+        assertEquals(justAbove, ((Number) asc.get(1).get("counter")).longValue());
+
+        List<Map<String, Object>> desc = findSorted(drv, coll, -1);
+        assertEquals(justAbove, ((Number) desc.get(0).get("counter")).longValue(),
+            "descending must mirror it - a false tie would let the order depend on insertion");
+
+        drv.close();
+    }
+
+    /**
      * Longs beyond 2^53 must not be ordered through {@code double} - that would silently make
      * two distinct values compare equal.
      */

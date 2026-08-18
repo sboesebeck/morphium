@@ -4336,16 +4336,26 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             Number n1 = (Number) v1;
             Number n2 = (Number) v2;
 
-            if (n1 instanceof java.math.BigDecimal || n2 instanceof java.math.BigDecimal
-                    || n1 instanceof java.math.BigInteger || n2 instanceof java.math.BigInteger) {
-                return toBigDecimal(n1).compareTo(toBigDecimal(n2));
-            }
-
             if (isIntegralNumber(n1) && isIntegralNumber(n2)) {
                 return Long.compare(n1.longValue(), n2.longValue());
             }
 
-            return Double.compare(n1.doubleValue(), n2.doubleValue());
+            double d1 = n1.doubleValue();
+            double d2 = n2.doubleValue();
+
+            // NaN and the infinities have no BigDecimal, so they keep the double ordering
+            // (which puts NaN last, matching Double.compare).
+            if (Double.isNaN(d1) || Double.isNaN(d2) || Double.isInfinite(d1) || Double.isInfinite(d2)) {
+                return Double.compare(d1, d2);
+            }
+
+            // Everything else - integral against floating point in particular - goes through
+            // BigDecimal rather than through double. Comparing a long via doubleValue() loses
+            // precision past 2^53: 9007199254740993L becomes 9007199254740992.0 and would
+            // compare EQUAL to that double, which is not just mis-ordering - it breaks the
+            // comparator contract, and this comparator feeds a PriorityQueue, so a "tie" that
+            // is not a tie can drop the wrong document from a top-N result.
+            return toBigDecimal(n1).compareTo(toBigDecimal(n2));
         }
 
         return ((Comparable) v1).compareTo(v2);
@@ -4370,7 +4380,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             return java.math.BigDecimal.valueOf(n.longValue());
         }
 
-        return java.math.BigDecimal.valueOf(n.doubleValue());
+        // new BigDecimal(double), not valueOf: valueOf goes through Double.toString and yields
+        // the shortest representation that round-trips, which is not the value the double
+        // actually holds. Ordering against an exact integral value needs the exact bits.
+        return new java.math.BigDecimal(n.doubleValue());
     }
 
     private int runCommand(CollStatsCommand cmd) {
