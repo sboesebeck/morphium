@@ -1,7 +1,6 @@
 package de.caluga.poppydb;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -310,20 +309,32 @@ public class ReplicationStartRetryTest {
         // >= 1 and must be reset too, otherwise we'd be simulating a transient watch gap (which
         // the probe must IGNORE, see probeNoOpsDuringTransientWatchGap below), not a
         // never-came-up connection.
-        live.setWatchLiveForTest(false);
-        live.watchGeneration.set(0);
+        // Re-simulated until the probe actually sees the simulated state, because the
+        // simulation fights the manager's own machinery: setWatchLiveForTest(false) is exactly
+        // what provokes the watch-retry loop to re-register, and every registration bumps
+        // watchGeneration back above 0 - which makes probeReplicationLiveness take its
+        // hasWatchEverRegistered() early return and tear nothing down. Losing that race is not
+        // a failure of the code under test, it just means we never got to exercise it.
+        //
+        // This weakens nothing: the probe still MUST tear the target down, and a probe that
+        // stopped doing so fails here after exhausting the attempts. What the loop removes is
+        // load dependence - the single-shot version passed locally and failed on the busy test
+        // runner, twice.
+        boolean tornDown = false;
 
-        follower.probeReplicationLiveness(leaderAddress, live);
+        for (int attempt = 0; attempt < 20 && !tornDown; attempt++) {
+            live.setWatchLiveForTest(false);
+            live.watchGeneration.set(0);
+            follower.probeReplicationLiveness(leaderAddress, live);
+            tornDown = !live.running.get();
+        }
 
-        // Deterministic on purpose - this test gates the whole PoppyDB test run, so it must be
-        // either green or red, never load-dependent. Reading the field for a momentary null was
-        // both: the probe schedules a retry 1s later that installs a FRESH manager, and a
-        // scheduled probe (scheduleReplicationLivenessProbe) can tear the target down before we
-        // call the probe ourselves. Both assertions below are immune to that, because both
-        // properties are monotonic: stopping never un-stops, and the probe target is never
-        // assigned again. Asserting the target was actually stopped is also strictly more than
-        // the null check ever verified.
-        assertFalse(live.running.get(), "a never-live probe target must be stopped by the probe");
+        // Asserting the target was actually STOPPED is strictly more than the original null
+        // check on the field verified - that one also passed for a probe which cleared the
+        // field while leaving the manager running, i.e. leaking it. Both properties asserted
+        // here are monotonic (stopping never un-stops, the probe target is never re-assigned),
+        // so neither can race the retry that installs a fresh manager 1s later.
+        assertTrue(tornDown, "a never-live probe target must be stopped by the probe");
         assertNotSame(live, follower.getReplicationManagerForTest(),
                 "a never-live probe target must no longer be the assigned ReplicationManager");
 
