@@ -290,9 +290,15 @@ public class EmptyNodeRestartWipeTest {
         // initial sync (not e.g. having become primary itself and thus having no ReplicationManager
         // to ask - that path is already independently proven correct by watchConvergence above,
         // since it could only have claimed leadership once already fully synced).
+        //
+        // Polled, not read once: the documents become countable while the snapshot copy is still
+        // running, so watchConvergence returns BEFORE the sync thread reaches
+        // initialSyncComplete.set(true) (the success block still has the watch-invalidation guard
+        // and sequence adoption to get through). Reading the flag immediately lost that race on
+        // the loaded testrunner.
         ReplicationManager restartedRm = restarted.getReplicationManagerForTest();
         if (restartedRm != null) {
-            assertTrue(restartedRm.isInitialSyncComplete(),
+            assertTrue(poll(10_000, restartedRm::isInitialSyncComplete),
                     "the restarted node's ReplicationManager must report a COMPLETED initial sync");
         }
 
@@ -357,9 +363,11 @@ public class EmptyNodeRestartWipeTest {
         assertEquals(DOCS, countOn(node2), "node2 must still have all data after convergence");
         assertTrue(node1.isPrimary(), "node1 must have remained primary the whole time - no failover was needed");
 
+        // Polled for the same reason as in Test A: countable documents precede the sync thread's
+        // initialSyncComplete.set(true), so an immediate read races the tail of the success path.
         ReplicationManager restartedRm = restarted.getReplicationManagerForTest();
         if (restartedRm != null) {
-            assertTrue(restartedRm.isInitialSyncComplete(),
+            assertTrue(poll(10_000, restartedRm::isInitialSyncComplete),
                     "the restarted node's ReplicationManager must report a COMPLETED initial sync");
         }
 

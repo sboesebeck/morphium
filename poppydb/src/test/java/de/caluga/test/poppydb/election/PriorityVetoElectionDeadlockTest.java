@@ -180,9 +180,18 @@ public class PriorityVetoElectionDeadlockTest {
     void healthyClusterStillElectsHighestPriorityNode() throws Exception {
         // n3: lowest priority, aggressively fast timer (fires ~4-10x before n1's first timeout)
         ElectionManager n3 = new ElectionManager(N3, HOSTS, cfg(100, 200, 25));
-        // n1/n2: preferred nodes, deliberately slow timers
+        // n1: the preferred node, deliberately slow timer
         ElectionManager n1 = new ElectionManager(N1, HOSTS, cfg(600, 900, 100));
-        ElectionManager n2 = new ElectionManager(N2, HOSTS, cfg(600, 900, 50));
+        // n2: mid priority, timer strictly SLOWER than n1's whole window. With the same 600-900
+        // base as n1 the two effective windows overlap ([600,900] vs [750,1050] after the
+        // priority delay) and n2 legitimately wins whenever its timer happens to fire first
+        // (~12.5%, plus scheduler noise - seen on the loaded testrunner 2026-08-18): n1's veto
+        // alone cannot stop n2, because n3 (lower priority than n2) must grant and n2+n3 is
+        // already a majority. The priority preference between two ELECTABLE nodes is only
+        // timer-based and therefore probabilistic; disjoint windows are what makes "n1 wins
+        // first" a real guarantee (up to >1.8s of scheduler delay on n1's timer, instead of 0ms
+        // of margin before).
+        ElectionManager n2 = new ElectionManager(N2, HOSTS, cfg(3000, 3600, 50));
 
         // A healthy set: everyone holds the same data.
         n1.updateLogIndex(5000, 1);
