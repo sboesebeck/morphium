@@ -138,6 +138,8 @@ observation period (long enough to hit your normal peak load and any periodic jo
 ## See Also
 
 - [PoppyDB Production Deployment Playbook](./poppydb-deployment.md)
+- [PoppyDB Admin Handbook](./poppydb-admin-handbook.md) — day-2 operations after cutover, incl.
+  field notes on client reconnection behavior
 - [PoppyDB](../poppydb.md) — full feature reference, Limitations, Use Cases
 - [Messaging Implementations](./messaging-implementations.md) — if the migration is for
   Morphium messaging specifically

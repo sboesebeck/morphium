@@ -294,6 +294,9 @@ a replacement for reading the sections above.
 ## See Also
 
 - [PoppyDB](../poppydb.md) — full feature reference
+- [PoppyDB Admin Handbook](./poppydb-admin-handbook.md) — day-2 operations once this playbook's
+  setup is running: process supervision without systemd, log rotation, pre-change validation,
+  failover field notes
 - [Migrating from MongoDB to PoppyDB](./migration-mongodb-to-poppydb.md) — moving an existing
   workload over, rather than starting fresh
 - [Monitoring & Metrics Guide](../monitoring-metrics-guide.md)

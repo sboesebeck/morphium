@@ -1398,6 +1398,8 @@ public static void main(String[] args) throws Exception {
 
 - [PoppyDB Production Deployment Playbook](./howtos/poppydb-deployment.md) - step-by-step guide:
   systemd unit, secrets handling, capacity planning, monitoring, backup/restore, upgrades
+- [PoppyDB Admin Handbook](./howtos/poppydb-admin-handbook.md) - day-2 operations: process
+  supervision without systemd, log rotation, pre-change validation, failover field notes
 - [Migrating from MongoDB to PoppyDB](./howtos/migration-mongodb-to-poppydb.md) - data migration,
   validation, cutover and rollback
 - [InMemory Driver](./howtos/inmemory-driver.md) - Embedded driver for unit tests
