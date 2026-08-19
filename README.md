@@ -102,6 +102,16 @@ Per-message-acknowledged throughput on par with Kafka's synchronous mode (~8–1
 the realistic ceiling for future server-side concurrency work — not 100K+, which no system
 reaches without batching._
 
+_**Does client-side batching help Morphium the way it helps Kafka?** Yes, when it's a genuine
+single-round-trip bulk insert — no annotation, no tuning: against MongoDB it roughly
+quadruples end-to-end throughput over unbatched `sendMessage()` (1128 vs. 291 msg/s, chunks of
+100). The `@WriteBuffer` annotation, tried as the "just annotate it" shortcut, turned out to
+be the wrong tool — it predates Morphium Messaging and flushes on a polling housekeeping
+thread, which becomes a throughput *ceiling*, not a booster, once producers outrun the poll
+interval. Full numbers, and two real bugs this probe surfaced along the way (both already
+fixed on `develop`), in the ["Batch Send Throughput"](docs/v5-vs-v6-performance.md#batch-send-throughput-writebuffer-vs-client-side-bulk-insert)
+section._
+
 ## 🌱 PoppyDB — MongoDB-Compatible In-Memory Server
 
 <p align="center">

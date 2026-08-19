@@ -169,6 +169,87 @@ set on separate hosts, PoppyDB runs in-process.
 > insert cost no longer grows with collection size. Single-document inserts into a
 > collection pre-filled with 200K documents went from ~97 inserts/s (per-insert O(N) `_id`
 > scan) to ~205,000 inserts/s (O(1) index lookup) in the same A/B setup.
+>
+> **Update 2026-08-19:** the unbatched baseline in the batch-throughput probe below measured
+> 7054 msg/s on this same Mac Studio — noticeably above the 4300–4900 msg/s here. The gap is
+> `79dc8da9b` (`perf(mapper): cache type-id class resolution and no-arg constructor lookup`,
+> merged 2026-08-13, after this 2026-08-07 measurement) — every `sendMessage()` goes through
+> the object mapper, so its ~23% roundtrip improvement shows up here too.
+
+### Batch Send Throughput: `@WriteBuffer` vs. Client-Side Bulk Insert
+
+Prompted by a "could we batch messages like Kafka does" question. Measured 2026-08-19 with
+`MessagingBatchSendThroughputBenchmark` (parked on branch
+`bench/messaging-batch-send-throughput`, not merged into `develop` — see below): 5000
+messages, 4 sender threads, one listening receiver, same clock methodology as the one-way
+benchmark above (first send to last receipt), comparing three ways of getting those 5000
+messages out: plain `sendMessage()` (unbatched baseline); routing through
+`@WriteBuffer(size=10/100)` at two `writeBufferTimeGranularity` settings (Morphium's default
+100ms poll, and a tightened 5ms poll); and genuine client-driven bulk insert —
+`morphium.insert(List<Msg>, collection, null)`, a null callback runs it synchronously as one
+real bulk-insert wire command per chunk, no `@WriteBuffer` or housekeeping thread involved at
+all. PoppyDB in-process; MongoDB is a local 3-node replica set on the *same host*
+(`mongotest.sh up --noauth`, MongoDB 8.3.7) — loopback, not the homelab RS used elsewhere in
+this document, so don't compare these MongoDB numbers to the round-trip/one-way tables above.
+Mac Studio (M1 Ultra, 64GB) throughout.
+
+| Variant (PoppyDB, in-process) | sendRate | end-to-end rate | last-message latency |
+|---|---|---|---|
+| unbatched (`sendMessage()`) | 7054 msg/s | 7053 msg/s | 0.0 ms |
+| bulk insert, chunks of 10 | 15,934 msg/s | 11,618 msg/s | 117 ms |
+| bulk insert, chunks of 100 | 38,795 msg/s | **16,290 msg/s** | 178 ms |
+| `@WriteBuffer(size=10)`, default 100ms poll | 86 msg/s | 64 msg/s | 20.1 s |
+| `@WriteBuffer(size=100)`, default 100ms poll | 731 msg/s | 185 msg/s | 20.1 s |
+| `@WriteBuffer(size=10)`, tuned 5ms poll | 724 msg/s | 186 msg/s | 20.0 s |
+| `@WriteBuffer(size=100)`, tuned 5ms poll | 5130 msg/s | 5015 msg/s | 22 ms |
+
+| Variant (MongoDB, local 3-node RS, same host) | sendRate | end-to-end rate | last-message latency |
+|---|---|---|---|
+| unbatched (`sendMessage()`) | 291 msg/s | 291 msg/s | 0.6 ms |
+| bulk insert, chunks of 10 | 2720 msg/s | 1227 msg/s | 2.2 s |
+| bulk insert, chunks of 100 | 18,313 msg/s | **1128 msg/s** | 4.2 s |
+| `@WriteBuffer(size=10)`, default 100ms poll | 40 msg/s | 35 msg/s | 20.1 s |
+| `@WriteBuffer(size=100)`, default 100ms poll | did not complete — see below | | |
+
+**The genuine win is client-side bulk insert**, and it needs no annotation, no housekeeping
+thread, no tuning: one list, one method call, one wire command. Against MongoDB it roughly
+**quadruples** end-to-end throughput over unbatched (1128 vs. 291 msg/s) — exactly where
+batching should pay off, since one bulk write amortizes the majority-ack/journal-fsync cost of
+the write-concern round-trip across many documents instead of paying it once per message.
+`sendMessage()` itself has no bulk variant today; this is a call to `Morphium.insert()`
+directly, alongside the messaging layer rather than through it.
+
+**`@WriteBuffer` underperforms — it was never built for this.** It predates Morphium
+Messaging and flushes on a housekeeping thread that polls at a fixed interval
+(`writeBufferTimeGranularity`, default 100ms). Once producers fill the buffer faster than that
+thread drains it, the poll interval becomes a hard throughput *ceiling* of roughly
+`size / interval` (10 msgs / 0.1s ≈ 100 msg/s — matching the measurements above almost
+exactly), not a booster. Tightening the interval to 5ms narrows the gap substantially
+(PoppyDB `size=100` goes from 731 to 5130 msg/s) but can't close it against bulk insert's
+direct, single-round-trip path — a faster poll is still a poll. Against MongoDB, `size=100` at
+the default interval didn't just underperform, it **stalled outright**: the housekeeping
+thread flushes synchronously, one buffer at a time, and a majority-acked 100-document bulk
+write occasionally took long enough (compounded by intermittent connection churn observed
+against the local RS during this run) that the buffer sat pinned at capacity for 40+ seconds
+straight — long enough for blocked producer threads to exceed even a 20-second wait-timeout
+headroom and abort. That's a consequence of pushing `@WriteBuffer` well outside the workload it
+was designed for (bounded-latency background writes, not synchronous-ack message delivery at
+thousands of msg/s), not a MongoDB or Morphium reliability issue.
+
+**Two real bugs came out of building this probe, both found and fixed the same day, on
+`develop`:**
+- PoppyDB's change-stream cursor silently dropped roughly 1% of events under a bulk-insert
+  burst — an off-by-one batch-cap check in `WatchCursorManager.drainEvents()` polled the
+  101st event off the queue before checking the 100-event cap, then discarded it (`4e8ccebf1`).
+  The same drain path backs tailable cursors too, so this likely also explains the
+  long-standing `TailableQueryTests` flakiness on PoppyDB noted in the homelab test matrix.
+- Messaging's poll fallback let messages for topics without a registered listener — left
+  unmarked on purpose, so a listener registered later still receives them — permanently occupy
+  slots of the `limit(windowSize)` poll window, starving deliverable messages until the
+  blockers expired via TTL (`20a8bf36a`).
+
+The benchmark itself is a one-off exploratory probe, not an ongoing regression test — it lives
+on branch `bench/messaging-batch-send-throughput` rather than `develop`.
 
 ### $in Query: Indexed vs Non-Indexed
 
