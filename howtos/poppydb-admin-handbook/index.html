@@ -12,29 +12,31 @@
         <meta name="author" content="Morphium Development Team">
       
       
-        <link rel="canonical" href="https://sboesebeck.github.io/morphium/contributing/">
+        <link rel="canonical" href="https://sboesebeck.github.io/morphium/howtos/poppydb-admin-handbook/">
       
       
-        <link rel="prev" href="../troubleshooting-guide/">
+        <link rel="prev" href="../poppydb-deployment/">
       
+      
+        <link rel="next" href="../migration-mongodb-to-poppydb/">
       
       
         
       
       
-      <link rel="icon" href="../assets/brand/morphium-mark.svg">
+      <link rel="icon" href="../../assets/brand/morphium-mark.svg">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
-        <title>Contributing - Morphium Documentation</title>
+        <title>Admin Handbook - Morphium Documentation</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -53,9 +55,9 @@
       
     
     
-      <link rel="stylesheet" href="../assets/extra.css">
+      <link rel="stylesheet" href="../../assets/extra.css">
     
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -80,7 +82,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#contributing-to-documentation" class="md-skip">
+        <a href="#poppydb-admin-handbook" class="md-skip">
           Skip to content
         </a>
       
@@ -98,9 +100,9 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="Morphium Documentation" class="md-header__button md-logo" aria-label="Morphium Documentation" data-md-component="logo">
+    <a href="../.." title="Morphium Documentation" class="md-header__button md-logo" aria-label="Morphium Documentation" data-md-component="logo">
       
-  <img src="../assets/brand/morphium-mark-header.svg" alt="logo">
+  <img src="../../assets/brand/morphium-mark-header.svg" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -117,7 +119,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Contributing
+              Admin Handbook
             
           </span>
         </div>
@@ -230,7 +232,7 @@
   
   
     <li class="md-tabs__item">
-      <a href=".." class="md-tabs__link">
+      <a href="../.." class="md-tabs__link">
         
   
   
@@ -251,7 +253,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../why-morphium/" class="md-tabs__link">
+        <a href="../../why-morphium/" class="md-tabs__link">
           
   
   
@@ -271,7 +273,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../test-runner/" class="md-tabs__link">
+        <a href="../../test-runner/" class="md-tabs__link">
           
   
   
@@ -287,11 +289,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../poppydb/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../poppydb/" class="md-tabs__link">
           
   
   
@@ -311,7 +315,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../howtos/migration-v6_2-to-v6_3/" class="md-tabs__link">
+        <a href="../migration-v6_2-to-v6_3/" class="md-tabs__link">
           
   
   
@@ -331,7 +335,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../messaging/" class="md-tabs__link">
+        <a href="../../messaging/" class="md-tabs__link">
           
   
   
@@ -351,7 +355,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../jakarta-data/" class="md-tabs__link">
+        <a href="../../jakarta-data/" class="md-tabs__link">
           
   
   
@@ -371,7 +375,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../api-reference/" class="md-tabs__link">
+        <a href="../../api-reference/" class="md-tabs__link">
           
   
   
@@ -391,7 +395,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../v5-vs-v6-performance/" class="md-tabs__link">
+        <a href="../../v5-vs-v6-performance/" class="md-tabs__link">
           
   
   
@@ -407,11 +411,9 @@
   
   
   
-    
   
-  
-    <li class="md-tabs__item md-tabs__item--active">
-      <a href="./" class="md-tabs__link">
+    <li class="md-tabs__item">
+      <a href="../../contributing/" class="md-tabs__link">
         
   
   
@@ -446,9 +448,9 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="Morphium Documentation" class="md-nav__button md-logo" aria-label="Morphium Documentation" data-md-component="logo">
+    <a href="../.." title="Morphium Documentation" class="md-nav__button md-logo" aria-label="Morphium Documentation" data-md-component="logo">
       
-  <img src="../assets/brand/morphium-mark-header.svg" alt="logo">
+  <img src="../../assets/brand/morphium-mark-header.svg" alt="logo">
 
     </a>
     Morphium Documentation
@@ -475,7 +477,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -556,7 +558,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../why-morphium/" class="md-nav__link">
+      <a href="../../why-morphium/" class="md-nav__link">
         
   
   
@@ -584,7 +586,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../quickstart-tutorial/" class="md-nav__link">
+      <a href="../../quickstart-tutorial/" class="md-nav__link">
         
   
   
@@ -612,7 +614,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../first-test/" class="md-nav__link">
+      <a href="../../first-test/" class="md-nav__link">
         
   
   
@@ -640,7 +642,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../overview/" class="md-nav__link">
+      <a href="../../overview/" class="md-nav__link">
         
   
   
@@ -668,7 +670,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../architecture-overview/" class="md-nav__link">
+      <a href="../../architecture-overview/" class="md-nav__link">
         
   
   
@@ -696,7 +698,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../howtos/basic-setup/" class="md-nav__link">
+      <a href="../basic-setup/" class="md-nav__link">
         
   
   
@@ -785,7 +787,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../test-runner/" class="md-nav__link">
+      <a href="../../test-runner/" class="md-nav__link">
         
   
   
@@ -813,7 +815,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../inmemory-driver/" class="md-nav__link">
+      <a href="../../inmemory-driver/" class="md-nav__link">
         
   
   
@@ -841,7 +843,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../howtos/inmemory-driver/" class="md-nav__link">
+      <a href="../inmemory-driver/" class="md-nav__link">
         
   
   
@@ -869,7 +871,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../wire-proxy/" class="md-nav__link">
+      <a href="../../wire-proxy/" class="md-nav__link">
         
   
   
@@ -897,7 +899,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../developer-testing-guide/" class="md-nav__link">
+      <a href="../../developer-testing-guide/" class="md-nav__link">
         
   
   
@@ -929,28 +931,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
-        
-          
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
             
   
   
@@ -968,7 +973,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -986,7 +991,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../poppydb/" class="md-nav__link">
+      <a href="../../poppydb/" class="md-nav__link">
         
   
   
@@ -1014,7 +1019,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../howtos/poppydb-deployment/" class="md-nav__link">
+      <a href="../poppydb-deployment/" class="md-nav__link">
         
   
   
@@ -1039,10 +1044,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../howtos/poppydb-admin-handbook/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Admin Handbook
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1058,6 +1090,83 @@
   
 
       </a>
+      
+        
+
+  
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-process-supervision-without-systemd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Process supervision without systemd
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-log-rotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Log rotation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-before-you-change-anything-validate-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Before you change anything: validate first
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-field-notes-reconnection-after-a-node-replacement-or-failover" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Field notes: reconnection after a node replacement or failover
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See Also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1070,7 +1179,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../howtos/migration-mongodb-to-poppydb/" class="md-nav__link">
+      <a href="../migration-mongodb-to-poppydb/" class="md-nav__link">
         
   
   
@@ -1159,7 +1268,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../howtos/migration-v6_2-to-v6_3/" class="md-nav__link">
+      <a href="../migration-v6_2-to-v6_3/" class="md-nav__link">
         
   
   
@@ -1187,7 +1296,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../howtos/migration-v6_1-to-v6_2/" class="md-nav__link">
+      <a href="../migration-v6_1-to-v6_2/" class="md-nav__link">
         
   
   
@@ -1215,7 +1324,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../howtos/migration-v5-to-v6/" class="md-nav__link">
+      <a href="../migration-v5-to-v6/" class="md-nav__link">
         
   
   
@@ -1243,7 +1352,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../howtos/aggregation-examples/" class="md-nav__link">
+      <a href="../aggregation-examples/" class="md-nav__link">
         
   
   
@@ -1271,7 +1380,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../howtos/caching-examples/" class="md-nav__link">
+      <a href="../caching-examples/" class="md-nav__link">
         
   
   
@@ -1299,7 +1408,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../howtos/cache-patterns/" class="md-nav__link">
+      <a href="../cache-patterns/" class="md-nav__link">
         
   
   
@@ -1327,7 +1436,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../howtos/field-names/" class="md-nav__link">
+      <a href="../field-names/" class="md-nav__link">
         
   
   
@@ -1355,7 +1464,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../howtos/optimistic-locking/" class="md-nav__link">
+      <a href="../optimistic-locking/" class="md-nav__link">
         
   
   
@@ -1383,7 +1492,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../howtos/references-and-relationships/" class="md-nav__link">
+      <a href="../references-and-relationships/" class="md-nav__link">
         
   
   
@@ -1472,7 +1581,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../messaging/" class="md-nav__link">
+      <a href="../../messaging/" class="md-nav__link">
         
   
   
@@ -1500,7 +1609,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../howtos/messaging-implementations/" class="md-nav__link">
+      <a href="../messaging-implementations/" class="md-nav__link">
         
   
   
@@ -1528,7 +1637,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ssl-tls/" class="md-nav__link">
+      <a href="../../ssl-tls/" class="md-nav__link">
         
   
   
@@ -1556,7 +1665,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../developer-guide/" class="md-nav__link">
+      <a href="../../developer-guide/" class="md-nav__link">
         
   
   
@@ -1645,7 +1754,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../jakarta-data/" class="md-nav__link">
+      <a href="../../jakarta-data/" class="md-nav__link">
         
   
   
@@ -1673,7 +1782,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../quarkus-extension/" class="md-nav__link">
+      <a href="../../quarkus-extension/" class="md-nav__link">
         
   
   
@@ -1701,7 +1810,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../spring-boot/" class="md-nav__link">
+      <a href="../../spring-boot/" class="md-nav__link">
         
   
   
@@ -1790,7 +1899,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../api-reference/" class="md-nav__link">
+      <a href="../../api-reference/" class="md-nav__link">
         
   
   
@@ -1818,7 +1927,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration-reference/" class="md-nav__link">
+      <a href="../../configuration-reference/" class="md-nav__link">
         
   
   
@@ -1907,7 +2016,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../v5-vs-v6-performance/" class="md-nav__link">
+      <a href="../../v5-vs-v6-performance/" class="md-nav__link">
         
   
   
@@ -1935,7 +2044,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../performance-scalability-guide/" class="md-nav__link">
+      <a href="../../performance-scalability-guide/" class="md-nav__link">
         
   
   
@@ -1963,7 +2072,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../production-deployment-guide/" class="md-nav__link">
+      <a href="../../production-deployment-guide/" class="md-nav__link">
         
   
   
@@ -1991,7 +2100,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../monitoring-metrics-guide/" class="md-nav__link">
+      <a href="../../monitoring-metrics-guide/" class="md-nav__link">
         
   
   
@@ -2019,7 +2128,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../security-guide/" class="md-nav__link">
+      <a href="../../security-guide/" class="md-nav__link">
         
   
   
@@ -2047,7 +2156,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../troubleshooting-guide/" class="md-nav__link">
+      <a href="../../troubleshooting-guide/" class="md-nav__link">
         
   
   
@@ -2079,37 +2188,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Contributing
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
         
   
   
@@ -2125,189 +2207,6 @@
   
 
       </a>
-      
-        
-
-  
-
-<nav class="md-nav md-nav--secondary" aria-label="On this page">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      On this page
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#viewing-the-documentation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Viewing the Documentation
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Viewing the Documentation">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#online" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Online
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#local-development" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Local Development
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#documentation-structure" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Documentation Structure
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#automated-deployment" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Automated Deployment
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Automated Deployment">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#github-actions-workflow" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        GitHub Actions Workflow
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#how-it-works" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        How it works:
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#navigation-features" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Navigation Features
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#editing-documentation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Editing Documentation
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Editing Documentation">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#markdown-extensions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Markdown Extensions
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#theme-configuration" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Theme Configuration
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#troubleshooting" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Troubleshooting
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#contributing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Contributing
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -2341,49 +2240,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#viewing-the-documentation" class="md-nav__link">
+  <a href="#1-process-supervision-without-systemd" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Viewing the Documentation
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Viewing the Documentation">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#online" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Online
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#local-development" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Local Development
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#documentation-structure" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Documentation Structure
+        1. Process supervision without systemd
       
     </span>
   </a>
@@ -2391,49 +2251,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#automated-deployment" class="md-nav__link">
+  <a href="#2-log-rotation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Automated Deployment
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Automated Deployment">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#github-actions-workflow" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        GitHub Actions Workflow
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#how-it-works" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        How it works:
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#navigation-features" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Navigation Features
+        2. Log rotation
       
     </span>
   </a>
@@ -2441,38 +2262,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#editing-documentation" class="md-nav__link">
+  <a href="#3-before-you-change-anything-validate-first" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Editing Documentation
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Editing Documentation">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#markdown-extensions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Markdown Extensions
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#theme-configuration" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Theme Configuration
+        3. Before you change anything: validate first
       
     </span>
   </a>
@@ -2480,10 +2273,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#troubleshooting" class="md-nav__link">
+  <a href="#4-field-notes-reconnection-after-a-node-replacement-or-failover" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Troubleshooting
+        4. Field notes: reconnection after a node replacement or failover
       
     </span>
   </a>
@@ -2491,10 +2284,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#contributing" class="md-nav__link">
+  <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Contributing
+        See Also
       
     </span>
   </a>
@@ -2521,117 +2314,142 @@
   
 
 
-<h1 id="contributing-to-documentation">Contributing to Documentation<a class="headerlink" href="#contributing-to-documentation" title="Permanent link">&para;</a></h1>
-<p>This guide explains how to contribute to and work with the Morphium documentation.</p>
-<h2 id="viewing-the-documentation">Viewing the Documentation<a class="headerlink" href="#viewing-the-documentation" title="Permanent link">&para;</a></h2>
-<h3 id="online">Online<a class="headerlink" href="#online" title="Permanent link">&para;</a></h3>
-<p>Visit the published documentation at: <strong>https://sboesebeck.github.io/morphium/</strong></p>
-<h3 id="local-development">Local Development<a class="headerlink" href="#local-development" title="Permanent link">&para;</a></h3>
-<ol>
-<li>
-<p><strong>Install MkDocs and Material theme:</strong>
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>mkdocs-material
-</span></code></pre></div></p>
-</li>
-<li>
-<p><strong>Serve locally:</strong>
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>mkdocs<span class="w"> </span>serve
+<h1 id="poppydb-admin-handbook">PoppyDB Admin Handbook<a class="headerlink" href="#poppydb-admin-handbook" title="Permanent link">&para;</a></h1>
+<p>Day-2 operations notes for a PoppyDB instance that is already deployed and running. This page
+does <strong>not</strong> repeat initial setup — see the
+<strong><a href="../poppydb-deployment/">Production Deployment Playbook</a></strong> for that (secrets handling, systemd
+unit, capacity planning, monitoring, backup/restore, upgrades) and
+<strong><a href="../migration-mongodb-to-poppydb/">Migrating from MongoDB to PoppyDB</a></strong> for moving an existing
+workload over. This page covers what tends to come up <em>after</em> that: running without systemd,
+keeping logs under control, validating a change before you make it, and a handful of field-tested
+gotchas that aren't obvious from the reference docs alone.</p>
+<h2 id="1-process-supervision-without-systemd">1. Process supervision without systemd<a class="headerlink" href="#1-process-supervision-without-systemd" title="Permanent link">&para;</a></h2>
+<p>The deployment playbook's <a href="../poppydb-deployment/#5-run-it-as-a-service-systemd">§5</a> covers
+systemd, which is the recommended default. If a target host can't use systemd (older init system,
+a jump-host-managed environment, a container base image without it), use a small pidfile-based
+control script instead of <code>ps</code>/<code>pgrep</code> pattern matching:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="ch">#!/bin/bash</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="c1"># poppy-ctl.sh: start | stop | restart | status</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nb">set</span><span class="w"> </span>-u
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="nv">BASE</span><span class="o">=</span>/opt/poppydb
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="nv">JAR</span><span class="o">=</span><span class="nv">$BASE</span>/poppydb.jar
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="nv">CFG</span><span class="o">=</span><span class="nv">$BASE</span>/conf/poppydb.conf
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="nv">LOG</span><span class="o">=</span><span class="nv">$BASE</span>/poppydb.log
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="nv">PIDFILE</span><span class="o">=</span><span class="nv">$BASE</span>/poppydb.pid
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="nv">HEAP</span><span class="o">=</span>4g
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>alive<span class="o">()</span><span class="w"> </span><span class="o">{</span><span class="w"> </span><span class="o">[</span><span class="w"> </span>-f<span class="w"> </span><span class="s2">"</span><span class="nv">$PIDFILE</span><span class="s2">"</span><span class="w"> </span><span class="o">]</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">kill</span><span class="w"> </span>-0<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>cat<span class="w"> </span><span class="s2">"</span><span class="nv">$PIDFILE</span><span class="s2">"</span><span class="k">)</span><span class="s2">"</span><span class="w"> </span><span class="m">2</span>&gt;/dev/null<span class="p">;</span><span class="w"> </span><span class="o">}</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="k">case</span><span class="w"> </span><span class="s2">"</span><span class="si">${</span><span class="nv">1</span><span class="k">:-</span><span class="si">}</span><span class="s2">"</span><span class="w"> </span><span class="k">in</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">  </span>start<span class="o">)</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span>alive<span class="p">;</span><span class="w"> </span><span class="k">then</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"already running (PID </span><span class="k">$(</span>cat<span class="w"> </span><span class="s2">"</span><span class="nv">$PIDFILE</span><span class="s2">"</span><span class="k">)</span><span class="s2">)"</span><span class="p">;</span><span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="m">0</span><span class="p">;</span><span class="w"> </span><span class="k">fi</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">    </span><span class="nb">cd</span><span class="w"> </span><span class="s2">"</span><span class="nv">$BASE</span><span class="s2">"</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">    </span>setsid<span class="w"> </span>nohup<span class="w"> </span>java<span class="w"> </span>-Xmx<span class="nv">$HEAP</span><span class="w"> </span>-jar<span class="w"> </span><span class="s2">"</span><span class="nv">$JAR</span><span class="s2">"</span><span class="w"> </span>--cfg<span class="w"> </span><span class="s2">"</span><span class="nv">$CFG</span><span class="s2">"</span><span class="w"> </span>&gt;&gt;<span class="w"> </span><span class="s2">"</span><span class="nv">$LOG</span><span class="s2">"</span><span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span>&lt;<span class="w"> </span>/dev/null<span class="w"> </span><span class="p">&amp;</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="w">    </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$!</span><span class="w"> </span>&gt;<span class="w"> </span><span class="s2">"</span><span class="nv">$PIDFILE</span><span class="s2">"</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">    </span>sleep<span class="w"> </span><span class="m">3</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="w">    </span>alive<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"started (PID </span><span class="k">$(</span>cat<span class="w"> </span><span class="s2">"</span><span class="nv">$PIDFILE</span><span class="s2">"</span><span class="k">)</span><span class="s2">)"</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">{</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"START FAILED - see </span><span class="nv">$LOG</span><span class="s2">"</span><span class="p">;</span><span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span><span class="p">;</span><span class="w"> </span><span class="o">}</span>
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="w">    </span><span class="p">;;</span>
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="w">  </span>stop<span class="o">)</span>
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span>!<span class="w"> </span>alive<span class="p">;</span><span class="w"> </span><span class="k">then</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"not running"</span><span class="p">;</span><span class="w"> </span>rm<span class="w"> </span>-f<span class="w"> </span><span class="s2">"</span><span class="nv">$PIDFILE</span><span class="s2">"</span><span class="p">;</span><span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="m">0</span><span class="p">;</span><span class="w"> </span><span class="k">fi</span>
+</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="w">    </span><span class="nv">PID</span><span class="o">=</span><span class="k">$(</span>cat<span class="w"> </span><span class="s2">"</span><span class="nv">$PIDFILE</span><span class="s2">"</span><span class="k">)</span>
+</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="w">    </span><span class="nb">kill</span><span class="w"> </span><span class="s2">"</span><span class="nv">$PID</span><span class="s2">"</span>
+</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="w">    </span><span class="c1"># shutdown performs a final dump - give it time before escalating</span>
+</span><span id="__span-0-27"><a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span>i<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="k">$(</span>seq<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">30</span><span class="k">)</span><span class="p">;</span><span class="w"> </span><span class="k">do</span><span class="w"> </span><span class="nb">kill</span><span class="w"> </span>-0<span class="w"> </span><span class="s2">"</span><span class="nv">$PID</span><span class="s2">"</span><span class="w"> </span><span class="m">2</span>&gt;/dev/null<span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="k">break</span><span class="p">;</span><span class="w"> </span>sleep<span class="w"> </span><span class="m">1</span><span class="p">;</span><span class="w"> </span><span class="k">done</span>
+</span><span id="__span-0-28"><a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a><span class="w">    </span><span class="nb">kill</span><span class="w"> </span>-0<span class="w"> </span><span class="s2">"</span><span class="nv">$PID</span><span class="s2">"</span><span class="w"> </span><span class="m">2</span>&gt;/dev/null<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">kill</span><span class="w"> </span>-9<span class="w"> </span><span class="s2">"</span><span class="nv">$PID</span><span class="s2">"</span>
+</span><span id="__span-0-29"><a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="w">    </span>rm<span class="w"> </span>-f<span class="w"> </span><span class="s2">"</span><span class="nv">$PIDFILE</span><span class="s2">"</span>
+</span><span id="__span-0-30"><a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a><span class="w">    </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"stopped"</span>
+</span><span id="__span-0-31"><a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a><span class="w">    </span><span class="p">;;</span>
+</span><span id="__span-0-32"><a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a><span class="w">  </span>restart<span class="o">)</span><span class="w"> </span><span class="s2">"</span><span class="nv">$0</span><span class="s2">"</span><span class="w"> </span>stop<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="s2">"</span><span class="nv">$0</span><span class="s2">"</span><span class="w"> </span>start<span class="w"> </span><span class="p">;;</span>
+</span><span id="__span-0-33"><a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a><span class="w">  </span>status<span class="o">)</span>
+</span><span id="__span-0-34"><a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span>alive<span class="p">;</span><span class="w"> </span><span class="k">then</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"running (PID </span><span class="k">$(</span>cat<span class="w"> </span><span class="s2">"</span><span class="nv">$PIDFILE</span><span class="s2">"</span><span class="k">)</span><span class="s2">)"</span><span class="p">;</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"stopped"</span><span class="p">;</span><span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span><span class="p">;</span><span class="w"> </span><span class="k">fi</span>
+</span><span id="__span-0-35"><a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a><span class="w">    </span><span class="p">;;</span>
+</span><span id="__span-0-36"><a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a><span class="w">  </span>*<span class="o">)</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"Usage: </span><span class="nv">$0</span><span class="s2"> start|stop|restart|status"</span><span class="p">;</span><span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="p">;;</span>
+</span><span id="__span-0-37"><a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a><span class="k">esac</span>
 </span></code></pre></div>
-   Then open http://127.0.0.1:8000</p>
-</li>
-<li>
-<p><strong>Build static site:</strong>
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>mkdocs<span class="w"> </span>build
-</span></code></pre></div>
-   Output will be in the <code>site/</code> directory.</p>
-</li>
-</ol>
-<h2 id="documentation-structure">Documentation Structure<a class="headerlink" href="#documentation-structure" title="Permanent link">&para;</a></h2>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>docs/
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>├── index.md                          # Home page
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>├── overview.md                       # Getting started overview
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>├── architecture-overview.md          # Architecture details
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>├── developer-guide.md                # Developer guide
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>├── messaging.md                      # Messaging system
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>├── api-reference.md                  # API reference
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>├── configuration-reference.md        # Configuration options
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>├── performance-scalability-guide.md  # Performance tuning
-</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>├── production-deployment-guide.md    # Production deployment
-</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>├── monitoring-metrics-guide.md       # Monitoring and metrics
-</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>├── security-guide.md                 # Security best practices
-</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>├── troubleshooting-guide.md          # Troubleshooting
-</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>└── howtos/                           # How-to guides
-</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>    ├── basic-setup.md
-</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>    ├── migration-v5-to-v6.md
-</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>    ├── inmemory-driver.md
-</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>    ├── aggregation-examples.md
-</span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>    ├── caching-examples.md
-</span><span id="__span-3-20"><a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>    ├── cache-patterns.md
-</span><span id="__span-3-21"><a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a>    ├── field-names.md
-</span><span id="__span-3-22"><a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a>    └── messaging-implementations.md
-</span></code></pre></div>
-<h2 id="automated-deployment">Automated Deployment<a class="headerlink" href="#automated-deployment" title="Permanent link">&para;</a></h2>
-<p>The documentation is automatically deployed to GitHub Pages when changes are pushed to the <code>master</code> or <code>develop</code> branch.</p>
-<h3 id="github-actions-workflow">GitHub Actions Workflow<a class="headerlink" href="#github-actions-workflow" title="Permanent link">&para;</a></h3>
+<p><strong>Why pidfile, not <code>pgrep -f "poppydb.jar"</code>:</strong> a pattern match against the process command line
+also matches the command line of whatever <em>invoked</em> it — a remote-ops script or an SSH session
+that itself contains the string <code>poppydb.jar</code> (e.g. because it just built the <code>start</code> command) can
+match itself and get killed. This has bitten real deployments during scripted rolling restarts.
+Match by pidfile, not by pattern, whenever you're driving <code>start</code>/<code>stop</code> from another script.</p>
+<h2 id="2-log-rotation">2. Log rotation<a class="headerlink" href="#2-log-rotation" title="Permanent link">&para;</a></h2>
+<p>The bundled Logback configuration (<a href="../../poppydb/#logging">PoppyDB § Logging</a>) controls
+<em>verbosity</em> (<code>--log-level</code>), not <em>rotation</em> — left alone, a <code>&gt;&gt;</code>-appended log file grows
+unbounded. Two ways to bound it:</p>
 <ul>
-<li>File: <code>.github/workflows/deploy-docs.yml</code></li>
-<li>Triggers on: Push to <code>master</code>/<code>develop</code> with changes to <code>docs/**</code> or <code>mkdocs.yml</code></li>
-<li>Manual trigger: Available via GitHub Actions UI</li>
+<li><strong>External <code>logrotate</code></strong>, if the process writes to a plain file (as in the <code>poppy-ctl.sh</code>
+  pattern above, <code>&gt;&gt; "$LOG"</code>): use <code>copytruncate</code> so the running JVM doesn't need to reopen its
+  file handle.</li>
 </ul>
-<h3 id="how-it-works">How it works:<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h3>
-<ol>
-<li>Checks out the repository</li>
-<li>Installs Python and MkDocs dependencies</li>
-<li>Builds the documentation site</li>
-<li>Deploys to the <code>gh-pages</code> branch</li>
-<li>GitHub Pages serves the content</li>
-</ol>
-<h2 id="navigation-features">Navigation Features<a class="headerlink" href="#navigation-features" title="Permanent link">&para;</a></h2>
-<p>The Material theme provides:
-- <strong>Tabbed Navigation</strong>: Top-level categories
-- <strong>Sidebar Navigation</strong>: Nested page structure
-- <strong>Search</strong>: Full-text search across all docs
-- <strong>Dark/Light Mode</strong>: Theme switcher
-- <strong>Code Highlighting</strong>: Syntax highlighting for code blocks
-- <strong>Mobile Responsive</strong>: Works on all devices
-- <strong>Table of Contents</strong>: Per-page TOC on the right</p>
-<h2 id="editing-documentation">Editing Documentation<a class="headerlink" href="#editing-documentation" title="Permanent link">&para;</a></h2>
-<ol>
-<li>Edit Markdown files in the <code>docs/</code> directory</li>
-<li>Add new pages to <code>mkdocs.yml</code> navigation</li>
-<li>Test locally with <code>mkdocs serve</code></li>
-<li>Commit and push to trigger automatic deployment</li>
-</ol>
-<h3 id="markdown-extensions">Markdown Extensions<a class="headerlink" href="#markdown-extensions" title="Permanent link">&para;</a></h3>
-<p>Supported features:
-- <strong>Admonitions</strong>: <code>!!! note</code>, <code>!!! warning</code>, etc.
-- <strong>Code Blocks</strong>: Triple backticks with syntax highlighting
-- <strong>Tables</strong>: Standard Markdown tables
-- <strong>Tabbed Content</strong>: Using pymdownx.tabbed
-- <strong>Task Lists</strong>: <code>- [ ]</code> and <code>- [x]</code></p>
-<h2 id="theme-configuration">Theme Configuration<a class="headerlink" href="#theme-configuration" title="Permanent link">&para;</a></h2>
-<p>The Material theme is configured in <code>mkdocs.yml</code>:
-- <strong>Colors</strong>: Indigo primary/accent
-- <strong>Features</strong>: Navigation tabs, expand sections, search suggestions
-- <strong>Plugins</strong>: Search, tags
-- <strong>Social</strong>: GitHub repository link</p>
-<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
-<p><strong>Issue</strong>: Theme not found
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pip<span class="w"> </span>install<span class="w"> </span>mkdocs-material
-</span></code></pre></div></p>
-<p><strong>Issue</strong>: Build fails
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>mkdocs<span class="w"> </span>build<span class="w"> </span>--strict<span class="w">  </span><span class="c1"># Shows detailed errors</span>
-</span></code></pre></div></p>
-<p><strong>Issue</strong>: Navigation not updating
-- Check <code>mkdocs.yml</code> nav structure
-- Ensure file paths are correct relative to <code>docs/</code></p>
-<h2 id="contributing">Contributing<a class="headerlink" href="#contributing" title="Permanent link">&para;</a></h2>
-<p>When adding new documentation:
-1. Place in appropriate directory (<code>docs/</code> or <code>docs/howtos/</code>)
-2. Update <code>mkdocs.yml</code> navigation
-3. Use consistent heading levels (H1 for title, H2 for sections)
-4. Add code examples where applicable
-5. Test locally before committing</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a># /etc/logrotate.d/poppydb
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>/opt/poppydb/poppydb.log {
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  copytruncate
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>  compress
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>  delaycompress
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>  missingok
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>  notifempty
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>  rotate 7
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>  daily
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>  maxsize 500M
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>}
+</span></code></pre></div>
+<p>If a log-shipping agent (Promtail, Filebeat, Fluent Bit, …) reads the same file, grant it read
+  access explicitly in a <code>postrotate</code> step (e.g. <code>setfacl -m u:&lt;shipper-user&gt;:r &lt;logfile&gt;</code>) —
+  rotation can otherwise leave the shipper holding a stale file handle pointed at the now-renamed
+  file.</p>
+<ul>
+<li><strong>Full Logback replacement</strong> via <code>-Dlogback.configurationFile=/path/to/my-logback.xml</code>
+  (<a href="../../poppydb/#logging">PoppyDB § Logging</a>) with a <code>RollingFileAppender</code> — use this if you want
+  the JVM itself to own rotation (size- or time-based policies, no <code>copytruncate</code> gap) instead of
+  an external tool.</li>
+</ul>
+<p><strong>Shipping to a log aggregator:</strong> PoppyDB has no built-in shipper. The straightforward pattern is:
+dedicated log directory per instance, <code>logrotate</code> (or the Logback appender above) keeping it
+bounded, and your existing log-shipping agent's config pointed at that directory — the same way
+you'd wire up any other JVM service's logs. There's nothing PoppyDB-specific to configure beyond
+making sure the shipper can read the (rotated) file.</p>
+<h2 id="3-before-you-change-anything-validate-first">3. Before you change anything: validate first<a class="headerlink" href="#3-before-you-change-anything-validate-first" title="Permanent link">&para;</a></h2>
+<p>Before rolling out a config change or a version upgrade to a replica set:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>java<span class="w"> </span>-jar<span class="w"> </span>poppydb-cli.jar<span class="w"> </span>--cfg<span class="w"> </span>conf/poppydb.conf<span class="w"> </span>--check-config<span class="w">   </span><span class="c1"># exit 0 = OK, 1 = errors</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>java<span class="w"> </span>-jar<span class="w"> </span>poppydb-cli.jar<span class="w"> </span>--cfg<span class="w"> </span>conf/poppydb.conf<span class="w"> </span>--print-config<span class="w">   </span><span class="c1"># effective config, secrets redacted</span>
+</span></code></pre></div>
+<p><code>--check-config</code> validates syntax, semantic cross-checks, and deep checks (keystore loadable,
+dump-dir usable, users-file parses) <strong>without starting the server</strong> — run it against the new
+config/JAR before touching a live node. <code>--print-config</code> shows the fully merged effective
+configuration (defaults + file + CLI, with per-key source annotations) — useful for confirming
+what a node will <em>actually</em> run with before you restart it, especially when CLI flags and a config
+file are both in play (see <a href="../../poppydb/#configuration-file">Configuration precedence</a>).</p>
+<p>Combine with a manual snapshot immediately before the change (see
+<a href="../poppydb-deployment/#8-upgrades">Deployment Playbook §8, Upgrades</a>) — cheap insurance, and the
+one your rollback plan will actually need if something goes wrong.</p>
+<p><strong>Cross-version dump/restore:</strong> dumps are generally forward-readable (see
+<a href="../../poppydb/#persistence-periodic-snapshots">Persistence § dumps written before 6.3.2</a>), but
+always verify a restore against the <em>target</em> version before relying on it in production — a dump
+taken by one build and restored by a materially different build is the one scenario worth testing
+explicitly rather than assuming, especially across a version jump you haven't run before.</p>
+<h2 id="4-field-notes-reconnection-after-a-node-replacement-or-failover">4. Field notes: reconnection after a node replacement or failover<a class="headerlink" href="#4-field-notes-reconnection-after-a-node-replacement-or-failover" title="Permanent link">&para;</a></h2>
+<p>When a node is replaced (a MongoDB→PoppyDB cutover on the same host/port, a version upgrade, or an
+ordinary failover), connected clients see their change-stream resume tokens invalidated — this is
+<strong>expected</strong>, not a malfunction (see
+<a href="../../poppydb/#stepdown-failover-behavior-replica-set">StepDown/Failover Behavior</a>). A
+well-behaved client library reconnects and re-establishes its change stream on its own; you should
+<strong>not</strong> need to restart every connected service as a matter of routine.</p>
+<p>Treat a coordinated restart of dependent services as a <strong>safety net, not a required step</strong>:
+- After a planned node replacement, watch application logs/metrics for successful reconnects
+  first.
+- Only restart a specific service if it's still failing to reconnect after a reasonable grace
+  period — older or misbehaving client library versions occasionally get stuck reporting "no
+  primary found" after a failover instead of retrying; a targeted restart of <em>that</em> service clears
+  it. This is a client-side bug class, not something to work around by restarting the whole fleet
+  preemptively.
+- If you find yourself routinely needing a full rolling restart after every failover, that's worth
+  investigating as a client-library issue rather than accepting it as normal operating procedure.</p>
+<h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../poppydb-deployment/">PoppyDB Production Deployment Playbook</a> — initial setup, secrets,
+  systemd, capacity planning, monitoring, backup/restore, upgrades</li>
+<li><a href="../../poppydb/">PoppyDB</a> — full feature reference</li>
+<li><a href="../migration-mongodb-to-poppydb/">Migrating from MongoDB to PoppyDB</a></li>
+</ul>
 
 
 
@@ -2705,10 +2523,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>
