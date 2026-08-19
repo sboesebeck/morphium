@@ -10,6 +10,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### PoppyDB change-stream cursors silently dropped events under burst load
+`WatchCursorManager.drainEvents()` capped a batch at 100 events with
+`while ((event = queue.poll()) != null && count < 100)` — when the queue held more than 100
+pending events, the 101st was polled off the queue *before* the count check short-circuited
+the loop, and the already-removed event was then dropped on the floor instead of being
+returned or requeued. Under a burst that pushes the cursor's queue depth above 100 between two
+`getMore`s (found via a Morphium Messaging benchmark that bulk-inserts 5000 documents in
+~150ms), this lost roughly 1% of all change-stream events per cursor, silently — messages
+never went missing loudly, they just took until their TTL expired to surface via the
+(also affected) polling fallback, or never surfaced at all outside of one.
+
+Fixed by checking the count bound before polling
+(`while (count < 100 && (event = queue.poll()) != null)`), so a 101st event stays in the queue
+for the next drain instead of being discarded. `drainEvents()` backs both watch and tailable
+cursors, so this likely also explains (and fixes) the long-standing `TailableQueryTests`
+flakiness on PoppyDB noted as "known non-code flakiness" in the homelab test matrix — that
+"getMore doesn't always see inserts from another connection" symptom is exactly this event
+loss, not a genuine ordering/visibility gap.
+
 #### GitHub releases carried neither the binaries nor a word of prose
 Everything `release.sh` ever put on a GitHub release was the test-results table: the release
 body came from `--notes-file <test report>` and nothing else, and no asset was ever uploaded.

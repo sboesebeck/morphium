@@ -362,7 +362,13 @@ public class WatchCursorManager {
         List<Map<String, Object>> batch = new ArrayList<>();
         Map<String, Object> event;
         int count = 0;
-        while ((event = queue.poll()) != null && count < 100) {
+        // The count bound MUST be checked BEFORE polling: with the conditions the other way
+        // round, the batch-capping drain polled a 101st event off the queue and then dropped
+        // it on the floor when the count check short-circuited the loop - silently losing one
+        // event per full batch. Under a bulk-insert burst (queue depth > 100 between getMores)
+        // that lost ~1% of all change stream events per cursor, which is exactly how the
+        // bulk100 messaging benchmark lost ~46 of 5000 messages.
+        while (count < 100 && (event = queue.poll()) != null) {
             batch.add(event);
             count++;
         }
