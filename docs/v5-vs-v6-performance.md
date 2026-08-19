@@ -237,16 +237,31 @@ was designed for (bounded-latency background writes, not synchronous-ack message
 thousands of msg/s), not a MongoDB or Morphium reliability issue.
 
 **Two real bugs came out of building this probe, both found and fixed the same day, on
-`develop`:**
-- PoppyDB's change-stream cursor silently dropped roughly 1% of events under a bulk-insert
-  burst — an off-by-one batch-cap check in `WatchCursorManager.drainEvents()` polled the
-  101st event off the queue before checking the 100-event cap, then discarded it (`4e8ccebf1`).
-  The same drain path backs tailable cursors too, so this likely also explains the
-  long-standing `TailableQueryTests` flakiness on PoppyDB noted in the homelab test matrix.
-- Messaging's poll fallback let messages for topics without a registered listener — left
-  unmarked on purpose, so a listener registered later still receives them — permanently occupy
-  slots of the `limit(windowSize)` poll window, starving deliverable messages until the
-  blockers expired via TTL (`20a8bf36a`).
+`develop`. Neither needs this benchmark's exact scenario to matter in practice — but both
+need a specific-enough condition that they're worth being precise about, not alarmist:**
+
+- **PoppyDB's change-stream cursor silently dropped roughly 1% of events under a burst of
+  more than 100 pending events between two `getMore`s** — an off-by-one batch-cap check in
+  `WatchCursorManager.drainEvents()` polled the 101st event off the queue before checking the
+  100-event cap, then discarded it (`4e8ccebf1`). This is general change-stream/tailable-cursor
+  infrastructure, not Messaging-specific: any bulk import, migration, or ETL job writing into a
+  collection an application is watching can trigger it — reaching it *through* Messaging
+  specifically needed calling `morphium.insert(List<Msg>, ...)` directly, bypassing
+  `sendMessage()`, since the public Messaging API has no bulk-send call that could do this on
+  its own today. The same drain path backs tailable cursors too, so this likely also explains
+  the long-standing `TailableQueryTests` flakiness on PoppyDB noted in the homelab test matrix.
+- **Messaging's poll fallback let messages for topics without a registered listener starve
+  deliverable messages out of the poll window.** The trigger condition is narrower than it
+  sounds: it needs *this instance* specifically not to listen to a topic (normal in a
+  multi-topic setup — most deployments share one collection across several message types, each
+  service instance listening only to its own subset) *and* enough concurrent volume on that
+  unlistened topic to reach `windowSize` (default 100) pending messages within one TTL window
+  (default 300s) — plausible under moderate-to-high multi-topic traffic, unlikely on a quiet
+  single-topic setup. Skipped messages were left unmarked on purpose (so a listener registered
+  later still receives them), but that meant they re-entered every poll and — being older than
+  new arrivals — permanently occupied window slots (`20a8bf36a`). The benchmark reproduced the
+  effect in its most severe form (one collection, many topics, zero listeners, in quick
+  succession) to make it unmissable, not because that's a typical deployment shape.
 
 The benchmark itself is a one-off exploratory probe, not an ongoing regression test — it lives
 on branch `bench/messaging-batch-send-throughput` rather than `develop`.

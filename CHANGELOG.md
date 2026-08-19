@@ -17,11 +17,13 @@ with `limit(windowSize)`. A message for a topic this instance has no listener fo
 during processing *without* a `processed_by` mark — deliberately, because a listener registered
 later (via `addListenerForTopic()`) must still receive it. But that meant the skipped message
 re-entered every subsequent poll, and being older than any new arrival it sorted ahead of them
-and permanently occupied a slot of the poll window. With `windowSize` (default 100) or more such
-messages in the collection — easily reached with multiple topics sharing one collection where an
-instance doesn't listen to all of them (rolling deploys with changing topic names, multi-tenant
-setups, benchmarks reusing a collection across topics) — messages for topics *with* a listener
-were starved until the blockers expired via TTL (default 300s).
+and permanently occupied a slot of the poll window. The trigger is per-instance, not global: it only takes *this* instance not listening to a
+topic that has concurrent traffic elsewhere in the collection — the normal case wherever
+several message types share one collection and each service instance listens to its own
+subset. What actually determines severity is volume: with `windowSize` (default 100) or more
+such messages pending within one TTL window (default 300s) — plausible under moderate-to-high
+multi-topic traffic, unlikely on a quiet single-topic setup — messages for topics *with* a
+listener were starved until the blockers expired via TTL.
 
 The fix filters the poll query itself: it only fetches messages whose topic currently has a
 registered listener (plus the status-info topic and the V5-legacy `name` field), while answers
@@ -43,7 +45,12 @@ returned or requeued. Under a burst that pushes the cursor's queue depth above 1
 `getMore`s (found via a Morphium Messaging benchmark that bulk-inserts 5000 documents in
 ~150ms), this lost roughly 1% of all change-stream events per cursor, silently — messages
 never went missing loudly, they just took until their TTL expired to surface via the
-(also affected) polling fallback, or never surfaced at all outside of one.
+(also affected) polling fallback, or never surfaced at all outside of one. This is general
+change-stream/tailable-cursor infrastructure, not Messaging-specific: any bulk import,
+migration, or ETL job writing into a collection an application is watching can trigger it.
+Reaching it *through* Messaging specifically needed calling `morphium.insert(List<Msg>, ...)`
+directly, bypassing `sendMessage()` — the public Messaging API has no bulk-send call that
+could hit this on its own today.
 
 Fixed by checking the count bound before polling
 (`while (count < 100 && (event = queue.poll()) != null)`), so a 101st event stays in the queue
