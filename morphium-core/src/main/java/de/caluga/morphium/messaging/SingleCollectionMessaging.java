@@ -1507,6 +1507,29 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             var q1 = q.q().f(Msg.Fields.exclusive).eq(true).f(processedByFieldName + ".0").notExists();
             // q2: non-exclusive messages, cannot be locked, not processed by me yet
             var q2 = q.q().f(Msg.Fields.exclusive).ne(true).f(processedByFieldName).ne(id);
+            // Relevance filter (poll-side counterpart of buildMainCsPipeline()'s insert filter):
+            // only fetch messages this instance can currently act on. A message for a topic with
+            // no registered listener is skipped in processing WITHOUT a processed_by mark - on
+            // purpose, so a listener registered later still receives it. But being older than any
+            // new arrival, such a message would re-enter every poll and permanently occupy a slot
+            // of the (priority, timestamp)-sorted limit(windowSize) window: enough of them starve
+            // deliverable messages until TTL expiry. Filtering them out of the poll query instead
+            // keeps them pending without blocking the window; addListenerForTopic() bumps
+            // requestPoll, so the first poll after a late registration includes the new topic and
+            // delivers the backlog.
+            Set<String> watchedTopics = new HashSet<>(listenerByName.keySet());
+            // the status-info topic stays pollable regardless of listener registration state,
+            // mirroring the change stream filter (#283)
+            watchedTopics.add(statusInfoListenerName);
+            List<Query<Msg>> relevance = List.of(
+                q.q().f(Msg.Fields.topic).in(watchedTopics),
+                // V5-legacy senders store the topic only in "name" (see buildMainCsPipeline())
+                q.q().f("name").in(watchedTopics),
+                // answers target waiters/callbacks, not topic listeners - they pass regardless
+                // of topic (same clause as the change stream filter)
+                q.q().f(Msg.Fields.inAnswerTo).ne(null));
+            q1.or(relevance);
+            q2.or(relevance);
             q.f("_id").nin(idsToIgnore);
             q.f(Msg.Fields.sender).ne(id);  // Don't receive messages sent by myself
             q.f(Msg.Fields.recipients).in(Arrays.asList(null, id));

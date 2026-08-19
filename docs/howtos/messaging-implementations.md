@@ -212,6 +212,14 @@ messaging.addListenerForTopic("orders.created", (mm, msg) -> {
 Relevant settings are the same across all three implementations (see the Messaging page):
 - `messageQueueName`, `messagingWindowSize`, `messagingMultithreadded`, `useChangeStream`, `messagingPollPause`.
 
+Note on topics without a listener: the poll fallback only fetches messages whose topic currently
+has a registered listener on this instance (answers always pass — they target waiters/callbacks,
+not listeners). A message that arrives before its listener is registered is *not* consumed or
+marked processed; it stays pending in the collection and is delivered by the first poll after
+`addListenerForTopic()` registers the topic. This also means messages for topics an instance
+never listens to cannot occupy slots of the `messagingWindowSize`-limited poll window and starve
+deliverable messages — they are simply invisible to that instance until their TTL expires.
+
 Dual Channel additionally supports `messagingDmCleanupOrphansOnStartup` (see above).
 
 ## Storage Layout Details

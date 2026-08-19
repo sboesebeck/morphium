@@ -10,6 +10,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### Messages for topics without a listener starved the messaging poll window
+`getMessagesForProcessing()` (SingleCollectionMessaging and DualChannelMessaging, plus the
+latter's DM-lane fallback poll) fetched candidate messages sorted by `(priority, timestamp)`
+with `limit(windowSize)`. A message for a topic this instance has no listener for is skipped
+during processing *without* a `processed_by` mark — deliberately, because a listener registered
+later (via `addListenerForTopic()`) must still receive it. But that meant the skipped message
+re-entered every subsequent poll, and being older than any new arrival it sorted ahead of them
+and permanently occupied a slot of the poll window. With `windowSize` (default 100) or more such
+messages in the collection — easily reached with multiple topics sharing one collection where an
+instance doesn't listen to all of them (rolling deploys with changing topic names, multi-tenant
+setups, benchmarks reusing a collection across topics) — messages for topics *with* a listener
+were starved until the blockers expired via TTL (default 300s).
+
+The fix filters the poll query itself: it only fetches messages whose topic currently has a
+registered listener (plus the status-info topic and the V5-legacy `name` field), while answers
+pass regardless of topic since they target waiters/callbacks, not listeners. This mirrors the
+server-side relevance filter the change-stream pipeline already applied. Crucially, skipped
+messages are still *not* marked processed — they simply stay pending in the collection without
+blocking the window, and because `addListenerForTopic()` bumps the poll trigger, the first poll
+after a late listener registration picks up the backlog. Regression tests cover both the
+starvation and the listener-registered-later delivery guarantee (broadcast and directed).
+MultiCollectionMessaging is structurally immune (it polls per-topic collections only for
+registered listeners).
+
 #### PoppyDB change-stream cursors silently dropped events under burst load
 `WatchCursorManager.drainEvents()` capped a batch at 100 events with
 `while ((event = queue.poll()) != null && count < 100)` — when the queue held more than 100

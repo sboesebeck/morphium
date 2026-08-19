@@ -1499,6 +1499,20 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
                 q.f("_id").nin(idsToIgnore);
             }
 
+            // Same relevance filter as the main lane's poll (see getMessagesForProcessing()):
+            // a DM for a topic without a registered listener is skipped in processDmElement()
+            // WITHOUT a processed_by mark and would otherwise permanently occupy a slot of the
+            // sorted limit(windowSize) window, starving deliverable DMs. It stays pending in the
+            // DM collection instead; addListenerForTopic() bumps requestDmPoll, so a listener
+            // registered later still receives it.
+            Set<String> watchedTopics = new HashSet<>(listenerByName.keySet());
+            watchedTopics.add(statusInfoListenerName);
+            q.or(q.q().f(Msg.Fields.topic).in(watchedTopics),
+                 // V5-legacy senders store the topic only in "name"
+                 q.q().f("name").in(watchedTopics),
+                 // answers target waiters/callbacks, not topic listeners
+                 q.q().f(Msg.Fields.inAnswerTo).ne(null));
+
             q.setLimit(windowSize);
             q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
             List<Msg> result = q.asList();
@@ -2118,6 +2132,25 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
             var q1 = q.q().f(Msg.Fields.exclusive).eq(true).f(processedByFieldName + ".0").notExists();
             // q2: non-exclusive messages, cannot be locked, not processed by me yet
             var q2 = q.q().f(Msg.Fields.exclusive).ne(true).f(processedByFieldName).ne(id);
+            // Relevance filter - same rationale as SingleCollectionMessaging.getMessagesForProcessing():
+            // messages for topics without a registered listener are skipped in processing WITHOUT a
+            // processed_by mark (so a listener registered later still gets them), but pre-filter they
+            // re-entered every poll and - being older than new arrivals - permanently occupied slots
+            // of the (priority, timestamp)-sorted limit(windowSize) window, starving deliverable
+            // messages until TTL expiry. Excluding them from the poll query keeps them pending
+            // without blocking the window; addListenerForTopic() bumps the poll triggers, so the
+            // first poll after a late registration delivers the backlog.
+            Set<String> watchedTopics = new HashSet<>(listenerByName.keySet());
+            // the status-info topic stays pollable regardless of listener registration state (#283)
+            watchedTopics.add(statusInfoListenerName);
+            List<Query<Msg>> relevance = List.of(
+                q.q().f(Msg.Fields.topic).in(watchedTopics),
+                // V5-legacy senders store the topic only in "name"
+                q.q().f("name").in(watchedTopics),
+                // answers target waiters/callbacks, not topic listeners - they pass regardless of topic
+                q.q().f(Msg.Fields.inAnswerTo).ne(null));
+            q1.or(relevance);
+            q2.or(relevance);
             q.f("_id").nin(idsToIgnore);
             q.f(Msg.Fields.sender).ne(id);  // Don't receive messages sent by myself
             q.f(Msg.Fields.recipients).in(Arrays.asList(null, id));
@@ -2769,6 +2802,9 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
         });
 
         requestPoll.incrementAndGet();
+        // the DM lane filters its poll by registered topics too (see findDmMessages()) - a DM
+        // that arrived before this registration must be picked up now, not a poll interval later
+        requestDmPoll.incrementAndGet();
     }
 
     @Override
