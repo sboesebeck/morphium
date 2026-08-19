@@ -10,6 +10,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### GitHub releases carried neither the binaries nor a word of prose
+Everything `release.sh` ever put on a GitHub release was the test-results table: the release
+body came from `--notes-file <test report>` and nothing else, and no asset was ever uploaded.
+The prose on 6.3.0-6.3.2 and the `poppydb-*-cli.jar` attached to them were typed in and
+dragged there by hand afterwards — so v6.3.3, where that manual step was forgotten, shipped
+with an empty description and no downloadable artifact at all, while the CHANGELOG's
+`[Unreleased]` block still held exactly the text that release was missing.
+
+Three changes close the loop:
+
+- **The CHANGELOG is stamped at release time.** Before `release:prepare`, `[Unreleased]` is
+  rolled over into `## [X.Y.Z] - <date>` with a fresh empty `[Unreleased]` opened above it, so
+  the section is on the release commit and quotable from the tag. It stays hands-off when a
+  section for the version already exists, when there is no `[Unreleased]` heading, or when the
+  block is empty — a documentation gap is not a reason to abort a release.
+- **The release body is rebuilt, not appended to.** Prose (everything outside the test-report
+  markers) and the report are treated as two independent halves: hand-written prose always
+  wins and the CHANGELOG section only fills in an empty one, while the report block is
+  replaced rather than stacked. Re-running the step is therefore a no-op instead of producing
+  a second table.
+- **Every module jar is attached as a release asset**, including `poppydb-*-cli.jar`. Sources
+  and javadoc stay out — those are on Maven Central, and thirty assets on a release page help
+  nobody. Artifacts come from this run's bundle staging dir, or the zipped
+  `target/bundle-<version>.jar` (`--skip-to-upload`), or straight from Maven Central.
+
+The Maven Central fallback is what makes the new `./release.sh --github-assets [version]` mode
+work on releases that were cut long ago: it attaches the jars and fills in a missing body for
+any existing tag, which is how v6.3.3 was repaired retroactively.
+
+
+## [6.3.3] - 2026-08-18
+
+### Fixed
+
 #### Replica-set node cut off for good after a restart, with nothing in the leader's log
 A node that restarted could stay outside its replica set indefinitely: the leader kept
 "sending" heartbeats to it but never opened a socket to it again, while continuing to serve

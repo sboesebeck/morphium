@@ -11,14 +11,17 @@ set -eo pipefail
 # 4. Reports on the test-results store (scripts/test_report.py) - never
 #    blocks the release (badges live on the test-results store branch, kept
 #    current by scripts/updateReleaseReport.sh, not committed here)
-# 5. Prepares release (creates tag, bumps next SNAPSHOT via maven-release-plugin)
+# 5. Rolls CHANGELOG [Unreleased] into the release version, then prepares the
+#    release (creates tag, bumps next SNAPSHOT via maven-release-plugin)
 # 6. Builds release artifacts for all modules
 # 7. Creates combined bundle (parent + all modules in MODULE_DIRS, see the
 #    "Module registry" section below)
 # 8. Signs & generates checksums for all artifacts
 # 9. Uploads bundle to Sonatype Central Portal
-# 10. Merges tag to master and pushes changes; attaches the test report to the
-#     GitHub release (best-effort, needs authenticated gh)
+# 10. Merges tag to master and pushes changes; publishes the GitHub release -
+#     body = CHANGELOG section for the version + test report, plus every
+#     module jar (incl. poppydb's -cli) as release assets (best-effort, needs
+#     authenticated gh)
 # 11. Deploys documentation to gh-pages (optional)
 # 12. Finalizes state and provides summary
 #
@@ -44,6 +47,12 @@ set -eo pipefail
 #   --rollback         Roll back the last release (renames tag, resets branches)
 #   --reset            Emergency reset: clean up release leftovers, align all
 #                      module versions to develop, remove dangling tags
+#   --github-assets [version]
+#                      Standalone: (re-)publish the GitHub release for an
+#                      existing tag - attaches all module jars (from a local
+#                      bundle or Maven Central) and fills in the release body
+#                      from the CHANGELOG if it has no prose yet. Defaults to
+#                      the last release tag.
 #   --help             Show this help message
 #
 # Prerequisites:
@@ -69,6 +78,8 @@ DEPLOY_DOCS=false
 SKIP_TO_UPLOAD=false
 ROLLBACK=false
 RESET=false
+GITHUB_ASSETS=false
+GITHUB_ASSETS_VERSION=""
 
 # Working dir for release-scoped scratch files (e.g. the test-results
 # report's markdown, read back later by the GitHub-release step). Created
@@ -116,6 +127,14 @@ while [[ $# -gt 0 ]]; do
     ;;
   --reset)
     RESET=true
+    shift
+    ;;
+  --github-assets)
+    GITHUB_ASSETS=true
+    if [[ -n "${2:-}" && "$2" != -* ]]; then
+      GITHUB_ASSETS_VERSION="$2"
+      shift
+    fi
     shift
     ;;
   --help)
@@ -492,45 +511,321 @@ run_test_results_report() {
   fi
 }
 
-# Attach the test-results report to the GitHub release for $tag: create the
-# release if it doesn't exist yet, otherwise append the report to whatever
-# notes are already there (release:perform / prior manual edits). Entirely
-# best-effort - a missing/unauthenticated gh CLI, or gh itself failing, is
-# logged as a warning and must never fail the release at this point (upload +
-# git merge to master already happened).
-publish_github_release_notes() {
-  if ! command -v gh &>/dev/null; then
-    log_warn "gh CLI not found - skipping GitHub release notes"
+# -----------------------------------------------------------------------------
+# CHANGELOG helpers
+# -----------------------------------------------------------------------------
+# The release notes on GitHub used to carry nothing but the test-results table
+# (v6.3.3 is the proof: no prose at all), because the only thing this script
+# ever fed to `gh release create` was the report markdown. The prose for
+# 6.3.0-6.3.2 was typed in by hand afterwards, so the one release where that
+# was forgotten shipped naked. The CHANGELOG already holds exactly that prose -
+# it just has to be stamped with the version at release time and read back
+# here.
+
+CHANGELOG_FILE="CHANGELOG.md"
+
+# Roll "## [Unreleased]" over into "## [<version>] - <today>" and open a fresh,
+# empty Unreleased block above it (Keep a Changelog convention). Called right
+# before release:prepare, so the stamped section rides along on the release
+# commit and is present on the tag - which is what makes it quotable as the
+# release body later.
+#
+# Deliberately conservative: it does nothing if a section for this version
+# already exists (a human rolled it over by hand), if there is no Unreleased
+# heading at all, or if the Unreleased block is empty - a release with nothing
+# in the CHANGELOG is a documentation gap, not a reason to abort the release.
+stamp_changelog_release() {
+  local version="$1"
+  local today
+  today=$(date +%Y-%m-%d)
+
+  if [ ! -f "$CHANGELOG_FILE" ]; then
+    log_warn "$CHANGELOG_FILE not found - release notes will carry only the test report"
     return 0
+  fi
+  if grep -q "^## \[${version//./\\.}\]" "$CHANGELOG_FILE"; then
+    log_info "CHANGELOG already has a [$version] section - leaving it alone"
+    return 0
+  fi
+  if ! grep -q '^## \[Unreleased\]' "$CHANGELOG_FILE"; then
+    log_warn "CHANGELOG has no [Unreleased] section - nothing to stamp as [$version]"
+    return 0
+  fi
+
+  # Anything but whitespace between [Unreleased] and the next "## [" heading?
+  local body
+  body=$(awk '/^## \[Unreleased\]/ {f=1; next} f && /^## \[/ {exit} f {print}' "$CHANGELOG_FILE")
+  if [ -z "$(printf '%s' "$body" | tr -d '[:space:]')" ]; then
+    log_warn "CHANGELOG [Unreleased] is empty - release notes will carry only the test report"
+    return 0
+  fi
+
+  awk -v ver="$version" -v day="$today" '
+    !stamped && /^## \[Unreleased\]/ {
+      print "## [Unreleased]"
+      print ""
+      print ""
+      print "## [" ver "] - " day
+      stamped = 1
+      next
+    }
+    { print }
+  ' "$CHANGELOG_FILE" >"${CHANGELOG_FILE}.relbak" && mv "${CHANGELOG_FILE}.relbak" "$CHANGELOG_FILE"
+
+  git add "$CHANGELOG_FILE"
+  git commit -m "docs: roll CHANGELOG [Unreleased] into ${version}" -q
+  log_success "CHANGELOG [Unreleased] rolled into [$version]"
+}
+
+# Print the CHANGELOG section for <version>: everything below its heading up to
+# the next "## [" heading, with leading/trailing blank lines trimmed. Prints
+# nothing if there is no such section. Takes the FIRST matching heading - the
+# file has historically grown a duplicate heading for one version (6.3.1), and
+# the first occurrence is the one the release was actually cut from.
+extract_changelog_section() {
+  local version="$1"
+  [ -f "$CHANGELOG_FILE" ] || return 0
+  awk -v ver="$version" '
+    !seen && index($0, "## [" ver "]") == 1 { seen = 1; next }
+    seen && /^## \[/ { exit }
+    seen {
+      if ($0 ~ /^[[:space:]]*$/) { if (started) blanks++ ; next }
+      while (blanks > 0) { print ""; blanks-- }
+      print; started = 1
+    }
+  ' "$CHANGELOG_FILE"
+}
+
+# -----------------------------------------------------------------------------
+# GitHub release helpers
+# -----------------------------------------------------------------------------
+
+# The test report is wrapped in HTML markers by scripts/test_report.py, which
+# is what lets us treat a release body as two independent halves: human prose
+# above, generated report below. Both helpers below are pure text filters
+# (stdin -> stdout) so the body can be rebuilt idempotently instead of having
+# the report appended a second time on every re-run.
+strip_test_report_block() {
+  awk '
+    /morphium-test-report:start/ { skip = 1 }
+    !skip { print }
+    /morphium-test-report:end/ { skip = 0 }
+  '
+}
+
+extract_test_report_block() {
+  awk '
+    /morphium-test-report:start/ { f = 1 }
+    f { print }
+    /morphium-test-report:end/ { f = 0 }
+  '
+}
+
+# True if gh is usable at all. Everything GitHub-facing in this script is
+# best-effort: it runs after the tag is pushed and the bundle is uploaded, so a
+# missing or unauthenticated gh must never fail the release.
+gh_available() {
+  if ! command -v gh &>/dev/null; then
+    log_warn "gh CLI not found - skipping GitHub release step"
+    return 1
   fi
   if ! gh auth status &>/dev/null; then
-    log_warn "gh CLI not authenticated - skipping GitHub release notes"
-    return 0
+    log_warn "gh CLI not authenticated - skipping GitHub release step"
+    return 1
   fi
+  return 0
+}
+
+# Publish the release body for <version>/<tag>: the CHANGELOG section as prose,
+# followed by the test-results report. Creates the release if it doesn't exist
+# yet, otherwise rewrites it in place.
+#
+# Rebuild rules, so this stays safe to re-run (and safe to point at a release
+# whose notes were written by hand):
+#   - existing prose (everything outside the report markers) always wins; the
+#     CHANGELOG section is only filled in when that prose is empty
+#   - the report block is REPLACED, not appended, so a second run does not
+#     stack two tables
+#   - with no freshly rendered report available (backfill mode), whatever
+#     report the release already carries is kept
+publish_github_release_notes() {
+  local version="$1"
+  local tag="$2"
+
+  gh_available || return 0
 
   local report_file="$RELEASE_TMP/test-report.md"
-  if [ ! -f "$report_file" ]; then
-    log_warn "No test-results report available - skipping GitHub release notes"
+  local changelog prose report existing
+  changelog=$(extract_changelog_section "$version")
+  [ -f "$report_file" ] && report=$(cat "$report_file")
+
+  if gh release view "$tag" >/dev/null 2>&1; then
+    if ! existing=$(gh release view "$tag" --json body -q .body); then
+      log_warn "Failed to read existing GitHub release body for $tag - skipping release notes"
+      return 0
+    fi
+    prose=$(printf '%s\n' "$existing" | strip_test_report_block)
+    if [ -z "$(printf '%s' "$prose" | tr -d '[:space:]')" ]; then
+      prose="$changelog"
+    fi
+    if [ -z "$report" ]; then
+      report=$(printf '%s\n' "$existing" | extract_test_report_block)
+    fi
+  else
+    prose="$changelog"
+  fi
+
+  if [ -z "$(printf '%s%s' "$prose" "$report" | tr -d '[:space:]')" ]; then
+    log_warn "Neither CHANGELOG section nor test report available - skipping release notes"
     return 0
   fi
 
-  if gh release view "$tag" >/dev/null 2>&1; then
-    local body
-    if ! body=$(gh release view "$tag" --json body -q .body); then
-      log_warn "Failed to read existing GitHub release body for $tag - skipping GitHub release notes"
-      return 0
+  # GitHub caps a release body at 125k characters. A CHANGELOG section can get
+  # within reach of that on a big release (6.3.2's is ~60k), and the report has
+  # to survive alongside it - so cut the prose with a pointer to the file
+  # instead of letting the API reject the whole body.
+  local max_prose=90000
+  if [ "${#prose}" -gt "$max_prose" ]; then
+    log_warn "CHANGELOG section for $version is ${#prose} chars - truncating it for the release body"
+    prose="${prose:0:$max_prose}
+
+_(truncated - the full section is in [CHANGELOG.md](https://github.com/sboesebeck/morphium/blob/${tag}/CHANGELOG.md))_"
+  fi
+
+  local notes_file="$RELEASE_TMP/release-notes.md"
+  {
+    if [ -n "$(printf '%s' "$prose" | tr -d '[:space:]')" ]; then
+      printf '%s\n\n' "$prose"
     fi
-    if ! printf '%s\n\n%s\n' "$body" "$(cat "$report_file")" | gh release edit "$tag" --notes-file -; then
+    if [ -n "$(printf '%s' "$report" | tr -d '[:space:]')" ]; then
+      printf '%s\n' "$report"
+    fi
+  } >"$notes_file"
+
+  if gh release view "$tag" >/dev/null 2>&1; then
+    if ! gh release edit "$tag" --notes-file "$notes_file" >/dev/null; then
       log_warn "Failed to update GitHub release notes for $tag"
       return 0
     fi
   else
-    if ! gh release create "$tag" --title "Morphium $tag" --notes-file "$report_file"; then
+    if ! gh release create "$tag" --title "Morphium $tag" --notes-file "$notes_file" >/dev/null; then
       log_warn "Failed to create GitHub release $tag"
       return 0
     fi
   fi
-  log_success "Test report attached to GitHub release $tag"
+
+  if [ -n "$(printf '%s' "$changelog" | tr -d '[:space:]')" ]; then
+    log_success "GitHub release notes published for $tag (CHANGELOG + test report)"
+  else
+    log_warn "GitHub release notes published for $tag, but WITHOUT prose - no [$version] section in $CHANGELOG_FILE"
+  fi
+}
+
+# Copy every module's main jar plus its extra classifiers (poppydb's -cli) for
+# <version> into <dest_dir>. Sources/javadoc are deliberately left out: they
+# are on Maven Central, and thirty assets on a release page help nobody.
+#
+# Three artifact sources, tried in this order:
+#   1. the bundle staging dir of this very run ($BUNDLE_DIR) - the normal path
+#   2. target/bundle-<version>.jar - a --skip-to-upload run, where the staging
+#      dir may be gone but the zipped bundle is still around
+#   3. Maven Central - backfilling an older release (--github-assets), where
+#      nothing local exists any more
+# A module missing from all three is warned about, not fatal: older releases
+# predate modules that are in the registry today (6.3.0 had no spring-boot-*).
+collect_release_assets() {
+  local version="$1"
+  local dest="$2"
+  local repo_root=""
+
+  mkdir -p "$dest"
+
+  if [ -n "$BUNDLE_DIR" ] && [ -d "${BUNDLE_DIR}/de/caluga" ]; then
+    repo_root="$BUNDLE_DIR"
+    log_info "Asset source: bundle staging dir"
+  elif [ -f "target/bundle-${version}.jar" ]; then
+    local bundle_abs
+    bundle_abs="$(pwd)/target/bundle-${version}.jar"
+    repo_root="$RELEASE_TMP/bundle-unpacked"
+    mkdir -p "$repo_root"
+    (cd "$repo_root" && unzip -q -o "$bundle_abs")
+    log_info "Asset source: target/bundle-${version}.jar"
+  else
+    log_info "Asset source: Maven Central (no local bundle for $version)"
+  fi
+
+  local i artifact_id name names cls missing="" found=0
+  local -a extra_classifiers
+  for i in "${!MODULE_ARTIFACT_IDS[@]}"; do
+    artifact_id="${MODULE_ARTIFACT_IDS[$i]}"
+    names="${artifact_id}-${version}.jar"
+    if [ -n "${MODULE_EXTRA_CLASSIFIERS[$i]}" ]; then
+      IFS=',' read -r -a extra_classifiers <<<"${MODULE_EXTRA_CLASSIFIERS[$i]}"
+      for cls in "${extra_classifiers[@]}"; do
+        names="${names} ${artifact_id}-${version}-${cls}.jar"
+      done
+    fi
+
+    for name in $names; do
+      if [ -n "$repo_root" ] && [ -f "${repo_root}/de/caluga/${artifact_id}/${version}/${name}" ]; then
+        cp "${repo_root}/de/caluga/${artifact_id}/${version}/${name}" "${dest}/${name}"
+        found=$((found + 1))
+      elif curl -fsSL -o "${dest}/${name}" \
+        "https://repo1.maven.org/maven2/de/caluga/${artifact_id}/${version}/${name}" 2>/dev/null; then
+        found=$((found + 1))
+      else
+        rm -f "${dest}/${name}"
+        missing="${missing:+$missing }${name}"
+      fi
+    done
+  done
+
+  if [ -n "$missing" ]; then
+    log_warn "No artifact found for: $missing"
+  fi
+  log_info "Collected $found release asset(s) for $version"
+  [ "$found" -gt 0 ]
+}
+
+# Attach the collected jars to the GitHub release for <tag>. --clobber so a
+# re-run replaces an asset instead of failing on "already exists" - which is
+# what makes this usable both in the release flow and for backfilling.
+publish_github_release_assets() {
+  local version="$1"
+  local tag="$2"
+
+  gh_available || return 0
+
+  if ! gh release view "$tag" >/dev/null 2>&1; then
+    log_warn "GitHub release $tag does not exist - skipping asset upload"
+    return 0
+  fi
+
+  local dest="$RELEASE_TMP/gh-assets"
+  rm -rf "$dest"
+  if ! collect_release_assets "$version" "$dest"; then
+    log_warn "No release assets found for $version - skipping asset upload"
+    return 0
+  fi
+
+  local -a assets=()
+  local f
+  for f in "$dest"/*.jar; do
+    [ -f "$f" ] && assets+=("$f")
+  done
+  if [ "${#assets[@]}" -eq 0 ]; then
+    log_warn "No release assets found for $version - skipping asset upload"
+    return 0
+  fi
+
+  if ! gh release upload "$tag" "${assets[@]}" --clobber >/dev/null; then
+    log_warn "Failed to upload release assets to $tag"
+    return 0
+  fi
+  log_success "${#assets[@]} asset(s) attached to GitHub release $tag"
+  for f in "${assets[@]}"; do
+    log_info "  $(basename "$f")"
+  done
 }
 
 cleanup() {
@@ -788,6 +1083,57 @@ do_reset() {
 
 if [ "$RESET" = true ]; then
   do_reset
+fi
+
+# -----------------------------------------------------------------------------
+# Standalone mode: (re-)publish an existing release on GitHub
+# -----------------------------------------------------------------------------
+# Backfills what the release flow did not do for releases cut before Step 9b
+# learned about assets and CHANGELOG prose: attaches the module jars, and fills
+# in the release body if it carries no prose yet. Reads artifacts from a local
+# bundle if there still is one, otherwise straight from Maven Central - so it
+# works for any released version, not just the last one.
+#
+#   ./release.sh --github-assets          # last release tag
+#   ./release.sh --github-assets 6.3.3    # a specific version (v-prefix optional)
+do_github_assets() {
+  local version="$GITHUB_ASSETS_VERSION"
+
+  if [ -z "$version" ]; then
+    local last_release_tag
+    last_release_tag=$(git tag -l 'v[0-9]*' --sort=-v:refname | grep -v -- '-rolled-back$' | head -n1)
+    if [ -z "$last_release_tag" ]; then
+      log_error "No release tag found - pass a version explicitly (--github-assets 6.3.3)"
+      exit 1
+    fi
+    version="${last_release_tag#v}"
+  fi
+  version="${version#v}"
+  local release_tag="v${version}"
+
+  log_step "Publishing GitHub release $release_tag (notes + assets)"
+
+  if ! gh_available; then
+    log_error "gh CLI is required for --github-assets"
+    exit 1
+  fi
+  if ! gh release view "$release_tag" >/dev/null 2>&1; then
+    log_error "GitHub release $release_tag does not exist"
+    exit 1
+  fi
+
+  publish_github_release_notes "$version" "$release_tag"
+  publish_github_release_assets "$version" "$release_tag"
+
+  echo ""
+  log_success "GitHub release $release_tag updated"
+  echo "  https://github.com/sboesebeck/morphium/releases/tag/${release_tag}"
+  echo ""
+  exit 0
+}
+
+if [ "$GITHUB_ASSETS" = true ]; then
+  do_github_assets
 fi
 
 # -----------------------------------------------------------------------------
@@ -1115,6 +1461,12 @@ if [ "$SKIP_TO_UPLOAD" != true ]; then
 
   log_info "Release log: $RELEASE_LOG"
 
+  # Roll the CHANGELOG's [Unreleased] block over into this version BEFORE
+  # release:prepare - it needs a clean working tree, and the stamped section
+  # has to be on the release commit so it can be quoted as the GitHub release
+  # body in Step 9b. The helper commits on its own if it changed anything.
+  stamp_changelog_release "$release_version"
+
   # Clean and compile first
   mvn clean compile -q || {
     log_error "Compile failed"
@@ -1314,10 +1666,15 @@ for _module_dir in "${MODULE_DIRS[@]}"; do
 done
 
 # -----------------------------------------------------------------------------
-# Step 9b: Publish test report to the GitHub release
+# Step 9b: Publish the GitHub release (notes + binary assets)
 # -----------------------------------------------------------------------------
+# Notes first, assets second: the notes step is what creates the release when
+# release:perform did not, and `gh release upload` needs it to exist. Both are
+# best-effort - the tag is pushed and the bundle is uploaded by now, so nothing
+# down here may fail the release.
 
-publish_github_release_notes
+publish_github_release_notes "$version" "$tag"
+publish_github_release_assets "$version" "$tag"
 
 # -----------------------------------------------------------------------------
 # Step 10: Deploy documentation (optional)
@@ -1352,6 +1709,7 @@ echo "=============================================="
 echo ""
 echo "  Git tag: $tag"
 echo "  Release log: $RELEASE_LOG"
+echo "  GitHub release: https://github.com/sboesebeck/morphium/releases/tag/${tag}"
 echo ""
 echo "  Bundle: $bundle_file"
 echo "    morphium-parent (POM)"
