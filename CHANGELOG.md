@@ -8,6 +8,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+#### `sendMessages()` / `sendAnswers()` — genuine client-side batching for Messaging
+Prompted directly by the "Batch Send Throughput" benchmark (see below): `@WriteBuffer`,
+tried as a shortcut to Kafka-style batching, turned out to be the wrong tool for messaging —
+it's a poll-and-WAIT mechanism that becomes a throughput *ceiling* under load, not a booster.
+The thing that actually worked in that benchmark was a plain client-driven bulk insert, so
+`MorphiumMessaging` now has that as a first-class API: `sendMessages(List<? extends Msg>)`
+sends a batch as one or more real bulk-insert wire calls — grouped by whatever target
+collection each implementation's routing needs (one call for all broadcasts;
+`DualChannelMessaging`/`MultiCollectionMessaging` additionally group directed messages by
+recipient, and `MultiCollectionMessaging` groups broadcasts by topic collection) — instead of
+one insert per message. No annotation, no housekeeping thread, no tuning: the caller decides
+the batch, one call carries it.
+
+A default `sendAnswers(Msg answerOf, List<T> answers)` builds on top of it, replicating what
+`Msg#sendAnswer()` does per message (`inAnswerTo`, recipient, a fresh `msgId`) before sending
+the whole list in one batch. Aimed at a single thread that wants to send many answers to one
+request — a chunked or streamed response, for instance — rather than at fanning out many
+independent requests, since that's where a caller naturally already has a batch in hand
+without any restructuring.
+
+The single-message send path (`sendMessage()`) is unchanged; the per-message registry check
+and sender/senderHost/TTL-default logic it relies on were factored into shared private helpers
+so both paths apply the exact same policy instead of two copies drifting apart.
+
 ### Fixed
 
 #### Messages for topics without a listener starved the messaging poll window

@@ -116,6 +116,56 @@ public interface MorphiumMessaging extends Closeable {
 
     void sendMessage(Msg m);
 
+    /**
+     * Sends a list of messages as one or more bulk-insert wire calls instead of one insert per
+     * message — grouped by whatever target collection this implementation's routing needs (e.g.
+     * one call for all broadcasts, one per distinct recipient for directed messages). Each
+     * message gets sender/senderHost/TTL defaults applied exactly as {@link #sendMessage(Msg)}
+     * would. A null or empty list is a no-op.
+     *
+     * <p>Genuine client-side batching, not {@code @WriteBuffer}: no housekeeping thread, no
+     * polling, no size/timeout tuning — the caller decides the batch, one call carries it. Pays
+     * off for callers that already have several messages ready at once (bulk jobs, event
+     * replay, chunked/streamed responses); a single ad-hoc {@code sendMessage()} call gains
+     * nothing from being wrapped in a one-element list.
+     *
+     * @param messages the messages to send, in the order given (bulk inserts within a
+     *                 collection are unordered — see driver bulk-write semantics for partial
+     *                 failure behavior)
+     */
+    void sendMessages(List<? extends Msg> messages);
+
+    /**
+     * Sends a list of answers to a single original message — the bulk-send equivalent of
+     * calling {@link Msg#sendAnswer(MorphiumMessaging, Msg)} once per answer. Useful for
+     * streaming a large or chunked response back to one requester from a single thread: each
+     * answer gets {@code inAnswerTo}/recipient/a fresh {@code msgId} set exactly as
+     * {@code sendAnswer()} would, then all answers go out via {@link #sendMessages(List)}.
+     *
+     * @param answerOf the original message being answered
+     * @param answers  the answers to send, in order; a null or empty list is a no-op
+     */
+    default <T extends Msg> void sendAnswers(Msg answerOf, List<T> answers) {
+        if (answers == null || answers.isEmpty()) {
+            return;
+        }
+
+        for (Msg a : answers) {
+            a.setInAnswerTo(answerOf.getMsgId());
+            a.addRecipient(answerOf.getSender());
+
+            // see Msg#sendAnswer(): only derive deleteAt when the answer carries an explicit
+            // TTL, otherwise leave it null so the send path applies messagingDefaultTtl first
+            if (a.getTtl() > 0) {
+                a.setDeleteAt(new java.util.Date(System.currentTimeMillis() + a.getTtl()));
+            }
+
+            a.setMsgId(new de.caluga.morphium.driver.MorphiumId());
+        }
+
+        sendMessages(answers);
+    }
+
     long getNumberOfMessages();
 
     void sendMessageToSelf(Msg m);

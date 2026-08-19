@@ -1819,44 +1819,55 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     }
 
     @SuppressWarnings("unchecked")
-    private void persistMessage(Msg m, boolean async) {
-        // Don't send messages if messaging has been terminated
-        if (!running.get()) {
-            log.debug("Messaging terminated - not sending message: {}", m.getTopic());
+    /**
+     * Registry-gated relevance check for a single outgoing message - factored out of
+     * {@code persistMessage()} so {@link #sendMessages(List)} can apply the exact same policy
+     * (WARN/THROW/IGNORE) per message without duplicating the drift-prone logic.
+     */
+    private void checkNetworkRegistryBeforeSend(Msg m) {
+        if (networkRegistry == null || (m.getTopic() != null && m.getTopic().equals(getStatusInfoListenerName()))) {
             return;
         }
-        if (networkRegistry != null && (m.getTopic() == null || !m.getTopic().equals(getStatusInfoListenerName()))) {
-            long registryWaitMs = TimeUnit.SECONDS.toMillis(Math.max(1, effectiveSettings.getMessagingRegistryUpdateInterval()));
-            if (effectiveSettings.getMessagingRegistryCheckTopics() != MessagingSettings.TopicCheck.IGNORE && (m.getRecipients() == null || m.getRecipients().isEmpty())) {
-                if (!networkRegistry.hasActiveListeners(m.getTopic())) {
+
+        long registryWaitMs = TimeUnit.SECONDS.toMillis(Math.max(1, effectiveSettings.getMessagingRegistryUpdateInterval()));
+
+        if (effectiveSettings.getMessagingRegistryCheckTopics() != MessagingSettings.TopicCheck.IGNORE && (m.getRecipients() == null || m.getRecipients().isEmpty())) {
+            if (!networkRegistry.hasActiveListeners(m.getTopic())) {
+                networkRegistry.triggerDiscoveryAndWait(registryWaitMs);
+            }
+            if (!networkRegistry.hasActiveListeners(m.getTopic())) {
+                String msg = "No active listeners for topic '" + m.getTopic() + "'";
+                if (effectiveSettings.getMessagingRegistryCheckTopics() == MessagingSettings.TopicCheck.WARN) {
+                    log.warn(msg);
+                } else {
+                    throw new MessageRejectedException(msg);
+                }
+            }
+        }
+
+        if (effectiveSettings.getMessagingRegistryCheckRecipients() != MessagingSettings.RecipientCheck.IGNORE && m.getRecipients() != null) {
+            for (String r : m.getRecipients()) {
+                if (!networkRegistry.isParticipantActive(r)) {
                     networkRegistry.triggerDiscoveryAndWait(registryWaitMs);
                 }
-                if (!networkRegistry.hasActiveListeners(m.getTopic())) {
-                    String msg = "No active listeners for topic '" + m.getTopic() + "'";
-                    if (effectiveSettings.getMessagingRegistryCheckTopics() == MessagingSettings.TopicCheck.WARN) {
+                if (!networkRegistry.isParticipantActive(r)) {
+                    String msg = "Recipient '" + r + "' is not active";
+                    if (effectiveSettings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.WARN) {
                         log.warn(msg);
                     } else {
                         throw new MessageRejectedException(msg);
                     }
                 }
             }
-            if (effectiveSettings.getMessagingRegistryCheckRecipients() != MessagingSettings.RecipientCheck.IGNORE && m.getRecipients() != null) {
-                for (String r : m.getRecipients()) {
-                    if (!networkRegistry.isParticipantActive(r)) {
-                        networkRegistry.triggerDiscoveryAndWait(registryWaitMs);
-                    }
-                    if (!networkRegistry.isParticipantActive(r)) {
-                        String msg = "Recipient '" + r + "' is not active";
-                        if (effectiveSettings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.WARN) {
-                            log.warn(msg);
-                        } else {
-                            throw new MessageRejectedException(msg);
-                        }
-                    }
-                }
-            }
         }
+    }
 
+    /**
+     * Applies the same sender/senderHost/TTL defaults {@code persistMessage()} would -
+     * factored out so {@link #sendMessages(List)} can apply them per message before the bulk
+     * insert.
+     */
+    private void prepareForSend(Msg m) {
         m.setSenderHost(hostname);
         m.setSender(getSenderId());
 
@@ -1864,6 +1875,55 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         if (m.isTimingOut() && m.getTtl() <= 0) {
             m.setTtl(effectiveSettings.getMessagingDefaultTtl());
         }
+    }
+
+    @Override
+    public void sendMessages(List<? extends Msg> messages) {
+        if (messages == null || messages.isEmpty()) {
+            return;
+        }
+        if (!running.get()) {
+            log.debug("Messaging terminated - not sending {} messages", messages.size());
+            return;
+        }
+
+        // Same routing as persistMessage(): broadcasts go into their topic's own collection
+        // (getCollectionName(m)), directed messages into each recipient's per-recipient DM
+        // collection - a message with N recipients is grouped into N collections (same
+        // object, same _id, N inserts), exactly mirroring single-send semantics.
+        Map<String, List<Msg>> byCollection = new LinkedHashMap<>();
+
+        for (Msg m : messages) {
+            checkNetworkRegistryBeforeSend(m);
+            prepareForSend(m);
+
+            if (m.getRecipients() != null && !m.getRecipients().isEmpty()) {
+                for (String recipient : m.getRecipients()) {
+                    byCollection.computeIfAbsent(getDMCollectionName(recipient), k -> new ArrayList<>()).add(m);
+                }
+            } else {
+                byCollection.computeIfAbsent(getCollectionName(m), k -> new ArrayList<>()).add(m);
+            }
+        }
+
+        for (Map.Entry<String, List<Msg>> e : byCollection.entrySet()) {
+            // explicit type witness: store(T, ...) and store(List<T>, ...) are ambiguous
+            // otherwise, since T could itself unify with List<Msg>
+            morphium.<Msg>store(e.getValue(), e.getKey(), null);
+            for (Msg m : e.getValue()) {
+                scheduleTimeoutDeletionIfNeeded(m, e.getKey());
+            }
+        }
+    }
+
+    private void persistMessage(Msg m, boolean async) {
+        // Don't send messages if messaging has been terminated
+        if (!running.get()) {
+            log.debug("Messaging terminated - not sending message: {}", m.getTopic());
+            return;
+        }
+        checkNetworkRegistryBeforeSend(m);
+        prepareForSend(m);
 
         if (m.getRecipients() == null || m.getRecipients().isEmpty()) {
             try {

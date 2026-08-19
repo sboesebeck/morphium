@@ -2965,43 +2965,107 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
         return getPendingMessagesCount();
     }
 
-    private void storeMsg(Msg m, boolean async) {
-        // Don't send messages if messaging has been terminated
-        if (!running) {
-            log.debug("Messaging terminated - not sending message: {}", m.getTopic());
+    /**
+     * Registry-gated relevance check for a single outgoing message - factored out of
+     * {@code storeMsg()} so {@link #sendMessages(List)} can apply the exact same policy
+     * (WARN/THROW/IGNORE) per message without duplicating the drift-prone logic.
+     */
+    private void checkNetworkRegistryBeforeSend(Msg m) {
+        if (networkRegistry == null || (m.getTopic() != null && m.getTopic().equals(getStatusInfoListenerName()))) {
             return;
         }
-        if (networkRegistry != null && (m.getTopic() == null || !m.getTopic().equals(getStatusInfoListenerName()))) {
-            long registryWaitMs = TimeUnit.SECONDS.toMillis(Math.max(1, settings.getMessagingRegistryUpdateInterval()));
-            if (settings.getMessagingRegistryCheckTopics() != MessagingSettings.TopicCheck.IGNORE && (m.getRecipients() == null || m.getRecipients().isEmpty())) {
-                if (!networkRegistry.hasActiveListeners(m.getTopic())) {
+
+        long registryWaitMs = TimeUnit.SECONDS.toMillis(Math.max(1, settings.getMessagingRegistryUpdateInterval()));
+
+        if (settings.getMessagingRegistryCheckTopics() != MessagingSettings.TopicCheck.IGNORE && (m.getRecipients() == null || m.getRecipients().isEmpty())) {
+            if (!networkRegistry.hasActiveListeners(m.getTopic())) {
+                networkRegistry.triggerDiscoveryAndWait(registryWaitMs);
+            }
+            if (!networkRegistry.hasActiveListeners(m.getTopic())) {
+                String msg = "No active listeners for topic '" + m.getTopic() + "'";
+                if (settings.getMessagingRegistryCheckTopics() == MessagingSettings.TopicCheck.WARN) {
+                    log.warn(msg);
+                } else {
+                    throw new MessageRejectedException(msg);
+                }
+            }
+        }
+
+        if (settings.getMessagingRegistryCheckRecipients() != MessagingSettings.RecipientCheck.IGNORE && m.getRecipients() != null) {
+            for (String r : m.getRecipients()) {
+                if (!networkRegistry.isParticipantActive(r)) {
                     networkRegistry.triggerDiscoveryAndWait(registryWaitMs);
                 }
-                if (!networkRegistry.hasActiveListeners(m.getTopic())) {
-                    String msg = "No active listeners for topic '" + m.getTopic() + "'";
-                    if (settings.getMessagingRegistryCheckTopics() == MessagingSettings.TopicCheck.WARN) {
+                if (!networkRegistry.isParticipantActive(r)) {
+                    String msg = "Recipient '" + r + "' is not active";
+                    if (settings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.WARN) {
                         log.warn(msg);
                     } else {
                         throw new MessageRejectedException(msg);
                     }
                 }
             }
-            if (settings.getMessagingRegistryCheckRecipients() != MessagingSettings.RecipientCheck.IGNORE && m.getRecipients() != null) {
-                for (String r : m.getRecipients()) {
-                    if (!networkRegistry.isParticipantActive(r)) {
-                        networkRegistry.triggerDiscoveryAndWait(registryWaitMs);
-                    }
-                    if (!networkRegistry.isParticipantActive(r)) {
-                        String msg = "Recipient '" + r + "' is not active";
-                        if (settings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.WARN) {
-                            log.warn(msg);
-                        } else {
-                            throw new MessageRejectedException(msg);
-                        }
-                    }
+        }
+    }
+
+    /**
+     * Applies the same sender/senderHost/TTL defaults {@code storeMsg()} would - factored out
+     * so {@link #sendMessages(List)} can apply them per message before the bulk insert.
+     */
+    private void prepareForSend(Msg m) {
+        m.setSender(id);
+
+        // apply the configured default TTL (Msg.preStore would fall back to the hardcoded 30s)
+        if (m.isTimingOut() && m.getTtl() <= 0) {
+            m.setTtl(settings.getMessagingDefaultTtl());
+        }
+        m.setSenderHost(hostname);
+    }
+
+    @Override
+    public void sendMessages(List<? extends Msg> messages) {
+        if (messages == null || messages.isEmpty()) {
+            return;
+        }
+        if (!running) {
+            log.debug("Messaging terminated - not sending {} messages", messages.size());
+            return;
+        }
+
+        // Same routing as storeMsg(): broadcasts go into the main collection, directed
+        // messages into each recipient's own per-recipient DM collection - a message with N
+        // recipients is grouped into N collections (same object, same _id, N inserts), exactly
+        // mirroring single-send semantics. Group first, then one bulk insert per collection.
+        Map<String, List<Msg>> byCollection = new LinkedHashMap<>();
+
+        for (Msg m : messages) {
+            checkNetworkRegistryBeforeSend(m);
+            prepareForSend(m);
+
+            if (m.getRecipients() != null && !m.getRecipients().isEmpty()) {
+                for (String recipient : m.getRecipients()) {
+                    byCollection.computeIfAbsent(getDMCollectionName(recipient), k -> new ArrayList<>()).add(m);
                 }
+            } else {
+                byCollection.computeIfAbsent(getCollectionName(), k -> new ArrayList<>()).add(m);
             }
         }
+
+        for (Map.Entry<String, List<Msg>> e : byCollection.entrySet()) {
+            morphium.insert(e.getValue(), e.getKey(), null);
+            for (Msg m : e.getValue()) {
+                scheduleTimeoutDeletionIfNeeded(m, e.getKey());
+            }
+        }
+    }
+
+    private void storeMsg(Msg m, boolean async) {
+        // Don't send messages if messaging has been terminated
+        if (!running) {
+            log.debug("Messaging terminated - not sending message: {}", m.getTopic());
+            return;
+        }
+        checkNetworkRegistryBeforeSend(m);
 
         AsyncOperationCallback cb = null;
 
@@ -3021,13 +3085,7 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
             };
         }
 
-        m.setSender(id);
-
-        // apply the configured default TTL (Msg.preStore would fall back to the hardcoded 30s)
-        if (m.isTimingOut() && m.getTtl() <= 0) {
-            m.setTtl(settings.getMessagingDefaultTtl());
-        }
-        m.setSenderHost(hostname);
+        prepareForSend(m);
         try {
             // DualChannelMessaging send-side routing (#265): directed messages (recipients set -
             // requests as well as answers, via Msg#sendAnswer/#setRecipient) go into EACH

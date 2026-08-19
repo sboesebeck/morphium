@@ -2312,43 +2312,90 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         return getPendingMessagesCount();
     }
 
-    private void storeMsg(Msg m, boolean async) {
-        // Don't send messages if messaging has been terminated
-        if (!running) {
-            log.debug("Messaging terminated - not sending message: {}", m.getTopic());
+    /**
+     * Registry-gated relevance check for a single outgoing message - factored out of
+     * {@code storeMsg()} so {@link #sendMessages(List)} can apply the exact same policy
+     * (WARN/THROW/IGNORE) per message without duplicating the drift-prone logic.
+     */
+    private void checkNetworkRegistryBeforeSend(Msg m) {
+        if (networkRegistry == null || (m.getTopic() != null && m.getTopic().equals(getStatusInfoListenerName()))) {
             return;
         }
-        if (networkRegistry != null && (m.getTopic() == null || !m.getTopic().equals(getStatusInfoListenerName()))) {
-            long registryWaitMs = TimeUnit.SECONDS.toMillis(Math.max(1, settings.getMessagingRegistryUpdateInterval()));
-            if (settings.getMessagingRegistryCheckTopics() != MessagingSettings.TopicCheck.IGNORE && (m.getRecipients() == null || m.getRecipients().isEmpty())) {
-                if (!networkRegistry.hasActiveListeners(m.getTopic())) {
+
+        long registryWaitMs = TimeUnit.SECONDS.toMillis(Math.max(1, settings.getMessagingRegistryUpdateInterval()));
+
+        if (settings.getMessagingRegistryCheckTopics() != MessagingSettings.TopicCheck.IGNORE && (m.getRecipients() == null || m.getRecipients().isEmpty())) {
+            if (!networkRegistry.hasActiveListeners(m.getTopic())) {
+                networkRegistry.triggerDiscoveryAndWait(registryWaitMs);
+            }
+            if (!networkRegistry.hasActiveListeners(m.getTopic())) {
+                String msg = "No active listeners for topic '" + m.getTopic() + "'";
+                if (settings.getMessagingRegistryCheckTopics() == MessagingSettings.TopicCheck.WARN) {
+                    log.warn(msg);
+                } else {
+                    throw new MessageRejectedException(msg);
+                }
+            }
+        }
+
+        if (settings.getMessagingRegistryCheckRecipients() != MessagingSettings.RecipientCheck.IGNORE && m.getRecipients() != null) {
+            for (String r : m.getRecipients()) {
+                if (!networkRegistry.isParticipantActive(r)) {
                     networkRegistry.triggerDiscoveryAndWait(registryWaitMs);
                 }
-                if (!networkRegistry.hasActiveListeners(m.getTopic())) {
-                    String msg = "No active listeners for topic '" + m.getTopic() + "'";
-                    if (settings.getMessagingRegistryCheckTopics() == MessagingSettings.TopicCheck.WARN) {
+                if (!networkRegistry.isParticipantActive(r)) {
+                    String msg = "Recipient '" + r + "' is not active";
+                    if (settings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.WARN) {
                         log.warn(msg);
                     } else {
                         throw new MessageRejectedException(msg);
                     }
                 }
             }
-            if (settings.getMessagingRegistryCheckRecipients() != MessagingSettings.RecipientCheck.IGNORE && m.getRecipients() != null) {
-                for (String r : m.getRecipients()) {
-                    if (!networkRegistry.isParticipantActive(r)) {
-                        networkRegistry.triggerDiscoveryAndWait(registryWaitMs);
-                    }
-                    if (!networkRegistry.isParticipantActive(r)) {
-                        String msg = "Recipient '" + r + "' is not active";
-                        if (settings.getMessagingRegistryCheckRecipients() == MessagingSettings.RecipientCheck.WARN) {
-                            log.warn(msg);
-                        } else {
-                            throw new MessageRejectedException(msg);
-                        }
-                    }
-                }
-            }
         }
+    }
+
+    /**
+     * Applies the same sender/senderHost/TTL defaults {@code storeMsg()} would - factored out
+     * so {@link #sendMessages(List)} can apply them per message before the bulk insert.
+     */
+    private void prepareForSend(Msg m) {
+        m.setSender(id);
+
+        // apply the configured default TTL (Msg.preStore would fall back to the hardcoded 30s)
+        if (m.isTimingOut() && m.getTtl() <= 0) {
+            m.setTtl(settings.getMessagingDefaultTtl());
+        }
+        m.setSenderHost(hostname);
+    }
+
+    @Override
+    public void sendMessages(List<? extends Msg> messages) {
+        if (messages == null || messages.isEmpty()) {
+            return;
+        }
+        if (!running) {
+            log.debug("Messaging terminated - not sending {} messages", messages.size());
+            return;
+        }
+        for (Msg m : messages) {
+            checkNetworkRegistryBeforeSend(m);
+            prepareForSend(m);
+        }
+        List<Msg> toInsert = new ArrayList<>(messages);
+        morphium.insert(toInsert, getCollectionName(), null);
+        for (Msg m : messages) {
+            scheduleTimeoutDeletionIfNeeded(m, getCollectionName());
+        }
+    }
+
+    private void storeMsg(Msg m, boolean async) {
+        // Don't send messages if messaging has been terminated
+        if (!running) {
+            log.debug("Messaging terminated - not sending message: {}", m.getTopic());
+            return;
+        }
+        checkNetworkRegistryBeforeSend(m);
 
         AsyncOperationCallback cb = null;
 
@@ -2368,13 +2415,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             };
         }
 
-        m.setSender(id);
-
-        // apply the configured default TTL (Msg.preStore would fall back to the hardcoded 30s)
-        if (m.isTimingOut() && m.getTtl() <= 0) {
-            m.setTtl(settings.getMessagingDefaultTtl());
-        }
-        m.setSenderHost(hostname);
+        prepareForSend(m);
         try {
             morphium.insert(m, getCollectionName(), cb);
             scheduleTimeoutDeletionIfNeeded(m, getCollectionName());
