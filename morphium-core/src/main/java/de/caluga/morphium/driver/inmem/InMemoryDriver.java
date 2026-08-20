@@ -1487,6 +1487,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         cursorIdSequence.incrementAndGet(),
                         settings.getResumeAfter() != null || settings.getStartAfter() != null);
 
+        Long resumeAfterToken = extractResumeToken(settings.getResumeAfter());
+        Long startAfterToken = resumeAfterToken == null ? extractResumeToken(settings.getStartAfter()) : null;
+        Long startingToken = resumeAfterToken != null ? resumeAfterToken : startAfterToken;
+
+        if (startingToken != null) {
+            // #319: arm the ordering barrier BEFORE the subscription becomes visible to live
+            // dispatch - from registration to the end of the replay, live events are staged and
+            // flushed in token order so they cannot overtake the replayed history.
+            subscription.beginReplayStaging();
+        }
+
         registerSubscription(subscription);
 
         // Signal that registration is complete before waiting for events
@@ -1505,10 +1516,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         try {
-            Long resumeAfterToken = extractResumeToken(settings.getResumeAfter());
-            Long startAfterToken = resumeAfterToken == null ? extractResumeToken(settings.getStartAfter()) : null;
-            Long startingToken = resumeAfterToken != null ? resumeAfterToken : startAfterToken;
-
             if (startingToken != null) {
                 replayHistory(subscription, startingToken);
             }
@@ -3508,6 +3515,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         monitor, cursorId,
                         cmd.getResumeAfter() != null || cmd.getStartAfter() != null);
 
+        // Handle resume tokens if present - parsed BEFORE registration so the #319 ordering
+        // barrier can be armed while the subscription is not yet visible to live dispatch.
+        Long resumeAfterToken = extractResumeToken(cmd.getResumeAfter());
+        Long startAfterToken = resumeAfterToken == null ? extractResumeToken(cmd.getStartAfter()) : null;
+        Long startingToken = resumeAfterToken != null ? resumeAfterToken : startAfterToken;
+
+        if (startingToken != null) {
+            subscription.beginReplayStaging();
+        }
+
         // Register subscription synchronously
         registerSubscription(subscription);
         // log.info("Watch registered with cursorId={}", cursorId);
@@ -3516,11 +3533,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         final String finalDb = db;
         watchExec.execute(() -> {
             try {
-                // Handle resume tokens if present
-                Long resumeAfterToken = extractResumeToken(cmd.getResumeAfter());
-                Long startAfterToken = resumeAfterToken == null ? extractResumeToken(cmd.getStartAfter()) : null;
-                Long startingToken = resumeAfterToken != null ? resumeAfterToken : startAfterToken;
-
                 if (startingToken != null) {
                     replayHistory(subscription, startingToken);
                 }
@@ -10284,16 +10296,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         awaitReplayPauseIfArmed();
         long newestAtStart = changeStreamSequence.get();
 
-        // A token beyond this driver's own sequence is from a foreign or reset sequence space
-        // (primary restart, failover to a different node) - never resumable. Without this check
-        // the stream would silently start "from now", reporting the resume as successful (#320).
-        if (startingToken > newestAtStart) {
-            subscription.failHistoryLost("resume token " + startingToken
-                    + " is beyond this driver's newest token " + newestAtStart
-                    + " (foreign or reset sequence space)");
-            return;
-        }
-
         // Determine the effective minimum token: the resume token or the last drop
         // sequence for this namespace, whichever is higher. This prevents replaying
         // stale events that were inserted by async dispatch after a drop.
@@ -10317,26 +10319,44 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         Set<Long> seenWindowTokens = new HashSet<>();
         long maxSeen = effectiveMinToken;
 
-        for (ChangeStreamEventInfo info : changeStreamHistory) {
-            if (info.token <= effectiveMinToken) {
-                continue;
+        try {
+            // A token beyond this driver's own sequence is from a foreign or reset sequence
+            // space (primary restart, failover to a different node) - never resumable. Without
+            // this check the stream would silently start "from now", reporting the resume as
+            // successful (#320).
+            if (startingToken > newestAtStart) {
+                subscription.failHistoryLost("resume token " + startingToken
+                        + " is beyond this driver's newest token " + newestAtStart
+                        + " (foreign or reset sequence space)");
+                return;
             }
 
-            seenWindowTokens.add(info.token);
+            for (ChangeStreamEventInfo info : changeStreamHistory) {
+                if (info.token <= effectiveMinToken) {
+                    continue;
+                }
 
-            if (info.token > maxSeen) {
-                maxSeen = info.token;
+                seenWindowTokens.add(info.token);
+
+                if (info.token > maxSeen) {
+                    maxSeen = info.token;
+                }
+
+                if (!subscription.matches(info)) {
+                    continue;
+                }
+
+                subscription.deliverDirect(info);
+
+                if (!subscription.isActive()) {
+                    break;
+                }
             }
-
-            if (!subscription.matches(info)) {
-                continue;
-            }
-
-            subscription.deliver(info);
-
-            if (!subscription.isActive()) {
-                break;
-            }
+        } finally {
+            // #319: release the ordering barrier on EVERY exit path - the staged live events
+            // are flushed in token order (or discarded if the stream already died). Live
+            // dispatch delivers directly again from here on.
+            subscription.finishReplayStaging();
         }
 
         if (!subscription.isActive()) {
@@ -10345,6 +10365,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             return;
         }
 
+        // Runs AFTER the staging flush so that live events which reached the consumer while
+        // the replay was running count as delivered in the completeness check below.
         verifyReplayWindow(subscription, startingToken, effectiveMinToken, newestAtStart,
                 seenWindowTokens, maxSeen);
     }
@@ -10837,6 +10859,24 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // by the async dispatch backlog, so a small recent-token window is sufficient.
         private static final int DELIVERED_TOKEN_CAPACITY = 8192;
         private final LinkedHashSet<Long> deliveredTokens;
+        // #319: while a resumed watch replays its history, live dispatch does not go to the
+        // callback - it is staged here and flushed in token order once the replay completes.
+        // Without this barrier a live event overtakes the replay (registration precedes the
+        // replay by design, and live dispatch is concurrent), delivering out of order - which
+        // lets a replayed older fullDocument overwrite a newer one on a PoppyDB secondary, or
+        // a replayed insert resurrect a document a live delete already removed. Guarded by
+        // itself; null for fresh (non-resumed) watches - zero overhead on the hot path.
+        private final ArrayDeque<ChangeStreamEventInfo> replayStaging;
+        private volatile boolean stagingLive = false;
+        // Capacity HAS to stay <= DELIVERED_TOKEN_CAPACITY / 2 for the dedup window to remain
+        // provably sufficient: a staged event X is also in the history deque (append precedes
+        // dispatch), so the replay iterator may deliver it too. Between the replay's delivery
+        // of X (near the iterator's end - X was appended during the replay, i.e. at the tail)
+        // and the flush's second encounter of X lie at most the matching events appended after
+        // X (a subset of the staged set) plus the staged events with tokens below X - together
+        // at most 2 x this capacity deliveries, which must not push X out of the
+        // first-delivery window, or the flush would re-deliver it as a duplicate.
+        private static final int REPLAY_STAGING_CAPACITY = DELIVERED_TOKEN_CAPACITY / 2;
 
         @SuppressWarnings("unchecked")
         private ChangeStreamSubscription(String db, String collection, DriverTailableIterationCallback callback,
@@ -10858,6 +10898,92 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             this.aggregator = pipeline == null || pipeline.isEmpty() ? null : new InMemAggregator(null, Map.class, Map.class);
             this.insertOnlyMatchPipeline = isInsertOnlyPipeline(pipeline);
             this.deliveredTokens = resumed ? new LinkedHashSet<>() : null;
+            this.replayStaging = resumed ? new ArrayDeque<>() : null;
+        }
+
+        /**
+         * Arms the #319 ordering barrier. MUST be called BEFORE the subscription is registered
+         * (and is only called when a history replay will actually run): from registration on,
+         * live dispatch is staged instead of delivered, so nothing can overtake the replay.
+         * {@link #finishReplayStaging()} releases the barrier - replayHistory guarantees that
+         * in a finally.
+         */
+        private void beginReplayStaging() {
+            if (replayStaging != null) {
+                stagingLive = true;
+            }
+        }
+
+        /**
+         * Live-dispatch side of the #319 barrier: true if the event was staged (or dropped
+         * because the stream just died) and must NOT be delivered now. The writer never
+         * blocks - on overflow the stream is ended fail-loud instead: silently delivering
+         * past the barrier would reintroduce the reordering exactly under load, and silently
+         * dropping staged events would be invisible data loss.
+         */
+        private boolean stageDuringReplay(ChangeStreamEventInfo info) {
+            if (!stagingLive) {
+                return false;
+            }
+
+            synchronized (replayStaging) {
+                if (!stagingLive) {
+                    return false;
+                }
+
+                if (!active) {
+                    return true; // stream died while staging - nothing to deliver anymore
+                }
+
+                if (replayStaging.size() >= REPLAY_STAGING_CAPACITY) {
+                    failHistoryLost("live events outran the history replay (more than "
+                            + REPLAY_STAGING_CAPACITY + " writes while the replay was still "
+                            + "running) - ordered lossless delivery is no longer possible");
+                    return true;
+                }
+
+                replayStaging.add(info);
+                return true;
+            }
+        }
+
+        /**
+         * Releases the #319 barrier: flushes everything staged during the replay in token
+         * order (tokens are globally monotonic; staging order can be inverted by racing
+         * writers), looping until a drain finds the staging empty so the barrier only drops
+         * once no event can slip between flush and release. Runs on the replay thread -
+         * duplicates with the replay itself are suppressed by the first-delivery window (see
+         * REPLAY_STAGING_CAPACITY for why that window provably suffices).
+         */
+        private void finishReplayStaging() {
+            if (replayStaging == null || !stagingLive) {
+                return;
+            }
+
+            while (true) {
+                List<ChangeStreamEventInfo> batch;
+
+                synchronized (replayStaging) {
+                    if (!active || replayStaging.isEmpty()) {
+                        replayStaging.clear();
+                        stagingLive = false;
+                        return;
+                    }
+
+                    batch = new ArrayList<>(replayStaging);
+                    replayStaging.clear();
+                }
+
+                batch.sort(Comparator.comparingLong(i -> i.token));
+
+                for (ChangeStreamEventInfo info : batch) {
+                    deliverDirect(info);
+
+                    if (!active) {
+                        break;
+                    }
+                }
+            }
         }
 
         /**
@@ -10960,7 +11086,21 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             monitor.signalAll();
         }
 
+        /** Live-dispatch entry: holds the #319 ordering barrier while a replay is running. */
         private void deliver(ChangeStreamEventInfo info) {
+            if (!active) {
+                return;
+            }
+
+            if (stageDuringReplay(info)) {
+                return;
+            }
+
+            deliverDirect(info);
+        }
+
+        /** Actual delivery - called live (past the barrier), from the replay, and by the flush. */
+        private void deliverDirect(ChangeStreamEventInfo info) {
             if (!active) {
                 return;
             }
