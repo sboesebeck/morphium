@@ -643,8 +643,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     // 2. Logging is the one place on this path that can block inside a monitor, and which one
     //    decides is the DEPLOYMENT's logback config, not ours: console/file/async all descend from
     //    UnsynchronizedAppenderBase (ReentrantLock, unmounts), but AppenderBase.doAppend is
-    //    `synchronized`, so a SocketAppender shipping logs over TCP would pin a carrier the way
-    //    #234 did.
+    //    `synchronized`. The one subclass that also PARKS in that window is AbstractSocketAppender
+    //    (timed offer onto a bounded deque), so log shipping over TCP to a stalled collector pins a
+    //    carrier for up to eventDelayLimit - 100ms by default - per event.
     private java.util.concurrent.ExecutorService watchExec = newWatchExecutor();
     // Own single thread for the TTL sweep so that expiry can never again be held hostage by
     // whatever else is queued on exec — the one effect of #325 with node-wide, silent data impact.
