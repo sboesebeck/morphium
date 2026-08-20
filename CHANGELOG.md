@@ -74,8 +74,9 @@ another dump held the guard.
 ### Fixed
 
 #### InMemoryDriver: the 21st change stream never started, and TTL expiry stopped with it (#325)
-Every watch parked a thread of the driver's shared scheduler for the entire lifetime of its change
-stream. That pool is a `ScheduledThreadPoolExecutor` sized `max(20, 2*cores)`, and a
+Server-side change streams - the ones PoppyDB opens for its clients and for replication - parked a
+thread of the driver's shared scheduler for the entire lifetime of the stream, as did tailable
+cursors. That pool is a `ScheduledThreadPoolExecutor` sized `max(20, 2*cores)`, and a
 `ScheduledThreadPoolExecutor` never grows past its core size — so once that many streams were open,
 the next watch's task simply never ran. It never replayed its history, never stamped its liveness
 heartbeat, and never reached the `finally` that unregisters the subscription and releases its
@@ -90,10 +91,13 @@ documents — messages, locks — stopped expiring. For a PoppyDB node serving a
 there is one change stream per messaging client plus one per replicating secondary, twenty is not a
 large number.
 
+(Morphium's own `ChangeStreamMonitor`, and with it Messaging, was never affected: it calls `watch()`
+synchronously and parks its own thread, not a pooled one.)
+
 Watch loops now have their own executor that grows with the number of streams instead of capping
 them, and the TTL sweep runs on a scheduler of its own so expiry can no longer be held up by
-anything else that is queued. **This costs one thread per open change stream**, so a node carrying
-many concurrent streams uses noticeably more memory than before — the previous behaviour was cheaper
+anything else that is queued. **This costs one thread per open server-side change stream**, so a
+node carrying many concurrent streams uses noticeably more memory than before — the previous behaviour was cheaper
 only because it stopped working past twenty. Removing the thread-per-stream shape itself (virtual
 threads or event-driven delivery) is #328.
 

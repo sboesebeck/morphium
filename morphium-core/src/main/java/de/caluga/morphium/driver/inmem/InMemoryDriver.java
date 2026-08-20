@@ -624,10 +624,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     // threads are reaped after the keepalive. The cost is one platform thread per open change
     // stream — that trade, and the thread-per-stream shape itself, is #328.
     // Platform threads for now, NOT because virtual threads could not do this - a parked loop is
-    // what they are for, and they are final since JDK 21. The blocker is one contended
-    // `synchronized (deliveredTokens)` still sitting on the replay path (monitorenter pins the
-    // carrier under 21) plus the load validation that swap deserves; see #328, where this factory
-    // is the single line that changes.
+    // what they are for, and they are final since JDK 21. What holds the swap up is not pinning
+    // (audited: no monitor on this path encloses a blocking call, so #234 cannot repeat) but
+    // replayHistory: replaying a full buffer is seconds of uninterrupted CPU, and JDK 21 virtual
+    // threads have no preemption, so enough simultaneous resumes would occupy every carrier of the
+    // common scheduler - which Morphium's asyncOp pool already shares. See #328.
     private java.util.concurrent.ExecutorService watchExec = newWatchExecutor();
     // Own single thread for the TTL sweep so that expiry can never again be held hostage by
     // whatever else is queued on exec — the one effect of #325 with node-wide, silent data impact.
