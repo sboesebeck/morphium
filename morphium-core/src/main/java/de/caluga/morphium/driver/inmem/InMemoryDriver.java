@@ -635,11 +635,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     // threads are reaped after the keepalive. The cost is one platform thread per open change
     // stream — that trade, and the thread-per-stream shape itself, is #328.
     // Platform threads for now, NOT because virtual threads could not do this - a parked loop is
-    // what they are for, and they are final since JDK 21. What holds the swap up is not pinning
-    // (audited: no monitor on this path encloses a blocking call, so #234 cannot repeat) but
-    // replayHistory: replaying a full buffer is seconds of uninterrupted CPU, and JDK 21 virtual
-    // threads have no preemption, so enough simultaneous resumes would occupy every carrier of the
-    // common scheduler - which Morphium's asyncOp pool already shares. See #328.
+    // what they are for, and they are final since JDK 21. Two things hold the swap up, neither
+    // fixed by JEP 491; see #328.
+    // 1. replayHistory: replaying a full buffer is seconds of uninterrupted CPU, and JDK 21
+    //    virtual threads are not preempted, so enough simultaneous resumes occupy every carrier of
+    //    the common scheduler - which Morphium's asyncOp pool already shares.
+    // 2. Logging is the one place on this path that can block inside a monitor, and which one
+    //    decides is the DEPLOYMENT's logback config, not ours: console/file/async all descend from
+    //    UnsynchronizedAppenderBase (ReentrantLock, unmounts), but AppenderBase.doAppend is
+    //    `synchronized`, so a SocketAppender shipping logs over TCP would pin a carrier the way
+    //    #234 did.
     private java.util.concurrent.ExecutorService watchExec = newWatchExecutor();
     // Own single thread for the TTL sweep so that expiry can never again be held hostage by
     // whatever else is queued on exec — the one effect of #325 with node-wide, silent data impact.
@@ -655,9 +660,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     // Platform thread on purpose: virtual threads can deadlock the whole JVM here
     // under JDK 21 — dispatchers pinned on the logback appender lock occupy all
     // carriers while the unmounted lock holder never gets scheduled again (#234).
-    private final java.util.concurrent.ExecutorService eventDispatcher = java.util.concurrent.Executors
-        .newSingleThreadExecutor(
-                        Thread.ofPlatform().name("event-dispatcher-", 0).daemon(true).factory());
+    // Not final: like exec/watchExec/ttlExec it has to be re-creatable, because shutdown() stops it
+    // and connect() is allowed to bring the same driver instance back up.
+    private java.util.concurrent.ExecutorService eventDispatcher = newEventDispatcher();
     private boolean running = true;
     private int expireCheck = 10000;
     private ScheduledFuture<?> expire;
@@ -673,6 +678,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private static java.util.concurrent.ExecutorService newWatchExecutor() {
         return java.util.concurrent.Executors.newCachedThreadPool(
                         Thread.ofPlatform().name("inmem-watch-", 0).daemon(true).factory());
+    }
+
+    private static java.util.concurrent.ExecutorService newEventDispatcher() {
+        return java.util.concurrent.Executors.newSingleThreadExecutor(
+                        Thread.ofPlatform().name("event-dispatcher-", 0).daemon(true).factory());
     }
 
     private static ScheduledThreadPoolExecutor newTtlExecutor() {
@@ -5116,6 +5126,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         if (ttlExec.isShutdown()) {
             ttlExec = newTtlExecutor();
+        }
+
+        if (eventDispatcher.isShutdown()) {
+            eventDispatcher = newEventDispatcher();
         }
 
         // Start per-instance event processor for change streams
