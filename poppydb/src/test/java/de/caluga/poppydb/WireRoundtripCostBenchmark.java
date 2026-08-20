@@ -290,6 +290,13 @@ public class WireRoundtripCostBenchmark {
             double storeUs = (System.nanoTime() - start) / 1000.0 / ops;
             Map<MorphiumDriver.DriverStatsKey, Double> afterStore = m.getDriver().getDriverStats();
 
+            // ---- the control, done properly: interleaved, repeated, same collection ----
+            // Sequential phases into different collections cannot resolve a ~25µs effect - they
+            // differ in collection size and in JIT/GC state, and one run each gives no spread to
+            // judge by. So: alternate the two variants in blocks, several rounds, both writing
+            // into the SAME collection, and compare medians.
+            interleavedDocumentControl(m, ops);
+
             // Same wire traffic, same borrows - so is the rest simply the DOCUMENT? A Msg maps to
             // far more fields than {_id, v}, and a bigger document costs more on the server too
             // (insert, index maintenance, change-stream event materialisation). Insert exactly
@@ -355,6 +362,125 @@ public class WireRoundtripCostBenchmark {
             report("morphium.store(Msg)", storeUs);
             reportStats("raw insert   ", before, afterRaw, ops);
             reportStats("store(Msg)   ", afterRaw, afterStore, ops);
+        }
+    }
+
+    /**
+     * Is the store/raw-insert gap the mapping, or simply the bigger document? Inserts the exact
+     * document {@code store(Msg)} would send - mapped OUTSIDE the timed loop - against
+     * {@code store(Msg)} itself, into the same collection, alternating in blocks so collection
+     * growth and JIT state affect both equally.
+     */
+    private void interleavedDocumentControl(Morphium m, int ops) throws Exception {
+        String coll = m.getMapper().getCollectionName(Msg.class);
+        int rounds = 6;
+        int block = 1000;
+        List<Double> premappedRuns = new ArrayList<>();
+        List<Double> storeRuns = new ArrayList<>();
+
+        // pre-map everything up front: the mapping cost must not land in the timed loop
+        List<Map<String, Object>> docs = new ArrayList<>(rounds * block);
+
+        for (int i = 0; i < rounds * block; i++) {
+            Map<String, Object> mapped = m.getMapper().serialize(benchMsg());
+            mapped.put("_id", "ctl-" + i);
+            docs.add(mapped);
+        }
+
+        // warm both paths before the first measured block
+        for (int i = 0; i < 300; i++) {
+            m.store(benchMsg());
+        }
+
+        int docIdx = 0;
+        // GC is the one cost that is neither CPU-on-main nor a park: a stop-the-world pause stops
+        // main without sampling it as busy and without a park event, so it lands exactly in the
+        // "wall - CPU - park" bucket the profile could not account for. The store path allocates
+        // ~4x as much, so this is worth counting rather than assuming.
+        long premappedGcMs = 0;
+        long premappedGcCount = 0;
+        long storeGcMs = 0;
+        long storeGcCount = 0;
+
+        // Exact per-thread CPU time, not 20ms execution sampling: the work runs inline on this
+        // thread, so this settles "is the gap compute or waiting" without inference.
+        int totalOps = rounds * block;
+        java.lang.management.ThreadMXBean threads = java.lang.management.ManagementFactory.getThreadMXBean();
+        long premappedCpuNanos = 0;
+        long storeCpuNanos = 0;
+
+        for (int round = 0; round < rounds; round++) {
+            long[] gcBefore = gcTotals();
+            long cpuBefore = threads.getCurrentThreadCpuTime();
+            long start = System.nanoTime();
+
+            for (int i = 0; i < block; i++) {
+                rawInsertDoc(m, coll, docs.get(docIdx++));
+            }
+
+            premappedRuns.add((System.nanoTime() - start) / 1000.0 / block);
+            premappedCpuNanos += threads.getCurrentThreadCpuTime() - cpuBefore;
+            long[] gcMid = gcTotals();
+            premappedGcCount += gcMid[0] - gcBefore[0];
+            premappedGcMs += gcMid[1] - gcBefore[1];
+            cpuBefore = threads.getCurrentThreadCpuTime();
+            start = System.nanoTime();
+
+            for (int i = 0; i < block; i++) {
+                m.store(benchMsg());
+            }
+
+            storeRuns.add((System.nanoTime() - start) / 1000.0 / block);
+            storeCpuNanos += threads.getCurrentThreadCpuTime() - cpuBefore;
+            long[] gcAfter = gcTotals();
+            storeGcCount += gcAfter[0] - gcMid[0];
+            storeGcMs += gcAfter[1] - gcMid[1];
+        }
+
+        log.info(String.format(Locale.ROOT,
+                "WIRECOST-CONTROL CPU on this thread  premapped: %.1f µs/op   store(Msg): %.1f µs/op"
+                + "   -> CPU difference %.1f µs/op",
+                premappedCpuNanos / 1000.0 / totalOps, storeCpuNanos / 1000.0 / totalOps,
+                (storeCpuNanos - premappedCpuNanos) / 1000.0 / totalOps));
+        log.info(String.format(Locale.ROOT,
+                "WIRECOST-CONTROL GC  premapped: %d collections, %d ms (%.1f µs/op)   "
+                + "store(Msg): %d collections, %d ms (%.1f µs/op)",
+                premappedGcCount, premappedGcMs, premappedGcMs * 1000.0 / totalOps,
+                storeGcCount, storeGcMs, storeGcMs * 1000.0 / totalOps));
+
+        double premapped = median(premappedRuns);
+        double store = median(storeRuns);
+        report("CONTROL raw insert of the mapped Msg doc", premapped);
+        report("CONTROL morphium.store(Msg)", store);
+        report("CONTROL  -> difference (the mapping's own cost)", store - premapped);
+        log.info("WIRECOST-CONTROL premapped runs={} store runs={}", premappedRuns, storeRuns);
+    }
+
+    /** {collection count, total collection time in ms} across all collectors. */
+    private static long[] gcTotals() {
+        long count = 0;
+        long millis = 0;
+
+        for (java.lang.management.GarbageCollectorMXBean b
+                : java.lang.management.ManagementFactory.getGarbageCollectorMXBeans()) {
+            if (b.getCollectionCount() > 0) {
+                count += b.getCollectionCount();
+                millis += b.getCollectionTime();
+            }
+        }
+
+        return new long[] {count, millis};
+    }
+
+    private void rawInsertDoc(Morphium m, String coll, Map<String, Object> doc) throws Exception {
+        InsertMongoCommand cmd = new InsertMongoCommand(m.getDriver().getPrimaryConnection(null))
+            .setDb("wirecost_pool").setColl(coll)
+            .setDocuments(List.of(doc));
+
+        try {
+            cmd.execute();
+        } finally {
+            cmd.releaseConnection();
         }
     }
 
