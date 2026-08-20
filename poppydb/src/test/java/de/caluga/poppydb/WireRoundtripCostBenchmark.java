@@ -1,0 +1,319 @@
+package de.caluga.poppydb;
+
+import java.io.BufferedInputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.commands.InsertMongoCommand;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
+import de.caluga.morphium.messaging.MorphiumMessaging;
+import de.caluga.morphium.messaging.Msg;
+import de.caluga.morphium.driver.wireprotocol.OpMsg;
+import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
+
+/**
+ * Where does the per-message cost of a synchronous send actually go?
+ *
+ * <p>The one-way messaging benchmark plateaus at roughly 320µs per operation single-threaded,
+ * which is a lot for an in-memory insert over loopback (a bare loopback round trip is 30-50µs).
+ * #276 assumed the answer was per-command fixed cost on the server and tried to amortise it by
+ * fusing commands; that turned out to be unmeasurable, because the mechanism could never engage
+ * (see the issue). This benchmark decomposes the cost instead of guessing at it:
+ *
+ * <ul>
+ *   <li><b>insert, in-process</b> - InMemoryDriver.insert with no wire at all: the floor.</li>
+ *   <li><b>ping, over the wire</b> - a command that does no data work: wire encode/decode,
+ *       socket syscalls, command dispatch, reply.</li>
+ *   <li><b>insert, over the wire</b> - the real thing. Minus "ping" this is the insert's share,
+ *       minus "in-process insert" the transport's.</li>
+ * </ul>
+ *
+ * <p>It then A/Bs the three things the client wire path does per message that look avoidable:
+ * no {@code TCP_NODELAY} on the client socket (the server sets it, the client never does), a
+ * {@code setSoTimeout} syscall before every single read, and an unbuffered socket stream that
+ * costs one read syscall for the 16-byte header and another for the body.
+ *
+ * <p>Manual: {@code mvn -o -pl poppydb test -Dtest=WireRoundtripCostBenchmark -Dtest.excludeTags=}
+ * Results are printed as greppable {@code WIRECOST } lines.
+ */
+@Tag("manual")
+public class WireRoundtripCostBenchmark {
+
+    private static final Logger log = LoggerFactory.getLogger(WireRoundtripCostBenchmark.class);
+    private static final int WARMUP = 2000;
+    private static final int OPS = 20000;
+    private static final AtomicInteger MSG_ID = new AtomicInteger(1);
+
+    private PoppyDB server;
+
+    @AfterEach
+    public void tearDown() {
+        if (server != null) {
+            server.shutdown();
+            server = null;
+        }
+    }
+
+    /** One configuration of the client side of the wire. */
+    private record WireConfig(String label, boolean tcpNoDelay, boolean bufferedIn,
+                              boolean setSoTimeoutPerRead) {}
+
+    private static int freePort() throws Exception {
+        try (ServerSocket s = new ServerSocket(0)) {
+            return s.getLocalPort();
+        }
+    }
+
+    private PoppyDB startServer() throws Exception {
+        int port = freePort();
+        PoppyDB srv = new PoppyDB(port, "127.0.0.1", 100, 10);
+        srv.start();
+        long deadline = System.currentTimeMillis() + 10_000;
+
+        while (true) {
+            try (Socket probe = new Socket()) {
+                probe.connect(new InetSocketAddress("127.0.0.1", port), 250);
+                break;
+            } catch (Exception e) {
+                if (System.currentTimeMillis() > deadline) {
+                    throw e;
+                }
+
+                Thread.sleep(50);
+            }
+        }
+
+        return srv;
+    }
+
+    /** Median of repeated measurements - the mean is too easy to skew with one GC pause. */
+    private static double median(List<Double> values) {
+        List<Double> sorted = new ArrayList<>(values);
+        sorted.sort(null);
+        int n = sorted.size();
+        return n % 2 == 1 ? sorted.get(n / 2) : (sorted.get(n / 2 - 1) + sorted.get(n / 2)) / 2;
+    }
+
+    private static void report(String what, double microsPerOp) {
+        log.info(String.format(Locale.ROOT, "WIRECOST %-38s %8.1f µs/op   (%.0f ops/s)",
+                what, microsPerOp, 1_000_000.0 / microsPerOp));
+    }
+
+    /** Round trips one command per iteration and returns µs/op. */
+    private double measureWire(int port, WireConfig cfg, boolean insert, int ops) throws Exception {
+        Socket s = new Socket();
+        s.connect(new InetSocketAddress("127.0.0.1", port), 2000);
+        s.setTcpNoDelay(cfg.tcpNoDelay());
+        s.setSoTimeout(15000);
+
+        try (OutputStream out = s.getOutputStream()) {
+            InputStream in = cfg.bufferedIn()
+                ? new BufferedInputStream(s.getInputStream(), 16 * 1024)
+                : s.getInputStream();
+
+            for (int i = 0; i < WARMUP; i++) {
+                roundtrip(s, out, in, cfg, insert, i);
+            }
+
+            long start = System.nanoTime();
+
+            for (int i = 0; i < ops; i++) {
+                roundtrip(s, out, in, cfg, insert, i);
+            }
+
+            long elapsed = System.nanoTime() - start;
+            return elapsed / 1000.0 / ops;
+        } finally {
+            s.close();
+        }
+    }
+
+    private void roundtrip(Socket s, OutputStream out, InputStream in, WireConfig cfg,
+                           boolean insert, int i) throws Exception {
+        OpMsg msg = new OpMsg();
+        msg.setMessageId(MSG_ID.incrementAndGet());
+        msg.setFlags(0);
+        msg.setFirstDoc(insert
+            ? Doc.of("insert", "wirebench",
+                     "documents", List.of(Doc.of("_id", i, "v", "payload")),
+                     "$db", "wirecost")
+            : Doc.of("ping", 1, "$db", "admin"));
+        out.write(msg.bytes());
+        out.flush();
+
+        // what SingleMongoConnection.readNextMessage does before every read
+        if (cfg.setSoTimeoutPerRead()) {
+            s.setSoTimeout(15000);
+        }
+
+        WireProtocolMessage reply = WireProtocolMessage.parseFromStream(in);
+
+        if (reply == null) {
+            throw new IllegalStateException("no reply");
+        }
+    }
+
+    @Test
+    public void whereDoesThePerMessageCostGo() throws Exception {
+        // ---- floor: the insert itself, no wire ----
+        InMemoryDriver direct = new InMemoryDriver();
+        direct.connect();
+        double inProcess;
+
+        try {
+            for (int i = 0; i < WARMUP; i++) {
+                direct.store("wirecost", "inproc", List.of(Doc.of("_id", i, "v", "payload")), null);
+            }
+
+            long start = System.nanoTime();
+
+            for (int i = 0; i < OPS; i++) {
+                direct.store("wirecost", "inproc", List.of(Doc.of("_id", i, "v", "payload")), null);
+            }
+
+            inProcess = (System.nanoTime() - start) / 1000.0 / OPS;
+        } finally {
+            direct.close();
+        }
+
+        report("insert, in-process (no wire)", inProcess);
+
+        // ---- over the wire, as the driver does it today ----
+        server = startServer();
+        int port = server.getPort();
+        WireConfig asIs = new WireConfig("as the driver does it", false, false, true);
+        double pingAsIs = measureWire(port, asIs, false, OPS);
+        double insertAsIs = measureWire(port, asIs, true, OPS);
+        report("ping, over the wire", pingAsIs);
+        report("insert, over the wire", insertAsIs);
+        report("  -> transport share of an insert", pingAsIs);
+        report("  -> insert share over the wire", insertAsIs - pingAsIs);
+        report("  -> insert cost in-process", inProcess);
+
+        // ---- A/B the three avoidable per-message costs on the client ----
+        List<WireConfig> configs = List.of(
+            asIs,
+            new WireConfig("+ TCP_NODELAY", true, false, true),
+            new WireConfig("+ buffered input", false, true, true),
+            new WireConfig("+ no setSoTimeout per read", false, false, false),
+            new WireConfig("all three", true, true, false));
+
+        for (WireConfig cfg : configs) {
+            List<Double> runs = new ArrayList<>();
+
+            for (int r = 0; r < 3; r++) {
+                runs.add(measureWire(port, cfg, true, OPS));
+            }
+
+            report("insert, " + cfg.label(), median(runs));
+        }
+
+        // ---- and now the layers the application actually goes through ----
+        // A raw round trip is ~50µs, but the messaging benchmark plateaus around 320µs per
+        // sendMessage single-threaded. This locates the difference: how much is the driver
+        // (pooling, object mapping, write concern) and how much is the messaging layer on top.
+        measureClientStack(port);
+    }
+
+    private MorphiumConfig cfg(String db, int port) {
+        MorphiumConfig cfg = new MorphiumConfig();
+        cfg.connectionSettings().setDatabase(db);
+        cfg.clusterSettings().getHostSeed().clear();
+        cfg.clusterSettings().addHostToSeed("127.0.0.1:" + port);
+        cfg.driverSettings().setDriverName("PooledDriver");
+        cfg.connectionSettings().setMaxConnections(20).setMinConnections(2);
+        return cfg;
+    }
+
+    private void rawInsert(Morphium m, int i) throws Exception {
+        InsertMongoCommand cmd = new InsertMongoCommand(m.getDriver().getPrimaryConnection(null))
+            .setDb("wirecost_stack").setColl("raw")
+            .setDocuments(List.of(Doc.of("_id", i, "v", "x")));
+
+        try {
+            cmd.execute();
+        } finally {
+            cmd.releaseConnection();   // borrowed from the pool - 20 leaks and it is empty
+        }
+    }
+
+    private Msg benchMsg() {
+        Msg msg = new Msg("wirecost", "bench", "x", 300_000);
+        msg.setSender("bench-sender");
+        msg.setSenderHost("localhost");
+        return msg;
+    }
+
+    private void measureClientStack(int port) throws Exception {
+        int ops = 3000;   // this path is ~10x slower, so fewer iterations
+
+        try (Morphium m = new Morphium(cfg("wirecost_stack", port))) {
+            // (a) driver-level insert of a plain Doc: pool checkout + wire + server insert
+            int id = 0;
+
+            for (int i = 0; i < 500; i++) {
+                rawInsert(m, id++);
+            }
+
+            long start = System.nanoTime();
+
+            for (int i = 0; i < ops; i++) {
+                rawInsert(m, id++);
+            }
+
+            report("insert via PooledDriver (no mapping)", (System.nanoTime() - start) / 1000.0 / ops);
+
+            // (b) morphium.store of a Msg entity: adds the entity pipeline and object mapping,
+            // but none of the messaging layer. Msg refuses to be stored without a sender
+            // (@PreStore), which messaging would normally fill in.
+            for (int i = 0; i < 500; i++) {
+                m.store(benchMsg());
+            }
+
+            start = System.nanoTime();
+
+            for (int i = 0; i < ops; i++) {
+                m.store(benchMsg());
+            }
+
+            report("morphium.store(Msg) (mapping)", (System.nanoTime() - start) / 1000.0 / ops);
+
+            // (c) the real thing: messaging on top
+            MorphiumMessaging sender = m.createMessaging();
+            sender.start();
+
+            try {
+                for (int i = 0; i < 500; i++) {
+                    sender.sendMessage(new Msg("wirecost", "bench", "x", 300_000));
+                }
+
+                start = System.nanoTime();
+
+                for (int i = 0; i < ops; i++) {
+                    sender.sendMessage(new Msg("wirecost", "bench", "x", 300_000));
+                }
+
+                report("messaging.sendMessage", (System.nanoTime() - start) / 1000.0 / ops);
+            } finally {
+                sender.terminate();
+            }
+        }
+    }
+}
