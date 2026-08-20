@@ -2548,6 +2548,15 @@ This prevents different JVMs from dropping or overwriting each other’s data du
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>mvn<span class="w"> </span>-Pexternal<span class="w"> </span>-Dmorphium.driver<span class="o">=</span>pooled<span class="w"> </span>-Dmorphium.uri<span class="o">=</span>mongodb://...<span class="w"> </span>-Dmorphium.database<span class="o">=</span>morphium_test_manual<span class="w"> </span><span class="nb">test</span>
 </span></code></pre></div>
 <h2 id="headless-vm-testing">Headless VM Testing<a class="headerlink" href="#headless-vm-testing" title="Permanent link">&para;</a></h2>
+<div class="admonition note">
+<p class="admonition-title">Maintainer infrastructure — not required for contributing</p>
+<p>Everything from here on describes the maintainers' own self-hosted test runner.
+The hostnames, containers and API keys below refer to a private setup and are not
+reachable from outside it.</p>
+<p>You do <strong>not</strong> need any of this to contribute. <code>./runtests.sh</code> on your own machine
+covers the same ground — see the sections above, and use <code>--poppydb</code> /
+<code>--poppydb-replicaset</code> for server-backed phases without installing MongoDB.</p>
+</div>
 <p>For running the full test matrix on a dedicated VM (e.g., Proxmox):</p>
 <h3 id="setup">Setup<a class="headerlink" href="#setup" title="Permanent link">&para;</a></h3>
 <ol>
