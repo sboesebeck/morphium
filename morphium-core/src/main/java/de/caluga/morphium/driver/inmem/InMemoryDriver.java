@@ -614,6 +614,24 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private static final int DEFAULT_EXEC_THREADS = Math.max(20, Runtime.getRuntime().availableProcessors() * 2);
     private ScheduledThreadPoolExecutor exec = new ScheduledThreadPoolExecutor(
                     Integer.getInteger("inmemory.scheduledThreads", DEFAULT_EXEC_THREADS));
+    // Watch loops get their OWN executor and must never run on exec (#325). A watch loop parks in
+    // monitor.await() for the whole lifetime of its change stream, and a ScheduledThreadPoolExecutor
+    // never grows past its core size — so on the shared pool the Nth+1 stream simply never starts:
+    // no replayHistory, no heartbeat, no unregister/releaseConnection in its finally, while the TTL
+    // sweep and the event processor sharing that pool stop node-wide. Live delivery kept working
+    // (writer/dispatcher threads), which made the ceiling silent.
+    // Cached pool on purpose: it grows with the number of streams instead of capping them, and idle
+    // threads are reaped after the keepalive. The cost is one platform thread per open change
+    // stream — that trade, and the thread-per-stream shape itself, is #328.
+    // Platform threads for now, NOT because virtual threads could not do this - a parked loop is
+    // what they are for, and they are final since JDK 21. The blocker is one contended
+    // `synchronized (deliveredTokens)` still sitting on the replay path (monitorenter pins the
+    // carrier under 21) plus the load validation that swap deserves; see #328, where this factory
+    // is the single line that changes.
+    private java.util.concurrent.ExecutorService watchExec = newWatchExecutor();
+    // Own single thread for the TTL sweep so that expiry can never again be held hostage by
+    // whatever else is queued on exec — the one effect of #325 with node-wide, silent data impact.
+    private ScheduledThreadPoolExecutor ttlExec = newTtlExecutor();
     // Executor for dispatching change stream events asynchronously
     // This prevents insert/update/delete operations from blocking on event delivery
     // SINGLE thread on purpose: mongod guarantees per-cursor event ordering, and a pool
@@ -634,6 +652,23 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     // Track collections with TTL indexes to avoid scanning all collections during expiration check
     // Key format: "db.collection", Value: TTL index info (field name, expireAfterSeconds)
     private final Map<String, TtlIndexInfo> collectionsWithTtlIndex = new ConcurrentHashMap<>();
+
+    /**
+     * The one place that decides how watch loops get their threads - see the {@code watchExec}
+     * field for why they must not share {@code exec}. Daemon threads: a parked watch loop must
+     * never be the reason a JVM refuses to exit.
+     */
+    private static java.util.concurrent.ExecutorService newWatchExecutor() {
+        return java.util.concurrent.Executors.newCachedThreadPool(
+                        Thread.ofPlatform().name("inmem-watch-", 0).daemon(true).factory());
+    }
+
+    private static ScheduledThreadPoolExecutor newTtlExecutor() {
+        ScheduledThreadPoolExecutor e = new ScheduledThreadPoolExecutor(1,
+                        Thread.ofPlatform().name("inmem-ttl-", 0).daemon(true).factory());
+        e.setRemoveOnCancelPolicy(true);
+        return e;
+    }
 
     private static class TtlIndexInfo {
         final String fieldName;
@@ -1355,7 +1390,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      */
     private void watchAsync(WatchCommand settings) {
         CountDownLatch registrationLatch = new CountDownLatch(1);
-        exec.execute(() -> {
+        watchExec.execute(() -> {
             try {
                 watchInternal(settings, registrationLatch);
             } catch (MorphiumDriverException e) {
@@ -1364,9 +1399,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 settings.releaseConnection();
             }
         });
+
         // Wait for the subscription to be registered before returning
         try {
-            registrationLatch.await(5, TimeUnit.SECONDS);
+            if (!registrationLatch.await(5, TimeUnit.SECONDS)) {
+                // Returning here hands back a watch that was never registered and has therefore
+                // missed everything since - the caller has no way to tell that from a healthy
+                // stream, so at least say so. Unreachable via the pool starvation of #325 now that
+                // watches have their own executor, but a slow replayHistory can still get here.
+                log.warn("watch on {}.{} was not registered within 5s - the stream may have missed "
+                    + "events; continuing without it being confirmed",
+                    settings.getDb(), settings.getColl());
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -3442,9 +3486,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         registerSubscription(subscription);
         // log.info("Watch registered with cursorId={}", cursorId);
 
-        // Start watch loop asynchronously
+        // Start watch loop asynchronously - on the dedicated watch executor, never on exec (#325)
         final String finalDb = db;
-        exec.execute(() -> {
+        watchExec.execute(() -> {
             try {
                 // Handle resume tokens if present
                 Long resumeAfterToken = extractResumeToken(cmd.getResumeAfter());
@@ -5052,6 +5096,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                             Integer.getInteger("inmemory.scheduledThreads", DEFAULT_EXEC_THREADS));
         }
 
+        if (watchExec.isShutdown()) {
+            watchExec = newWatchExecutor();
+        }
+
+        if (ttlExec.isShutdown()) {
+            ttlExec = newTtlExecutor();
+        }
+
         // Start per-instance event processor for change streams
         Runnable eventProcessor = () -> {
             // Notification of watchers.
@@ -5081,7 +5133,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private void scheduleExpire() {
-        expire = exec.scheduleWithFixedDelay(this::runTtlSweepPass, 100, expireCheck, TimeUnit.MILLISECONDS);
+        expire = ttlExec.scheduleWithFixedDelay(this::runTtlSweepPass, 100, expireCheck, TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -5735,6 +5787,25 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      *
      * @param clearData if true, clears all database data (calls resetData())
      */
+    /** shutdownNow + bounded wait, logging instead of throwing - the shutdown path cannot fail. */
+    private void stopExecutor(java.util.concurrent.ExecutorService e, String what) {
+        if (e == null || e.isShutdown()) {
+            return;
+        }
+
+        e.shutdownNow(); // Interrupt running tasks
+
+        try {
+            // Wait for tasks to terminate (max 5 seconds)
+            if (!e.awaitTermination(5, TimeUnit.SECONDS)) {
+                log.warn("InMemoryDriver {} did not terminate in time", what);
+            }
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            log.warn("Interrupted while waiting for {} termination", what);
+        }
+    }
+
     public void shutdown(boolean clearData) {
         log.info("Shutting down InMemoryDriver (clearData={})", clearData);
 
@@ -5745,19 +5816,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         running = false;
         initialized.set(false);
 
-        // Shutdown the scheduler - this is driver-level, not connection-level
-        if (exec != null && !exec.isShutdown()) {
-            exec.shutdownNow(); // Interrupt running tasks
-            try {
-                // Wait for tasks to terminate (max 5 seconds)
-                if (!exec.awaitTermination(5, TimeUnit.SECONDS)) {
-                    log.warn("InMemoryDriver executor did not terminate in time");
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                log.warn("Interrupted while waiting for executor termination");
-            }
-        }
+        // Shutdown the schedulers - this is driver-level, not connection-level. Interrupting the
+        // watch executor is what ends the parked watch loops: monitor.await() throws
+        // InterruptedException and each loop runs its finally (unregister + releaseConnection),
+        // which is why this has to happen before the active-subscription check below.
+        stopExecutor(exec, "executor");
+        stopExecutor(watchExec, "watch executor");
+        stopExecutor(ttlExec, "ttl executor");
 
         // Shutdown the event dispatcher only if no active subscriptions remain.
         // When multiple Morphium instances share this driver, one closing should not

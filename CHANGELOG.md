@@ -73,6 +73,33 @@ another dump held the guard.
 
 ### Fixed
 
+#### InMemoryDriver: the 21st change stream never started, and TTL expiry stopped with it (#325)
+Every watch parked a thread of the driver's shared scheduler for the entire lifetime of its change
+stream. That pool is a `ScheduledThreadPoolExecutor` sized `max(20, 2*cores)`, and a
+`ScheduledThreadPoolExecutor` never grows past its core size — so once that many streams were open,
+the next watch's task simply never ran. It never replayed its history, never stamped its liveness
+heartbeat, and never reached the `finally` that unregisters the subscription and releases its
+connection, so the leak kept growing instead of stopping at the ceiling.
+
+Nothing about that was visible from the outside. Live events kept flowing (they are delivered on the
+writer and dispatcher threads, not on the parked one), so the stream looked healthy while its resume
+replay had silently produced nothing — and to `ChangeStreamMonitor.isStreamLive` the same stream
+looked *dead*, because the heartbeat lives in the loop that never started. Worse, the TTL sweep
+shares that pool: with enough watches open, expiry stopped for the whole node, so `deleteAt`
+documents — messages, locks — stopped expiring. For a PoppyDB node serving a message bus, where
+there is one change stream per messaging client plus one per replicating secondary, twenty is not a
+large number.
+
+Watch loops now have their own executor that grows with the number of streams instead of capping
+them, and the TTL sweep runs on a scheduler of its own so expiry can no longer be held up by
+anything else that is queued. **This costs one thread per open change stream**, so a node carrying
+many concurrent streams uses noticeably more memory than before — the previous behaviour was cheaper
+only because it stopped working past twenty. Removing the thread-per-stream shape itself (virtual
+threads or event-driven delivery) is #328.
+
+Also fixed alongside it: a watch whose registration did not confirm within 5s used to return a
+perfectly normal-looking cursor for a stream that was never registered. It now says so in the log.
+
 #### PoppyDB never emitted `lock_released` — exclusive messages waited for the poll interval
 `MultiCollectionMessaging` deliberately runs **without** its own lock-monitor change stream on
 PoppyDB ("server pushes lock_released events directly … 0 extra connections") and depends on the
