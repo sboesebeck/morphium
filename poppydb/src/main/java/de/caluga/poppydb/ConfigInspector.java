@@ -227,6 +227,14 @@ class ConfigInspector {
             // invalid value - validate() reports it, nothing to resolve here
         }
 
+        appendKey(sb, opts, "cursor-queue-budget", opts.cursorQueueBudget);
+
+        try {
+            sb.append("# cursor-queue-budget resolved: ").append(opts.cursorQueueBudgetBytes()).append(" bytes\n");
+        } catch (IllegalArgumentException e) {
+            // invalid value - validate() reports it, nothing to resolve here
+        }
+
         appendKey(sb, opts, "compressor", opts.compressor.toLowerCase(Locale.ROOT));
         appendKey(sb, opts, "rs-name", opts.rsName);
         appendKey(sb, opts, "rs-seed", opts.rsSeed);

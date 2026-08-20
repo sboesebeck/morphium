@@ -28,6 +28,45 @@ public class WatchCursorManager {
     // CursorKilled-style error rather than risking OOM.
     static final int MAX_CURSOR_QUEUE_SIZE = 10_000;
 
+    // #321: per-cursor byte budget on top of the count cap. The count cap alone lets a slow
+    // consumer of ~300KB documents pin ~3GB (10,000 x 300KB) on the primary - each queued event
+    // shares its fullDocument payload with the replay-buffer entry, so replay-buffer byte
+    // eviction frees nothing while the cursor still references it. 0 disables the byte bound.
+    private volatile long cursorQueueByteBudget = DEFAULT_CURSOR_QUEUE_BYTE_BUDGET;
+    static final long DEFAULT_CURSOR_QUEUE_BYTE_BUDGET = 64L * 1024 * 1024;
+
+    // #321/#322: injectable count cap - MAX_CURSOR_QUEUE_SIZE stays the default, but tests (and
+    // the two-node scenarios of #322) need to shrink it without buffering 10,000 real events.
+    private volatile int maxCursorQueueSize = MAX_CURSOR_QUEUE_SIZE;
+
+    /** Per-cursor byte budget for buffered, undelivered events; 0 disables the byte bound. */
+    public void setCursorQueueByteBudget(long bytes) {
+        if (bytes < 0) {
+            throw new IllegalArgumentException("cursorQueueByteBudget must be >= 0 (0 = disabled)");
+        }
+
+        this.cursorQueueByteBudget = bytes;
+    }
+
+    public long getCursorQueueByteBudget() {
+        return cursorQueueByteBudget;
+    }
+
+    /** Count cap for newly created cursors' event queues (existing cursors keep theirs). */
+    void setMaxCursorQueueSizeForTest(int maxEvents) {
+        if (maxEvents < 1) {
+            throw new IllegalArgumentException("maxCursorQueueSize must be >= 1");
+        }
+
+        this.maxCursorQueueSize = maxEvents;
+    }
+
+    /** Estimated bytes a watch cursor currently holds undelivered; -1 if it no longer exists. */
+    long queuedByteCount(long cursorId) {
+        WatchCursorState state = watchCursors.get(cursorId);
+        return state == null ? -1 : state.queuedBytes.get();
+    }
+
     private final AtomicLong cursorIdGenerator = new AtomicLong(1000);
     private final ConcurrentMap<Long, WatchCursorState> watchCursors = new ConcurrentHashMap<>();
     private final ConcurrentMap<Long, TailableCursorState> tailableCursors = new ConcurrentHashMap<>();
@@ -65,7 +104,7 @@ public class WatchCursorManager {
      */
     public long createWatchCursor(InMemoryDriver driver, WatchCommand wcmd) {
         long cursorId = nextCursorId();
-        WatchCursorState state = new WatchCursorState(cursorId, wcmd.getDb(), wcmd.getColl());
+        WatchCursorState state = new WatchCursorState(cursorId, wcmd.getDb(), wcmd.getColl(), maxCursorQueueSize);
         watchCursors.put(cursorId, state);
 
         log.debug("Created watch cursor {} for {}.{}", cursorId, wcmd.getDb(), wcmd.getColl());
@@ -253,7 +292,7 @@ public class WatchCursorManager {
         // Complete any pending getMore request immediately
         PendingGetMore pending;
         while ((pending = state.pendingGetMores.poll()) != null) {
-            List<Map<String, Object>> batch = drainEvents(state.events);
+            List<Map<String, Object>> batch = drainWatchEvents(state);
             log.trace("Fast-path: completing pending getMore for cursor {} with {} events", state.cursorId, batch.size());
             pending.future.complete(batch);
         }
@@ -279,7 +318,7 @@ public class WatchCursorManager {
         PendingGetMore pending;
         int completedCount = 0;
         while ((pending = state.pendingGetMores.poll()) != null) {
-            List<Map<String, Object>> batch = drainEvents(state.events);
+            List<Map<String, Object>> batch = drainWatchEvents(state);
             log.debug("onWatchEvent: completing pending getMore for cursor {} with {} events", cursorId, batch.size());
             pending.future.complete(batch);
             completedCount++;
@@ -315,7 +354,7 @@ public class WatchCursorManager {
 
         // Check if there are already events available
         if (!state.events.isEmpty()) {
-            List<Map<String, Object>> batch = drainEvents(state.events);
+            List<Map<String, Object>> batch = drainWatchEvents(state);
             log.debug("getMoreWatch: returning {} existing events for cursor {}", batch.size(), state.cursorId);
             return CompletableFuture.completedFuture(batch);
         }
@@ -347,7 +386,7 @@ public class WatchCursorManager {
         if (!state.events.isEmpty()) {
             // Try to remove our pending entry and return events immediately
             if (state.pendingGetMores.remove(pending)) {
-                List<Map<String, Object>> batch = drainEvents(state.events);
+                List<Map<String, Object>> batch = drainWatchEvents(state);
                 log.debug("getMoreWatch: race avoided - found {} events after adding pending for cursor {}", batch.size(), state.cursorId);
                 future.complete(batch);
                 return future;
@@ -365,7 +404,7 @@ public class WatchCursorManager {
         if (terminal != null || !watchCursors.containsKey(state.cursorId)) {
             if (state.pendingGetMores.remove(pending)) {
                 if (!state.events.isEmpty()) {
-                    future.complete(drainEvents(state.events));
+                    future.complete(drainWatchEvents(state));
                 } else if (terminal != null) {
                     future.completeExceptionally(new ChangeStreamHistoryLostException(terminal));
                 } else {
@@ -382,7 +421,7 @@ public class WatchCursorManager {
             scheduler.schedule(() -> {
                 if (state.pendingGetMores.remove(pending)) {
                     // Timeout - return whatever events are available (may be empty)
-                    List<Map<String, Object>> batch = drainEvents(state.events);
+                    List<Map<String, Object>> batch = drainWatchEvents(state);
                     log.debug("getMoreWatch: timeout for cursor {}, returning {} events", state.cursorId, batch.size());
                     future.complete(batch);
                 }
@@ -457,6 +496,23 @@ public class WatchCursorManager {
     }
 
     /**
+     * Watch-cursor drain: same batch-capping rules as {@link #drainEvents} (count checked
+     * BEFORE polling - see the comment there), plus the #321 byte accounting - each event
+     * subtracts exactly the bytes it added at offer time.
+     */
+    private List<Map<String, Object>> drainWatchEvents(WatchCursorState state) {
+        List<Map<String, Object>> batch = new ArrayList<>();
+        QueuedEvent qe;
+        int count = 0;
+        while (count < 100 && (qe = state.events.poll()) != null) {
+            state.queuedBytes.addAndGet(-qe.bytes());
+            batch.add(qe.event());
+            count++;
+        }
+        return batch;
+    }
+
+    /**
      * Check if a cursor exists (watch or tailable).
      */
     public boolean hasCursor(long cursorId) {
@@ -498,14 +554,39 @@ public class WatchCursorManager {
      * @return true if the event was buffered, false if the cursor overflowed and was killed.
      */
     private boolean offerWatchEvent(WatchCursorState state, Map<String, Object> event) {
-        if (state.events.offer(event)) {
+        long bytes = InMemoryDriver.estimateBsonSize(event);
+        long budget = cursorQueueByteBudget;
+
+        // #321: byte bound on top of the count cap, same estimate the replay-buffer and
+        // replication-queue budgets use. Kill is the only viable overflow policy here: in
+        // server mode delivery runs synchronously on the WRITER thread, so blocking would
+        // stall the whole node's write path for one slow consumer, and dropping would
+        // silently lose events. A single event larger than the whole budget is still
+        // accepted while the queue is empty (newest-event-survives, like the replay buffer) -
+        // killing there would impose a document-size cap MongoDB does not have.
+        // check-then-add, not atomic: racing writers can overshoot by at most one in-flight
+        // event each, which is noise against an estimated budget.
+        if (budget > 0 && !state.events.isEmpty() && state.queuedBytes.get() + bytes > budget) {
+            log.warn("Change stream cursor {} exceeded its byte budget ({} bytes buffered + {} incoming > {}) — killing cursor (slow/absent consumer)",
+                    state.cursorId, state.queuedBytes.get(), bytes, budget);
+            WatchCursorState removed = removeWatchCursor(state.cursorId);
+            if (removed != null) {
+                failPending(removed.pendingGetMores,
+                        "cursor killed: event buffer byte budget exceeded (" + budget + " bytes)");
+            }
+            return false;
+        }
+
+        if (state.events.offer(new QueuedEvent(event, bytes))) {
+            state.queuedBytes.addAndGet(bytes);
             return true;
         }
         log.warn("Change stream cursor {} exceeded max buffer size {} — killing cursor (slow/absent consumer)",
-                state.cursorId, MAX_CURSOR_QUEUE_SIZE);
+                state.cursorId, maxCursorQueueSize);
         WatchCursorState removed = removeWatchCursor(state.cursorId);
         if (removed != null) {
-            failPending(removed.pendingGetMores);
+            failPending(removed.pendingGetMores,
+                    "cursor killed: event buffer overflow (max " + maxCursorQueueSize + " buffered events)");
         }
         return false;
     }
@@ -524,7 +605,8 @@ public class WatchCursorManager {
         TailableCursorState removed = tailableCursors.remove(state.cursorId);
         if (removed != null) {
             removed.active = false;
-            failPending(removed.pendingGetMores);
+            failPending(removed.pendingGetMores,
+                    "cursor killed: event buffer overflow (max " + MAX_CURSOR_QUEUE_SIZE + " buffered events)");
         }
         return false;
     }
@@ -556,7 +638,7 @@ public class WatchCursorManager {
         PendingGetMore p;
 
         while (!state.events.isEmpty() && (p = state.pendingGetMores.poll()) != null) {
-            p.future.complete(drainEvents(state.events));
+            p.future.complete(drainWatchEvents(state));
         }
 
         while ((p = state.pendingGetMores.poll()) != null) {
@@ -571,11 +653,10 @@ public class WatchCursorManager {
     }
 
     /** Fail all pending getMore requests with a CursorKilled-style error. */
-    private void failPending(Queue<PendingGetMore> pending) {
+    private void failPending(Queue<PendingGetMore> pending, String reason) {
         PendingGetMore p;
         while ((p = pending.poll()) != null) {
-            p.future.completeExceptionally(new IllegalStateException(
-                    "cursor killed: event buffer overflow (max " + MAX_CURSOR_QUEUE_SIZE + " buffered events)"));
+            p.future.completeExceptionally(new IllegalStateException(reason));
         }
     }
 
@@ -720,6 +801,12 @@ public class WatchCursorManager {
 
     // Internal state classes
 
+    /**
+     * A buffered event with its size, estimated ONCE at offer time - the drain subtracts the
+     * exact same number it added, so the per-cursor byte counter cannot drift (#321).
+     */
+    private record QueuedEvent(Map<String, Object> event, long bytes) {}
+
     private static class WatchCursorState {
         final long cursorId;
         final String db;
@@ -729,15 +816,18 @@ public class WatchCursorManager {
         volatile WatchCommand wcmd;
         // Bounded so a slow/absent consumer cannot grow the buffer without limit.
         // offer() returns false at capacity; the caller then kills the cursor.
-        final Queue<Map<String, Object>> events = new LinkedBlockingQueue<>(MAX_CURSOR_QUEUE_SIZE);
+        final Queue<QueuedEvent> events;
+        // #321: estimated bytes of everything in `events` - offer-time add, drain-time subtract.
+        final AtomicLong queuedBytes = new AtomicLong(0);
         final Queue<PendingGetMore> pendingGetMores = new ConcurrentLinkedQueue<>();
         // For messaging fast-path: subscriber ID for sender filtering
         volatile String subscriberId;
 
-        WatchCursorState(long cursorId, String db, String collection) {
+        WatchCursorState(long cursorId, String db, String collection, int queueCapacity) {
             this.cursorId = cursorId;
             this.db = db;
             this.collection = collection;
+            this.events = new LinkedBlockingQueue<>(queueCapacity);
         }
     }
 

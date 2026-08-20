@@ -55,6 +55,12 @@ class ServerOptions {
     // the replay buffer this budget never discards events; it blocks the watch reader
     // (backpressure) - see ReplicationManager.setEventQueueByteBudget.
     String eventQueueBudget = "256m";
+    // Per-cursor byte budget for a watch cursor's buffered, undelivered events (#321) - same
+    // size syntax as replay-buffer. This bounds what ONE slow consumer can pin on the primary
+    // (each queued event shares its payload with the replay-buffer entry, so replay eviction
+    // frees nothing while a stalled cursor still references it). Overflow kills the cursor,
+    // same policy as the count cap; 0 = byte cap off.
+    String cursorQueueBudget = "64m";
 
     /** canonical config key (see ConfigLoader) -> origin of the effective value. */
     final Map<String, Source> sources = new LinkedHashMap<>();
@@ -138,6 +144,14 @@ class ServerOptions {
      */
     long eventQueueBudgetBytes() {
         return parseByteSize("event-queue-budget", eventQueueBudget, Runtime.getRuntime().maxMemory());
+    }
+
+    /**
+     * cursor-queue-budget resolved to bytes against the current JVM's max heap. Same contract as
+     * {@link #replayBufferBytes()}.
+     */
+    long cursorQueueBudgetBytes() {
+        return parseByteSize("cursor-queue-budget", cursorQueueBudget, Runtime.getRuntime().maxMemory());
     }
 
     /** Kept as a named entry point for the replay-buffer key (and its existing tests). */

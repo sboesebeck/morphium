@@ -281,6 +281,16 @@ public class PoppyDB {
     }
 
     /**
+     * Per-cursor byte budget for a watch cursor's buffered, undelivered events (estimated
+     * bytes, 0 = off) - see WatchCursorManager.setCursorQueueByteBudget (#321). Overflow kills
+     * the cursor, the same policy as the count cap: blocking would stall the writer thread
+     * that delivers events in server mode, dropping would silently lose events.
+     */
+    public void setCursorQueueByteBudget(long bytes) {
+        cursorManager.setCursorQueueByteBudget(bytes);
+    }
+
+    /**
      * Replay-buffer byte budget (estimated bytes, 0 = off) - see
      * InMemoryDriver.setChangeStreamHistoryByteBudget. Evicting for bytes has the same
      * window-lost semantics as count overflow: an affected secondary re-syncs.
