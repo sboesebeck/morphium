@@ -404,6 +404,12 @@ public class WireRoundtripCostBenchmark {
 
         // Exact per-thread CPU time, not 20ms execution sampling: the work runs inline on this
         // thread, so this settles "is the gap compute or waiting" without inference.
+        //
+        // Use ThreadMXBean, NOT JFR, for this: jdk.ThreadCPULoad was found to report ~0.00s of
+        // CPU for a thread that the kernel says burns tens of µs per op (macOS, JDK 21), and
+        // jdk.ExecutionSample under-delivered by ~8x in the same run (113 samples where ~935
+        // were due). Any "hidden wait" computed as wall - CPU - park on top of those numbers is
+        // an artifact of the subtraction, not a stall.
         int totalOps = rounds * block;
         java.lang.management.ThreadMXBean threads = java.lang.management.ManagementFactory.getThreadMXBean();
         long premappedCpuNanos = 0;
