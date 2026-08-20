@@ -1405,8 +1405,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (!registrationLatch.await(5, TimeUnit.SECONDS)) {
                 // Returning here hands back a watch that was never registered and has therefore
                 // missed everything since - the caller has no way to tell that from a healthy
-                // stream, so at least say so. Unreachable via the pool starvation of #325 now that
-                // watches have their own executor, but a slow replayHistory can still get here.
+                // stream, so at least say so. The latch is counted down as soon as the
+                // subscription is registered, before any replay, so getting here means the task
+                // either never got a thread or threw on its way to registerSubscription - and the
+                // catch above logs that without ever counting the latch down.
                 log.warn("watch on {}.{} was not registered within 5s - the stream may have missed "
                     + "events; continuing without it being confirmed",
                     settings.getDb(), settings.getColl());
