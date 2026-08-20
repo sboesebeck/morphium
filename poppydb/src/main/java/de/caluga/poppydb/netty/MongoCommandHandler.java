@@ -558,6 +558,17 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 answer = processReplSetProgress(doc);
                 break;
 
+            // #322: is this watch/tailable cursor still alive on this node? A secondary's
+            // initial-sync guard asks this AFTER its snapshot, because its own watch reader may
+            // be parked in byte-budget backpressure and therefore unable to notice that this
+            // primary killed the cursor (buffer overflow) - the answer is the one liveness
+            // signal the blocked reader cannot make stale.
+            case "poppyCursorAlive": {
+                long aliveCursorId = ((Number) doc.get("poppyCursorAlive")).longValue();
+                answer = Doc.of("ok", 1.0, "alive", cursorManager.hasCursor(aliveCursorId));
+                break;
+            }
+
             // Election protocol commands
             case "requestVote":
                 answer = processRequestVote(doc);

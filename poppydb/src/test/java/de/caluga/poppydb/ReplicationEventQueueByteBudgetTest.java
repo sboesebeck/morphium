@@ -194,12 +194,16 @@ public class ReplicationEventQueueByteBudgetTest {
             assertFalse(done.await(BLOCKED_PROBE_MS, TimeUnit.MILLISECONDS), "precondition: producer blocked");
 
             // Resync discards the queue for the lost window - the byte accounting must follow
-            // and the blocked producer must be woken (its event belongs to the new watch).
+            // and the blocked producer must be woken. Its event is DROPPED, not admitted (#322):
+            // it was received by the retired watch session, so admitting it after the discard
+            // would apply stale pre-resync state over the fresh snapshot. (This test used to
+            // expect the event to survive - that was the leak, not the contract.)
             mgr.triggerResync(0);
             assertTrue(done.await(5, TimeUnit.SECONDS),
                     "a resync's queue discard must free byte budget and wake the blocked producer");
-            assertEquals(size, mgr.getEventQueueBytes(),
-                    "after the discard only the late producer's event may be accounted");
+            assertEquals(0L, mgr.getEventQueueBytes(),
+                    "the retired session's event must be dropped, not accounted - admitting it "
+                            + "would replay stale pre-resync state over the fresh snapshot");
         } finally {
             producer.interrupt();
         }

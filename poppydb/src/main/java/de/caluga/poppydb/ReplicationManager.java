@@ -186,6 +186,24 @@ public class ReplicationManager {
         testPauseInShortcut = new CountDownLatch(1);
     }
 
+    /** Test hook: release a pause armed with {@link #armTestPauseInShortcutForTest()} without
+     * stopping the manager - the parked sync thread resumes its cycle normally. */
+    void releaseTestPauseInShortcutForTest() {
+        CountDownLatch latch = testPauseInShortcut;
+
+        if (latch != null) {
+            latch.countDown();
+        }
+    }
+
+    // #322: snapshots discarded because the primary reported this cycle's watch cursor dead
+    // (see the dead-watch guard in startInitialSyncOnce). Package-visible getter for tests.
+    private final AtomicLong snapshotsDiscardedDeadWatch = new AtomicLong();
+
+    long getSnapshotsDiscardedDeadWatchForTest() {
+        return snapshotsDiscardedDeadWatch.get();
+    }
+
     // Lossless initial sync (watch-first, buffer, snapshot, replay):
     //   applying              - gate for the batch processor. While false, replication events
     //                           keep accumulating in eventQueue but are NOT applied. It is
@@ -201,6 +219,9 @@ public class ReplicationManager {
     //   initialSyncStarted    - guards against launching more than one snapshot thread.
     private final AtomicBoolean applying = new AtomicBoolean(false);
     private final AtomicBoolean watchLive = new AtomicBoolean(false);
+    // The current watch session's command, for the #322 dead-watch guard (wire cursor id via
+    // its "cursor" metadata). null while no session is between construction and its finally.
+    private volatile WatchCommand activeWatchCommand;
     private final AtomicBoolean initialSyncStarted = new AtomicBoolean(false);
     private volatile Thread initialSyncThread;
     //   watchGeneration       - bumped every time a watch cursor registers on the primary (the
@@ -518,6 +539,22 @@ public class ReplicationManager {
      * Package-visible for tests.
      */
     void enqueueReplicationEvent(Map<String, Object> data) throws InterruptedException {
+        enqueueReplicationEvent(data, replicationSessionEpoch.get());
+    }
+
+    // #322: retired watch sessions. Bumped whenever the buffered events of the CURRENT watch
+    // session are discarded (dead-watch guard, triggerResync). A producer whose captured epoch
+    // is no longer current drops its event instead of enqueueing it: those events belong to a
+    // watch the node has already decided to abandon, and applying them after the next snapshot
+    // would overwrite freshly-copied documents with stale state - the #319 inversion class,
+    // reintroduced through the back door. Epoch check and offer happen under
+    // eventQueueByteLock, the same lock the discard drains under, so an event is either
+    // discarded by the drain or refused by the epoch check - never silently retained.
+    private final AtomicLong replicationSessionEpoch = new AtomicLong();
+    // Count-capacity backpressure entries (the byte analogue is eventQueueBytePressureCount).
+    private final AtomicLong eventQueueCountPressureCount = new AtomicLong();
+
+    void enqueueReplicationEvent(Map<String, Object> data, long sessionEpoch) throws InterruptedException {
         long size = InMemoryDriver.estimateBsonSize(data);
 
         if (eventQueueByteBudget > 0) {
@@ -527,8 +564,10 @@ public class ReplicationManager {
                 // Wait while admitting would exceed the budget AND the queue still holds bytes
                 // - a queue at 0 bytes always admits, even an event above the whole budget.
                 // Re-read the budget each round so setEventQueueByteBudget() takes effect on a
-                // waiting producer.
-                while (running.get() && eventQueueByteBudget > 0 && eventQueueBytes.get() > 0
+                // waiting producer. A session-epoch change ends the wait: the events of this
+                // producer's watch session were discarded, so is this one (checked again below).
+                while (running.get() && replicationSessionEpoch.get() == sessionEpoch
+                        && eventQueueByteBudget > 0 && eventQueueBytes.get() > 0
                         && eventQueueBytes.get() + size > eventQueueByteBudget) {
                     if (!waited) {
                         waited = true;
@@ -548,11 +587,37 @@ public class ReplicationManager {
             }
         }
 
-        eventQueue.put(new QueuedEvent(data, size));
-        // Adding after the (possibly count-blocked) put keeps the invariant that the counter
-        // only ever accounts events that actually made it into the queue; any drain racing us
-        // subtracts this event's exact size, so the counter converges to the queue content.
-        eventQueueBytes.addAndGet(size);
+        // Count-capacity backpressure, epoch-atomic: offer under the same lock the dead-watch
+        // discard drains under. The former blocking put() could re-admit an event AFTER a
+        // discard had drained the queue, resurrecting a retired session's event.
+        boolean countWaited = false;
+
+        while (true) {
+            synchronized (eventQueueByteLock) {
+                if (replicationSessionEpoch.get() != sessionEpoch) {
+                    return; // session retired (#322) - the event belongs to a dead watch
+                }
+
+                if (eventQueue.offer(new QueuedEvent(data, size))) {
+                    // Adding after the offer keeps the invariant that the counter only ever
+                    // accounts events that actually made it into the queue; any drain racing us
+                    // subtracts this event's exact size, so the counter converges.
+                    eventQueueBytes.addAndGet(size);
+                    return;
+                }
+            }
+
+            if (!running.get()) {
+                return; // shutting down - the queue is discarded anyway (see stop())
+            }
+
+            if (!countWaited) {
+                countWaited = true;
+                eventQueueCountPressureCount.incrementAndGet();
+            }
+
+            Thread.sleep(50); // count capacity full - same backpressure the old put() applied
+        }
     }
 
     /**
@@ -1376,6 +1441,24 @@ public class ReplicationManager {
                             continue;
                         }
 
+                        // #322: the pair above is owned by the watch READER thread - which may be
+                        // parked in byte-budget backpressure (the apply gate is still closed, so
+                        // nothing drains) and therefore unable to notice that the PRIMARY killed
+                        // its cursor for buffer overflow. watchLive/watchGeneration then look
+                        // healthy over a provably dead stream with a real event gap. Ask the
+                        // primary itself - the one liveness signal the blocked reader cannot make
+                        // stale - and discard the snapshot instead of opening the gate over it.
+                        if (!primaryConfirmsWatchCursorAlive()) {
+                            long discards = snapshotsDiscardedDeadWatch.incrementAndGet();
+                            log.warn("Primary reports this cycle's watch cursor dead (killed while the "
+                                    + "reader was blocked in backpressure); discarding snapshot #{} and "
+                                    + "redoing it under a fresh watch in {}ms", discards, backoffMs);
+                            discardDeadWatchSession();
+                            Thread.sleep(backoffMs);
+                            backoffMs = Math.min(backoffMs * 2, 30_000);
+                            continue;
+                        }
+
                         // Not (or no longer) refusing: this attempt is about to declare success,
                         // whether via the shortcut or a full copy, both of which require the guard
                         // above to have passed (or never triggered - shortcut skips it entirely,
@@ -1497,6 +1580,91 @@ public class ReplicationManager {
      */
     boolean watchInvalidatedDuringSnapshot(long capturedGeneration) {
         return !watchLive.get() || watchGeneration.get() != capturedGeneration;
+    }
+
+    /**
+     * #322: asks the PRIMARY whether the current watch session's cursor still exists
+     * ({@code poppyCursorAlive}, answered from its {@code WatchCursorManager}). Called by the
+     * initial-sync guard after the snapshot, because the reader-owned {@code watchLive}/
+     * {@code watchGeneration} pair goes stale exactly when the reader is parked in byte-budget
+     * backpressure - the very situation in which the primary kills the cursor.
+     *
+     * <p>Fail-open cases (returns {@code true} - the guard behaves as before this fix):
+     * <ul>
+     * <li>no wire cursor id available (tests driving the sync loop without a real watch, or a
+     *     watch established through a path that does not stash the "cursor" metadata);</li>
+     * <li>the primary answers but does not understand the command (older PoppyDB during a
+     *     rolling upgrade - it answered, so it is reachable; the pre-fix behaviour is the best
+     *     available).</li>
+     * </ul>
+     * Fail-closed on a transport error: a primary that cannot even be asked cannot be serving
+     * the watch either - discarding the snapshot is the only safe answer.
+     */
+    private boolean primaryConfirmsWatchCursorAlive() {
+        WatchCommand session = activeWatchCommand;
+        Object cursorId = session == null ? null : session.getMetaData().get("cursor");
+
+        if (!(cursorId instanceof Number cursorIdNum) || cursorIdNum.longValue() == 0) {
+            return true; // nothing to validate against - fail open
+        }
+
+        MongoConnection con = null;
+
+        try {
+            con = primaryMorphium.getDriver().getPrimaryConnection(null);
+            GenericCommand cmd = new GenericCommand(con);
+            cmd.setDb("admin");
+            cmd.setCmdData(Doc.of("poppyCursorAlive", cursorIdNum.longValue()));
+            int msgId = cmd.executeAsync();
+            Map<String, Object> result = con.readSingleAnswer(msgId);
+
+            if (result != null && Double.valueOf(1.0).equals(result.get("ok"))) {
+                return Boolean.TRUE.equals(result.get("alive"));
+            }
+
+            log.warn("Primary did not understand poppyCursorAlive (rolling upgrade?) - "
+                    + "cannot validate the watch cursor, proceeding as before: {}", result);
+            return true;
+        } catch (Exception e) {
+            log.warn("Could not ask the primary about watch cursor {} - treating the watch as "
+                    + "dead (a primary that cannot be reached cannot serve the watch either): {}",
+                    cursorIdNum, e.getMessage());
+            return false;
+        } finally {
+            if (con != null) {
+                try {
+                    primaryMorphium.getDriver().releaseConnection(con);
+                } catch (Exception ignored) {
+                }
+            }
+        }
+    }
+
+    /**
+     * #322: retire the current watch session after its cursor died on the primary. Three things,
+     * in one atomic step under {@code eventQueueByteLock}:
+     * <ul>
+     * <li>bump {@code replicationSessionEpoch}, so events of the dead session that the (possibly
+     *     still blocked) reader enqueues from now on are dropped instead of being applied as
+     *     stale upserts over the next snapshot;</li>
+     * <li>drain-and-release the buffered events (exact byte accounting, wakes a producer blocked
+     *     on the byte budget - the wake is what lets the reader run into the dead cursor's
+     *     getMore error and reconnect);</li>
+     * <li>flip {@code watchLive}, so the retry loop waits for the NEXT watch registration
+     *     instead of re-snapshotting under the dead one (the reader's own finally confirms this
+     *     shortly after).</li>
+     * </ul>
+     */
+    private void discardDeadWatchSession() {
+        synchronized (eventQueueByteLock) {
+            replicationSessionEpoch.incrementAndGet();
+            List<QueuedEvent> discarded = new ArrayList<>();
+            eventQueue.drainTo(discarded);
+            releaseEventQueueBytes(discarded);
+            eventQueueByteLock.notifyAll(); // wake byte-waiters even when nothing was buffered
+        }
+
+        watchLive.set(false);
     }
 
     /** Test hook: force the watchLive flag. */
@@ -2019,6 +2187,10 @@ public class ReplicationManager {
 
         MongoConnection con = primaryMorphium.getDriver().getPrimaryConnection(null);
         WatchCommand cmd = null;
+        // #322: every event this session enqueues carries this epoch; discarding the session
+        // (dead-watch guard, triggerResync) bumps the epoch, so late events of this session are
+        // dropped instead of applied over the next snapshot.
+        final long sessionEpoch = replicationSessionEpoch.get();
         try {
             // Built as its own effectively-final local (rather than assigned straight into the
             // outer `cmd`) so the registration callback below can close over it and read back the
@@ -2051,6 +2223,11 @@ public class ReplicationManager {
                 recordPrimarySequenceAtRegistration(watchCmd);
                 watchLive.set(true);
             });
+            // #322: expose this session's command so the dead-watch guard can read the wire
+            // cursor id ("cursor" metadata, stashed by SingleMongoConnection.watch()) and ask
+            // the primary whether that cursor still exists - the one liveness signal a reader
+            // parked in byte-budget backpressure cannot make stale.
+            activeWatchCommand = watchCmd;
             cmd = watchCmd
                 .setCb(new DriverTailableIterationCallback() {
                     @Override
@@ -2065,7 +2242,7 @@ public class ReplicationManager {
                         // when the queue is at its count capacity or over its byte budget,
                         // rather than dropping events or growing without bound.
                         try {
-                            enqueueReplicationEvent(data);
+                            enqueueReplicationEvent(data, sessionEpoch);
                             // Apply it now instead of waiting out the flush tick. Without this the
                             // batch processor only ran on its fixed BATCH_FLUSH_INTERVAL_MS
                             // schedule, so a single write that a write concern waits on paid the
@@ -2160,6 +2337,7 @@ public class ReplicationManager {
             // Watch is no longer live: a snapshot still waiting to start must wait for the next
             // watch attempt to re-establish before copying.
             watchLive.set(false);
+            activeWatchCommand = null;
             if (cmd != null) {
                 cmd.releaseConnection();
             }
@@ -2280,10 +2458,16 @@ public class ReplicationManager {
         // Discard events buffered for the lost window. Drain-and-release instead of clear() so
         // the byte accounting stays exact (each queued event's bytes are subtracted
         // individually, converging with a producer that adds its bytes only after a successful
-        // put) and a producer blocked on the byte budget is woken.
-        List<QueuedEvent> discarded = new ArrayList<>();
-        eventQueue.drainTo(discarded);
-        releaseEventQueueBytes(discarded);
+        // offer) and a producer blocked on the byte budget is woken. The epoch bump (under the
+        // same lock the producer offers under, #322) retires the session: events the woken
+        // reader still enqueues afterwards are dropped instead of surviving into the re-sync.
+        synchronized (eventQueueByteLock) {
+            replicationSessionEpoch.incrementAndGet();
+            List<QueuedEvent> discarded = new ArrayList<>();
+            eventQueue.drainTo(discarded);
+            releaseEventQueueBytes(discarded);
+            eventQueueByteLock.notifyAll();
+        }
     }
 
     /**

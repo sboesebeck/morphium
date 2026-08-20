@@ -290,6 +290,11 @@ public class PoppyDB {
         cursorManager.setCursorQueueByteBudget(bytes);
     }
 
+    /** Test hook: the server's cursor manager, e.g. to observe cursor kills (#322 test). */
+    de.caluga.poppydb.netty.WatchCursorManager getCursorManagerForTest() {
+        return cursorManager;
+    }
+
     /**
      * Replay-buffer byte budget (estimated bytes, 0 = off) - see
      * InMemoryDriver.setChangeStreamHistoryByteBudget. Evicting for bytes has the same
