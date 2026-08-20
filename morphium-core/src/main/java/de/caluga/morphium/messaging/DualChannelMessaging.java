@@ -2191,8 +2191,11 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
                 for (Map<String, Object> el : result) {
                     el.putIfAbsent("priority", 100);
                     el.putIfAbsent("timestamp", System.currentTimeMillis());
-                    queueElements.add(new ProcessingQueueElement((Integer) el.get("priority"),
-                            (Long) el.get("timestamp"), (MorphiumId) el.get("_id")));
+                    // Number-tolerant - same fix as SingleCollectionMessaging's poll path (see
+                    // the comment there): a hard (Integer) cast dies on int64 fields and kills
+                    // every poll, which is the backlog-recovery path after a failover.
+                    queueElements.add(new ProcessingQueueElement(((Number) el.get("priority")).intValue(),
+                            ((Number) el.get("timestamp")).longValue(), (MorphiumId) el.get("_id")));
                 }
             }
 

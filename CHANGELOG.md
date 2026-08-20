@@ -132,6 +132,17 @@ while the queue is empty, so the budget never imposes a document-size cap. The a
 offer time and subtracts the identical estimate at drain time, so the counter cannot drift and
 quietly disable the bound.
 
+#### Messaging: the polling path no longer dies on int64 message fields
+The poll in `SingleCollectionMessaging` (and its twin in `DualChannelMessaging`) cast `priority`
+hard to `Integer` and `timestamp` to `Long`. A message document whose numeric fields arrive as
+the other boxed type - int64 over the wire, which real MongoDB may produce at any time and which
+demonstrably occurs after a PoppyDB failover - killed every poll with a ClassCastException. The
+poll is exactly the path that recovers the backlog after a changestream outage, so the receiver
+silently never delivered again ("no messages within 15s of the fault", the
+DriverFailoverProxyTest flake). The changestream path of the very same class has always handled
+this tolerantly (`((Number) prio).intValue()`) - a classic two-paths drift; both poll paths now
+follow the same rule.
+
 #### PoppyDB: a stopped sync thread no longer writes into its successor's data (#323, part 1)
 `ReplicationManager.stop()` joins its initial-sync thread with a 5s bound - but the sync
 connection reads with a 60s timeout, socket reads ignore `Thread.interrupt()`, and the copy loop

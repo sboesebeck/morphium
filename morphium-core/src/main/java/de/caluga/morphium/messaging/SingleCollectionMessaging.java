@@ -1570,8 +1570,14 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 for (Map<String, Object> el : result) {
                     el.putIfAbsent("priority", 100);
                     el.putIfAbsent("timestamp", System.currentTimeMillis());
-                    queueElements.add(new ProcessingQueueElement((Integer) el.get("priority"),
-                                      (Long) el.get("timestamp"), (MorphiumId) el.get("_id")));
+                    // Number-tolerant, same rule as this class's changestream path: wire BSON
+                    // does not guarantee the boxed type (int64 priority occurs after a PoppyDB
+                    // failover, and real MongoDB may return it any time). A hard (Integer) cast
+                    // here killed EVERY poll with a ClassCastException - and the poll is exactly
+                    // the path that recovers the backlog after a changestream outage, so the
+                    // receiver never delivered again (DriverFailoverProxyTest failure mode).
+                    queueElements.add(new ProcessingQueueElement(((Number) el.get("priority")).intValue(),
+                                      ((Number) el.get("timestamp")).longValue(), (MorphiumId) el.get("_id")));
                 }
             }
 
