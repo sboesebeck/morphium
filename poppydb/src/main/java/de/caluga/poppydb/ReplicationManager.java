@@ -186,6 +186,62 @@ public class ReplicationManager {
         testPauseInShortcut = new CountDownLatch(1);
     }
 
+    // #323 test seam: parks the sync thread INSIDE syncCollection - between taking the read
+    // connection and the local insert - deliberately IGNORING interrupts, mirroring a socket
+    // read blocked on a slow primary (which Thread.interrupt() cannot unblock either). null in
+    // production.
+    private volatile AtomicBoolean testSyncReadHold;
+    private volatile CountDownLatch testSyncReadPauseReached;
+
+    void armSyncReadPauseForTest() {
+        testSyncReadPauseReached = new CountDownLatch(1);
+        testSyncReadHold = new AtomicBoolean(true);
+    }
+
+    void releaseSyncReadPauseForTest() {
+        AtomicBoolean hold = testSyncReadHold;
+
+        if (hold != null) {
+            hold.set(false);
+        }
+    }
+
+    boolean syncReadPauseReachedForTest() {
+        CountDownLatch reached = testSyncReadPauseReached;
+        return reached != null && reached.getCount() == 0;
+    }
+
+    // #323: the sync connection currently blocked (or about to block) in a collection read.
+    // stop() closes it so a socket read on a slow primary aborts instead of running out its
+    // 60s read timeout - interrupts cannot unblock a socket read.
+    private volatile MongoConnection inFlightSyncConnection;
+
+    MongoConnection getInFlightSyncConnectionForTest() {
+        return inFlightSyncConnection;
+    }
+
+    private void awaitSyncReadPauseIfArmed() {
+        AtomicBoolean hold = testSyncReadHold;
+
+        if (hold == null) {
+            return;
+        }
+
+        testSyncReadPauseReached.countDown();
+
+        while (hold.get()) {
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException e) {
+                // Deliberately keep holding AND swallow the flag: this simulates the thread
+                // being parked deep inside a socket read when stop()'s interrupt lands - the
+                // read neither aborts nor leaves an interruptible point between its return and
+                // the local insert, so nothing downstream would ever see the interrupt. The
+                // cooperative `running` check is what has to catch this case.
+            }
+        }
+    }
+
     /** Test hook: release a pause armed with {@link #armTestPauseInShortcutForTest()} without
      * stopping the manager - the parked sync thread resumes its cycle normally. */
     void releaseTestPauseInShortcutForTest() {
@@ -1093,6 +1149,22 @@ public class ReplicationManager {
         initialSyncThread = null;
         if (syncThread != null) {
             syncThread.interrupt();
+
+            // #323: the interrupt cannot unblock a socket read, and the sync connection has a
+            // 60s read timeout - far beyond the bounded join below. Closing the tracked
+            // in-flight connection ends a blocked collection read with an IO error instead,
+            // so the join actually has a chance. Rough on a mid-flight healthy request, but
+            // this sync is being abandoned either way and every successor re-syncs.
+            MongoConnection blockedRead = inFlightSyncConnection;
+
+            if (blockedRead != null) {
+                try {
+                    blockedRead.close();
+                } catch (Exception e) {
+                    log.debug("Closing the in-flight sync connection failed: {}", e.toString());
+                }
+            }
+
             try {
                 syncThread.join(5000);
             } catch (InterruptedException e) {
@@ -1553,6 +1625,14 @@ public class ReplicationManager {
                         reportLogIndexToElection();
                         return;
                     } catch (Exception e) {
+                        // #323: a stopped manager's cycle ends here quietly - retrying (or even
+                        // logging an ERROR) for a sync that stop() abandoned is noise, and the
+                        // cooperative checks above deliberately funnel that case into this catch.
+                        if (!running.get()) {
+                            log.info("Initial sync abandoned: replication manager was stopped");
+                            return;
+                        }
+
                         // Snapshot failed while the watch may still be healthy. Retry from within
                         // this thread with backoff, keeping the gate closed, so the node cannot get
                         // stuck permanently ungated when watchForChanges() is parked on a healthy
@@ -2097,6 +2177,7 @@ public class ReplicationManager {
 
         int totalDocs = 0;
         for (String dbName : databases) {
+            throwIfSyncAbandoned(); // #323: no work for a manager that was stopped mid-copy
             // No db-level skip here: the per-collection isReplicated filter in syncDatabase
             // decides. admin must be enumerated (its system.users and system.version replicate);
             // for local and config every collection is filtered out there.
@@ -2124,6 +2205,7 @@ public class ReplicationManager {
 
         int totalDocs = 0;
         for (String collName : collections) {
+            throwIfSyncAbandoned(); // #323
             // Copy exactly the replicated namespace set - which includes admin.system.users
             // (copied verbatim by syncCollection: the documents carry credential material and
             // must arrive bit-identical for SCRAM to verify on this node).
@@ -2145,6 +2227,10 @@ public class ReplicationManager {
 
         // Use FindCommand to get all documents
         MongoConnection con = primaryMorphium.getDriver().getReadConnection(null);
+        // #323: track the connection while the read is in flight, so stop() can close it - a
+        // socket read blocked on a slow primary ignores Thread.interrupt() and would otherwise
+        // run out its full 60s read timeout, long after stop()'s bounded join gave up.
+        inFlightSyncConnection = con;
         try {
             FindCommand findCmd = new FindCommand(con)
                 .setDb(dbName)
@@ -2153,6 +2239,15 @@ public class ReplicationManager {
                 .setBatchSize(1000);
 
             List<Map<String, Object>> documents = findCmd.execute();
+            // Test seam (#323): parks the thread with the read RESULT already in hand - the
+            // position a straggler is in when a slow read finally returns after stop() came
+            // and went. The local insert below needs no network, so nothing else stops it.
+            awaitSyncReadPauseIfArmed();
+            // #323: a read that returns AFTER stop() must not write its result into the local
+            // driver - by then the data belongs to this manager's successor, and a stale
+            // foreign document that lands after the successor's copy is silent divergence.
+            throwIfSyncAbandoned();
+
             if (documents == null || documents.isEmpty()) {
                 return 0;
             }
@@ -2172,7 +2267,21 @@ public class ReplicationManager {
             log.debug("Synced {} documents to {}.{}", documents.size(), dbName, collName);
             return documents.size();
         } finally {
+            inFlightSyncConnection = null;
             primaryMorphium.getDriver().releaseConnection(con);
+        }
+    }
+
+    /**
+     * #323: cooperative cancellation for the initial-sync copy. Checked between databases,
+     * between collections and - the case that matters most - between a completed collection
+     * read and its local insert: socket reads are not interruptible, so a sync thread that
+     * stop() abandoned can resurface with a full read result long after its 5s join expired,
+     * while a replacement ReplicationManager already owns the local data.
+     */
+    private void throwIfSyncAbandoned() throws InterruptedException {
+        if (!running.get() || Thread.currentThread().isInterrupted()) {
+            throw new InterruptedException("replication manager stopped - abandoning initial sync");
         }
     }
 

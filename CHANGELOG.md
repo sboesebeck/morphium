@@ -132,6 +132,23 @@ while the queue is empty, so the budget never imposes a document-size cap. The a
 offer time and subtracts the identical estimate at drain time, so the counter cannot drift and
 quietly disable the bound.
 
+#### PoppyDB: a stopped sync thread no longer writes into its successor's data (#323, part 1)
+`ReplicationManager.stop()` joins its initial-sync thread with a 5s bound - but the sync
+connection reads with a 60s timeout, socket reads ignore `Thread.interrupt()`, and the copy loop
+checked neither `running` nor interruption anywhere. So the join lost routinely, and the abandoned
+thread resurfaced later with a complete collection read in hand and inserted it - documents from
+the OLD primary - into local data that by then belonged to the replacement ReplicationManager's
+own sync: stale foreign documents, silent divergence until some later resync.
+
+Two of the issue's three parts land here (the cheap, independently valuable half): the copy loop
+is now cooperatively cancellable - checked between databases, between collections and, decisively,
+between a completed read and its local insert, which is the exact position an abandoned straggler
+resurfaces in - and `stop()` closes the tracked in-flight sync connection, which is the only thing
+that ends a socket read blocked on a slow primary before its 60s timeout. A stopped cycle now ends
+with one INFO line instead of an error-and-retry. The remaining part (a generation check before
+every local write, plus the convergence-after-chaos test with a real slow-primary read seam) stays
+with the issue.
+
 #### PoppyDB: the initial sync no longer declares success over a dead watch (#322)
 While a secondary's initial-sync snapshot runs, its apply gate is closed and replication events
 pile up in the event queue until the byte budget blocks the watch reader - deliberate
