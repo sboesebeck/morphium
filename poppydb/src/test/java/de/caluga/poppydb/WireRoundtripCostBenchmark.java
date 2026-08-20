@@ -240,6 +240,11 @@ public class WireRoundtripCostBenchmark {
      * per-op wait (a condition node allocated on nearly every store), not by mapping compute, and
      * suspected the writer queue or the pool checkout.
      *
+     * <p>The per-op wall/CPU split of this same gap and the frame attribution live in
+     * {@link StoreProfile}; this benchmark owns the layer decomposition (raw driver vs PooledDriver
+     * vs store vs messaging). When one says something about the gap, the other must stay
+     * consistent with it.
+     *
      * <p>WARNING on the wall-clock numbers this method prints: they are useful only as a rough
      * shape. On a busy workstation they swing by more than the ~25µs effect under investigation
      * (observed across runs: raw insert 65-129µs, and once a Msg-sized document measured FASTER

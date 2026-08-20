@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import org.junit.jupiter.api.Tag;
+
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.Doc;
@@ -43,7 +45,12 @@ import de.caluga.morphium.messaging.Msg;
  *   # strict comparison, 5s blocks
  *   ... StoreProfile equalized 5
  * </pre>
+ * <p>The layer decomposition lives in {@link WireRoundtripCostBenchmark} (raw driver vs PooledDriver
+ * vs store vs messaging); this harness owns the per-op wall/CPU split of the {@code store} vs raw
+ * gap and the frame attribution. When one says something about the gap, the other must stay
+ * consistent with it.
  */
+@Tag("manual")
 public class StoreProfile {
 
     static final ThreadMXBean TMB = ManagementFactory.getThreadMXBean();
@@ -93,9 +100,11 @@ public class StoreProfile {
             long blockNs = blockSeconds * 1_000_000_000L;
             int[] id = {500};   // warmup consumed 0..499 in the same collection
             for (int p = 0; p < pairs; p++) {
+                Thread.currentThread().setName("probe:raw-" + p);
                 rawBlocks.add(runBlock("raw", "equalized".equals(mode)
                         ? () -> rawInsertEqualized(m, id[0]++, preMapped)
                         : () -> rawInsertSmall(m, id[0]++), blockNs));
+                Thread.currentThread().setName("probe:store-" + p);
                 storeBlocks.add(runBlock("store", () -> m.store(msg), blockNs));
             }
 
@@ -112,7 +121,13 @@ public class StoreProfile {
 
     /** Runs one block; returns {wallUsPerOp, cpuUsPerOp, ops}. */
     private static double[] runBlock(String label, Op op, long blockNs) throws Exception {
+        System.out.printf("BLKSTART %s ms=%d%n", label, System.currentTimeMillis());
         long w0 = System.nanoTime();
+        // CPU on the calling thread is measured with ThreadMXBean, NOT JFR: on macOS/JDK 21,
+        // jdk.ThreadCPULoad reports ~0.00s for a thread the kernel says burns tens of µs/op
+        // (only ~2 events/thread per 10s interval in the shipped store-profile.jfc), and
+        // jdk.ExecutionSample under-delivered ~8x in the same run (113 samples where ~935 were
+        // due). JFR told us the gap was a "hidden wait"; this instrument showed it was compute.
         long c0 = TMB.getCurrentThreadCpuTime();
         long ops = 0;
         while (System.nanoTime() - w0 < blockNs) {
