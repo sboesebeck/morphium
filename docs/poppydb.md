@@ -432,7 +432,24 @@ java -jar poppydb/target/poppydb-<version>-cli.jar -p 27017 \
 ```
 
 **Manual Snapshots:**
-You can trigger a manual dump at any time using the `dumpNow()` method programmatically (see below).
+You can trigger a manual dump at any time - programmatically via `dumpNow()` (see below), or
+from any Mongo client with the `dumpNow` admin command:
+
+```javascript
+db.adminCommand({dumpNow: 1})
+// { status: "started", ok: 1 }      - a dump was started, this returns immediately
+// { status: "alreadyRunning", ok: 1 } - a dump was already running, nothing was queued
+```
+
+The command never waits for the dump to finish, and never runs two dumps at once: the periodic
+scheduler, this command and the final dump on shutdown share one guard, so a scheduled dump is
+skipped while a manual one runs (and vice versa). Use `db.adminCommand({dumpStatus: 1})` to see
+when the last dump completed (`lastDumpMs`); failures are reported in the server log.
+
+Every dump - scheduled, manual, or on shutdown - is written crash-safely: each database goes to
+`<db>.morphium.gz.tmp` first, is forced to storage, and is only then moved over the final
+`<db>.morphium.gz`. A crash mid-dump therefore leaves the previous dump untouched; a leftover
+`.tmp` file is ignored by the restore and overwritten by the next dump.
 
 **Programmatic Configuration:**
 ```java
@@ -459,8 +476,11 @@ try {
 
 server.start();
 
-// Manual dump if needed
+// Manual dump if needed - synchronous, and skipped (returns -1) if another dump is running
 server.dumpNow();
+
+// ...or start one in the background and carry on (this is what the dumpNow command uses)
+boolean started = server.triggerDumpNow();
 ```
 
 **Dump File Format:**

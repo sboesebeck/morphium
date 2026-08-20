@@ -141,6 +141,22 @@ public class PoppyDB {
     private long dumpIntervalMs = 0;
     private java.util.concurrent.ScheduledExecutorService dumpScheduler = null;
     private volatile long lastDumpTime = 0;
+    // ONE guard for every dump path - the periodic scheduler, the on-demand dumpNow command and
+    // the final dump on shutdown (#317). Two dumps running at once would write the same
+    // <db>.morphium.gz.tmp files concurrently and rename the interleaved result into place, so a
+    // dump never waits for a running one: it is skipped (scheduler, manual) or, at shutdown,
+    // waited for with a bound. A Semaphore instead of an AtomicBoolean only for that timed
+    // acquire; permits are never added, only released by the holder.
+    private final java.util.concurrent.Semaphore dumpGuard = new java.util.concurrent.Semaphore(1);
+    // The thread of a running on-demand dump, so shutdown can interrupt one that outstays the
+    // wait below instead of leaving it to write into a driver that forceShutdown() has already
+    // reset - that would rename an EMPTY but perfectly valid dump over the last good one.
+    private volatile Thread dumpThread = null;
+    // Set at the start of shutdown(): no new dump may be started from here on, however it is
+    // triggered - the driver is about to be reset.
+    private volatile boolean shuttingDown = false;
+    /** How long shutdown waits for a running dump before giving up on the final dump. */
+    long finalDumpWaitMs = 10_000;
 
     // Replication
     // volatile: mutated under synchronized on the election/leadership paths but read unsynchronized
@@ -387,7 +403,7 @@ public class PoppyDB {
                          .setOpRegistry(opRegistry)
                          .setConnectionCounters(allChannels::size, connectionsCreated::get)
                          .setRsPriorities(hostPriorities)
-                         .setDumpNowAction(dumpDirectory == null ? null : PoppyDB.this::dumpNow)
+                         .setDumpNowAction(dumpDirectory == null ? null : PoppyDB.this::triggerDumpNow)
                          .setDumpStatusSupplier(PoppyDB.this::getDumpStatus));
 
                         // Track the channel
@@ -480,6 +496,7 @@ public class PoppyDB {
 
         log.info("Shutting down PoppyDB...");
         running = false;
+        shuttingDown = true;
 
         // Stop election system
         stopElection();
@@ -494,14 +511,51 @@ public class PoppyDB {
         // Stop dump scheduler
         stopDumpScheduler();
 
-        // Final dump
+        // Final dump. The scheduler is already stopped, but an on-demand dumpNow may still be
+        // running - wait a bounded time for the guard instead of writing the same files
+        // concurrently (#317). If it does not come free, the in-flight dump is writing a state
+        // that is seconds old at most, so skipping is the better trade than a corrupted dump.
         if (dumpDirectory != null) {
+            boolean acquired = false;
+
             try {
-                log.info("Performing final dump before shutdown...");
-                int count = driver.dumpAllToDirectory(dumpDirectory);
-                log.info("Final dump completed: {} databases saved", count);
+                acquired = dumpGuard.tryAcquire(finalDumpWaitMs, TimeUnit.MILLISECONDS);
+
+                if (!acquired) {
+                    // Abandoning it is not an option: right after this the driver is reset, and a
+                    // dump still snapshotting would then write EMPTY databases over the last good
+                    // dump files - valid gzip, no data. Interrupting aborts the write inside the
+                    // temp file (channel-backed streams close on interrupt), so the previous dump
+                    // survives untouched.
+                    log.warn("Final dump skipped: another dump is still running after {}ms - "
+                             + "interrupting it so it cannot write into the shutdown driver",
+                             finalDumpWaitMs);
+                    Thread straggler = dumpThread;
+
+                    if (straggler != null) {
+                        straggler.interrupt();
+
+                        try {
+                            straggler.join(2000);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+                } else {
+                    log.info("Performing final dump before shutdown...");
+                    int count = writeDumpFiles();
+                    lastDumpTime = System.currentTimeMillis();
+                    log.info("Final dump completed: {} databases saved", count);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("Interrupted while waiting for the running dump - skipping the final dump");
             } catch (Exception e) {
                 log.error("Failed to perform final dump: {}", e.getMessage(), e);
+            } finally {
+                if (acquired) {
+                    dumpGuard.release();
+                }
             }
         }
 
@@ -1544,14 +1598,23 @@ public class PoppyDB {
         });
 
         dumpScheduler.scheduleAtFixedRate(() -> {
+            // Skipped, never queued (#317): if a manual dumpNow (or a still-running earlier
+            // tick) holds the guard, this tick does nothing - the next one is due anyway.
+            if (!dumpGuard.tryAcquire()) {
+                log.info("Skipping periodic dump: another dump is already running");
+                return;
+            }
+
             try {
-                int count = driver.dumpAllToDirectory(dumpDirectory);
+                int count = writeDumpFiles();
                 lastDumpTime = System.currentTimeMillis();
                 if (count > 0) {
                     log.info("Periodic dump: {} databases saved", count);
                 }
             } catch (Exception e) {
                 log.error("Failed to dump databases: {}", e.getMessage(), e);
+            } finally {
+                dumpGuard.release();
             }
         }, dumpIntervalMs, dumpIntervalMs, TimeUnit.MILLISECONDS);
 
@@ -1740,14 +1803,94 @@ public class PoppyDB {
                 "lastDumpMs", lastDumpTime);
     }
 
+    /**
+     * Writes the dump files. The one place that actually touches the driver's dump path, so
+     * every trigger (scheduler, dumpNow, shutdown) shares it - and tests can slow it down to
+     * exercise the guard. Callers hold {@link #dumpGuard}.
+     */
+    int writeDumpFiles() throws IOException {
+        return driver.dumpAllToDirectory(dumpDirectory);
+    }
+
+    /**
+     * Dumps all databases synchronously, honoring the shared dump guard (#317).
+     *
+     * @return the number of databases written, or -1 if another dump (periodic or on-demand)
+     *         was already running - in that case nothing was written by this call
+     * @throws IOException if no dump directory is configured, or the dump itself fails
+     */
     public int dumpNow() throws IOException {
         if (dumpDirectory == null) {
             throw new IOException("Dump directory not configured");
         }
-        int count = driver.dumpAllToDirectory(dumpDirectory);
-        lastDumpTime = System.currentTimeMillis();
-        log.info("Dumped {} databases to {}", count, dumpDirectory.getAbsolutePath());
-        return count;
+
+        if (!dumpGuard.tryAcquire()) {
+            log.info("Not dumping: another dump is already running");
+            return -1;
+        }
+
+        try {
+            int count = writeDumpFiles();
+            lastDumpTime = System.currentTimeMillis();
+            log.info("Dumped {} databases to {}", count, dumpDirectory.getAbsolutePath());
+            return count;
+        } finally {
+            dumpGuard.release();
+        }
+    }
+
+    /**
+     * Starts a dump in the background and returns immediately - this backs the {@code dumpNow}
+     * admin command, which must not keep the client (or the I/O thread) waiting for a
+     * potentially large dump (#317).
+     *
+     * @return true if a dump was started, false if one was already running (nothing was
+     *         started; the command answers {@code alreadyRunning}). A missing dump directory is
+     *         not a case here: the command is not wired at all without one.
+     */
+    public boolean triggerDumpNow() {
+        if (dumpDirectory == null) {
+            return false;
+        }
+
+        if (shuttingDown) {
+            log.info("dumpNow: shutting down - not starting a dump (a final dump runs on shutdown)");
+            return false;
+        }
+
+        if (!dumpGuard.tryAcquire()) {
+            log.info("dumpNow: a dump is already running, not starting another one");
+            return false;
+        }
+
+        Thread t = new Thread(() -> {
+            try {
+                int count = writeDumpFiles();
+                lastDumpTime = System.currentTimeMillis();
+                log.info("On-demand dump finished: {} databases saved to {}", count,
+                         dumpDirectory.getAbsolutePath());
+            } catch (Exception e) {
+                // Nobody is waiting for this any more - the client got its "started" long ago,
+                // so a failure can only be reported here.
+                log.error("On-demand dump failed: {}", e.getMessage(), e);
+            } finally {
+                dumpThread = null;
+                dumpGuard.release();
+            }
+        }, "PoppyDB-DumpNow");
+        t.setDaemon(true);
+        dumpThread = t;
+
+        try {
+            t.start();
+        } catch (Throwable e) {
+            // The guard must not stay held by a dump that never ran.
+            dumpThread = null;
+            dumpGuard.release();
+            throw e;
+        }
+
+        return true;
     }
 
     /**

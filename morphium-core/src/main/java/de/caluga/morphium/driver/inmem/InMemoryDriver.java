@@ -20,6 +20,12 @@ import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
@@ -893,7 +899,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public void dumpToFile(Morphium m, String db, File f) throws IOException {
-        dump(m, db, new FileOutputStream(f));
+        // Crash-safe like the no-Morphium variant below (#317): never truncate the previous
+        // good dump before the new one is completely written.
+        writeDumpAtomically(f, out -> dump(m, db, out));
     }
 
     public void dump(Morphium m, String db, OutputStream out) throws IOException {
@@ -924,6 +932,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * This method creates a shallow snapshot of each collection under its read lock to minimize
      * blocking time, then serializes the copies so iteration stays safe even while other threads
      * mutate the live collection lists.
+     *
+     * <p>The file is written crash-safely: see {@link #writeDumpAtomically(File, DumpBody)}.
      */
     public void dumpToFile(String db, File f) throws IOException {
         ObjectMapperImpl mapper = new ObjectMapperImpl();
@@ -939,18 +949,85 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             return;
         }
 
-        try (FileOutputStream fos = new FileOutputStream(f);
-            GZIPOutputStream gzip = new GZIPOutputStream(fos);
-            OutputStreamWriter wr = new OutputStreamWriter(gzip, StandardCharsets.UTF_8)) {
+        writeDumpAtomically(f, out -> {
+            try (GZIPOutputStream gzip = new GZIPOutputStream(out);
+                OutputStreamWriter wr = new OutputStreamWriter(gzip, StandardCharsets.UTF_8)) {
 
-            InMemDumpContainer d = new InMemDumpContainer();
-            d.setCreated(System.currentTimeMillis());
-            d.setData(snapshot);
-            d.setDb(db);
-            Map<String, Object> ser = mapper.serialize(d);
-            writeDumpJson(ser, wr);
-            wr.flush();
-            gzip.finish();
+                InMemDumpContainer d = new InMemDumpContainer();
+                d.setCreated(System.currentTimeMillis());
+                d.setData(snapshot);
+                d.setDb(db);
+                Map<String, Object> ser = mapper.serialize(d);
+                writeDumpJson(ser, wr);
+                wr.flush();
+                gzip.finish();
+            }
+        });
+    }
+
+    /** The actual serialization of one dump, written into the stream handed to it by
+     * {@link #writeDumpAtomically(File, DumpBody)}. */
+    @FunctionalInterface
+    private interface DumpBody {
+        void writeTo(OutputStream out) throws IOException;
+    }
+
+    /**
+     * Writes one dump file crash-safely (#317): the body goes to a sibling {@code <name>.tmp},
+     * that file's bytes are forced to storage, and only then is it moved over the final name -
+     * atomically where the filesystem supports it. Until that move, the previous good dump is
+     * untouched, so a process or machine death mid-write can no longer leave behind a truncated
+     * dump with the last good one already gone. The rename is directory metadata, hence the
+     * best-effort fsync of the parent directory afterwards (not supported on every platform,
+     * therefore never fatal). Same sequence as
+     * {@code ElectionManager.persistElectionState()} in poppydb.
+     *
+     * <p>On failure the half-written temp file is removed and the original exception is
+     * rethrown; the pre-existing dump stays in place.
+     */
+    private void writeDumpAtomically(File f, DumpBody body) throws IOException {
+        Path target = f.toPath();
+        Path parent = target.getParent();
+        Path tmp = target.resolveSibling(target.getFileName() + ".tmp");
+
+        try {
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+
+            try (OutputStream out = Files.newOutputStream(tmp)) {
+                body.writeTo(out);
+            }
+
+            // Durability has to hold across power/kernel failures, not just JVM crashes: force
+            // the temp file's bytes to storage BEFORE the rename makes them the authoritative
+            // dump.
+            try (FileChannel ch = FileChannel.open(tmp, StandardOpenOption.WRITE)) {
+                ch.force(true);
+            }
+
+            try {
+                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+
+            if (parent != null) {
+                try (FileChannel dir = FileChannel.open(parent, StandardOpenOption.READ)) {
+                    dir.force(true);
+                } catch (Exception e) {
+                    log.debug("Could not fsync dump directory {} ({}) - rename durability depends on "
+                              + "the platform's rename semantics", parent, e.toString());
+                }
+            }
+        } catch (IOException | RuntimeException e) {
+            try {
+                Files.deleteIfExists(tmp);
+            } catch (Exception cleanup) {
+                log.debug("Could not remove incomplete dump temp file {}: {}", tmp, cleanup.toString());
+            }
+
+            throw e;
         }
     }
 
@@ -1030,6 +1107,22 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         if (!dir.exists() || !dir.isDirectory()) {
             log.warn("Dump directory does not exist or is not a directory: {}", dir.getAbsolutePath());
             return new DirectoryRestoreResult(0, 0, List.of());
+        }
+
+        // A crash mid-dump can leave <db>.morphium.gz.tmp behind (#317). It is never restored -
+        // the filter below only takes .morphium.gz - but it would linger forever for a database
+        // that no longer exists, so startup is where it gets cleaned up.
+        File[] staleTmp = dir.listFiles((d, name) -> name.endsWith(".morphium.gz.tmp"));
+
+        if (staleTmp != null) {
+            for (File tmp : staleTmp) {
+                log.warn("Removing incomplete dump file {} - left behind by a dump that did not "
+                         + "finish; the dump it would have replaced is intact", tmp.getAbsolutePath());
+
+                if (!tmp.delete()) {
+                    log.warn("Could not remove incomplete dump file {}", tmp.getAbsolutePath());
+                }
+            }
         }
 
         File[] dumpFiles = dir.listFiles((d, name) -> name.endsWith(".morphium.gz"));

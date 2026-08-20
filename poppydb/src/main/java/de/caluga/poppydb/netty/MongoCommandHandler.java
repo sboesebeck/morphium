@@ -345,7 +345,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     private java.util.function.IntSupplier connectionCountSupplier;
     private java.util.function.LongSupplier connectionsCreatedSupplier;
     private Map<String, Integer> rsPriorities;
-    private java.util.concurrent.Callable<Integer> dumpNowAction;
+    private java.util.function.BooleanSupplier dumpNowAction;
     private java.util.function.Supplier<Map<String, Object>> dumpStatusSupplier;
 
     /** The server-wide op registry backing currentOp/$currentOp/killOp. */
@@ -368,9 +368,10 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         return this;
     }
 
-    /** On-demand dump trigger backing the dumpNow admin command; returns the number of
-     * databases written. Left unset (null) when the server runs without a dump directory. */
-    public MongoCommandHandler setDumpNowAction(java.util.concurrent.Callable<Integer> dumpNowAction) {
+    /** On-demand dump trigger backing the dumpNow admin command. Starts a dump and returns
+     * immediately: true when it started one, false when a dump was already running (#317).
+     * Left unset (null) when the server runs without a dump directory. */
+    public MongoCommandHandler setDumpNowAction(java.util.function.BooleanSupplier dumpNowAction) {
         this.dumpNowAction = dumpNowAction;
         return this;
     }
@@ -635,8 +636,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             }
 
             case "dumpNow":
-                processDumpNow(ctx, requestId);
-                return; // async response
+                answer = processDumpNow();
+                break;
 
             case "dumpStatus": {
                 Map<String, Object> status = dumpStatusSupplier == null
@@ -820,24 +821,24 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 "ok", 1.0);
     }
 
-    /** Triggers the configured on-demand dump off the I/O thread - a large dump must not
-     * stall every connection on this event loop. Responds from the dump thread via the
-     * channel's event loop, like the async getMore path. */
-    private void processDumpNow(ChannelHandlerContext ctx, int requestId) {
+    /** Triggers the configured on-demand dump and answers right away (#317): the dump itself
+     * runs on its own thread - a large dump must neither stall this event loop nor keep the
+     * client waiting. {@code status} tells the caller whether this command started a dump
+     * ("started") or found one already running ("alreadyRunning"); either way nothing is
+     * queued. Whether the dump then succeeded is only visible in the server log (and, for the
+     * completion timestamp, in dumpStatus). */
+    private Map<String, Object> processDumpNow() {
         if (dumpNowAction == null) {
-            sendResponse(ctx, requestId, Doc.of("ok", 0.0, "code", 72, "codeName", "InvalidOptions",
-                    "errmsg", "no dump directory configured - start the server with --dump-dir"));
-            return;
+            return Doc.of("ok", 0.0, "code", 72, "codeName", "InvalidOptions",
+                    "errmsg", "no dump directory configured - start the server with --dump-dir");
         }
 
-        CompletableFuture.supplyAsync(() -> {
-            try {
-                return Doc.of("ok", 1.0, "databases", (Object) dumpNowAction.call());
-            } catch (Exception e) {
-                log.error("dumpNow failed: {}", e.getMessage(), e);
-                return Doc.of("ok", 0.0, "errmsg", "dump failed: " + e.getMessage());
-            }
-        }).thenAccept(answer -> ctx.channel().eventLoop().execute(() -> sendResponse(ctx, requestId, answer)));
+        try {
+            return Doc.of("ok", 1.0, "status", dumpNowAction.getAsBoolean() ? "started" : "alreadyRunning");
+        } catch (Exception e) {
+            log.error("dumpNow could not be started: {}", e.getMessage(), e);
+            return Doc.of("ok", 0.0, "errmsg", "dump could not be started: " + e.getMessage());
+        }
     }
 
     /** Every command name this server answers: wire-level handlers plus the driver's commands. */

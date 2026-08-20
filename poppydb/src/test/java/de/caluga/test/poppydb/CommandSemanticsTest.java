@@ -162,15 +162,35 @@ public class CommandSemanticsTest {
             assertEquals(0L, ((Number) statusBefore.get("lastDumpMs")).longValue(),
                     "no dump ran yet");
 
+            // #317: the command answers immediately with started/alreadyRunning; the dump
+            // itself runs in the background, so the file is awaited, not asserted right away.
             Map<String, Object> reply = command(sock, Doc.of("dumpNow", 1, "$db", "admin"));
             log.info("dumpNow reply: {}", reply);
 
             assertEquals(1.0, ok(reply), "dumpNow must succeed: " + reply);
-            assertNotNull(reply.get("databases"), "reply must report the dumped database count");
+            assertEquals("started", reply.get("status"), "the trigger must report a started dump: " + reply);
             java.io.File dumpFile = new java.io.File(dumpDir, "dumptest.morphium.gz");
-            assertEquals(true, dumpFile.exists(), "dump file must exist: " + dumpFile);
 
-            Map<String, Object> statusAfter = command(sock, Doc.of("dumpStatus", 1, "$db", "admin"));
+            for (int i = 0; i < 100 && !dumpFile.exists(); i++) {
+                Thread.sleep(50);
+            }
+
+            assertEquals(true, dumpFile.exists(), "dump file must exist: " + dumpFile);
+            assertEquals(false, new java.io.File(dumpDir, "dumptest.morphium.gz.tmp").exists(),
+                    "the temp file must be gone once the dump completed");
+
+            Map<String, Object> statusAfter = null;
+
+            for (int i = 0; i < 100; i++) {
+                statusAfter = command(sock, Doc.of("dumpStatus", 1, "$db", "admin"));
+
+                if (((Number) statusAfter.get("lastDumpMs")).longValue() > 0) {
+                    break;
+                }
+
+                Thread.sleep(50);
+            }
+
             log.info("dumpStatus after: {}", statusAfter);
             assertEquals(true, ((Number) statusAfter.get("lastDumpMs")).longValue() > 0,
                     "lastDumpMs must reflect the on-demand dump: " + statusAfter);

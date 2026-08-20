@@ -10,6 +10,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### PoppyDB: `dumpNow` returns immediately, and every dump write is crash-safe (#317)
+Two things that only look related until you trigger a dump on a node with real data in it.
+
+`dumpNow` no longer keeps the client (or the server's I/O thread) waiting for the whole dump.
+It starts one and answers right away with `status: "started"`, or - if a dump is already
+running - `status: "alreadyRunning"`, without queuing anything. That "already running" is not
+just about two admins racing each other: the periodic dump scheduler, the on-demand command
+and the final dump on shutdown now share **one** guard, so an automatic dump can never overlap
+a manual one either. A scheduled tick that finds the guard taken skips (the next one is due
+anyway); shutdown waits a bounded 10s for a running dump before writing its final one, and
+says so in the log if it gives up. Whether the started dump then succeeded is visible in the
+server log and, for the completion timestamp, in `dumpStatus` - the command itself is done
+once the dump is under way. The programmatic `PoppyDB.dumpNow()` stays synchronous but is
+guarded the same way; it now returns `-1` when it skipped because another dump was running.
+
+The dump *write* changed underneath all of that: `InMemoryDriver` no longer writes straight
+into `<db>.morphium.gz` (which truncated the last good dump the moment a new one started).
+Each database is written to a sibling `<db>.morphium.gz.tmp`, forced to storage, and only then
+moved over the final name - atomically where the filesystem supports it, with a best-effort
+fsync of the directory afterwards, the same sequence `ElectionManager` already uses for the
+election state. A process or machine death mid-write now leaves the previous dump completely
+intact instead of destroying it before the replacement exists. This applies to every dump -
+scheduled, manual and the one on shutdown.
+
 #### `sendMessages()` / `sendAnswers()` — genuine client-side batching for Messaging
 Prompted directly by the "Batch Send Throughput" benchmark (see below): `@WriteBuffer`,
 tried as a shortcut to Kafka-style batching, turned out to be the wrong tool for messaging —
@@ -33,6 +57,19 @@ without any restructuring.
 The single-message send path (`sendMessage()`) is unchanged; the per-message registry check
 and sender/senderHost/TTL-default logic it relies on were factored into shared private helpers
 so both paths apply the exact same policy instead of two copies drifting apart.
+
+### Changed
+
+#### `dumpNow` reply and completion semantics (#317) — **behavior change**
+The `dumpNow` admin command shipped in 6.3.0 answered `{ok: 1, databases: N}` *after* the dump
+had been written; it now answers immediately with `{ok: 1, status: "started"|"alreadyRunning"}`
+and the `databases` count is gone — the command no longer knows it when it returns. Anything
+that read `databases`, or treated a successful reply as "the dump is on disk" (a
+snapshot-before-maintenance script, for example), has to change: trigger, then poll
+`db.adminCommand({dumpStatus: 1}).lastDumpMs` until it advances. `alreadyRunning` means a dump
+was already in flight and nothing was queued. The programmatic `PoppyDB.dumpNow()` keeps its
+synchronous contract and its database count, but now returns `-1` when it skipped because
+another dump held the guard.
 
 ### Fixed
 

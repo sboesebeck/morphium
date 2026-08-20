@@ -294,12 +294,12 @@ public class DevOpsCommandsTest {
     }
 
     @Test
-    public void dumpNowTriggersTheConfiguredDumpAndReportsTheCount() throws Exception {
+    public void dumpNowTriggersTheConfiguredDumpAndReportsStarted() throws Exception {
         java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
         EmbeddedChannel dumpCh = new EmbeddedChannel(new MongoCommandHandler(drv, null, null, null,
                 new AtomicInteger(1), "0.0.0.0", 27017, "my-rs", List.of("localhost:27017"), true,
                 "localhost:27017", 0, () -> null)
-                .setDumpNowAction(() -> { calls.incrementAndGet(); return 3; }));
+                .setDumpNowAction(() -> { calls.incrementAndGet(); return true; }));
         OpMsg msg = new OpMsg();
         msg.setMessageId(msgId.incrementAndGet());
         msg.setFirstDoc(Doc.of("dumpNow", 1, "$db", "admin"));
@@ -317,16 +317,43 @@ public class DevOpsCommandsTest {
 
         assertThat(reply).isNotNull();
         assertThat(reply.getFirstDoc().get("ok")).as("reply: " + reply.getFirstDoc()).isEqualTo(1.0);
-        assertThat(((Number) reply.getFirstDoc().get("databases")).intValue()).isEqualTo(3);
+        assertThat(reply.getFirstDoc().get("status")).isEqualTo("started");
         assertThat(calls.get()).isEqualTo(1);
     }
 
+    /** #317: a dump that is already running is reported as such - the command never waits for it. */
     @Test
-    public void dumpNowReportsAFailedDumpAsError() throws Exception {
+    public void dumpNowReportsAnAlreadyRunningDump() throws Exception {
         EmbeddedChannel dumpCh = new EmbeddedChannel(new MongoCommandHandler(drv, null, null, null,
                 new AtomicInteger(1), "0.0.0.0", 27017, "my-rs", List.of("localhost:27017"), true,
                 "localhost:27017", 0, () -> null)
-                .setDumpNowAction(() -> { throw new java.io.IOException("disk full"); }));
+                .setDumpNowAction(() -> false));
+        OpMsg msg = new OpMsg();
+        msg.setMessageId(msgId.incrementAndGet());
+        msg.setFirstDoc(Doc.of("dumpNow", 1, "$db", "admin"));
+        dumpCh.writeInbound(msg);
+        OpMsg reply = null;
+
+        for (int i = 0; i < 500 && reply == null; i++) {
+            dumpCh.runPendingTasks();
+            reply = dumpCh.readOutbound();
+
+            if (reply == null) {
+                Thread.sleep(10);
+            }
+        }
+
+        assertThat(reply).isNotNull();
+        assertThat(reply.getFirstDoc().get("ok")).as("reply: " + reply.getFirstDoc()).isEqualTo(1.0);
+        assertThat(reply.getFirstDoc().get("status")).isEqualTo("alreadyRunning");
+    }
+
+    @Test
+    public void dumpNowReportsAFailedTriggerAsError() throws Exception {
+        EmbeddedChannel dumpCh = new EmbeddedChannel(new MongoCommandHandler(drv, null, null, null,
+                new AtomicInteger(1), "0.0.0.0", 27017, "my-rs", List.of("localhost:27017"), true,
+                "localhost:27017", 0, () -> null)
+                .setDumpNowAction(() -> { throw new IllegalStateException("disk full"); }));
         OpMsg msg = new OpMsg();
         msg.setMessageId(msgId.incrementAndGet());
         msg.setFirstDoc(Doc.of("dumpNow", 1, "$db", "admin"));
