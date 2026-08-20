@@ -105,7 +105,15 @@ public class StoreProfile {
                         ? () -> rawInsertEqualized(m, id[0]++, preMapped)
                         : () -> rawInsertSmall(m, id[0]++), blockNs));
                 Thread.currentThread().setName("probe:store-" + p);
-                storeBlocks.add(runBlock("store", () -> m.store(msg), blockNs));
+                // Reusing one Msg instance would give it an _id after the first store, routing
+                // every later store to StoreMongoCommand (update $set + upsert, see
+                // MorphiumWriterImpl.store) instead of InsertMongoCommand — i.e. measuring a
+                // find+modify against an existing doc, not an insert. Clearing the id keeps the
+                // store phase a genuine insert like the raw phase.
+                storeBlocks.add(runBlock("store", () -> {
+                    m.store(msg);
+                    msg.setMsgId(null);
+                }, blockNs));
             }
 
             report("raw", median(rawBlocks));
