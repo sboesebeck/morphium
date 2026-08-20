@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "commit": "665b8dde3189548d06a07134c513b309c325761e",
+  "branch": "develop",
+  "timestamp": "2026-08-20T16:18:09Z",
+  "runner": "testrunner",
+  "scope": {
+    "complete": true,
+    "tags": null,
+    "testPattern": null
+  },
+  "phases": {
+    "mongodb_single": {
+      "classes": 221,
+      "methods": 1238,
+      "passed": 1218,
+      "skipped": 20,
+      "broken": 0,
+      "duration_s": 5052,
+      "flaky": 0
+    }
+  }
+}
