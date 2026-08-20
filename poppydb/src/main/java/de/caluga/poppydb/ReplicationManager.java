@@ -2367,7 +2367,7 @@ public class ReplicationManager {
                 log.debug("Ignoring event without namespace: {}", operationType);
                 // Still update sequence for non-namespace events
                 if (sequenceNumber > 0) {
-                    lastAppliedSequence.set(sequenceNumber);
+                    lastAppliedSequence.updateAndGet(current -> Math.max(current, sequenceNumber));
                 }
                 return true;
             }
@@ -2380,7 +2380,7 @@ public class ReplicationManager {
             if (!isReplicated(db, coll)) {
                 // Still update sequence for skipped events
                 if (sequenceNumber > 0) {
-                    lastAppliedSequence.set(sequenceNumber);
+                    lastAppliedSequence.updateAndGet(current -> Math.max(current, sequenceNumber));
                 }
                 return true;
             }
@@ -2482,9 +2482,14 @@ public class ReplicationManager {
             eventsApplied.incrementAndGet();
             lastEventTime.set(System.currentTimeMillis());
 
-            // Update last applied sequence after successful application
+            // Update last applied sequence after successful application. NEVER a plain set: the
+            // batch paths already advance this with Math.max, and an event can arrive out of
+            // sequence (a replayed event racing live dispatch on a resume). A plain set would
+            // then move the watermark BACKWARDS, and a reconnect would ask the primary to resume
+            // from a point whose events this node has already applied - re-applying stale full
+            // documents over newer ones.
             if (sequenceNumber > 0) {
-                lastAppliedSequence.set(sequenceNumber);
+                lastAppliedSequence.updateAndGet(current -> Math.max(current, sequenceNumber));
             }
 
             return true;

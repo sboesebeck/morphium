@@ -110,6 +110,62 @@ public class InMemDumpAtomicWriteTest {
         }
     }
 
+    /**
+     * The shutdown path interrupts a dump that outstays its wait, rather than letting it write
+     * into a driver that is about to be reset. That only helps if an interrupted write actually
+     * aborts cleanly: {@code Files.newOutputStream} is channel-backed, so a write on an
+     * interrupted thread fails with {@code ClosedByInterruptException} - which must land in the
+     * same cleanup path as any other failure, leaving the previous dump untouched and no temp
+     * file behind.
+     */
+    @Test
+    public void anInterruptedWriteLeavesThePreviousDumpIntact(@TempDir Path tempDir) throws Exception {
+        // enough data that the gzip stream actually reaches the channel during the write
+        InMemoryDriver drv = driverWith("atomicdump", "docs", 400);
+
+        try {
+            File dir = tempDir.toFile();
+            File target = new File(dir, "atomicdump.morphium.gz");
+            drv.dumpToFile("atomicdump", target);
+            byte[] previous = Files.readAllBytes(target.toPath());
+
+            Thread.currentThread().interrupt();   // what shutdown does to a straggling dump
+
+            boolean aborted = false;
+            try {
+                drv.dumpToFile("atomicdump", target);
+            } catch (IOException expected) {
+                aborted = true;
+            } finally {
+                Thread.interrupted();   // clear the flag for the rest of the suite
+            }
+            assertTrue(aborted, "the interrupt must abort the write - that is what shutdown "
+                    + "relies on when it interrupts a dump that outstayed its wait");
+
+            assertTrue(target.exists(), "the previous dump must still be there");
+            assertFalse(new File(dir, "atomicdump.morphium.gz.tmp").exists(),
+                    "an aborted write must not leave its temp file behind");
+
+            // whatever happened, the file on disk is a COMPLETE dump - either the old one or a
+            // fully written new one, never a torso
+            InMemoryDriver restored = new InMemoryDriver();
+            restored.connect();
+
+            try {
+                restored.restoreFromFile(target);
+                assertEquals(400, restored.find("atomicdump", "docs", Doc.of(), null, null, 0, 0).size(),
+                        "the dump on disk must be complete and restorable");
+            } finally {
+                restored.close();
+            }
+
+            assertArrayEquals(previous, Files.readAllBytes(target.toPath()),
+                    "the aborted write must not have touched the previous dump at all");
+        } finally {
+            drv.close();
+        }
+    }
+
     /** A hard crash mid-dump leaves a .tmp behind. It must never be restored, and startup -
      * i.e. the restore pass - is where it gets removed. */
     @Test

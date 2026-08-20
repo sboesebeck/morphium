@@ -73,6 +73,57 @@ another dump held the guard.
 
 ### Fixed
 
+#### PoppyDB never emitted `lock_released` — exclusive messages waited for the poll interval
+`MultiCollectionMessaging` deliberately runs **without** its own lock-monitor change stream on
+PoppyDB ("server pushes lock_released events directly … 0 extra connections") and depends on the
+server emitting a synthetic `lock_released` event when a lock document is deleted. The only
+producer of that event sat in the generic command path — and direct dispatch took `delete` over
+in 16355e3c2 (March), making that path unreachable for deletes. Releasing a lock has since woken
+nobody: the freed exclusive message was only picked up by the next poll round, capping throughput
+at poll cadence and producing the msg_lck stall shape under contention. The notification now
+happens in the direct `delete` path itself.
+
+#### Replay-buffer accounting drifted, silently disabling the byte budget
+An entry can be removed from the change-stream history by two independent parties at once — the
+eviction loop (`pollFirst`) and a drop's purge (`removeIf`) — and neither learned whether it had
+actually won: `ConcurrentLinkedDeque.removeIf` evaluates its predicate *before* the CAS that
+unlinks the node, so a predicate that decremented the counters had already done so when it lost
+the race. The counters drifted permanently below the buffer's real weight (reproduced: size
+counter at **-19**), and once they do, `bytes > budget` stops firing and the byte budget no longer
+bounds memory at all — the exact regression the budget exists to prevent. Every removal path now
+books through one exactly-once guard on the entry itself. `getChangeStreamHistoryActualCount()` /
+`getChangeStreamHistoryActualBytes()` expose the buffer's real content (O(n)) so the invariant is
+assertable — and diagnosable on a live node.
+
+#### Watch-cursor bookkeeping leaked, and a failed watch start was answered `ok: 1` (#326)
+Three defects in the cursor delivery path, all with the same shape — state outliving its cursor,
+or a client believing it has a stream it does not have:
+
+- Two of the five cursor-removal paths (the terminal-error check in getMore, and `failUnservable`)
+  removed the cursor without unregistering its messaging registration. Since nothing else ever
+  removes an id from that set, every terminated cursor stayed in it forever, the set never
+  emptied, so its key was never removed either — and each dead id cost a lookup in every later
+  fast-path notification, on the event loop. Exactly the reconnect churn after
+  `ChangeStreamHistoryLost` that those paths exist for made it grow. All removals now go through
+  one path that takes the registration with it.
+- `createWatchCursor` swallowed a failure to start the watch and returned the cursor id anyway,
+  so the client was answered `ok: 1` with a dead cursor, missed every event, and learned about it
+  only as a confusing "unknown cursor" error on its first getMore. It now throws, and the command
+  is answered as failed.
+- The parked-getMore fix from 6.3.3 survived as a race: the terminal state was checked *before*
+  the request was parked, so a stream dying in between left the request orphaned to be answered
+  after the full `maxTimeMS` with an empty, successful-looking batch. The state is re-checked
+  after parking, mirroring the existing re-check for events.
+
+#### The replication watermark could move backwards
+`applyChangeEvent` advanced `lastAppliedSequence` with a plain `set`, while the batch paths used
+`Math.max`. Events do not always arrive in sequence order — on a resume, the primary's history
+replay runs concurrently with live dispatch — so an older event arriving after a newer one dragged
+the watermark back. The node then asked the primary to resume from a point it was already past and
+re-applied stale full documents over newer ones: silent divergence. Only non-insert events were
+affected (inserts go through the bulk path, whose flush re-applied `Math.max` afterwards). All
+advances are now monotonic; the deliberate reseed after a full sync stays a plain set.
+
 #### Messages for topics without a listener starved the messaging poll window
 `getMessagesForProcessing()` (SingleCollectionMessaging and DualChannelMessaging, plus the
 latter's DM-lane fallback poll) fetched candidate messages sorted by `(priority, timestamp)`

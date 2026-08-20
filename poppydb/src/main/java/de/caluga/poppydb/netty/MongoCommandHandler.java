@@ -598,6 +598,20 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 break;
             case "delete":
                 answer = processDeleteDirect(doc);
+                // Must happen HERE, not only in processDefaultCommandAsync: since direct dispatch
+                // took over "delete", the generic path is unreachable for it - and with it the
+                // only producer of "lock_released". MultiCollectionMessaging skips its own lock
+                // monitor on PoppyDB precisely because it expects this push, so without it a
+                // released lock wakes nobody and redelivery waits for the poll interval.
+                //
+                // Runs inline on the event loop, where the generic path used to run it off-thread.
+                // Deliberate: for a delete that is NOT a registered lock collection - i.e. every
+                // ordinary delete - this costs one null check and one map lookup and returns. For
+                // one that is, the work is a set iteration completing parked futures, and doing it
+                // inline is what makes the wake immediate; handing it to an executor would add a
+                // scheduling hop to the very latency this exists to remove. Should this ever grow
+                // beyond map lookups, it belongs off the event loop.
+                notifyMessagingCursorsOnLockDelete(doc);
                 break;
             case "count":
                 answer = processCountDirect(doc);
@@ -1016,6 +1030,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             // Notify messaging cursors when a lock is deleted (exclusive message released).
             // This allows other subscribers to re-poll for the now-available message
             // without needing a separate lock-monitor change stream connection.
+            // NOTE: "delete" is normally taken by the direct-dispatch path in dispatchOpMsg,
+            // which does the same call itself - this stays for any route that still lands here.
             if (cmd.equalsIgnoreCase("delete")) {
                 notifyMessagingCursorsOnLockDelete(doc);
             }

@@ -9745,8 +9745,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 break; // deque already empty
             }
 
-            changeStreamHistorySize.decrementAndGet();
-            changeStreamHistoryBytes.addAndGet(-evicted.estimatedBytes);
+            accountHistoryRemoval(evicted);
 
             if (!overCount) {
                 changeStreamHistoryEvictedForBudget.incrementAndGet();
@@ -9998,8 +9997,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         while (changeStreamHistorySize.get() > limit) {
             ChangeStreamEventInfo evicted = changeStreamHistory.pollFirst();
             if (evicted != null) {
-                changeStreamHistorySize.decrementAndGet();
-                changeStreamHistoryBytes.addAndGet(-evicted.estimatedBytes);
+                accountHistoryRemoval(evicted);
             } else {
                 break; // deque already empty
             }
@@ -10027,8 +10025,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 break; // deque already empty
             }
 
-            changeStreamHistorySize.decrementAndGet();
-            changeStreamHistoryBytes.addAndGet(-evicted.estimatedBytes);
+            accountHistoryRemoval(evicted);
             changeStreamHistoryEvictedForBudget.incrementAndGet();
         }
     }
@@ -10044,6 +10041,37 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     /** Number of events currently held by the replay buffer (diagnostic). */
+    /**
+     * The number of events ACTUALLY buffered, counted by walking the deque - O(n), for
+     * diagnostics and tests. {@link #getChangeStreamHistorySize()} is the O(1) counter the
+     * eviction logic runs on; the two must always agree. They can only disagree if a removal was
+     * booked out more or less than once, and a counter that has drifted BELOW the real weight
+     * silently disables the byte budget (it stops seeing the buffer as over-budget).
+     */
+    public int getChangeStreamHistoryActualCount() {
+        int n = 0;
+
+        for (@SuppressWarnings("unused") ChangeStreamEventInfo e : changeStreamHistory) {
+            n++;
+        }
+
+        return n;
+    }
+
+    /**
+     * The summed estimated weight of the events ACTUALLY buffered - O(n), the ground truth for
+     * {@link #getChangeStreamHistoryBytes()}. See {@link #getChangeStreamHistoryActualCount()}.
+     */
+    public long getChangeStreamHistoryActualBytes() {
+        long sum = 0;
+
+        for (ChangeStreamEventInfo e : changeStreamHistory) {
+            sum += e.estimatedBytes;
+        }
+
+        return sum;
+    }
+
     public int getChangeStreamHistorySize() {
         return changeStreamHistorySize.get();
     }
@@ -10090,6 +10118,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             return false; // nothing buffered but events exist after the token — window lost
         }
         return oldest.token <= resumeToken + 1;
+    }
+
+    /**
+     * Book one removed history entry out of the size/byte counters - at most once per entry, no
+     * matter how many removal paths touch it (see {@link ChangeStreamEventInfo#removalAccounted}).
+     * Double-counting here is not cosmetic: it drives {@code changeStreamHistoryBytes} below the
+     * deque's real weight, and once it has drifted, the byte budget stops evicting and no longer
+     * bounds memory at all.
+     */
+    private void accountHistoryRemoval(ChangeStreamEventInfo e) {
+        if (e != null && e.removalAccounted.compareAndSet(false, true)) {
+            changeStreamHistorySize.decrementAndGet();
+            changeStreamHistoryBytes.addAndGet(-e.estimatedBytes);
+        }
     }
 
     private void replayHistory(ChangeStreamSubscription subscription, long startingToken) {
@@ -10443,6 +10485,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // exactly once at construction - the byte-budget bookkeeping adds/subtracts this at
         // every deque mutation site, so no separate size cache is needed.
         private final long estimatedBytes;
+        // Exactly-once guard for the size/byte bookkeeping. An entry can be removed from the
+        // deque by two independent parties at the same time - the eviction loop (pollFirst) and
+        // a drop's purge (removeIf) - and neither learns whether it actually won the underlying
+        // CAS: ConcurrentLinkedDeque.removeIf evaluates the predicate BEFORE the CAS, so a
+        // predicate that decrements has already done so when it loses. Both sides therefore
+        // account through this flag instead, and the counters follow the deque exactly.
+        private final AtomicBoolean removalAccounted = new AtomicBoolean(false);
 
         private ChangeStreamEventInfo(long token, String db, String collection, Map<String, Object> event,
                                       long createdAt) {
@@ -11029,8 +11078,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // surviving the sequence boundary if removeIf misses concurrent additions.
         changeStreamHistory.removeIf(e -> {
             if (db.equals(e.db) && collection.equals(e.collection)) {
-                changeStreamHistorySize.decrementAndGet();
-                changeStreamHistoryBytes.addAndGet(-e.estimatedBytes);
+                accountHistoryRemoval(e);
                 return true;
             }
             return false;
@@ -11046,8 +11094,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // events added by async dispatchers between the first purge and now.
         changeStreamHistory.removeIf(e -> {
             if (db.equals(e.db) && collection.equals(e.collection)) {
-                changeStreamHistorySize.decrementAndGet();
-                changeStreamHistoryBytes.addAndGet(-e.estimatedBytes);
+                accountHistoryRemoval(e);
                 return true;
             }
             return false;
@@ -11082,8 +11129,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         lastGlobalDropSequence.accumulateAndGet(dropBoundary, Math::max);
         changeStreamHistory.removeIf(e -> {
             if (db.equals(e.db)) {
-                changeStreamHistorySize.decrementAndGet();
-                changeStreamHistoryBytes.addAndGet(-e.estimatedBytes);
+                accountHistoryRemoval(e);
                 return true;
             }
             return false;

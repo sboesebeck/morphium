@@ -1815,13 +1815,22 @@ public class PoppyDB {
     /**
      * Dumps all databases synchronously, honoring the shared dump guard (#317).
      *
-     * @return the number of databases written, or -1 if another dump (periodic or on-demand)
-     *         was already running - in that case nothing was written by this call
+     * @return the number of databases written, or -1 if nothing was written by this call: either
+     *         another dump (periodic or on-demand) was already running, or shutdown has begun
      * @throws IOException if no dump directory is configured, or the dump itself fails
      */
     public int dumpNow() throws IOException {
         if (dumpDirectory == null) {
             throw new IOException("Dump directory not configured");
+        }
+
+        // Same gate as triggerDumpNow: once shutdown has begun the driver is about to be reset,
+        // and a dump that wins the guard after the final dump released it - but before
+        // forceShutdown() - would rename EMPTY databases over the last good dump files. The
+        // guard alone does not prevent that; only refusing to start does.
+        if (shuttingDown) {
+            log.info("Not dumping: shutting down (a final dump runs as part of shutdown)");
+            return -1;
         }
 
         if (!dumpGuard.tryAcquire()) {

@@ -55,6 +55,13 @@ public class WatchCursorManager {
 
     /**
      * Create a new watch cursor for a change stream.
+     *
+     * @return the id of a cursor that is registered and live
+     * @throws IllegalStateException if the change stream could not be started - deliberately
+     *         unchecked and deliberately NOT swallowed: a caller must not hand a cursor id to a
+     *         client for a stream that does not exist. The caller answers this as a failed
+     *         command (see {@code MongoCommandHandler.processChangeStream}), which is also where
+     *         it is logged - this method does not log it a second time.
      */
     public long createWatchCursor(InMemoryDriver driver, WatchCommand wcmd) {
         long cursorId = nextCursorId();
@@ -90,11 +97,43 @@ public class WatchCursorManager {
             driver.runCommand(wcmd);
             log.debug("Watch started for cursor {}", cursorId);
         } catch (Exception e) {
-            log.error("Watch command error for cursor {}", cursorId, e);
-            watchCursors.remove(cursorId);
+            // Do NOT hand back a cursor id for a stream that never started: the client would be
+            // answered ok:1 with a live-looking cursor, miss every event, and only find out on
+            // its first getMore - as an "unknown cursor" error from the generic path, which says
+            // nothing about the actual failure. The caller turns this into an ok:0 reply and logs
+            // it there, so this stays at debug rather than logging the same failure twice.
+            log.debug("Watch command error for cursor {}: {}", cursorId, e.toString());
+            removeWatchCursor(cursorId);
+            throw new IllegalStateException("could not start change stream on "
+                    + wcmd.getDb() + "." + wcmd.getColl() + ": " + e.getMessage(), e);
         }
 
         return cursorId;
+    }
+
+    /** How many events a watch cursor currently holds undelivered; -1 if it no longer exists.
+     * Diagnostics, and the only way for a test to observe the buffered state without draining it. */
+    int bufferedEventCount(long cursorId) {
+        WatchCursorState state = watchCursors.get(cursorId);
+        return state == null ? -1 : state.events.size();
+    }
+
+    /**
+     * Drop a watch cursor and everything that tracks it. Every removal goes through here: a
+     * cursor removed without unregistering its messaging registration leaves a dead id in
+     * {@code messagingCursors} forever - the set then never empties, so its key is never removed
+     * either, and every later fast-path notification pays a lookup for it on the event loop.
+     *
+     * @return the removed state, or null if the cursor was already gone
+     */
+    private WatchCursorState removeWatchCursor(long cursorId) {
+        WatchCursorState removed = watchCursors.remove(cursorId);
+
+        if (removed != null) {
+            unregisterMessagingCursor(cursorId, removed.db, removed.collection);
+        }
+
+        return removed;
     }
 
     /**
@@ -106,12 +145,32 @@ public class WatchCursorManager {
      * @param subscriberId The subscriber's sender ID (for server-side filtering)
      */
     public void registerMessagingCursor(long cursorId, String db, String collection, String subscriberId) {
+        // Look the state up FIRST: registering an id whose cursor is already gone (a watch that
+        // failed to start, or one killed between creation and registration) leaks it - nothing
+        // ever unregisters an id that has no cursor.
+        WatchCursorState state = watchCursors.get(cursorId);
+
+        if (state == null) {
+            log.debug("Not registering messaging cursor {} for {}.{} - the cursor no longer exists",
+                      cursorId, db, collection);
+            return;
+        }
+
         String key = db + "." + collection;
         messagingCursors.computeIfAbsent(key, k -> ConcurrentHashMap.newKeySet()).add(cursorId);
 
-        // Store subscriberId in the cursor state for sender filtering
-        WatchCursorState state = watchCursors.get(cursorId);
-        if (state != null && subscriberId != null) {
+        // The cursor can be killed between the lookup above and the add - the kill's
+        // unregistration would then run before this registration exists, leaving a dead id
+        // behind that nothing ever removes. Re-check and undo, so the invariant "every id in
+        // messagingCursors has a live cursor" holds however the two interleave.
+        if (!watchCursors.containsKey(cursorId)) {
+            unregisterMessagingCursor(cursorId, db, collection);
+            log.debug("Rolled back messaging registration for cursor {} - it was killed while registering",
+                      cursorId);
+            return;
+        }
+
+        if (subscriberId != null) {
             state.subscriberId = subscriberId;
         }
 
@@ -266,7 +325,7 @@ public class WatchCursorManager {
         // reaches the client before the error does.
         if (state.wcmd != null && state.wcmd.getTerminalError() != null) {
             log.warn("Cursor {} ended unservable: {}", state.cursorId, state.wcmd.getTerminalError());
-            watchCursors.remove(state.cursorId);
+            removeWatchCursor(state.cursorId);
             return CompletableFuture.failedFuture(
                 new ChangeStreamHistoryLostException(state.wcmd.getTerminalError()));
         }
@@ -294,6 +353,28 @@ public class WatchCursorManager {
                 return future;
             }
             // If remove failed, onWatchEvent already completed our future - just return it
+        }
+
+        // Same race, other cause: the stream can die between the terminal check above and the
+        // offer. failUnservable would then have drained a still-EMPTY pending queue and dropped
+        // the cursor, leaving this request orphaned - and the timeout below would answer it after
+        // the FULL maxTimeMS with an empty ok:1 batch carrying a live-looking cursor id, which is
+        // exactly the "unservable stream looks idle" bug this check exists to prevent.
+        String terminal = state.wcmd == null ? null : state.wcmd.getTerminalError();
+
+        if (terminal != null || !watchCursors.containsKey(state.cursorId)) {
+            if (state.pendingGetMores.remove(pending)) {
+                if (!state.events.isEmpty()) {
+                    future.complete(drainEvents(state.events));
+                } else if (terminal != null) {
+                    future.completeExceptionally(new ChangeStreamHistoryLostException(terminal));
+                } else {
+                    // Killed cursor - same answer killCursor gives its pending requests.
+                    future.complete(Collections.emptyList());
+                }
+            }
+
+            return future;
         }
 
         // Schedule timeout - handle rejected execution during shutdown
@@ -386,15 +467,13 @@ public class WatchCursorManager {
      * Kill a cursor.
      */
     public boolean killCursor(long cursorId) {
-        WatchCursorState watchState = watchCursors.remove(cursorId);
+        WatchCursorState watchState = removeWatchCursor(cursorId);
         if (watchState != null) {
             // Complete any pending getMore requests with empty results
             PendingGetMore pending;
             while ((pending = watchState.pendingGetMores.poll()) != null) {
                 pending.future.complete(Collections.emptyList());
             }
-            // Clean up messaging cursor tracking
-            unregisterMessagingCursor(cursorId, watchState.db, watchState.collection);
             log.debug("Killed watch cursor {}", cursorId);
             return true;
         }
@@ -424,9 +503,8 @@ public class WatchCursorManager {
         }
         log.warn("Change stream cursor {} exceeded max buffer size {} — killing cursor (slow/absent consumer)",
                 state.cursorId, MAX_CURSOR_QUEUE_SIZE);
-        WatchCursorState removed = watchCursors.remove(state.cursorId);
+        WatchCursorState removed = removeWatchCursor(state.cursorId);
         if (removed != null) {
-            unregisterMessagingCursor(state.cursorId, removed.db, removed.collection);
             failPending(removed.pendingGetMores);
         }
         return false;
@@ -488,7 +566,7 @@ public class WatchCursorManager {
         // Kept only while it still holds undelivered events, so the next getMore can collect
         // them and then hit the terminal check.
         if (state.events.isEmpty()) {
-            watchCursors.remove(cursorId);
+            removeWatchCursor(cursorId);
         }
     }
 

@@ -43,9 +43,21 @@ public class DumpGuardTest {
             super(port, "127.0.0.1", 100, 10);
         }
 
+        /** When set, the blocked dump has already created a temp file - the state a real dump is
+         * in while it is writing, and the one an interrupt has to survive without damage. */
+        private volatile File tempFileWhileBlocked = null;
+
         @Override
         int writeDumpFiles() throws IOException {
             dumpCalls.incrementAndGet();
+
+            File tmp = tempFileWhileBlocked;
+
+            if (tmp != null) {
+                // half-written dump on disk, exactly like a real dump that got this far
+                java.nio.file.Files.writeString(tmp.toPath(), "half written dump");
+            }
+
             entered.countDown();
 
             try {
@@ -240,6 +252,13 @@ public class DumpGuardTest {
      * the driver - a dump still snapshotting would then rename EMPTY databases over the last
      * good dump files. Shutdown must therefore interrupt the straggler, and no dump may start
      * once shutdown has begun.
+     *
+     * <p>The blocked dump holds a half-written temp file while the interrupt lands, so this also
+     * pins that an interrupted dump never replaces the good file with what it had written so
+     * far. That an interrupt aborts the REAL write cleanly (channel-backed streams, temp
+     * cleanup) is pinned one layer down, in
+     * {@code InMemDumpAtomicWriteTest.anInterruptedWriteLeavesThePreviousDumpIntact} - this test
+     * cannot show it, because its dump is blocked in the seam rather than inside the driver.
      */
     @Test
     public void shutdownInterruptsADumpThatOutstaysTheWaitAndStartsNoNewOne(@TempDir Path dumpDir) throws Exception {
@@ -252,9 +271,12 @@ public class DumpGuardTest {
         assertTrue(dumpFile.exists(), "precondition: a good dump exists");
         byte[] good = java.nio.file.Files.readAllBytes(dumpFile.toPath());
 
+        server.tempFileWhileBlocked = new File(dumpDir.toFile(), "guarded.morphium.gz.tmp");
         server.blockNextDump();
         assertTrue(server.triggerDumpNow(), "a dump must be running when shutdown starts");
         assertTrue(server.awaitDumpEntered());
+        assertTrue(server.tempFileWhileBlocked.exists(),
+                "precondition: the interrupted dump has a half-written temp file on disk");
 
         assertFalse(server.triggerDumpNow(), "guard: no second dump while one runs");
         Thread shutdown = new Thread(server::shutdown, "test-shutdown");
@@ -263,11 +285,13 @@ public class DumpGuardTest {
         assertFalse(shutdown.isAlive(), "shutdown must not hang on the running dump");
 
         assertFalse(server.triggerDumpNow(), "no dump may be started once shutdown has begun");
-        // the interrupted dump must not have replaced the good dump with a post-reset (empty) one
+        assertEquals(-1, server.dumpNow(),
+                "the synchronous entry point must refuse during shutdown too - the driver is "
+                + "about to be reset");
+        // the interrupted dump must not have replaced the good dump - neither with a post-reset
+        // (empty) one nor with the half-written temp file it was holding
         assertArrayEquals(good, java.nio.file.Files.readAllBytes(dumpFile.toPath()),
                 "the last good dump must survive the interrupted dump untouched");
-        assertFalse(new File(dumpDir.toFile(), "guarded.morphium.gz.tmp").exists(),
-                "the interrupted dump's temp file must be cleaned up");
         server = null;   // already shut down
     }
 
