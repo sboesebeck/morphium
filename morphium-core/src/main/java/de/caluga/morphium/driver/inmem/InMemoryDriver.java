@@ -439,6 +439,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     long ttlEntriesChecked;
 
     /**
+     * How many TTL sweep tasks are currently scheduled. {@code ttlExec} carries nothing else, and
+     * cancelled tasks leave its queue immediately (setRemoveOnCancelPolicy), so this is exactly
+     * the number of live sweeps. Package-private test hook in the same spirit as
+     * {@link #ttlEntriesChecked} - scheduleExpire() is reached from two places and a test needs to
+     * prove the second one replaces the first instead of adding to it.
+     */
+    /* package-private */ int scheduledTtlTasks() {
+        return ttlExec.getQueue().size();
+    }
+
+    /**
      * Counts JOL {@code sizeOf} measurements taken for capped-collection byte-counter bookkeeping
      * (see {@link #cappedOnInsert} and the incoming-batch measurement in {@link #insert}).
      * Package-private test hook (Phase B2, Task 4): the counter-based eviction loop must measure
@@ -5136,6 +5147,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private void scheduleExpire() {
+        // Cancel here, not only in setExpireCheck: connect() also schedules, so configuring the
+        // interval BEFORE connecting - which is the only way to change it, the period is fixed
+        // when the task is scheduled - used to leave the first task running with nothing left
+        // referencing it, i.e. sweeping forever with no way to cancel it.
+        if (expire != null) {
+            expire.cancel(true);
+        }
+
         expire = ttlExec.scheduleWithFixedDelay(this::runTtlSweepPass, 100, expireCheck, TimeUnit.MILLISECONDS);
     }
 
@@ -5523,11 +5542,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     public InMemoryDriver setExpireCheck(int expireCheck) {
         this.expireCheck = expireCheck;
-
-        if (expire != null) {
-            expire.cancel(true);
-        }
-
         scheduleExpire();
         return this;
     }
