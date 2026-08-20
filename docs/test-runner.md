@@ -90,6 +90,16 @@ mvn -Pexternal -Dmorphium.driver=pooled -Dmorphium.uri=mongodb://... -Dmorphium.
 
 ## Headless VM Testing
 
+!!! note "Maintainer infrastructure — not required for contributing"
+
+    Everything from here on describes the maintainers' own self-hosted test runner.
+    The hostnames, containers and API keys below refer to a private setup and are not
+    reachable from outside it.
+
+    You do **not** need any of this to contribute. `./runtests.sh` on your own machine
+    covers the same ground — see the sections above, and use `--poppydb` /
+    `--poppydb-replicaset` for server-backed phases without installing MongoDB.
+
 For running the full test matrix on a dedicated VM (e.g., Proxmox):
 
 ### Setup

@@ -228,8 +228,12 @@ accordingly:
   reasonable starting point for message-broker/cache workloads where some loss is acceptable by
   design (see the loss model in [Use Cases §5](../poppydb.md#5-message-broker-for-short-lived-messages-production)).
 - **Manual snapshot before risky operations** (version upgrade, config change): trigger one
-  on-demand via the programmatic `dumpNow()` API, or restart the node (a final dump runs on
-  shutdown) before the change.
+  on-demand with `db.adminCommand({dumpNow: 1})` (or the programmatic `dumpNow()` API), or restart
+  the node (a final dump runs on shutdown) before the change. The command answers immediately with
+  `status: "started"` — or `alreadyRunning` if a dump is in flight, since only one dump runs at a
+  time — so check `db.adminCommand({dumpStatus: 1}).lastDumpMs` to see when it actually finished.
+  A dump interrupted by a crash leaves the previous snapshot intact (temp file + atomic rename),
+  so the worst case is a snapshot that is one interval older, never a corrupt one.
 - **Restore**: dump files (`<dbname>.morphium.gz`) in the configured `--dump-dir` are restored
   automatically on startup if present — to restore onto a fresh node, copy the snapshot files into
   its `--dump-dir` before first start.
