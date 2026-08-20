@@ -23,6 +23,7 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
+import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
@@ -310,9 +311,72 @@ public class WireRoundtripCostBenchmark {
                     sender.sendMessage(new Msg("wirecost", "bench", "x", 300_000));
                 }
 
-                report("messaging.sendMessage", (System.nanoTime() - start) / 1000.0 / ops);
+                report("messaging.sendMessage (no receiver)", (System.nanoTime() - start) / 1000.0 / ops);
+
+                // (d) the same send, but with somebody watching the collection. A plain change
+                // stream (no messaging) isolates the server's fan-out work on the write path
+                // from everything a real receiver does on top of it.
+                ChangeStreamMonitor watcher = new ChangeStreamMonitor(m, sender.getCollectionName(), true);
+                watcher.addListener(evt -> true);
+                watcher.start();
+
+                try {
+                    Thread.sleep(1500);   // let the watch register before the clock starts
+
+                    for (int i = 0; i < 300; i++) {
+                        sender.sendMessage(new Msg("wirecost", "bench", "x", 300_000));
+                    }
+
+                    start = System.nanoTime();
+
+                    for (int i = 0; i < ops; i++) {
+                        sender.sendMessage(new Msg("wirecost", "bench", "x", 300_000));
+                    }
+
+                    report("messaging.sendMessage (1 change stream)",
+                           (System.nanoTime() - start) / 1000.0 / ops);
+                } finally {
+                    watcher.terminate();
+                }
             } finally {
                 sender.terminate();
+            }
+        }
+
+        // (e) the real benchmark shape: a second Morphium with a messaging receiver that
+        // actually consumes the topic.
+        try (Morphium sendM = new Morphium(cfg("wirecost_stack", port));
+             Morphium recvM = new Morphium(cfg("wirecost_stack", port))) {
+            MorphiumMessaging receiver = recvM.createMessaging();
+            java.util.concurrent.atomic.AtomicInteger received = new java.util.concurrent.atomic.AtomicInteger();
+            receiver.addListenerForTopic("wirecost_recv", (mq, msg) -> {
+                received.incrementAndGet();
+                return null;
+            });
+            receiver.start();
+
+            MorphiumMessaging sender2 = sendM.createMessaging();
+            sender2.start();
+
+            try {
+                Thread.sleep(3000);   // both sides registered, as the one-way benchmark does
+
+                for (int i = 0; i < 300; i++) {
+                    sender2.sendMessage(new Msg("wirecost_recv", "bench", "x", 300_000));
+                }
+
+                long start2 = System.nanoTime();
+
+                for (int i = 0; i < ops; i++) {
+                    sender2.sendMessage(new Msg("wirecost_recv", "bench", "x", 300_000));
+                }
+
+                report("messaging.sendMessage (live receiver)",
+                       (System.nanoTime() - start2) / 1000.0 / ops);
+                log.info("WIRECOST   receiver consumed {} of {}", received.get(), ops + 300);
+            } finally {
+                sender2.terminate();
+                receiver.terminate();
             }
         }
     }
