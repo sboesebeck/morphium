@@ -132,6 +132,29 @@ while the queue is empty, so the budget never imposes a document-size cap. The a
 offer time and subtracts the identical estimate at drain time, so the counter cannot drift and
 quietly disable the bound.
 
+#### PoppyDB: the initial sync no longer declares success over a dead watch (#322)
+While a secondary's initial-sync snapshot runs, its apply gate is closed and replication events
+pile up in the event queue until the byte budget blocks the watch reader - deliberate
+backpressure. The primary however never blocks: it kills the cursor when the per-cursor buffer
+overflows. The secondary had no way to notice, because the only thread that maintains its
+watch-health flags is the very reader that is parked - so the post-snapshot guard trusted a stale
+"watch is live" and opened the gate over a provably dead stream with a real event gap. Under
+sustained load that became a self-sustaining loop: gap → window lost → full re-sync → same
+overflow again, the node stuck in RECOVERING - and in the other branch (replay buffer still
+covering the gap) it silently self-healed without the gap ever being visible at all, briefly
+reporting a gapped state as healthy either way.
+
+The guard now validates the one signal the blocked reader cannot make stale: after the snapshot
+it asks the primary itself whether this cycle's watch cursor still exists (new
+`poppyCursorAlive` command). If not, the snapshot is discarded and redone under a fresh watch,
+and the dead session is retired: its buffered events are dropped and any events its
+just-unblocked reader still delivers afterwards are discarded too, instead of being applied as
+stale upserts over the freshly-copied data. The same late-event leak existed in the resume-window
+resync path and is closed the same way. The probe deliberately runs unconditionally (not gated on
+a "was the reader blocked" heuristic, which misses a reader that was already blocked before the
+snapshot started), fails open toward an older primary that does not know the command, and fails
+closed when the primary cannot be reached at all.
+
 #### InMemoryDriver: the 21st change stream never started, and TTL expiry stopped with it (#325)
 Server-side change streams - the ones PoppyDB opens for its clients and for replication - parked a
 thread of the driver's shared scheduler for the entire lifetime of the stream, as did tailable
