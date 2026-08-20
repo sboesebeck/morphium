@@ -1383,6 +1383,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         changeStreamHistoryBytes.set(0);
         changeStreamHistoryEvictedForBudget.set(0);
         changeStreamSequence.set(0);
+        changeStreamHighestCapacityEvictedToken.set(0);
         lastDropSequence.clear();
         lastGlobalDropSequence.set(0);
         eventQueue.clear();
@@ -9842,7 +9843,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 break; // deque already empty
             }
 
-            accountHistoryRemoval(evicted);
+            accountCapacityEviction(evicted);
 
             if (!overCount) {
                 changeStreamHistoryEvictedForBudget.incrementAndGet();
@@ -10094,7 +10095,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         while (changeStreamHistorySize.get() > limit) {
             ChangeStreamEventInfo evicted = changeStreamHistory.pollFirst();
             if (evicted != null) {
-                accountHistoryRemoval(evicted);
+                accountCapacityEviction(evicted);
             } else {
                 break; // deque already empty
             }
@@ -10122,7 +10123,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 break; // deque already empty
             }
 
-            accountHistoryRemoval(evicted);
+            accountCapacityEviction(evicted);
             changeStreamHistoryEvictedForBudget.incrementAndGet();
         }
     }
@@ -10231,7 +10232,68 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
     }
 
+    /**
+     * Highest token ever removed by CAPACITY eviction (count limit or byte budget - both
+     * namespace-blind). Deliberately NOT advanced by drop purges: a drop removes exactly one
+     * namespace's events, which is harmless for every subscription not covering that namespace
+     * (drops are checked separately, see {@link #coveringNamespaceDroppedAfter}). {@link
+     * #verifyReplayWindow} uses this as the upper bound of its completeness check: a missing
+     * window token above this watermark was never evicted - it is an in-flight write whose event
+     * will still arrive live - while a missing token at or below it is genuinely lost (#320).
+     */
+    private final AtomicLong changeStreamHighestCapacityEvictedToken = new AtomicLong(0);
+
+    /** Capacity-eviction bookkeeping: the shared removal accounting plus the #320 watermark. */
+    private void accountCapacityEviction(ChangeStreamEventInfo e) {
+        if (e != null) {
+            changeStreamHighestCapacityEvictedToken.accumulateAndGet(e.token, Math::max);
+        }
+
+        accountHistoryRemoval(e);
+    }
+
+    // Test-only seam (#320): armed via armReplayPauseForTest(), null (no-op) in production.
+    // Blocks replayHistory at its entry - after the subscription is registered, exactly where
+    // the exec-queue delay sits in production between the resume-gate check and the actual
+    // replay - so a test can deterministically evict the resume window inside that gap
+    // instead of depending on scheduler timing.
+    private volatile CountDownLatch testReplayPauseReached;
+    private volatile CountDownLatch testReplayPauseRelease;
+
+    void armReplayPauseForTest(CountDownLatch reached, CountDownLatch release) {
+        this.testReplayPauseReached = reached;
+        this.testReplayPauseRelease = release;
+    }
+
+    private void awaitReplayPauseIfArmed() {
+        CountDownLatch reached = testReplayPauseReached;
+        CountDownLatch release = testReplayPauseRelease;
+
+        if (reached != null && release != null) {
+            reached.countDown();
+
+            try {
+                release.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
     private void replayHistory(ChangeStreamSubscription subscription, long startingToken) {
+        awaitReplayPauseIfArmed();
+        long newestAtStart = changeStreamSequence.get();
+
+        // A token beyond this driver's own sequence is from a foreign or reset sequence space
+        // (primary restart, failover to a different node) - never resumable. Without this check
+        // the stream would silently start "from now", reporting the resume as successful (#320).
+        if (startingToken > newestAtStart) {
+            subscription.failHistoryLost("resume token " + startingToken
+                    + " is beyond this driver's newest token " + newestAtStart
+                    + " (foreign or reset sequence space)");
+            return;
+        }
+
         // Determine the effective minimum token: the resume token or the last drop
         // sequence for this namespace, whichever is higher. This prevents replaying
         // stale events that were inserted by async dispatch after a drop.
@@ -10246,9 +10308,24 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             effectiveMinToken = dbDropSeq;
         }
 
+        // Track every window token observed in the buffer - matching or not, delivered or
+        // skipped. The completeness check below is over the raw token sequence, because a
+        // missing token's event is gone and its namespace unknowable (#320). NOT a running
+        // prev+1 check: tokens are assigned outside the collection locks, so two racing
+        // writers can append in inverted order (see notifyWatchers) - a set plus a post-loop
+        // sweep tolerates those legitimate inversions, an in-order check would not.
+        Set<Long> seenWindowTokens = new HashSet<>();
+        long maxSeen = effectiveMinToken;
+
         for (ChangeStreamEventInfo info : changeStreamHistory) {
             if (info.token <= effectiveMinToken) {
                 continue;
+            }
+
+            seenWindowTokens.add(info.token);
+
+            if (info.token > maxSeen) {
+                maxSeen = info.token;
             }
 
             if (!subscription.matches(info)) {
@@ -10261,6 +10338,95 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 break;
             }
         }
+
+        if (!subscription.isActive()) {
+            // Consumer-initiated stop or an earlier terminal error - the stream is over either
+            // way, so window verification would only produce a misleading second error.
+            return;
+        }
+
+        verifyReplayWindow(subscription, startingToken, effectiveMinToken, newestAtStart,
+                seenWindowTokens, maxSeen);
+    }
+
+    /**
+     * Post-replay window verification (#320). The registration-time gate
+     * ({@link #canResumeChangeStream}) is check-then-act: eviction runs concurrently on every
+     * write, so a window validated as clean can lose events between the check and the replay
+     * iterator reaching them - and the consumer receives the surviving suffix plus the live
+     * stream with an invisible hole in the middle. This re-checks AFTER the replay, when the
+     * delivered set is known:
+     *
+     * <ul>
+     *   <li><b>Drops:</b> a drop of a namespace this subscription covers, after its resume
+     *       point, means the consumer missed the drop - resume must fail so it learns of it
+     *       (same rule the registration gate applies via {@code lastGlobalDropSequence}, but
+     *       namespace-fair: an unrelated collection's drop does not kill this stream).</li>
+     *   <li><b>Evictions:</b> every token of the resume window must either still have been
+     *       buffered (seen by the replay iterator) or already delivered live to this
+     *       subscription. The check is bounded above by the capacity-eviction watermark: a
+     *       missing token above it was never evicted - it is an in-flight write racing the
+     *       iterator whose event is guaranteed to arrive live (the subscription registers
+     *       before the replay) - while a missing token at or below it is gone for good.</li>
+     * </ul>
+     *
+     * Failing here, after the suffix was delivered, is still correct: the terminal error
+     * reaches the consumer before the stream continues, and both known consumers react with a
+     * full resync/restart that supersedes the suffix. Silently keeping the stream open is the
+     * data-loss mode this exists to prevent.
+     */
+    private void verifyReplayWindow(ChangeStreamSubscription subscription, long startingToken,
+            long effectiveMinToken, long newestAtStart, Set<Long> seenWindowTokens, long maxSeen) {
+        if (coveringNamespaceDroppedAfter(subscription, startingToken)) {
+            subscription.failHistoryLost("a namespace covered by this stream was dropped after "
+                    + "resume token " + startingToken + " - the drop cannot be replayed");
+            return;
+        }
+
+        long horizon = Math.max(maxSeen, newestAtStart);
+        long upper = Math.min(horizon, changeStreamHighestCapacityEvictedToken.get());
+
+        for (long token = effectiveMinToken + 1; token <= upper; token++) {
+            if (!seenWindowTokens.contains(token) && !subscription.wasDelivered(token)) {
+                subscription.failHistoryLost("token " + token + " of the resume window ("
+                        + effectiveMinToken + ", " + horizon + "] was evicted before the replay "
+                        + "reached it");
+                return;
+            }
+        }
+    }
+
+    /**
+     * True if a namespace this subscription covers was dropped after the given token - i.e. the
+     * subscription would resume across a drop it never saw. Collection watches only care about
+     * their own collection (and their db being dropped), database watches about any collection
+     * in their db, the cluster-wide admin watch about every drop (#320).
+     */
+    private boolean coveringNamespaceDroppedAfter(ChangeStreamSubscription subscription, long token) {
+        if ("admin".equals(subscription.db) && "1".equals(subscription.collection)) {
+            return lastGlobalDropSequence.get() > token;
+        }
+
+        Long dbDrop = lastDropSequence.get(subscription.db);
+
+        if (dbDrop != null && dbDrop > token) {
+            return true;
+        }
+
+        if (subscription.collection == null || "1".equals(subscription.collection)) {
+            String prefix = subscription.db + ".";
+
+            for (Map.Entry<String, Long> e : lastDropSequence.entrySet()) {
+                if (e.getKey().startsWith(prefix) && e.getValue() > token) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        Long collDrop = lastDropSequence.get(subscription.db + "." + subscription.collection);
+        return collDrop != null && collDrop > token;
     }
 
     private static Long extractResumeToken(Map<String, Object> tokenDocument) {
@@ -10692,6 +10858,40 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             this.aggregator = pipeline == null || pipeline.isEmpty() ? null : new InMemAggregator(null, Map.class, Map.class);
             this.insertOnlyMatchPipeline = isInsertOnlyPipeline(pipeline);
             this.deliveredTokens = resumed ? new LinkedHashSet<>() : null;
+        }
+
+        /**
+         * True if this token was already delivered to this (resumed) subscription. Used by the
+         * post-replay window verification to exonerate tokens that reached the consumer live
+         * while the replay iterator missed them (#320).
+         */
+        private boolean wasDelivered(long token) {
+            if (deliveredTokens == null) {
+                return false;
+            }
+
+            synchronized (deliveredTokens) {
+                return deliveredTokens.contains(token);
+            }
+        }
+
+        /**
+         * Ends the stream because its resume window cannot be served losslessly (#320). Same
+         * fail-loud contract as {@link #reportMissingRequiredPreImage}: the callback interface
+         * has no error channel, so the stream is ENDED with a terminal error - watch() turns it
+         * into a MorphiumDriverException on the client path, the wire path hands it to the
+         * cursor layer which answers the next getMore with code 286. The message carries the
+         * "ChangeStreamHistoryLost" marker both ChangeStreamMonitor (discard token, restart
+         * fresh) and PoppyDB's ReplicationManager (full re-sync) key their recovery on.
+         */
+        private void failHistoryLost(String reason) {
+            terminalError = "ChangeStreamHistoryLost: resume window lost for change stream on "
+                    + db + "." + collection + ": " + reason
+                    + " - resuming from this point would silently lose events; resync or restart the stream.";
+            log.error("Change stream on {}.{}: resume window lost - {}. Ending the stream instead "
+                    + "of delivering a gapped suffix: the hole would be undetectable data loss.",
+                    db, collection, reason);
+            deactivate();
         }
 
         /** true if this token has not been delivered before (and marks it delivered) */
