@@ -1,5 +1,6 @@
 package de.caluga.test.mongo.suite.aggregationStages;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
+import de.caluga.test.mongo.suite.base.TestUtils;
 
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.aggregation.Aggregator;
@@ -36,7 +37,12 @@ public class LookupTests extends MultiDriverTestBase {
         morphium.store(new Inventory(3, "cashews", "Product 3", 60));
         morphium.store(new Inventory(4, "pecans", "Product 4", 70));
         morphium.store(new Inventory(5, null, "incomplete", null));
-        Thread.sleep(100);
+        // Wait for the actual data instead of a fixed sleep: under full parallel load (the
+        // 5-phase testrunner) a sleep is not enough for all stores to be visible to the
+        // server-side $lookup, which made this test a long-standing flaky.
+        TestUtils.waitForConditionToBecomeTrue(10_000, "orders/inventory not all stored",
+                () -> morphium.createQueryFor(Order.class).countAll() == 4
+                        && morphium.createQueryFor(Inventory.class).countAll() == 5);
         Aggregator<Order, Map> agg = morphium.createAggregator(Order.class, Map.class);
         List<Map> lst = agg.lookup(morphium.getMapper().getCollectionName(Inventory.class), "item", "sku", "inventory_docs", null, null).aggregate();
 
@@ -73,7 +79,10 @@ public class LookupTests extends MultiDriverTestBase {
         morphium.store(new Inventory(6, "pecans", "Product 6", "Warehouse C", 70));
         morphium.store(new Inventory(7, "peanuts", "peanuts", "Warehouse B", 10));
         morphium.store(new Inventory(8, "peanuts", "peanuts!", "Warehouse A", 120));
-        Thread.sleep(150);
+        // See singleEqualityJoinTest: wait for the data, do not guess a sleep.
+        TestUtils.waitForConditionToBecomeTrue(10_000, "orders/inventory not all stored",
+                () -> morphium.createQueryFor(Order.class).countAll() == 5
+                        && morphium.createQueryFor(Inventory.class).countAll() == 8);
         Aggregator<Order, Map> agg = morphium.createAggregator(Order.class, Map.class);
         List<Expr> pipeline = new ArrayList<>();
         pipeline.add(Expr.match(Expr.expr(
