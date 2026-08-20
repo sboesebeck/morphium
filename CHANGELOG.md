@@ -104,6 +104,17 @@ threads or event-driven delivery) is #328.
 Also fixed alongside it: a watch whose registration did not confirm within 5s used to return a
 perfectly normal-looking cursor for a stream that was never registered. It now says so in the log.
 
+#### InMemoryDriver: two executor-lifecycle fixes found alongside #325
+The TTL sweep was scheduled twice. The interval can only be set before `connect()` — the period is
+fixed when the task is scheduled — and `connect()` schedules again, so the first task stayed alive
+with nothing referencing it any more: unstoppable for the life of the driver, and sweeping in
+parallel with its own replacement.
+
+The change-stream event dispatcher was the one executor that could not come back. `shutdown()`
+stops it when no subscription is active, but the field was `final` and `connect()` never re-created
+it, so a driver instance that was shut down and reconnected — the documented cleanup path for tests
+— dropped every client-mode change stream event from then on, with one warning per lost event.
+
 #### PoppyDB never emitted `lock_released` — exclusive messages waited for the poll interval
 `MultiCollectionMessaging` deliberately runs **without** its own lock-monitor change stream on
 PoppyDB ("server pushes lock_released events directly … 0 extra connections") and depends on the
