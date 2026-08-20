@@ -73,6 +73,65 @@ another dump held the guard.
 
 ### Fixed
 
+#### Change stream: a resume is now verified inside the replay, not just before it (#320)
+`canResumeChangeStream` was evaluated when the watch registered, but the actual replay ran later on
+another thread - and eviction runs concurrently on every write. A resume validated as clean could
+therefore still lose events in that gap, and the consumer had no way to notice: it received the
+surviving suffix plus the live stream, with the hole in the middle invisible. Worse, that gate only
+ever covered PoppyDB's replication resumes - ordinary resumes (`ChangeStreamMonitor`, i.e.
+messaging) were not checked at all, so any burst past the replay-buffer limit silently truncated
+their replay.
+
+`replayHistory` now verifies the window itself, after the replay, when it knows what was actually
+delivered: every token of the resume window must either still have been buffered or have already
+reached this consumer live; a resume token beyond the driver's own sequence (a restarted primary,
+or a failover to a different node's sequence space) fails immediately instead of silently starting
+"from now"; and a drop of a namespace the stream covers, after the resume point, ends the stream so
+the consumer actually learns of the drop. The drop rule is namespace-fair: an unrelated
+collection's drop no longer matters to a collection-scoped stream, while the cluster-wide
+replication watch keeps the strict global boundary it had. Every failure is loud, through the
+existing terminal-error channel with the `ChangeStreamHistoryLost` marker both known consumers
+already key their recovery on - `ChangeStreamMonitor` discards its token and restarts fresh, a
+PoppyDB secondary falls back to a full re-sync. A silently gapped stream is the one outcome that
+no longer exists.
+
+#### Change stream: live events can no longer overtake a resume's history replay (#319)
+A resumed watch registers its subscription before replaying history (the reverse order would drop
+live events), which meant live dispatch raced the replay into the same consumer: a live event with
+token 105 could arrive before the replayed 101-104 - and, past the 8192-token duplicate-suppression
+window, even twice. For a PoppyDB secondary - which applies updates as `_id`-keyed full-document
+upserts with no already-applied check - that inversion silently overwrites a newer document with an
+older one, or lets a replayed insert resurrect a document a live delete already removed; both
+persist until something forces a re-sync. The trigger is any replication reconnect while writes
+continue, i.e. routine under load.
+
+The subscription now carries an ordering barrier, armed before it is registered: while the replay
+runs, live events are staged in a bounded per-subscription buffer instead of being delivered; when
+the replay completes, the staging is drained in token order and only released once a drain finds it
+empty, so nothing slips between flush and release. Writers never block on any of this. The staging
+capacity is half the dedup window, which keeps that window provably sufficient instead of
+guesswork; if live writes outrun the replay past that bound, the stream ends loud with
+`ChangeStreamHistoryLost` and the consumer re-syncs - recoverable, unlike silent reordering.
+
+#### PoppyDB: watch-cursor queues are byte-bounded - one slow consumer can no longer pin gigabytes (#321)
+The per-cursor event queue was bounded by count only (10,000 events). Each queued event shares its
+`fullDocument` payload with the replay-buffer entry, so replay-buffer byte eviction frees nothing
+while a stalled cursor still references the payloads: with ~300KB documents, a single slow or
+blocked consumer pinned about 3GB on the primary - the node whose OOM takes the whole cluster down.
+This is the same failure family as the 2026-08-14 ACC incident, one layer up: that incident
+produced byte budgets for the replay buffer and for the secondary's replication event queue, but
+the cursor queue sitting between them stayed unbounded in bytes.
+
+Each cursor's queue now has a byte budget (default 64m, `--cursor-queue-budget`, same size syntax
+and same size estimate as the two sibling budgets). Overflow kills the cursor through the same
+centralized path as the count cap - on the primary, kill is the only viable policy: server-mode
+delivery runs synchronously on the writer thread, so blocking would stall the node's entire write
+path for one slow consumer, and dropping oldest would silently lose events, the exact bug family
+this project has been eliminating. A single event larger than the whole budget is still delivered
+while the queue is empty, so the budget never imposes a document-size cap. The accounting adds at
+offer time and subtracts the identical estimate at drain time, so the counter cannot drift and
+quietly disable the bound.
+
 #### InMemoryDriver: the 21st change stream never started, and TTL expiry stopped with it (#325)
 Server-side change streams - the ones PoppyDB opens for its clients and for replication - parked a
 thread of the driver's shared scheduler for the entire lifetime of the stream, as did tailable
