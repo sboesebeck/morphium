@@ -62,6 +62,38 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     private static final AttributeKey<String> SESSION_ID_KEY =
             AttributeKey.valueOf("sessionId");
 
+    // ── Server-side group commit (#276) ──
+    // Concurrent single-document insert commands that arrive in the same event-loop read burst
+    // are merged into one driver-level multi-insert instead of being applied one by one: one
+    // collection-write-lock acquisition, one index-store fetch and one command/reply cycle
+    // replace N. Per-command wire semantics are untouched - every member keeps its own reply,
+    // its own writeErrors (re-indexed to the member's single document), its own write concern
+    // and its own request id, so the merged path is indistinguishable from the inline path on
+    // the wire.
+    private static final AttributeKey<ArrayDeque<PendingGroupedInsert>> GROUP_COMMIT_QUEUE_KEY =
+            AttributeKey.valueOf("groupCommitQueue");
+    // Opt-in switch for the #276 server-side group commit: -Dpoppydb.groupCommit=true or the
+    // POPPYDB_GROUP_COMMIT env var. DEFAULT OFF - bench-marked net-neutral-to-negative for the
+    // ack-per-message messaging transport (replies are delayed to channelReadComplete and a
+    // mostly-singleton queue adds indirection per message; the savings only appear when reads
+    // actually carry bursts, which the in-tree synchronous wire clients never produce). Kept
+    // and tested for burst-carrying deployments and for when a pipelining client appears.
+    static volatile boolean GROUP_COMMIT_ENABLED =
+            "true".equalsIgnoreCase(System.getProperty("poppydb.groupCommit",
+                    System.getenv().getOrDefault("POPPYDB_GROUP_COMMIT", "false")));
+
+    // package-private: exercised by GroupCommitInsertTest to force the opt-in switch
+    static void setGroupCommitEnabledForTests(boolean enabled) {
+        GROUP_COMMIT_ENABLED = enabled;
+    }
+    // Upper bound for one merged insert wave: bounds the collection-write-lock hold time and
+    // the per-wave document list. Members beyond the cap form the next wave in the same drain.
+    private static final int GROUP_COMMIT_MAX_WAVE = 32;
+    // Upper bound for buffered-but-unanswered inserts per connection. A client flooding one
+    // connection cannot grow the queue unboundedly; once full, further inserts fall back to the
+    // inline path (answered immediately).
+    private static final int GROUP_COMMIT_MAX_QUEUE = 1024;
+
     private static final Set<String> WRITE_COMMANDS = Set.of(
             "insert", "update", "delete", "findandmodify",
             "createindexes", "create", "drop", "dropindexes", "dropdatabase", "bulkwrite",
@@ -582,6 +614,12 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             // ── Direct dispatch for hot-path commands ──
             // Bypasses GenericCommand reflection roundtrip: Map → InMemoryDriver directly.
             case "insert":
+                // Server-side group commit (#276): bursts of concurrent single-document inserts
+                // are merged into one driver-level multi-insert; per-command replies preserved.
+                // Skipped for transactions, multi-doc batches and a full queue - inline path below.
+                if (tryGroupCommitInsert(ctx, doc, requestId)) {
+                    return;
+                }
                 answer = processInsertDirect(doc);
                 notifyTailableCursorsOnInsert(doc);
                 break;
@@ -2142,6 +2180,9 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             }
         }
         channelCursors.clear();
+        // Drop any group-commit backlog; channelReadComplete performs the drain and sees an
+        // empty queue plus a dead channel, so nothing is answered into the void.
+        ctx.channel().attr(GROUP_COMMIT_QUEUE_KEY).set(null);
         // Abort any pending transaction
         handleAbortTransaction(ctx);
         super.channelInactive(ctx);
@@ -2188,6 +2229,142 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             Object code = e.getMongoCode() != null ? e.getMongoCode() : 11000;
             return Doc.of("ok", 1.0, "n", 0, "nModified", 0, "writeErrors",
                     List.of(Doc.of("index", 0, "code", code, "errmsg", e.getMessage())));
+        }
+    }
+
+    @Override
+    public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
+        // Server-side group commit (#276): process whatever insert burst arrived in the read
+        // cycle that just completed. Draining HERE instead of per message guarantees every
+        // member of the burst is already queued, so one merged insert per collection replaces
+        // one driver call per command. Runs at most once per read cycle.
+        drainGroupedInserts(ctx);
+        super.channelReadComplete(ctx);
+    }
+
+    /** One insert command queued for group commit; answered when its wave drains. */
+    private record PendingGroupedInsert(ChannelHandlerContext ctx, Map<String, Object> doc, int requestId) {
+    }
+
+    /**
+     * Group-commit fast path for single-document insert commands (#276).
+     *
+     * <p>When this returns {@code true} the command has been queued and its reply will be sent
+     * from {@link #channelReadComplete} via {@link #drainGroupedInserts} - the caller must NOT
+     * answer it. When it returns {@code false} the caller processes the insert inline, exactly
+     * as before.
+     *
+     * <p>Eligibility is deliberately narrow: single-document inserts only (a multi-doc batch
+     * already IS the batching), never inside a transaction (the transaction context is a
+     * per-command ThreadLocal, deferred execution would lose it), and never when the
+     * per-connection queue is full. All checks run on this channel's event loop, which is
+     * single-threaded per channel, so queue access needs no locking. Netty fires
+     * {@code channelReadComplete} once per read cycle AFTER all decoded messages of the cycle
+     * were dispatched, so the drain sees the entire burst.
+     */
+    // package-private: exercised by GroupCommitInsertTest (no server/socket needed)
+    boolean tryGroupCommitInsert(ChannelHandlerContext ctx, Map<String, Object> doc, int requestId) {
+        if (!GROUP_COMMIT_ENABLED || driver == null || driver.isTransactionInProgress()) {
+            return false;
+        }
+        Object docsObj = doc.get("documents");
+        if (!(docsObj instanceof List<?> d) || d.size() != 1) {
+            return false;
+        }
+        ArrayDeque<PendingGroupedInsert> queue = ctx.channel().attr(GROUP_COMMIT_QUEUE_KEY).get();
+        if (queue == null) {
+            queue = new ArrayDeque<>();
+            ctx.channel().attr(GROUP_COMMIT_QUEUE_KEY).set(queue);
+        }
+        if (queue.size() >= GROUP_COMMIT_MAX_QUEUE) {
+            return false;
+        }
+        queue.add(new PendingGroupedInsert(ctx, doc, requestId));
+        return true;
+    }
+
+    /** Drains the channel's group-commit queue in one event-loop pass. */
+    // package-private: exercised by GroupCommitInsertTest (no server/socket needed)
+    void drainGroupedInserts(ChannelHandlerContext ctx) {
+        ArrayDeque<PendingGroupedInsert> queue = ctx.channel().attr(GROUP_COMMIT_QUEUE_KEY).get();
+        if (queue == null || queue.isEmpty()) {
+            return;
+        }
+        while (!queue.isEmpty()) {
+            drainGroupedInsertWave(ctx, queue);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void drainGroupedInsertWave(ChannelHandlerContext ctx, ArrayDeque<PendingGroupedInsert> queue) {
+        if (!ctx.channel().isActive()) {
+            // Client gone: drop the backlog instead of writing replies into a closed channel.
+            queue.clear();
+            return;
+        }
+        // One wave: the consecutive queue prefix sharing the same collection (the write lock is
+        // per collection, so a collection boundary starts a new wave), capped at
+        // GROUP_COMMIT_MAX_WAVE.
+        PendingGroupedInsert head = queue.peek();
+        String db = (String) head.doc().get("$db");
+        String coll = (String) head.doc().get("insert");
+        List<PendingGroupedInsert> wave = new ArrayList<>(Math.min(queue.size(), GROUP_COMMIT_MAX_WAVE));
+        while (!queue.isEmpty() && wave.size() < GROUP_COMMIT_MAX_WAVE) {
+            PendingGroupedInsert member = queue.peek();
+            if (!db.equals(member.doc().get("$db")) || !coll.equals(member.doc().get("insert"))) {
+                break;
+            }
+            wave.add(queue.poll());
+        }
+
+        // Merged apply: one lock acquisition, one index-store fetch for the whole wave.
+        // unordered is deliberate: every member is a single document, so ordered vs. unordered
+        // is indistinguishable within a member, and unordered lets later members proceed past
+        // an earlier member's error exactly like independently processed commands.
+        List<Map<String, Object>> docs = new ArrayList<>(wave.size());
+        for (PendingGroupedInsert member : wave) {
+            docs.add(((List<Map<String, Object>>) member.doc().get("documents")).get(0));
+        }
+        Map<Integer, Map<String, Object>> waveErrors = new HashMap<>();
+        try {
+            List<Map<String, Object>> writeErrors = driver.insert(db, coll, docs, null, false);
+            if (writeErrors != null) {
+                for (Map<String, Object> we : writeErrors) {
+                    if (we.get("index") instanceof Number n && n.intValue() >= 0 && n.intValue() < wave.size()) {
+                        waveErrors.put(n.intValue(), we);
+                    }
+                }
+            }
+        } catch (MorphiumDriverException e) {
+            // Driver-level failure of the whole wave: every member reports it, mirroring
+            // processInsertDirect's single-command catch.
+            Object code = e.getMongoCode() != null ? e.getMongoCode() : 11000;
+            String msg = e.getMessage();
+            for (int i = 0; i < wave.size(); i++) {
+                waveErrors.put(i, Doc.of("code", code, "errmsg", msg));
+            }
+        }
+
+        // Per-member reply, indistinguishable from the inline path: own writeErrors (index
+        // re-based to the member's single document), own write concern (postWrite), own
+        // request id, sent in arrival order.
+        for (int i = 0; i < wave.size(); i++) {
+            PendingGroupedInsert member = wave.get(i);
+            notifyTailableCursorsOnInsert(member.doc());
+            Map<String, Object> answer;
+            Map<String, Object> we = waveErrors.get(i);
+            if (we != null) {
+                Map<String, Object> memberError = new HashMap<>(we);
+                memberError.put("index", 0);
+                answer = Doc.of("ok", 1.0, "n", 0, "writeErrors", List.of(memberError));
+            } else {
+                answer = Doc.of("ok", 1.0, "n", 1);
+            }
+            if (WRITE_COMMANDS.contains("insert")
+                    && postWrite(member.ctx(), member.doc(), "insert", answer, member.requestId())) {
+                continue; // reply sent asynchronously after the replication wait
+            }
+            sendResponse(member.ctx(), member.requestId(), answer);
         }
     }
 
