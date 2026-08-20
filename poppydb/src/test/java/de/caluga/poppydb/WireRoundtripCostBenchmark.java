@@ -9,6 +9,7 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -21,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
@@ -231,6 +233,163 @@ public class WireRoundtripCostBenchmark {
         // sendMessage single-threaded. This locates the difference: how much is the driver
         // (pooling, object mapping, write concern) and how much is the messaging layer on top.
         measureClientStack(port);
+    }
+
+    /**
+     * Follow-up to the JFR profile on #327: it found the store/raw-insert gap is dominated by a
+     * per-op wait (a condition node allocated on nearly every store), not by mapping compute, and
+     * suspected the writer queue or the pool checkout.
+     *
+     * <p>WARNING on the wall-clock numbers this method prints: they are useful only as a rough
+     * shape. On a busy workstation they swing by more than the ~25µs effect under investigation
+     * (observed across runs: raw insert 65-129µs, and once a Msg-sized document measured FASTER
+     * than a tiny one, which is impossible and simply means the noise won). The COUNTERS are the
+     * point here - they are exact regardless of scheduling.
+     *
+     * <p>The writer queue is ruled out by reading the code: {@code submitAndBlockIfNecessary}
+     * runs the operation INLINE when no callback is given, so a synchronous store never hands
+     * off to an executor. That leaves the pool - and the pool can be asked directly instead of
+     * inferred from allocation samples: {@code queue.poll(100ms)} only allocates a condition node
+     * when the queue is EMPTY, so if the borrow really waits, it must show up as borrows without
+     * an idle connection.
+     */
+    @Test
+    public void howTheConnectionPoolBehavesDuringStore() throws Exception {
+        server = startServer();
+        int ops = 3000;
+
+        try (Morphium m = new Morphium(cfg("wirecost_pool", port(server)))) {
+            Thread.sleep(500);   // let the pool settle at minConnections
+
+            int id = 0;
+
+            for (int i = 0; i < 300; i++) {
+                rawInsert(m, id++);
+            }
+
+            Map<MorphiumDriver.DriverStatsKey, Double> before = m.getDriver().getDriverStats();
+            long start = System.nanoTime();
+
+            for (int i = 0; i < ops; i++) {
+                rawInsert(m, id++);
+            }
+
+            double rawUs = (System.nanoTime() - start) / 1000.0 / ops;
+            Map<MorphiumDriver.DriverStatsKey, Double> afterRaw = m.getDriver().getDriverStats();
+
+            for (int i = 0; i < 300; i++) {
+                m.store(benchMsg());
+            }
+
+            start = System.nanoTime();
+
+            for (int i = 0; i < ops; i++) {
+                m.store(benchMsg());
+            }
+
+            double storeUs = (System.nanoTime() - start) / 1000.0 / ops;
+            Map<MorphiumDriver.DriverStatsKey, Double> afterStore = m.getDriver().getDriverStats();
+
+            // Same wire traffic, same borrows - so is the rest simply the DOCUMENT? A Msg maps to
+            // far more fields than {_id, v}, and a bigger document costs more on the server too
+            // (insert, index maintenance, change-stream event materialisation). Insert exactly
+            // the document store(Msg) would send, with the mapping done OUTSIDE the timed loop.
+            List<Map<String, Object>> premapped = new ArrayList<>(ops + 300);
+
+            for (int i = 0; i < ops + 300; i++) {
+                Map<String, Object> mapped = m.getMapper().serialize(benchMsg());
+                mapped.put("_id", "pre-" + i);
+                premapped.add(mapped);
+            }
+
+            for (int i = 0; i < 300; i++) {
+                rawInsertDoc(m, premapped.get(i));
+            }
+
+            start = System.nanoTime();
+
+            for (int i = 0; i < ops; i++) {
+                rawInsertDoc(m, premapped.get(300 + i));
+            }
+
+            double premappedUs = (System.nanoTime() - start) / 1000.0 / ops;
+
+            // THREADS_WAITING_FOR_CONNECTION is an instantaneous gauge, not a cumulative
+            // counter - read after the loop it is always 0 and proves nothing. Sample it from a
+            // second thread WHILE the loop runs: if the store path really waits ~22µs of every
+            // ~145µs op, roughly one sample in seven should catch a waiter.
+            for (int i = 0; i < 300; i++) {
+                m.store(benchMsg());
+            }
+
+            java.util.concurrent.atomic.AtomicBoolean sampling = new java.util.concurrent.atomic.AtomicBoolean(true);
+            java.util.concurrent.atomic.AtomicInteger samples = new java.util.concurrent.atomic.AtomicInteger();
+            java.util.concurrent.atomic.AtomicInteger sawWaiter = new java.util.concurrent.atomic.AtomicInteger();
+            Thread sampler = new Thread(() -> {
+                while (sampling.get()) {
+                    double waiting = m.getDriver().getDriverStats()
+                        .getOrDefault(MorphiumDriver.DriverStatsKey.THREADS_WAITING_FOR_CONNECTION, 0.0);
+                    samples.incrementAndGet();
+
+                    if (waiting > 0) {
+                        sawWaiter.incrementAndGet();
+                    }
+
+                    java.util.concurrent.locks.LockSupport.parkNanos(200_000);   // ~0.2ms
+                }
+            }, "pool-gauge-sampler");
+            sampler.setDaemon(true);
+            sampler.start();
+
+            for (int i = 0; i < ops; i++) {
+                m.store(benchMsg());
+            }
+
+            sampling.set(false);
+            sampler.join(2000);
+            log.info("WIRECOST-POOL waiters during store: {} of {} samples saw a thread waiting for a connection",
+                     sawWaiter.get(), samples.get());
+
+            report("raw insert, tiny doc", rawUs);
+            report("raw insert, Msg-sized doc (no mapping)", premappedUs);
+            report("morphium.store(Msg)", storeUs);
+            reportStats("raw insert   ", before, afterRaw, ops);
+            reportStats("store(Msg)   ", afterRaw, afterStore, ops);
+        }
+    }
+
+    private void rawInsertDoc(Morphium m, Map<String, Object> doc) throws Exception {
+        InsertMongoCommand cmd = new InsertMongoCommand(m.getDriver().getPrimaryConnection(null))
+            .setDb("wirecost_pool").setColl("premapped")
+            .setDocuments(List.of(doc));
+
+        try {
+            cmd.execute();
+        } finally {
+            cmd.releaseConnection();
+        }
+    }
+
+    private static int port(PoppyDB srv) {
+        return srv.getPort();
+    }
+
+    private void reportStats(String label, Map<MorphiumDriver.DriverStatsKey, Double> before,
+                             Map<MorphiumDriver.DriverStatsKey, Double> after, int ops) {
+        StringBuilder sb = new StringBuilder("WIRECOST-POOL ").append(label);
+
+        for (MorphiumDriver.DriverStatsKey k : List.of(
+                MorphiumDriver.DriverStatsKey.CONNECTIONS_BORROWED,
+                MorphiumDriver.DriverStatsKey.CONNECTIONS_RELEASED,
+                MorphiumDriver.DriverStatsKey.CONNECTIONS_OPENED,
+                MorphiumDriver.DriverStatsKey.CONNECTIONS_CLOSED,
+                MorphiumDriver.DriverStatsKey.THREADS_WAITING_FOR_CONNECTION,
+                MorphiumDriver.DriverStatsKey.MSG_SENT)) {
+            double delta = after.getOrDefault(k, 0.0) - before.getOrDefault(k, 0.0);
+            sb.append(String.format(Locale.ROOT, "  %s=%.0f (%.2f/op)", k, delta, delta / ops));
+        }
+
+        log.info(sb.toString());
     }
 
     private MorphiumConfig cfg(String db, int port) {
