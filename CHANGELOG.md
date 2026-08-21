@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [6.3.5] - 2026-08-21
+
 ### Fixed
 
 #### ChangeStreamMonitor: a discarded resume token could be resurrected — clients hammered `ChangeStreamHistoryLost` resumes forever (#329)
