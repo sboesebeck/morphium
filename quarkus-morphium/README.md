@@ -206,7 +206,7 @@ aggregation pipelines, bulk updates, and anything beyond standard CRUD.
 |---|---|
 | Java | 21 |
 | Quarkus | 3.32.3 |
-| Morphium | 6.3.4-SNAPSHOT (built in lockstep as part of the [sboesebeck/morphium](https://github.com/sboesebeck/morphium) reactor) |
+| Morphium | 6.3.5-SNAPSHOT (built in lockstep as part of the [sboesebeck/morphium](https://github.com/sboesebeck/morphium) reactor) |
 
 ## Installation
 
@@ -217,7 +217,7 @@ This extension is a module of the Morphium reactor. Add it to your application's
 <dependency>
     <groupId>de.caluga</groupId>
     <artifactId>quarkus-morphium</artifactId>
-    <version>6.3.4-SNAPSHOT</version> <!-- MAINTAINERS: keep in sync with the table above and the root pom.xml -->
+    <version>6.3.5-SNAPSHOT</version> <!-- MAINTAINERS: keep in sync with the table above and the root pom.xml -->
 </dependency>
 ```
 
