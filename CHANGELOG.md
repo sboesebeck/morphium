@@ -8,6 +8,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+#### ChangeStreamMonitor: a discarded resume token could be resurrected — clients hammered `ChangeStreamHistoryLost` resumes forever (#329)
+When the server ends a change stream with 286 `ChangeStreamHistoryLost` ("resume window
+lost"), the monitor's error classifier correctly discards its resume token and restarts
+fresh. But `run()`'s finally-block adoption then read the token back off the dead
+`WatchCommand` — the very token `run()` itself had set at watch construction — and
+resurrected it, so every retry resumed with the exact token the server had just declared
+dead. Against PoppyDB, whose in-memory sequence space used to reset on every restart, this
+turned **every** connected client into a resume-hammering loop the moment the server came
+back (the 2026-08-21 ACC bus outage: ~3.3k errors/s on the primary until every client
+process was restarted by hand). Against real MongoDB the same loop starts once a consumer's
+resume point falls off the oplog. The deliberate discard now suppresses exactly one
+finally-adoption; ordinary errors keep the gap-protection adoption unchanged. Covered by
+red-green unit tests and an end-to-end PoppyDB restart test that was verified to fail
+against the pre-fix code.
+
+### Added
+
+#### PoppyDB: the change-stream sequence survives restarts (`sequence-state.properties`) (#329)
+A restarted server used to issue tokens from 0 again, which made every client's resume token
+"foreign or reset sequence space" and — worse — blinded the destructive-resync guard's
+sequence comparison: a healthy restarted primary was indistinguishable from a stale one, so
+the ACC secondaries livelocked in a 2s refuse/re-register cycle instead of resyncing. The
+sequence is now persisted next to the dumps with every dump (periodic, on-demand and the
+final dump on shutdown) and restored monotonically in `restoreFromDump()` with 10M headroom
+for increments a crash may have left unpersisted. Stale client tokens thereby land in the
+well-defined behind-the-replay-window case, and peer sequence comparisons stay meaningful
+across restarts. Without a dump directory nothing changes.
+
 
 ## [6.3.4] - 2026-08-21
 
