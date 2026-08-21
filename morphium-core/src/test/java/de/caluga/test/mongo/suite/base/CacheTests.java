@@ -40,6 +40,7 @@ public class CacheTests extends MultiDriverTestBase {
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         morphium.dropCollection(CachedObject.class);
+        TestUtils.waitForCollectionToBeDeleted(morphium, CachedObject.class);
 
         // Test basic cache functionality
         for (int i = 0; i < 10; i++) {
@@ -131,7 +132,9 @@ public class CacheTests extends MultiDriverTestBase {
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         morphium.dropCollection(CachedObject.class);
+        TestUtils.waitForCollectionToBeDeleted(morphium, CachedObject.class);
         morphium.dropCollection(UncachedObject.class);
+        TestUtils.waitForCollectionToBeDeleted(morphium, UncachedObject.class);
 
         // Create cached and uncached objects
         for (int i = 0; i < 5; i++) {
@@ -179,6 +182,7 @@ public class CacheTests extends MultiDriverTestBase {
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         morphium.dropCollection(ShortCachedEntity.class);
+        TestUtils.waitForCollectionToBeDeleted(morphium, ShortCachedEntity.class);
 
         // Create object with short cache TTL
         ShortCachedEntity entity = new ShortCachedEntity();
@@ -216,6 +220,7 @@ public class CacheTests extends MultiDriverTestBase {
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         morphium.dropCollection(CachedObject.class);
+        TestUtils.waitForCollectionToBeDeleted(morphium, CachedObject.class);
 
         // Create and cache an object
         CachedObject original = new CachedObject();
@@ -272,6 +277,7 @@ public class CacheTests extends MultiDriverTestBase {
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         morphium.dropCollection(CachedObject.class);
+        TestUtils.waitForCollectionToBeDeleted(morphium, CachedObject.class);
 
         // Create multiple objects
         for (int i = 0; i < 20; i++) {
@@ -327,6 +333,7 @@ public class CacheTests extends MultiDriverTestBase {
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         morphium.dropCollection(CachedObject.class);
+        TestUtils.waitForCollectionToBeDeleted(morphium, CachedObject.class);
 
         // Create and store object
         CachedObject original = new CachedObject();
@@ -372,6 +379,7 @@ public class CacheTests extends MultiDriverTestBase {
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         morphium.dropCollection(CachedObject.class);
+        TestUtils.waitForCollectionToBeDeleted(morphium, CachedObject.class);
 
         int objectCount = 100;
 
@@ -434,6 +442,7 @@ public class CacheTests extends MultiDriverTestBase {
 
         // Test different cache configurations
         morphium.dropCollection(CustomCacheEntity.class);
+        TestUtils.waitForCollectionToBeDeleted(morphium, CustomCacheEntity.class);
 
         CustomCacheEntity entity = new CustomCacheEntity();
         entity.value = "Custom Cache";
