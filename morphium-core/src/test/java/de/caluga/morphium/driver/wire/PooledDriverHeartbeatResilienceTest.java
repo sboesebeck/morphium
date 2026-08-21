@@ -405,6 +405,62 @@ public class PooledDriverHeartbeatResilienceTest {
     }
 
     /**
+     * The silent-cycle watchdog must not fire while hellos ARE succeeding. Its counter used to
+     * be reset at the START of each heartbeat cycle and read at its END - but the cycle itself
+     * takes milliseconds while the hellos run asynchronously on the HeartbeatCheck threads and
+     * land BETWEEN cycles, so the reset wiped them before they were ever read. The counter was
+     * therefore ~always zero, and every 30 cycles the watchdog force-reseeded a perfectly
+     * healthy topology - tearing down all pools, repeatedly, which broke failover recovery on
+     * both RS backends (writesRecoverAfterFreeze, qualification run #2).
+     */
+    @Test
+    @Timeout(60)
+    public void watchdogStaysQuietWhileHellosSucceed() throws Exception {
+        ch.qos.logback.classic.Logger logger =
+                (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(PooledDriver.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+                new ch.qos.logback.core.read.ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+
+        PooledDriver drv = new PooledDriver();
+        String h1 = deadHost();
+        drv.setHostSeed(List.of(h1));
+        drv.setHeartbeatFrequency(50); // fast cycles: 30 silent ones take 1.5s
+        drv.setServerSelectionTimeout(200);
+
+        try {
+            try {
+                drv.connect();
+            } catch (Exception expected) {
+            }
+
+            // Simulate what the async HeartbeatCheck threads do on a healthy cluster: hellos
+            // keep arriving BETWEEN heartbeat cycles.
+            long until = System.currentTimeMillis() + 3_000;
+
+            while (System.currentTimeMillis() < until) {
+                HelloResult hello = new HelloResult();
+                hello.setWritablePrimary(true);
+                hello.setMe(drv.normalizeHostKey(h1));
+                drv.handleHelloResult(hello, drv.normalizeHostKey(h1));
+                Thread.sleep(25);
+            }
+
+            boolean watchdogFired = appender.list.stream().anyMatch(e ->
+                    e.getFormattedMessage().contains("zero successful hellos"));
+            assertThat(watchdogFired)
+                    .as("hellos arrived continuously - the silent-cycle watchdog must not warn, "
+                            + "let alone force-reseed a healthy topology (that teardown of every "
+                            + "pool is what broke failover recovery)")
+                    .isFalse();
+        } finally {
+            logger.detachAppender(appender);
+            drv.close();
+        }
+    }
+
+    /**
      * The actual #330 eater: the ADD path keys hosts with
      * {@code normalizeHostKey(resolveAlias(hst))}, but the REMOVAL comparison built its set from
      * {@code resolveAlias(h)} only. A hello advertising the same member in a different case

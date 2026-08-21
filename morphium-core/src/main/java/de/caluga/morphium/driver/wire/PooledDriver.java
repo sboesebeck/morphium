@@ -702,9 +702,6 @@ public class PooledDriver extends DriverBase {
 
         reseedIfAllHostsEvicted();
 
-        // #330: track successful hellos this cycle for the silent-cycle watchdog
-        successfulHellosThisCycle.set(0);
-
         for (var entry : hosts.entrySet()) {
             // Cooperative shutdown: close() flips running and then waits for the executor -
             // a cycle that keeps spawning host checks past that point re-populates the
@@ -913,9 +910,14 @@ public class PooledDriver extends DriverBase {
             }
         }
 
-        // #330: silent-cycle watchdog - if zero successful hellos this cycle, increment counter
-        // and log warning / force reseed at thresholds
-        int successful = successfulHellosThisCycle.get();
+        // #330: silent-cycle watchdog - if zero successful hellos arrived since the LAST check,
+        // increment the counter and log / force reseed at the thresholds. Read-and-reset in one
+        // step at the END of the cycle: the hellos run asynchronously on the HeartbeatCheck
+        // threads and land BETWEEN cycles, so a reset at the cycle START wiped them before this
+        // read ever saw them - the counter was ~always zero and the watchdog force-reseeded a
+        // perfectly healthy topology every 30 cycles, tearing down all pools mid-failover
+        // (writesRecoverAfterFreeze on both RS backends, 6.3.6 qualification run #2).
+        int successful = successfulHellosThisCycle.getAndSet(0);
         if (successful == 0) {
             consecutiveCyclesWithoutHello++;
             if (consecutiveCyclesWithoutHello % SILENT_CYCLE_WARN_THRESHOLD == 0) {
