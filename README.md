@@ -260,6 +260,30 @@ try (Morphium morphium = new Morphium(cfg)) {          // cfg points at localhos
 
 ## 🚀 What’s New in v6.3
 
+### About the 6.3.3 → 6.3.6 release storm (August 2026)
+
+Four patch releases within one week is not our usual cadence, so here is what happened. We ran a
+deliberate deep-code-review campaign over the change-stream and replication code — several AI
+reviewers (different vendors, reviewing independently) plus verification of every finding against
+the code. That review surfaced a whole class of bugs that only exist *under load*: silent
+event loss on change-stream resume, live events overtaking history replay, unbounded memory
+pinning, a sync gate opening over a dead watch. None of them had ever been reported by a user —
+which is exactly what makes them dangerous: this kind of bug does not file an issue, it shows up
+months later as quietly diverged data.
+
+- **6.3.4** shipped those fixes — and one of them carried a client-side follow-up bug (#329, the
+  resume-token loop described below). Found in production within hours.
+- **6.3.5** fixed that loop the same day. 6.3.4 is marked defective.
+- **6.3.6** fixes a topology-erosion bug in the connection pool's failover handling (#330) that a
+  rolling server restart exposed on our staging cluster: one client in thirty ended up silently
+  bus-dead while its HTTP side looked perfectly healthy.
+
+If you are on any 6.3.x: **upgrade straight to 6.3.6**, in the order described below. The
+remaining review findings are architectural and scheduled for 6.4.0 — this series is the end of
+the storm, not a new normal. The full story of each fix is in the
+[CHANGELOG](CHANGELOG.md); the short version is: we would rather ship four honest patch releases
+in a week than sit on known silent-data-loss bugs.
+
 > ⚠️ **Upgrade order matters: clients first, then servers — and skip 6.3.4.**
 >
 > 6.3.4 added strict server-side resume-window validation for change streams. Correct — but every
@@ -270,7 +294,8 @@ try (Morphium morphium = new Morphium(cfg)) {          // cfg points at localhos
 > connected pre-6.3.5 client enters this loop at once and effectively DDoSes the server
 > (~3.3k errors/s per node observed live) until each client process is restarted by hand. On real
 > MongoDB the same loop starts whenever a consumer's resume point falls off the oplog — rarer, same
-> hammering. **6.3.4 is marked defective; upgrade straight to 6.3.5.**
+> hammering. **6.3.4 is marked defective; upgrade straight to 6.3.6 (see the release-storm note
+> above).**
 >
 > The safe rollout order is therefore the reverse of the usual instinct:
 > **1.** upgrade all client applications to ≥ 6.3.5 (they handle history-lost with a single
