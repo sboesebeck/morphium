@@ -38,6 +38,7 @@ public class SetsTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void setStoringTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(Uc.class);
+        TestUtils.waitForCollectionToBeDeleted(morphium, Uc.class);
         Set<UncachedObject> lst = new LinkedHashSet<>();
 
         for (int i = 0; i < 100; i++) {
@@ -48,7 +49,8 @@ public class SetsTests extends MultiDriverTestBase {
         }
 
         morphium.storeList(lst);
-        Thread.sleep(200);
+        TestUtils.waitForConditionToBecomeTrue(15000, "not all 100 stored objects queryable",
+            () -> morphium.createQueryFor(UncachedObject.class, "UCTest").countAll() == 100);
         long count = morphium.createQueryFor(UncachedObject.class, "UCTest").countAll();
         assertTrue((count == 100), () -> String.valueOf("Count wrong " + count));
     }
@@ -84,9 +86,10 @@ public class SetsTests extends MultiDriverTestBase {
         }
 
         morphium.store(lst);
-        Thread.sleep(100);
         Query<SetContainer> q = morphium.createQueryFor(SetContainer.class).f("id").eq(lst.getId());
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
+        TestUtils.waitForConditionToBecomeTrue(15000, "stored SetContainer not queryable",
+            () -> morphium.createQueryFor(SetContainer.class).f("id").eq(lst.getId()).get() != null);
         SetContainer lst2 = q.get();
         assertNotNull(lst2, "Error - not found?");
         assertNotNull(lst2.getEmbeddedObjectsSet(), "Embedded list null?");
@@ -101,8 +104,10 @@ public class SetsTests extends MultiDriverTestBase {
             assertTrue((lst2.getRefSet().toArray()[i].equals(lst.getRefSet().toArray()[i])), String.valueOf("reference list differ? - " + i));
         }
 
-        Thread.sleep(1000);
         q = morphium.createQueryFor(SetContainer.class).f("refSet").eq(lst2.getRefSet().toArray()[0]);
+        final Query<SetContainer> refQuery = q;
+        TestUtils.waitForConditionToBecomeTrue(15000, "refSet entry not queryable",
+            () -> refQuery.countAll() != 0);
         assertTrue((q.countAll() != 0));
         log.info("found " + q.countAll() + " entries");
         assertTrue((q.countAll() == 1));
@@ -114,6 +119,7 @@ public class SetsTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void nullValueListTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(SetContainer.class);
+        TestUtils.waitForCollectionToBeDeleted(morphium, SetContainer.class);
         SetContainer lst = new SetContainer();
         int count = 2;
 
@@ -147,9 +153,10 @@ public class SetsTests extends MultiDriverTestBase {
 
         lst.addString(null);
         morphium.store(lst);
-        Thread.sleep(250);
         Query q = morphium.createQueryFor(SetContainer.class).f("id").eq(lst.getId());
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
+        TestUtils.waitForConditionToBecomeTrue(15000, "stored SetContainer not queryable",
+            () -> q.get() != null);
         SetContainer lst2 = (SetContainer) q.get();
         assertTrue((lst2.getStringSet().toArray()[count] == null));
         assertTrue((lst2.getRefSet().toArray()[count] == null));
@@ -161,17 +168,20 @@ public class SetsTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void singleEntryListTest(Morphium morphium) throws Exception  {
         morphium.dropCollection(UncachedObject.class);
+        TestUtils.waitForCollectionToBeDeleted(morphium, UncachedObject.class);
         Set<UncachedObject> lst = new LinkedHashSet<>();
         lst.add(new UncachedObject());
         lst.toArray(new UncachedObject[] {})[0].setStrValue("hello");
         lst.toArray(new UncachedObject[] {})[0].setCounter(1);
         morphium.storeList(lst);
-        Thread.sleep(100);
         assertNotNull(lst.toArray(new UncachedObject[] {})[0].getMorphiumId());
-        ;
         lst.toArray(new UncachedObject[] {})[0].setCounter(999);
         morphium.storeList(lst);
-        Thread.sleep(100);
+        TestUtils.waitForConditionToBecomeTrue(15000, "updated counter not visible",
+            () -> {
+                var found = morphium.createQueryFor(UncachedObject.class).asList();
+                return !found.isEmpty() && found.get(0).getCounter() == 999;
+            });
         assertTrue((morphium.createQueryFor(UncachedObject.class).asList().get(0).getCounter() == 999));
     }
 
@@ -180,6 +190,7 @@ public class SetsTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void testHybridSet(Morphium morphium) throws InterruptedException  {
         morphium.dropCollection(MySetContainer.class);
+        TestUtils.waitForCollectionToBeDeleted(morphium, MySetContainer.class);
         MySetContainer mc = new MySetContainer();
         mc.name = "test";
         mc.number = 42;
@@ -226,7 +237,7 @@ public class SetsTests extends MultiDriverTestBase {
     public void idListTest(Morphium morphium) throws Exception  {
         // Ensure clean state
         morphium.dropCollection(MyIdSetContainer.class);
-        Thread.sleep(100);
+        TestUtils.waitForCollectionToBeDeleted(morphium, MyIdSetContainer.class);
         MyIdSetContainer ilst = new MyIdSetContainer();
         ilst.idList = new LinkedHashSet<>();
         ilst.idList.add(new MorphiumId());
