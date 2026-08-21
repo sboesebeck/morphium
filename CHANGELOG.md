@@ -8,6 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+#### PooledDriver: a rolling restart can no longer erode the topology into permanent silence (#330)
+During the ACC rolling restart exactly one of ~30 clients ended up permanently bus-dead while
+looking perfectly healthy: zero heartbeat threads, zero log lines, HTTP alive. The chain behind
+it: the membership-removal path compared the hosts map's NORMALIZED keys against
+UN-normalized names from the hello - so a hello advertising a member in a different case
+(SERV-MSG1 vs serv-msg1, the exact constellation `normalizeHostKey`'s own comment documents)
+removed the very host it had just added. A few such hellos during the takeover window eroded the
+hosts map AND the running host seed to empty - and an empty seed made `reseedIfAllHostsEvicted`
+a silent no-op: the heartbeat kept cycling over nothing, spawning nothing, logging nothing,
+forever.
+
+Four layers of fix, innermost first: the removal comparison now uses the exact same
+normalization as the add path; membership REMOVAL is only accepted from the PRIMARY's hello
+(the code comment always claimed this, the code never checked - secondaries and in-election
+nodes answering with partial lists during a restart can no longer eat the topology; additions
+stay accepted from every hello); the originally configured host seed is captured at connect
+and restored - loudly - when the running seed has been eroded to empty; and the heartbeat
+itself became self-rescheduling with a watchdog (silent-cycle detection with forced reseed,
+dead-task revival, orphaned per-host bookkeeping cleanup), so even an unforeseen way of
+stalling discovery now logs and recovers instead of freezing silently.
+
 
 ## [6.3.5] - 2026-08-21
 

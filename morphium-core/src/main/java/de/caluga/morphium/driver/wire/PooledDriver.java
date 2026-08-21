@@ -127,6 +127,14 @@ public class PooledDriver extends DriverBase {
     // Package-private: the heartbeat's per-host bookkeeping is asserted on directly by
     // PooledDriverRediscoveryTest - a stale entry here silently disables discovery for that host.
     final Map<String, Thread> hostThreads = new ConcurrentHashMap<>();
+
+    // #330: watchdog for silent heartbeat cycles (zero successful hellos)
+    private volatile int consecutiveCyclesWithoutHello = 0;
+    private static final int SILENT_CYCLE_WARN_THRESHOLD = 10; // log warning every N silent cycles
+    private static final int SILENT_CYCLE_RESEED_THRESHOLD = 30; // force full reseed after N silent cycles
+    // Reset at start of each heartbeatCycle, incremented by handleHelloResult on valid hello
+    private final AtomicInteger successfulHellosThisCycle = new AtomicInteger(0);
+
     private int serverSelectionTimeout = 2000;
 
     // Stats caching
@@ -244,7 +252,11 @@ public class PooledDriver extends DriverBase {
     @Override
     public synchronized void removeFromHostSeed(String host) {
         super.removeFromHostSeed(normalizeHostKey(host));
-        Host removed = hosts.remove(normalizeHostKey(host));
+        String normalized = normalizeHostKey(host);
+        Host removed = hosts.remove(normalized);
+
+        // #330: clean up orphaned hostThreads entry for removed host
+        hostThreads.remove(normalized);
 
         if (removed != null) {
             // Close pooled connections for the removed host to avoid untracked open sockets and drifting stats.
@@ -382,6 +394,9 @@ public class PooledDriver extends DriverBase {
         if (hello == null)
             return;
 
+        // #330: count successful hello for silent-cycle watchdog
+        successfulHellosThisCycle.incrementAndGet();
+
         // Adopt the wire limits the server advertises - they exist precisely so clients
         // bound what they send (message splitting, batch sizing, document size checks)
         if (hello.getMaxMessageSizeBytes() != null) {
@@ -499,7 +514,13 @@ public class PooledDriver extends DriverBase {
             }
         }
 
-        if (hello.getHosts() != null && !hello.getHosts().isEmpty()) {
+        // #330: membership REMOVAL is only authoritative coming from the PRIMARY. During a
+        // rolling restart, secondaries and in-election nodes answer hellos too - acting on
+        // their (possibly partial or transitional) host lists is how one unlucky client eroded
+        // its entire topology and went silent. Additions above stay accepted from every hello;
+        // removals require the primary's word.
+        if (Boolean.TRUE.equals(hello.getWritablePrimary())
+                && hello.getHosts() != null && !hello.getHosts().isEmpty()) {
 
             // Do NOT remove existing host seed entries here.
             // Users might provide a seed list using different (but resolvable) hostnames than those
@@ -508,10 +529,15 @@ public class PooledDriver extends DriverBase {
 
             // Build a set of resolved hostnames from hello.getHosts() for comparison
             // This handles the case where the server reports names like "macbook:27017" but
-            // we connected as "localhost:27017" - both should be considered the same host
+            // we connected as "localhost:27017" - both should be considered the same host.
+            // #330: MUST use the exact same normalization as the add path above
+            // (normalizeHostKey on top of resolveAlias) - comparing normalized map keys
+            // against un-normalized names made a hello that advertises a member in a
+            // different case (SERV-MSG1 vs serv-msg1) remove the very host it had just
+            // added, eroding hosts map AND seed to empty within a few hellos.
             java.util.Set<String> resolvedHelloHosts = new java.util.HashSet<>();
             for (String h : hello.getHosts()) {
-                resolvedHelloHosts.add(resolveAlias(h));
+                resolvedHelloHosts.add(normalizeHostKey(resolveAlias(h)));
             }
 
             // only closing connections when info comes from primary
@@ -522,6 +548,8 @@ public class PooledDriver extends DriverBase {
                 if (!resolvedHelloHosts.contains(host)) {
                     log.warn("Host {} is not part of the replicaset anymore!", host);
                     it.remove();
+                    // #330: clean up orphaned hostThreads entry for removed host
+                    hostThreads.remove(host);
                     Host h = entry.getValue();
                     removeFromHostSeed(host);
 
@@ -577,25 +605,41 @@ public class PooledDriver extends DriverBase {
 
     protected synchronized void startHeartbeat() {
         if (heartbeat == null) {
-            heartbeat = executor.scheduleWithFixedDelay(() -> {
-                // A ScheduledExecutorService silently cancels a periodic task for good as soon as
-                // one execution throws - and a dead heartbeat means no discovery ever again, which
-                // is exactly how clients stayed stuck on "No primary node found" (#304). Nothing
-                // in here may escape, Errors included (creating platform threads below can fail
-                // with OutOfMemoryError under load).
-                try {
-                    heartbeatCycle();
-                } catch (Throwable e) {
-                    long now = System.currentTimeMillis();
-
-                    if (now - lastHeartbeatFailureLogMs > 60_000) {
-                        lastHeartbeatFailureLogMs = now;
-                        log.error("Heartbeat cycle failed - retrying on the next cycle", e);
-                    }
-                }
-            }, 0, getHeartbeatFrequency(), TimeUnit.MILLISECONDS);
+            // #330: remember the configured seed before any runtime path can erode it - the
+            // last-line-of-defense source for reseedIfAllHostsEvicted.
+            captureInitialHostSeed();
+            // #330: use self-rescheduling instead of scheduleWithFixedDelay so the heartbeat
+            // can revive itself even if externally cancelled or if the executor drops it.
+            // First cycle runs immediately (delay=0), subsequent cycles use the configured frequency.
+            scheduleHeartbeatCycle(0);
             startConnectionWaiter();
         }
+    }
+
+    /**
+     * Schedules a single heartbeat cycle. The cycle will reschedule itself in a finally block,
+     * ensuring the heartbeat continues even after exceptions or external cancellation attempts.
+     * This replaces scheduleWithFixedDelay which permanently cancels the task on any throw.
+     *
+     * @param initialDelay initial delay in milliseconds (0 for first run, then heartbeatFrequency)
+     */
+    private void scheduleHeartbeatCycle(long initialDelay) {
+        if (!running) return;
+        heartbeat = executor.schedule(() -> {
+            try {
+                heartbeatCycle();
+            } catch (Throwable e) {
+                long now = System.currentTimeMillis();
+                if (now - lastHeartbeatFailureLogMs > 60_000) {
+                    lastHeartbeatFailureLogMs = now;
+                    log.error("Heartbeat cycle failed - retrying on the next cycle", e);
+                }
+            } finally {
+                if (running) {
+                    scheduleHeartbeatCycle(getHeartbeatFrequency());
+                }
+            }
+        }, initialDelay, TimeUnit.MILLISECONDS);
     }
 
     /** Throttles the heartbeat-failure log so a persistent failure cannot flood it every cycle. */
@@ -657,6 +701,9 @@ public class PooledDriver extends DriverBase {
         }
 
         reseedIfAllHostsEvicted();
+
+        // #330: track successful hellos this cycle for the silent-cycle watchdog
+        successfulHellosThisCycle.set(0);
 
         for (var entry : hosts.entrySet()) {
             var hst = entry.getKey();
@@ -858,6 +905,45 @@ public class PooledDriver extends DriverBase {
                 throw e;
             }
         }
+
+        // #330: silent-cycle watchdog - if zero successful hellos this cycle, increment counter
+        // and log warning / force reseed at thresholds
+        int successful = successfulHellosThisCycle.get();
+        if (successful == 0) {
+            consecutiveCyclesWithoutHello++;
+            if (consecutiveCyclesWithoutHello % SILENT_CYCLE_WARN_THRESHOLD == 0) {
+                log.warn("Heartbeat: {} consecutive cycles with zero successful hellos - topology discovery may be stalled",
+                        consecutiveCyclesWithoutHello);
+            }
+            if (consecutiveCyclesWithoutHello >= SILENT_CYCLE_RESEED_THRESHOLD) {
+                log.error("Heartbeat: {} consecutive cycles with zero successful hellos - forcing full topology reseed from host seed",
+                        consecutiveCyclesWithoutHello);
+
+                // Close the stale pools before dropping the Host objects - after this many
+                // silent cycles the connections are dead weight, but dropping them unclosed
+                // would leak sockets and drift the stats.
+                for (Host stale : hosts.values()) {
+                    BlockingQueue<ConnectionContainer> pool = stale.getConnectionPool();
+                    ConnectionContainer c;
+
+                    while (pool != null && (c = pool.poll()) != null) {
+                        try { c.getCon().close(); } catch (Exception ignored) {}
+                        stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                    }
+                }
+
+                markStatsDirty();
+                hosts.clear();
+                reseedIfAllHostsEvicted();
+                consecutiveCyclesWithoutHello = 0;
+            }
+        } else {
+            consecutiveCyclesWithoutHello = 0;
+        }
+
+        // #330: clean up orphaned hostThreads entries for hosts no longer in hosts map
+        // (happens when onConnectionError/handleHelloResult removes a host but the bookkeeping remains)
+        hostThreads.entrySet().removeIf(entry -> !hosts.containsKey(entry.getKey()));
     }
 
     private void startConnectionWaiter() {
@@ -872,11 +958,25 @@ public class PooledDriver extends DriverBase {
         // thread to create new connections instantly if a thread is waiting
         // this thread pauses until waitCounterCondition.signalAll() is called
         connectionWaiter = Thread.ofPlatform().name("ConnectionWaiter").start(() -> {
+            long lastHeartbeatHealthCheck = 0;
             while (running) {
                 try {
+                    // #330: heartbeat health watchdog - ensure heartbeat is scheduled
+                    // Check every 5 seconds (connection waiter wakes up on signal or timeout)
+                    long now = System.currentTimeMillis();
+                    if (now - lastHeartbeatHealthCheck > 5000) {
+                        lastHeartbeatHealthCheck = now;
+                        ScheduledFuture<?> current = heartbeat;
+                        if (current != null && current.isDone()) {
+                            log.warn("Heartbeat watchdog detected dead heartbeat (done={}) - restarting topology discovery", current.isDone());
+                            heartbeat = null;
+                            startHeartbeat();
+                        }
+                    }
+
                     waitCounterLock.lock();
                     try {
-                        waitCounterCondition.await();
+                        waitCounterCondition.await(1, TimeUnit.SECONDS); // timeout to allow periodic health check
                     } finally {
                         waitCounterLock.unlock();
                     }
@@ -958,9 +1058,36 @@ public class PooledDriver extends DriverBase {
      * Re-seeding from the configured host seed restarts the normal discovery
      * cycle (hello → handleHelloResult → primary election).
      */
+    // #330: the seed the driver was ORIGINALLY configured with, captured at connect() and
+    // never touched by any runtime path. The running host seed can be eroded by membership
+    // updates during pathological failover windows - and an empty running seed used to make
+    // reseedIfAllHostsEvicted a silent no-op: the heartbeat kept cycling over an empty hosts
+    // map, spawning nothing, logging nothing, forever. This copy is the last line of defense.
+    private volatile List<String> initialHostSeed;
+
+    void captureInitialHostSeed() {
+        if (initialHostSeed == null && getHostSeed() != null && !getHostSeed().isEmpty()) {
+            initialHostSeed = List.copyOf(getHostSeed());
+        }
+    }
+
     void reseedIfAllHostsEvicted() {
         if (!hosts.isEmpty() || getHostSeed() == null) {
             return;
+        }
+
+        // #330: a fully eroded running seed can never recover on its own - restore the
+        // originally configured seed first, loudly. Without this, every later reseed is a
+        // silent no-op and the client is bus-dead while looking perfectly healthy.
+        List<String> original = initialHostSeed;
+
+        if (getHostSeed().isEmpty() && original != null && !original.isEmpty()) {
+            log.error("Host seed is EMPTY (eroded by membership updates) - restoring the {} "
+                    + "originally configured seed host(s) for re-discovery", original.size());
+
+            for (String seedHost : original) {
+                addToHostSeed(seedHost);
+            }
         }
 
         for (String seedHost : getHostSeed()) {
@@ -973,7 +1100,8 @@ public class PooledDriver extends DriverBase {
         }
     }
 
-    private void onConnectionError(String host) {
+    // Package-private for testing (PooledDriverHeartbeatResilienceTest)
+    void onConnectionError(String host) {
         if (!running) return;
         // empty pool for host, as connection to it failed
         stats.get(DriverStatsKey.ERRORS).incrementAndGet();
@@ -985,6 +1113,8 @@ public class PooledDriver extends DriverBase {
         h.incrementFailures();
         if (h.getFailures() > Host.MAX_FAILURES) {
             hosts.remove(normalizedHost);
+            // #330: clean up orphaned hostThreads entry for removed host
+            hostThreads.remove(normalizedHost);
             BlockingQueue<ConnectionContainer> connectionsList = h.getConnectionPool();
 
 
