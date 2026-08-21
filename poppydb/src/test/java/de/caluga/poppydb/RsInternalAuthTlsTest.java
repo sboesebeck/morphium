@@ -56,10 +56,24 @@ public class RsInternalAuthTlsTest {
         nodes.clear();
     }
 
+    // JVM-wide: ports handed out to ANY test in this fork. new ServerSocket(0) can return the
+    // same free port twice in a row (nothing bound it in between) - Map.of over the host list
+    // then dies with "duplicate key" (seen on the loaded CI runner in FastResyncTest).
+    private static final java.util.Set<Integer> handedOutPorts =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     private int nextPort() throws Exception {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            return socket.getLocalPort();
+        for (int i = 0; i < 100; i++) {
+            try (ServerSocket socket = new ServerSocket(0)) {
+                int p = socket.getLocalPort();
+
+                if (handedOutPorts.add(p)) {
+                    return p;
+                }
+            }
         }
+
+        throw new IllegalStateException("could not allocate a fresh, distinct port");
     }
 
     private void startServer(PoppyDB srv, int port) throws Exception {

@@ -319,7 +319,10 @@ public class PooledDriverHeartbeatResilienceTest {
         String h1 = drv.normalizeHostKey(deadHost());
         String h2 = drv.normalizeHostKey(deadHost());
         drv.setHostSeed(List.of(h1, h2));
-        drv.setHeartbeatFrequency(200);
+        // Huge frequency: these tests drive reseed/handleHelloResult DIRECTLY - a live
+        // heartbeat hammering the dead seed hosts reaches MAX_FAILURES on a loaded runner and
+        // evicts them between the assertions (seen in CI). Only the immediate first cycle runs.
+        drv.setHeartbeatFrequency(600_000);
         drv.setServerSelectionTimeout(200);
 
         try {
@@ -357,7 +360,8 @@ public class PooledDriverHeartbeatResilienceTest {
         String h1 = deadHost();
         PooledDriver drv = new PooledDriver();
         drv.setHostSeed(List.of(h1));
-        drv.setHeartbeatFrequency(200);
+        // See reseedRestores...: keep the live heartbeat out of these direct-call tests.
+        drv.setHeartbeatFrequency(600_000);
         drv.setServerSelectionTimeout(200);
 
         try {
@@ -414,7 +418,8 @@ public class PooledDriverHeartbeatResilienceTest {
         String h1 = deadHost();
         PooledDriver drv = new PooledDriver();
         drv.setHostSeed(List.of(h1));
-        drv.setHeartbeatFrequency(200);
+        // See reseedRestores...: keep the live heartbeat out of these direct-call tests.
+        drv.setHeartbeatFrequency(600_000);
         drv.setServerSelectionTimeout(200);
 
         try {

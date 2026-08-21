@@ -706,6 +706,13 @@ public class PooledDriver extends DriverBase {
         successfulHellosThisCycle.set(0);
 
         for (var entry : hosts.entrySet()) {
+            // Cooperative shutdown: close() flips running and then waits for the executor -
+            // a cycle that keeps spawning host checks past that point re-populates the
+            // bookkeeping close() is about to clear.
+            if (!running) {
+                return;
+            }
+
             var hst = entry.getKey();
             var host = entry.getValue();
             BlockingQueue<ConnectionContainer> connectionPoolForHost = host.getConnectionPool();
@@ -2083,9 +2090,6 @@ public class PooledDriver extends DriverBase {
         }
 
         heartbeat = null;
-        // Per-host check bookkeeping is meaningless once the heartbeat is gone - leaving it
-        // behind would make a re-used driver instance skip every host it still lists (#304).
-        hostThreads.clear();
 
         if (executor != null) {
             executor.shutdown();
@@ -2095,6 +2099,13 @@ public class PooledDriver extends DriverBase {
                 // Ignore
             }
         }
+
+        // Per-host check bookkeeping is meaningless once the heartbeat is gone - leaving it
+        // behind would make a re-used driver instance skip every host it still lists (#304).
+        // Cleared AFTER the executor terminated: a heartbeat cycle already past the cancel
+        // still claims entries (hostThreads.put before t.start), so clearing earlier races a
+        // final put - the exact flake closeClearsHostBookkeeping caught on the loaded runner.
+        hostThreads.clear();
 
         // Close all borrowed connections first - these are in active use
         // Important: close them properly instead of just clearing the map,
