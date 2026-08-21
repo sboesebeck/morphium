@@ -260,6 +260,29 @@ try (Morphium morphium = new Morphium(cfg)) {          // cfg points at localhos
 
 ## 🚀 What’s New in v6.3
 
+> ⚠️ **Upgrade order matters: clients first, then servers — and skip 6.3.4.**
+>
+> 6.3.4 added strict server-side resume-window validation for change streams. Correct — but every
+> client **up to and including 6.3.4** carries a resume-token bug ([#329](https://github.com/sboesebeck/morphium/issues/329)):
+> when the server ends a stream with `ChangeStreamHistoryLost` (code 286), the monitor discards its
+> resume token, then immediately resurrects it and retries — forever, with no backoff. A PoppyDB
+> **restart** resets the token sequence space, so the moment a 6.3.4+ server comes back up, *every*
+> connected pre-6.3.5 client enters this loop at once and effectively DDoSes the server
+> (~3.3k errors/s per node observed live) until each client process is restarted by hand. On real
+> MongoDB the same loop starts whenever a consumer's resume point falls off the oplog — rarer, same
+> hammering. **6.3.4 is marked defective; upgrade straight to 6.3.5.**
+>
+> The safe rollout order is therefore the reverse of the usual instinct:
+> **1.** upgrade all client applications to ≥ 6.3.5 (they handle history-lost with a single
+> discard and a fresh watch), **2.** only then deploy/restart the PoppyDB servers. A server
+> deployed first arms the loop in every client that has not been upgraded yet.
+>
+> From 6.3.5 on, a PoppyDB server with a dump directory also **persists its change-stream
+> sequence** (`sequence-state.properties`) across restarts, so orderly restarts no longer
+> invalidate resume tokens at all. The very first restart after upgrading still resets the
+> space once (the old server never wrote the state file) — with ≥ 6.3.5 clients that costs one
+> warning line per stream and nothing else.
+
 ### Two Optional Integration Modules
 `morphium-jakarta-data` implements [Jakarta Data 1.0](https://jakarta.ee/specifications/data/1.0/) on top of Morphium's query engine — `@Repository` interfaces with query derivation from method names, JDQL via `@Query` (including `GROUP BY`/`HAVING` compiled into an aggregation pipeline), offset and cursor/keyset pagination. `quarkus-morphium` builds on it for CDI integration: config mapping, `@MorphiumTransactional`, health checks, Dev Services, Dev UI, GraalVM native-image support, and build-time repository generation via Gizmo. Both are optional — core has no dependency on either, and `-DskipExtensions` still produces a core-only build. See [Jakarta Data](docs/jakarta-data.md) and [Quarkus Extension](docs/quarkus-extension.md).
 
