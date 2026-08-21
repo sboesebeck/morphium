@@ -122,8 +122,56 @@ public class FastResyncTest {
         }
     }
 
+    /**
+     * Starts all nodes of a cluster IN PARALLEL. PoppyDB.start() blocks up to 10s waiting for
+     * an election that cannot complete while its peers are not up yet - starting three nodes
+     * sequentially therefore serializes those waits, heats the election terms up before the
+     * last node even exists, and under CI load the resulting churn outlives waitForPrimary's
+     * deadline (seen live: leader elected, followers time out on starved heartbeats, term
+     * ping-pong for 30s+).
+     */
+    private void startServersParallel(List<PoppyDB> srvs, List<Integer> ports) throws Exception {
+        nodes.addAll(srvs); // register for teardown before anything can fail
+        List<Thread> threads = new ArrayList<>();
+        List<Throwable> errors = java.util.Collections.synchronizedList(new ArrayList<>());
+
+        for (int i = 0; i < srvs.size(); i++) {
+            final PoppyDB srv = srvs.get(i);
+            final int port = ports.get(i);
+            Thread t = new Thread(() -> {
+                try {
+                    srv.start();
+                    long deadline = System.currentTimeMillis() + 10_000;
+                    while (true) {
+                        try (Socket so = new Socket()) {
+                            so.connect(new InetSocketAddress("localhost", port), 250);
+                            return;
+                        } catch (Exception e) {
+                            if (System.currentTimeMillis() > deadline) throw e;
+                            Thread.sleep(50);
+                        }
+                    }
+                } catch (Throwable e) {
+                    errors.add(e);
+                }
+            }, "cluster-start-" + port);
+            t.start();
+            threads.add(t);
+        }
+
+        for (Thread t : threads) {
+            t.join(30_000);
+        }
+
+        if (!errors.isEmpty()) {
+            throw new IllegalStateException("cluster start failed", errors.get(0));
+        }
+    }
+
     private void waitForPrimary(PoppyDB node) throws Exception {
-        long deadline = System.currentTimeMillis() + 15_000;
+        // Generous: under full CI load the election churn after a parallel start can take a
+        // while to settle on the priority winner.
+        long deadline = System.currentTimeMillis() + 45_000;
         while (!node.isPrimary() && System.currentTimeMillis() < deadline) {
             Thread.sleep(50);
         }
@@ -246,9 +294,7 @@ public class FastResyncTest {
         node2.configureReplicaSet("rsFastResync", hosts, prio, true, null);
         node3.configureReplicaSet("rsFastResync", hosts, prio, true, null);
 
-        startServer(node1, port1);
-        startServer(node2, port2);
-        startServer(node3, port3);
+        startServersParallel(List.of(node1, node2, node3), List.of(port1, port2, port3));
         waitForPrimary(node1);
 
         Map<String, Object> createReply = command(port1, Doc.of(
@@ -460,9 +506,7 @@ public class FastResyncTest {
         node2.configureReplicaSet("rsRootless", hosts, prio, true, null);
         node3.configureReplicaSet("rsRootless", hosts, prio, true, null);
 
-        startServer(node1, port1);
-        startServer(node2, port2);
-        startServer(node3, port3);
+        startServersParallel(List.of(node1, node2, node3), List.of(port1, port2, port3));
         waitForPrimary(node1);
 
         List<Map<String, Object>> docs = new ArrayList<>();
