@@ -52,6 +52,10 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     private volatile de.caluga.morphium.driver.wire.MongoConnection activeConnection;
     // Resume token tracking to prevent duplicate events on watch restart
     private volatile Map<String, Object> lastResumeToken = null;
+    // set by the history-lost branch of handleWatchError, consumed by the very next
+    // adoptResumeTokenAfterIteration - guards the deliberate discard against the
+    // finally-block adoption resurrecting a dead token (#329)
+    private volatile boolean resumeTokenDiscarded = false;
 
     public ChangeStreamMonitor(Morphium m) {
         this(m, null, false, null);
@@ -274,6 +278,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
             // Oplog has rolled past our resume point - discard token and start fresh
             log.warn("Oplog rolled past resume point for changestream '{}' - discarding resume token and restarting fresh", collectionName);
             lastResumeToken = null;
+            resumeTokenDiscarded = true;
             sleepBeforeRetry();
         } else if (e.getMessage().contains("Network error error: state should be: open")) {
             log.warn("Changstream connection broke - restarting");
@@ -318,6 +323,23 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
         if (token != null) {
             lastResumeToken = token;
         }
+    }
+
+    /**
+     * The finally-block half of the adoption: run() calls this after every watch iteration.
+     * After the error classifier deliberately discarded the resume token (history lost: the
+     * server declared this stream's history gone - EVERY token we hold is dead, including the
+     * one run() echoed onto the command and any fresher one the dying watch published),
+     * adopting anything back would resume with a dead token and loop the same server error
+     * forever (#329, ACC bus outage 2026-08-21). Skip exactly this one iteration's adoption;
+     * the next iteration starts fresh and adopts normally again. package-private for testing.
+     */
+    void adoptResumeTokenAfterIteration(de.caluga.morphium.driver.commands.WatchCommand watch) {
+        if (resumeTokenDiscarded) {
+            resumeTokenDiscarded = false;
+            return;
+        }
+        adoptResumeTokenFrom(watch);
     }
 
     /**
@@ -468,7 +490,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                 }
             } finally {
                 // the dying watch may know a fresher resume token than our event callbacks do
-                adoptResumeTokenFrom(watch);
+                adoptResumeTokenAfterIteration(watch);
                 boolean connectionReleased = false;
                 if (watch != null && watch.getConnection() != null) {
                     watch.releaseConnection();

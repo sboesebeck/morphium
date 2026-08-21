@@ -234,4 +234,57 @@ public class ChangeStreamMonitorErrorHandlingTest {
         assertFalse(closed.get(),
             "history-lost is a proper server error reply - the stream is aligned, connection is fine");
     }
+
+    // --- #329: history-lost discard vs. finally-adoption -----------------------------------
+    // run() echoes lastResumeToken onto every new WatchCommand (setResumeAfter). When the
+    // server ends the stream with 286 ChangeStreamHistoryLost, the classifier discards the
+    // token - but run()'s finally then adopted the echo from the dead command, resurrecting
+    // the exact token the server just declared dead. Every client hammered the server with
+    // the same stale token forever (ACC bus outage 2026-08-21, ~3.3k errors/s per primary).
+
+    @Test
+    public void historyLostDiscardSurvivesTheFinallyAdoption() throws Exception {
+        var stale = java.util.Map.<String, Object>of("_data", "STALE-TOKEN");
+        var cmd = new de.caluga.morphium.driver.commands.WatchCommand(null);
+        cmd.setResumeAfter(stale);
+        monitor.adoptResumeTokenFrom(cmd); // monitor holds the stale token, echoed on cmd
+
+        boolean cont = monitor.handleWatchError(new MorphiumDriverException(
+            "Error: 286 - ChangeStreamHistoryLost: resume window lost for change stream on db.msg_lck:"
+            + " resume token 2808984 is beyond this driver's newest token 439 (foreign or reset sequence space)"));
+        assertTrue(cont, "history-lost must retry (with a fresh stream)");
+
+        monitor.adoptResumeTokenAfterIteration(cmd); // run()'s finally block
+
+        assertTrue(monitorToken() == null,
+            "the token the server declared dead must stay discarded - re-adopting the echo loops forever");
+    }
+
+    @Test
+    public void discardSkipsExactlyOneAdoption() throws Exception {
+        monitor.handleWatchError(new MorphiumDriverException(
+            "Error: 286 - ChangeStreamHistoryLost: resume window lost for change stream on db.msg_lck"));
+        monitor.adoptResumeTokenAfterIteration(new de.caluga.morphium.driver.commands.WatchCommand(null));
+
+        var fresh = java.util.Map.<String, Object>of("_data", "FRESH-TOKEN");
+        var cmd = new de.caluga.morphium.driver.commands.WatchCommand(null);
+        cmd.setResumeAfter(fresh);
+        monitor.adoptResumeTokenAfterIteration(cmd);
+
+        assertTrue(fresh.equals(monitorToken()),
+            "the discard suppresses exactly one adoption - later iterations must adopt normally again");
+    }
+
+    @Test
+    public void normalErrorsStillAdoptTheEchoedToken() throws Exception {
+        var token = java.util.Map.<String, Object>of("_data", "GAP-PROTECTION");
+        var cmd = new de.caluga.morphium.driver.commands.WatchCommand(null);
+        cmd.setResumeAfter(token);
+
+        monitor.handleWatchError(new MorphiumDriverException("Connection was closed"));
+        monitor.adoptResumeTokenAfterIteration(cmd);
+
+        assertTrue(token.equals(monitorToken()),
+            "non-history-lost errors must keep the gap protection: the echoed token is still valid");
+    }
 }
