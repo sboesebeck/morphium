@@ -44,6 +44,12 @@ across restarts. Without a dump directory nothing changes.
 
 ## [6.3.4] - 2026-08-21
 
+> **Defective release — do not use in production, upgrade to 6.3.5.** The server-side strict
+> resume-window guard added here, combined with the client-side resume-token resurrection bug
+> (#329, present in 6.3.4 and every earlier version), turns every connected client into an
+> endless `ChangeStreamHistoryLost` resume loop after a PoppyDB restart (or, on real MongoDB,
+> once a consumer's resume point falls off the oplog). Fixed in 6.3.5.
+
 ### Added
 
 #### PoppyDB: `dumpNow` returns immediately, and every dump write is crash-safe (#317)
