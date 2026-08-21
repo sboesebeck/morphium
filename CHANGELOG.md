@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [6.3.6] - 2026-08-21
+
 ### Fixed
 
 #### PoppyDB: ordinary client disconnects no longer flood the log with ERROR lines (#331)
