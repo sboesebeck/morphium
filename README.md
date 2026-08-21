@@ -139,7 +139,7 @@ Testcontainers, no MongoDB installation.
 <dependency>
     <groupId>de.caluga</groupId>
     <artifactId>poppydb</artifactId>
-    <version>6.3.5</version>
+    <version>6.3.6</version>
     <scope>test</scope>
 </dependency>
 ```
@@ -159,11 +159,11 @@ integration tests get a MongoDB-compatible server in milliseconds, no Docker ima
 Testcontainers, nothing to install:
 
 ```bash
-curl -O https://repo1.maven.org/maven2/de/caluga/poppydb/6.3.5/poppydb-6.3.5-cli.jar
+curl -O https://repo1.maven.org/maven2/de/caluga/poppydb/6.3.6/poppydb-6.3.6-cli.jar
 
 # start for a test run: --no-config keeps it isolated from any stray
 # ~/.config/poppydb/config on a developer machine - same flags, same behavior in CI
-java -jar poppydb-6.3.5-cli.jar --port 27017 --no-config
+java -jar poppydb-6.3.6-cli.jar --port 27017 --no-config
 ```
 
 Point your test suite at `mongodb://localhost:27017`, kill the process afterwards — state is
@@ -179,7 +179,7 @@ the [deployment playbook](docs/howtos/poppydb-deployment.md).
 ### How-to: standalone server with persistence
 
 ```bash
-java -jar poppydb-6.3.5-cli.jar --port 27017 --dump-dir ./data --dump-interval 300
+java -jar poppydb-6.3.6-cli.jar --port 27017 --dump-dir ./data --dump-interval 300
 ```
 
 Snapshots every 5 minutes, final dump on shutdown, automatic restore on the next start.
@@ -192,7 +192,7 @@ One process per node, each with the same seed list — election picks the primar
 automatic:
 
 ```bash
-java -jar poppydb-6.3.5-cli.jar -p 17017 --rs-name myrs \
+java -jar poppydb-6.3.6-cli.jar -p 17017 --rs-name myrs \
   --rs-seed host1:17017,host2:17017,host3:17017 --rs-priorities 100,50,50
 ```
 
@@ -259,6 +259,54 @@ try (Morphium morphium = new Morphium(cfg)) {          // cfg points at localhos
 - Monitoring & troubleshooting: `docs/monitoring-metrics-guide.md`
 
 ## 🚀 What’s New in v6.3
+
+### About the 6.3.3 → 6.3.6 release storm (August 2026)
+
+Four patch releases within one week is not our usual cadence, so here is what happened. We ran a
+deliberate deep-code-review campaign over the change-stream and replication code — several AI
+reviewers (different vendors, reviewing independently) plus verification of every finding against
+the code. That review surfaced a whole class of bugs that only exist *under load*: silent
+event loss on change-stream resume, live events overtaking history replay, unbounded memory
+pinning, a sync gate opening over a dead watch. None of them had ever been reported by a user —
+which is exactly what makes them dangerous: this kind of bug does not file an issue, it shows up
+months later as quietly diverged data.
+
+- **6.3.4** shipped those fixes — and one of them carried a client-side follow-up bug (#329, the
+  resume-token loop described below). Found in production within hours.
+- **6.3.5** fixed that loop the same day. 6.3.4 is marked defective.
+- **6.3.6** fixes a topology-erosion bug in the connection pool's failover handling (#330) that a
+  rolling server restart exposed on our staging cluster: one client in thirty ended up silently
+  bus-dead while its HTTP side looked perfectly healthy.
+
+If you are on any 6.3.x: **upgrade straight to 6.3.6**, in the order described below. The
+remaining review findings are architectural and scheduled for 6.4.0 — this series is the end of
+the storm, not a new normal. The full story of each fix is in the
+[CHANGELOG](CHANGELOG.md); the short version is: we would rather ship four honest patch releases
+in a week than sit on known silent-data-loss bugs.
+
+> ⚠️ **Upgrade order matters: clients first, then servers — and skip 6.3.4.**
+>
+> 6.3.4 added strict server-side resume-window validation for change streams. Correct — but every
+> client **up to and including 6.3.4** carries a resume-token bug ([#329](https://github.com/sboesebeck/morphium/issues/329)):
+> when the server ends a stream with `ChangeStreamHistoryLost` (code 286), the monitor discards its
+> resume token, then immediately resurrects it and retries — forever, with no backoff. A PoppyDB
+> **restart** resets the token sequence space, so the moment a 6.3.4+ server comes back up, *every*
+> connected pre-6.3.5 client enters this loop at once and effectively DDoSes the server
+> (~3.3k errors/s per node observed live) until each client process is restarted by hand. On real
+> MongoDB the same loop starts whenever a consumer's resume point falls off the oplog — rarer, same
+> hammering. **6.3.4 is marked defective; upgrade straight to 6.3.6 (see the release-storm note
+> above).**
+>
+> The safe rollout order is therefore the reverse of the usual instinct:
+> **1.** upgrade all client applications to ≥ 6.3.5 (they handle history-lost with a single
+> discard and a fresh watch), **2.** only then deploy/restart the PoppyDB servers. A server
+> deployed first arms the loop in every client that has not been upgraded yet.
+>
+> From 6.3.5 on, a PoppyDB server with a dump directory also **persists its change-stream
+> sequence** (`sequence-state.properties`) across restarts, so orderly restarts no longer
+> invalidate resume tokens at all. The very first restart after upgrading still resets the
+> space once (the old server never wrote the state file) — with ≥ 6.3.5 clients that costs one
+> warning line per stream and nothing else.
 
 ### Two Optional Integration Modules
 `morphium-jakarta-data` implements [Jakarta Data 1.0](https://jakarta.ee/specifications/data/1.0/) on top of Morphium's query engine — `@Repository` interfaces with query derivation from method names, JDQL via `@Query` (including `GROUP BY`/`HAVING` compiled into an aggregation pipeline), offset and cursor/keyset pagination. `quarkus-morphium` builds on it for CDI integration: config mapping, `@MorphiumTransactional`, health checks, Dev Services, Dev UI, GraalVM native-image support, and build-time repository generation via Gizmo. Both are optional — core has no dependency on either, and `-DskipExtensions` still produces a core-only build. See [Jakarta Data](docs/jakarta-data.md) and [Quarkus Extension](docs/quarkus-extension.md).
@@ -351,7 +399,7 @@ The embedded MongoDB-compatible server was extracted to its own module and renam
 
 | | 6.1.x | 6.2.x |
 |---|---|---|
-| Maven artifact | included in `morphium` | separate: `de.caluga:poppydb:6.3.5` |
+| Maven artifact | included in `morphium` | separate: `de.caluga:poppydb:6.3.6` |
 | Package | `de.caluga.morphium.server` | `de.caluga.poppydb` |
 | Main class | `MorphiumServer` | `PoppyDB` |
 | CLI JAR | `morphium-*-server-cli.jar` | `poppydb-*-cli.jar` |
@@ -362,7 +410,7 @@ If you use PoppyDB in tests, add the dependency:
 <dependency>
     <groupId>de.caluga</groupId>
     <artifactId>poppydb</artifactId>
-    <version>6.3.5</version>
+    <version>6.3.6</version>
     <scope>test</scope>
 </dependency>
 ```
@@ -470,7 +518,7 @@ Migrating from v5? → `docs/howtos/migration-v5-to-v6.md`
 <dependency>
   <groupId>de.caluga</groupId>
   <artifactId>morphium</artifactId>
-  <version>6.3.5</version>
+  <version>6.3.6</version>
 </dependency>
 ```
 
@@ -690,7 +738,7 @@ PoppyDB (formerly MorphiumServer) runs the Morphium wire-protocol driver in a se
 <dependency>
   <groupId>de.caluga</groupId>
   <artifactId>poppydb</artifactId>
-  <version>6.3.5</version>
+  <version>6.3.6</version>
 </dependency>
 ```
 
@@ -700,19 +748,19 @@ PoppyDB (formerly MorphiumServer) runs the Morphium wire-protocol driver in a se
 mvn clean package -pl poppydb -am -Dmaven.test.skip=true
 ```
 
-This creates `poppydb/target/poppydb-6.3.5-cli.jar`.
+This creates `poppydb/target/poppydb-6.3.6-cli.jar`.
 
 **Running the Server**
 
 ```bash
 # Start the server on the default port (17017)
-java -jar poppydb/target/poppydb-6.3.5-cli.jar
+java -jar poppydb/target/poppydb-6.3.6-cli.jar
 
 # Start on a different port
-java -jar poppydb/target/poppydb-6.3.5-cli.jar --port 8080
+java -jar poppydb/target/poppydb-6.3.6-cli.jar --port 8080
 
 # Start with persistence (snapshots)
-java -jar poppydb/target/poppydb-6.3.5-cli.jar --dump-dir ./data --dump-interval 300
+java -jar poppydb/target/poppydb-6.3.6-cli.jar --dump-dir ./data --dump-interval 300
 ```
 
 **Replica Set Support (Experimental)**
@@ -720,7 +768,7 @@ java -jar poppydb/target/poppydb-6.3.5-cli.jar --dump-dir ./data --dump-interval
 PoppyDB supports basic replica set emulation. Start multiple instances with the same replica set name and seed list:
 
 ```bash
-java -jar poppydb/target/poppydb-6.3.5-cli.jar --rs-name my-rs --rs-seed host1:17017,host2:17018
+java -jar poppydb/target/poppydb-6.3.6-cli.jar --rs-name my-rs --rs-seed host1:17017,host2:17018
 ```
 
 **Use cases**
