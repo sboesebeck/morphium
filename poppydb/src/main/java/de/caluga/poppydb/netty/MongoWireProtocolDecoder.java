@@ -119,7 +119,8 @@ public class MongoWireProtocolDecoder extends ByteToMessageDecoder {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        log.error("Decoder error on {}: {}", ctx.channel().remoteAddress(), cause.getMessage());
+        // #331: routine client disconnects at DEBUG, real errors at ERROR
+        NettyChannelLogging.logChannelException(log, "Decoder", ctx, cause);
         // Only close on fatal I/O errors, not on parse errors
         if (cause instanceof java.io.IOException) {
             ctx.close();

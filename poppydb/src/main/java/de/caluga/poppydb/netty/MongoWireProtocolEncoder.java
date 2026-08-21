@@ -56,7 +56,8 @@ public class MongoWireProtocolEncoder extends MessageToByteEncoder<WireProtocolM
     @SuppressWarnings("deprecation")
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        log.error("Encoder error on {}: {}", ctx.channel().remoteAddress(), cause.getMessage());
+        // #331: routine client disconnects at DEBUG, real errors at ERROR
+        NettyChannelLogging.logChannelException(log, "Encoder", ctx, cause);
         // Only close on fatal I/O errors — encoding errors for a single message
         // should not kill the entire connection
         if (cause instanceof java.io.IOException) {

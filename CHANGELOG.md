@@ -10,6 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### PoppyDB: ordinary client disconnects no longer flood the log with ERROR lines (#331)
+All three Netty `exceptionCaught` handlers (decoder, encoder, command handler) logged every
+exception unconditionally at ERROR - including a plain `Connection reset by peer` whenever a
+client dropped its connection. Deploys, restarts and load balancers do that all day: on the ACC
+acceptance cluster a single reconnect-looping client produced 140 ERROR lines in 40 minutes, and
+unconditional ERROR logging is a good part of how a poppy.log grew into the gigabytes. The three
+sites now share one rule: the IOException family (reset by peer, broken pipe, timeouts) is
+logged at DEBUG, everything else stays at ERROR with the full stack trace. Close behaviour per
+handler is unchanged.
+
 #### PooledDriver: a rolling restart can no longer erode the topology into permanent silence (#330)
 During the ACC rolling restart exactly one of ~30 clients ended up permanently bus-dead while
 looking perfectly healthy: zero heartbeat threads, zero log lines, HTTP alive. The chain behind

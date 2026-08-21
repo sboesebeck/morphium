@@ -2134,7 +2134,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        log.error("Handler error: {}", cause.getMessage(), cause);
+        // #331: routine client disconnects at DEBUG, real errors at ERROR (with stack trace)
+        NettyChannelLogging.logChannelException(log, "Handler", ctx, cause);
         ctx.close();
     }
 
