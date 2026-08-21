@@ -1823,8 +1823,74 @@ public class PoppyDB {
      * every trigger (scheduler, dumpNow, shutdown) shares it - and tests can slow it down to
      * exercise the guard. Callers hold {@link #dumpGuard}.
      */
+    // Persisted next to the dumps, like election-state.properties: the change-stream sequence
+    // is state a persistent server must carry across restarts - restarting token issuance at 0
+    // turns every client resume token into a foreign-sequence-space 286 and blinds the
+    // destructive-resync guard's sequence comparison (#329, ACC outage 2026-08-21).
+    static final String SEQUENCE_STATE_FILE = "sequence-state.properties";
+    // Restore floor headroom: increments issued after the last persist (periodic dumps) are
+    // lost by a crash. Restoring ABOVE anything the previous incarnation plausibly issued keeps
+    // stale tokens in the well-defined "behind the replay window" case instead of "foreign".
+    private static final long SEQUENCE_RESTORE_HEADROOM = 10_000_000L;
+
     int writeDumpFiles() throws IOException {
-        return driver.dumpAllToDirectory(dumpDirectory);
+        int count = driver.dumpAllToDirectory(dumpDirectory);
+        persistSequenceState();
+        return count;
+    }
+
+    /**
+     * Persists the current change-stream sequence next to the dumps. Runs with every dump
+     * (periodic, on-demand and the final dump on shutdown - they all funnel through
+     * writeDumpFiles), so an orderly shutdown persists the exact value. Failure is a WARN, not
+     * fatal: without the file a restart merely falls back to today's reset-sequence behavior,
+     * which fixed clients survive with one discarded resume token per stream.
+     */
+    private void persistSequenceState() {
+        java.io.File target = new java.io.File(dumpDirectory, SEQUENCE_STATE_FILE);
+        java.io.File tmp = new java.io.File(dumpDirectory, SEQUENCE_STATE_FILE + ".tmp");
+        long seq = driver.getChangeStreamSequence();
+        try {
+            java.util.Properties p = new java.util.Properties();
+            p.setProperty("changeStreamSequence", Long.toString(seq));
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(tmp)) {
+                p.store(out, "PoppyDB change-stream sequence state - do not edit");
+            }
+            java.nio.file.Files.move(tmp.toPath(), target.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+        } catch (Exception e) {
+            log.warn("Could not persist change-stream sequence state to {}: {}",
+                target.getAbsolutePath(), e.getMessage());
+            //noinspection ResultOfMethodCallIgnored
+            tmp.delete();
+        }
+    }
+
+    /**
+     * Restores the persisted change-stream sequence (monotonic, with headroom - see
+     * {@link #SEQUENCE_RESTORE_HEADROOM}). Called from {@link #restoreFromDump()}; a missing
+     * file (first start, pre-#329 dumps) is not an error.
+     */
+    private void restoreSequenceState() {
+        java.io.File f = new java.io.File(dumpDirectory, SEQUENCE_STATE_FILE);
+        if (!f.exists()) {
+            return;
+        }
+        try (java.io.FileInputStream in = new java.io.FileInputStream(f)) {
+            java.util.Properties p = new java.util.Properties();
+            p.load(in);
+            long persisted = Long.parseLong(p.getProperty("changeStreamSequence", "0").trim());
+            long floor = persisted + SEQUENCE_RESTORE_HEADROOM;
+            driver.advanceChangeStreamSequenceTo(floor);
+            log.info("Restored change-stream sequence: persisted {}, continuing at {} "
+                    + "(+{} headroom for increments a crash may have left unpersisted)",
+                    persisted, floor, SEQUENCE_RESTORE_HEADROOM);
+        } catch (Exception e) {
+            log.warn("Could not restore change-stream sequence state from {} - token issuance "
+                    + "restarts at 0, connected clients will see one ChangeStreamHistoryLost per "
+                    + "stream: {}", f.getAbsolutePath(), e.getMessage());
+        }
     }
 
     /**
@@ -1929,6 +1995,10 @@ public class PoppyDB {
         }
 
         InMemoryDriver.DirectoryRestoreResult result = driver.restoreAllFromDirectoryResult(dumpDirectory);
+
+        // Even a partial database restore must restore the sequence floor: it is about token
+        // issuance and peer comparison, not about which databases made it back (#329).
+        restoreSequenceState();
 
         // The partial-restore candidacy guard lives HERE, not only in PoppyDBCLI (#306 review
         // round 2): an embedder following docs/poppydb.md (restore, check isComplete(),

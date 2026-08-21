@@ -5590,6 +5590,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return changeStreamSequence.get();
     }
 
+    /**
+     * Advances the change-stream sequence to at least {@code floor}; never moves it backwards.
+     * PoppyDB restores its persisted sequence through this on startup: without it a restarted
+     * server issues tokens from 0 again, so every resume token from the previous incarnation is
+     * "beyond newest" (foreign/reset sequence space, #329) and sequence comparisons between
+     * replica-set peers (destructive-resync guard) cannot tell a healthy restarted primary from
+     * a stale one.
+     */
+    public void advanceChangeStreamSequenceTo(long floor) {
+        changeStreamSequence.updateAndGet(cur -> Math.max(cur, floor));
+    }
+
     @Override
     public String getConnectedTo() {
         return "inMem:0000";
