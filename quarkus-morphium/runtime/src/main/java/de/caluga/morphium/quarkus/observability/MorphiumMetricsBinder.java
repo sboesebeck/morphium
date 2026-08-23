@@ -45,7 +45,7 @@ import java.util.Map;
  * {@code MorphiumProcessor#registerObservability}) — it must never be referenced from a
  * code path that runs when Micrometer is absent.
  *
- * <p><b>Registration timing (Section 6.1 of the observability plan):</b> {@link #bindTo(Morphium)}
+ * <p><b>Registration timing (Section 6.1 of the observability plan):</b> {@link #bindTo(Morphium, String)}
  * must only be called from {@code MorphiumProducer#buildMorphium()}, after the {@link Morphium}
  * instance has already been constructed and connected — never from an early CDI
  * {@code @Observes StartupEvent} observer that would dereference {@code Instance<Morphium>} (and
@@ -55,7 +55,7 @@ import java.util.Map;
  *
  * <p><b>Hot-reload idempotency (Section 6.4):</b> every {@link Meter} this binder registers is
  * kept in {@link #registeredMeters} so {@link #close()} can remove them again. This must be
- * called before a subsequent {@link #bindTo(Morphium)} (or the same effect: on shutdown), or a
+ * called before a subsequent {@link #bindTo(Morphium, String)} (or the same effect: on shutdown), or a
  * dev-mode hot-reload will otherwise leave the previous instance's gauges registered against a
  * stale {@link Morphium} reference. The extractor lambdas below close over the {@code Morphium}
  * parameter passed to {@code bindTo} directly (not a field on this bean), and this bean is itself
@@ -161,7 +161,7 @@ public class MorphiumMetricsBinder {
     /**
      * Deregisters every {@link Meter} this binder has registered so far. Called from
      * {@code MorphiumProducer#onStop()} alongside {@code instance.close()}, and must also be
-     * called before a subsequent {@link #bindTo(Morphium)} on a dev-mode hot-reload to avoid
+     * called before a subsequent {@link #bindTo(Morphium, String)} on a dev-mode hot-reload to avoid
      * leaving stale gauges referencing a superseded {@link Morphium} instance registered
      * (Section 6.4 of the observability plan).
      */
