@@ -18,6 +18,7 @@ package de.caluga.morphium.quarkus.observability;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.driver.MorphiumDriver;
+import io.micrometer.core.instrument.FunctionCounter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -83,32 +84,47 @@ class MorphiumMetricsBinderTest {
     }
 
     @Test
-    @DisplayName("bindTo registers exactly the 10 MVP-scoped gauges, tagged with database")
-    void bindTo_registersAllMvpGauges() {
+    @DisplayName("bindTo registers exactly the 10 MVP-scoped meters, tagged with database")
+    void bindTo_registersAllMvpMeters() {
         binder.bindTo(morphium, "testdb");
 
-        String[] expectedNames = {
+        // Instantaneous values -- Gauges (Section 5 catalog: pool size, waiting threads,
+        // cache/write-buffer levels).
+        String[] expectedGaugeNames = {
                 "morphium.driver.connections.pool",
                 "morphium.driver.connections.in_use",
-                "morphium.driver.connections.borrowed",
-                "morphium.driver.connections.released",
                 "morphium.driver.threads.waiting",
-                "morphium.driver.errors",
-                "morphium.driver.failovers",
                 "morphium.cache.hit_ratio",
                 "morphium.cache.entries",
                 "morphium.write_buffer.entries",
         };
-
-        for (String name : expectedNames) {
+        for (String name : expectedGaugeNames) {
             Gauge gauge = registry.find(name).gauge();
             assertThat(gauge).as("gauge '%s' must be registered", name).isNotNull();
             assertThat(gauge.getId().getTag("database")).isEqualTo("testdb");
         }
 
-        // No Counter/Timer rows (MorphiumStorageListener/MorphiumTransactionEvent sourced) --
+        // Cumulative, monotonically-increasing values -- FunctionCounters (Section 5 catalog:
+        // borrowed/released connections, errors, failovers), NOT Gauges: a Gauge on a cumulative
+        // value breaks counter-oriented dashboards and rate()/increase() queries.
+        String[] expectedCounterNames = {
+                "morphium.driver.connections.borrowed",
+                "morphium.driver.connections.released",
+                "morphium.driver.errors",
+                "morphium.driver.failovers",
+        };
+        for (String name : expectedCounterNames) {
+            FunctionCounter counter = registry.find(name).functionCounter();
+            assertThat(counter).as("counter '%s' must be registered as a FunctionCounter, not a Gauge", name).isNotNull();
+            assertThat(counter.getId().getTag("database")).isEqualTo("testdb");
+            assertThat(registry.find(name).gauge())
+                    .as("'%s' must NOT also be registered as a Gauge", name)
+                    .isNull();
+        }
+
+        // No Counter/Timer rows from MorphiumStorageListener/MorphiumTransactionEvent --
         // those are explicitly Phase 2, out of scope for this round.
-        assertThat(registry.getMeters()).hasSize(expectedNames.length);
+        assertThat(registry.getMeters()).hasSize(expectedGaugeNames.length + expectedCounterNames.length);
     }
 
     @Test

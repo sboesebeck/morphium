@@ -18,6 +18,7 @@ package de.caluga.morphium.quarkus.observability;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.driver.MorphiumDriver;
+import io.micrometer.core.instrument.FunctionCounter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -32,9 +33,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Registers Micrometer {@link Gauge}s for Morphium's connection-pool/driver statistics
+ * Registers Micrometer {@link Gauge}s (for instantaneous values -- pool size, waiting threads,
+ * cache/write-buffer levels) and {@link FunctionCounter}s (for cumulative, monotonically
+ * increasing values -- borrowed/released connections, errors, failovers; see the observability
+ * plan's Section 5 metric catalog for which of Morphium's connection-pool/driver statistics
  * ({@link MorphiumDriver#getDriverStats()}) and cache/write-buffer statistics
- * ({@link Morphium#getStatistics()}).
+ * ({@link Morphium#getStatistics()}) is which meter type).
  *
  * <p>This bean only exists on the classpath/in the CDI container when
  * {@code Capability.METRICS} was present at build time (see
@@ -91,22 +95,22 @@ public class MorphiumMetricsBinder {
                 MorphiumDriver.DriverStatsKey.CONNECTIONS_IN_POOL);
         registerDriverGauge(m, tags, "morphium.driver.connections.in_use",
                 MorphiumDriver.DriverStatsKey.CONNECTIONS_IN_USE);
-        registerDriverGauge(m, tags, "morphium.driver.connections.borrowed",
+        registerDriverCounter(m, tags, "morphium.driver.connections.borrowed",
                 MorphiumDriver.DriverStatsKey.CONNECTIONS_BORROWED);
-        registerDriverGauge(m, tags, "morphium.driver.connections.released",
+        registerDriverCounter(m, tags, "morphium.driver.connections.released",
                 MorphiumDriver.DriverStatsKey.CONNECTIONS_RELEASED);
         registerDriverGauge(m, tags, "morphium.driver.threads.waiting",
                 MorphiumDriver.DriverStatsKey.THREADS_WAITING_FOR_CONNECTION);
-        registerDriverGauge(m, tags, "morphium.driver.errors",
+        registerDriverCounter(m, tags, "morphium.driver.errors",
                 MorphiumDriver.DriverStatsKey.ERRORS);
-        registerDriverGauge(m, tags, "morphium.driver.failovers",
+        registerDriverCounter(m, tags, "morphium.driver.failovers",
                 MorphiumDriver.DriverStatsKey.FAILOVERS);
 
         registerStatisticGauge(m, tags, "morphium.cache.hit_ratio", StatisticKeys.CHITSPERC);
         registerStatisticGauge(m, tags, "morphium.cache.entries", StatisticKeys.CACHE_ENTRIES);
         registerStatisticGauge(m, tags, "morphium.write_buffer.entries", StatisticKeys.WRITE_BUFFER_ENTRIES);
 
-        log.debug("Morphium: registered {} Micrometer gauges for database '{}'",
+        log.debug("Morphium: registered {} Micrometer meters for database '{}'",
                 registeredMeters.size(), database);
     }
 
@@ -115,6 +119,24 @@ public class MorphiumMetricsBinder {
                 .tags(tags)
                 .register(registry);
         registeredMeters.add(gauge.getId());
+    }
+
+    /**
+     * Registers a cumulative, monotonically-increasing driver value ({@link MorphiumDriver}
+     * itself already counts it as a running total -- see the observability plan's Section 5
+     * metric catalog, which classifies {@code connections.borrowed}/{@code connections.released}/
+     * {@code errors}/{@code failovers} as Counter rows, not Gauge rows) as a Micrometer
+     * {@link FunctionCounter} rather than a {@link Gauge}. A Gauge on a cumulative value publishes
+     * gauge metadata to the backend, which breaks counter-oriented dashboards, {@code rate()}/
+     * {@code increase()} queries, and reset-on-restart handling that assume genuine counter
+     * semantics -- the underlying value read is identical to {@link #registerDriverGauge}, only
+     * the Micrometer meter type differs.
+     */
+    private void registerDriverCounter(Morphium m, Tags tags, String name, MorphiumDriver.DriverStatsKey key) {
+        FunctionCounter counter = FunctionCounter.builder(name, m, target -> readDriverStat(target, key))
+                .tags(tags)
+                .register(registry);
+        registeredMeters.add(counter.getId());
     }
 
     private void registerStatisticGauge(Morphium m, Tags tags, String name, StatisticKeys key) {

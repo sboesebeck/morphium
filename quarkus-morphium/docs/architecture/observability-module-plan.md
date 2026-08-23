@@ -1,7 +1,12 @@
 # Architektur-Plan: Optionales Observability-Modul für `quarkus-morphium`
 
 > Autor: datona-architect (Agent-Entwurf)
-> Status: **Vorschlag / zur Diskussion** — noch nicht implementiert
+> Status: **Phase 1 (MVP) implementiert** — Connection-Pool/Driver-Stats-Gauges (Abschnitt 4.1/5),
+> Capability.METRICS-Gate, Konfiguration (`MorphiumObservabilityConfig`), Lifecycle-Cleanup
+> (Hot-Reload-Idempotenz) sind umgesetzt (sboesebeck/morphium#332). Die Counter/Timer-Zeilen aus
+> Abschnitt 5 (`morphium.operations.*`, `morphium.transactions.*`, sourced from
+> `MorphiumStorageListener`/`MorphiumTransactionEvent`) sind weiterhin **nicht** implementiert,
+> zurückgestellt auf eine spätere Phase (Abschnitt 8).
 > Repo: `morphium` (Maven-Modul `quarkus-morphium/`)
 > Letzte Prüfung des Codes: 2026-08-23
 
