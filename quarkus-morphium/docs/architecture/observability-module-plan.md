@@ -363,6 +363,18 @@ Images, wo jedes vermiedene Bean Startzeit/Image-Größe spart.
    `include-storage-listener-metrics=true` gegen ein realistisches Lastprofil fahren, um
    sicherzustellen, dass die Timer-Erfassung in `MorphiumMetricsStorageListener` nicht selbst
    zum Bottleneck wird (insbesondere bei `@WriteBuffer`-Batch-Workloads mit hoher Frequenz).
+5. **`Capability.METRICS`-Migration (Folgearbeit, nicht blockierend für Phase 1):**
+   `io.quarkus.deployment.Capability.METRICS` ist in Quarkus 3.32.3 als `@Deprecated`
+   markiert (Javadoc verweist auf `io.quarkus.deployment.metrics.MetricsCapabilityBuildItem`).
+   Phase 1 verwendet bewusst weiterhin `Capabilities.isPresent(Capability.METRICS)`, konsistent
+   mit dem bestehenden Jackson/JSON-B-Gate-Muster in `MorphiumProcessor` (Abschnitt 2.2) und
+   weil die Konstante in 3.32.3 voll funktionsfähig ist. Die Migration zu
+   `MetricsCapabilityBuildItem` (ein `SimpleBuildItem` mit `MetricsCapability.isSupported(
+   MetricsFactory.MICROMETER)` statt eines einfachen `isPresent(...)`-Checks — ein
+   strukturell anderes `@BuildStep`-Signaturmuster) ist als eigenständiges Ticket für eine
+   spätere Phase vorzumerken, idealerweise zusammen mit einer Überprüfung, ob das
+   Jackson/JSON-B-Gate ebenfalls migriert werden soll, um innerhalb von `MorphiumProcessor`
+   ein einheitliches Capability-Detection-Idiom zu behalten.
 
 ---
 

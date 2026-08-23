@@ -32,6 +32,9 @@ import de.caluga.morphium.objectmapping.LocalDateTimeMapper;
 import io.quarkus.runtime.ImageMode;
 import io.quarkus.tls.TlsConfiguration;
 import io.quarkus.tls.TlsConfigurationRegistry;
+import io.quarkus.arc.Arc;
+import io.quarkus.arc.InstanceHandle;
+import de.caluga.morphium.quarkus.observability.MorphiumMetricsBinder;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -95,6 +98,20 @@ public class MorphiumProducer {
                 log.warn("Error while closing Morphium", e);
             } finally {
                 instance = null;
+            }
+        }
+
+        // Deregister the metrics binder's gauges, if the Capability.METRICS-gated bean exists
+        // at all (i.e. Micrometer is on the app's classpath). Uses the same Arc.container()
+        // conditional lookup idiom as buildMorphium() -- see its Javadoc for why an unconditional
+        // @Inject Instance<MorphiumMetricsBinder> field on this class is avoided.
+        try (InstanceHandle<MorphiumMetricsBinder> binderHandle = Arc.container().instance(MorphiumMetricsBinder.class)) {
+            if (binderHandle.isAvailable()) {
+                try {
+                    binderHandle.get().close();
+                } catch (Exception e) {
+                    log.warn("Error while deregistering Morphium metrics", e);
+                }
             }
         }
     }
@@ -510,6 +527,47 @@ public class MorphiumProducer {
         // structurally impossible for the detector to itself be the cause of a connect —
         // by the time this line runs, `m` already exists.
         MorphiumBlockingCallDetector.registerOn(m);
+
+        // Register Micrometer connection-pool/driver-stats gauges (Phase 1 MVP of the
+        // observability plan, quarkus-morphium/docs/architecture/observability-module-plan.md
+        // Section 4.1/6.1), but only if the Capability.METRICS-gated MorphiumMetricsBinder bean
+        // was actually registered at build time (i.e. Micrometer is on the app's classpath) AND
+        // the runtime kill-switch quarkus.morphium.observability.enabled (default true) is not
+        // set to false -- see MorphiumObservabilityConfig for why this is a plain runtime
+        // property, not a build-time one: it lets an app that has Micrometer on its classpath
+        // for an unrelated reason opt out of Morphium's gauges specifically, without a rebuild.
+        //
+        // Local design decision: looked up via Arc.container().instance(...) rather than an
+        // @Inject Instance<MorphiumMetricsBinder> field on this producer. An injected field
+        // would still be safe to *declare* (CDI resolves Instance<T> lazily and Arc tolerates an
+        // unsatisfied Instance<T> for an optional bean), but Arc.container().instance(...) is the
+        // idiom already used by MorphiumRecorder (see its runMigrations()) for the same
+        // "try-with-resources InstanceHandle from a plain non-observer method" API shape; that
+        // precedent's beans are always-present, so isAvailable() here is new territory, added
+        // specifically because MorphiumMetricsBinder may not be a bean at all. It keeps
+        // MorphiumMetricsBinder resolution entirely inside this post-connect block rather than
+        // adding another always-present field to this class -- this bean reference is only ever
+        // needed here and in onStop().
+        //
+        // isAvailable() is the "bean may not exist" guard: when Capability.METRICS was absent at
+        // build time, MorphiumMetricsBinder was never added as an AdditionalBeanBuildItem, so it
+        // is simply not a bean at all — Arc.container().instance(...) returns a non-throwing
+        // InstanceHandle whose isAvailable() is false, and no MeterRegistry/Micrometer type is
+        // ever touched. On a dev-mode hot-reload, close() is called first to deregister the
+        // previous Morphium instance's gauges before (conditionally) binding the new one (Section
+        // 6.4 idempotency requirement) — bindTo() itself does not deduplicate across calls. close()
+        // runs unconditionally whenever the bean exists, even if observability is currently
+        // disabled, so a hot-reload that flips enabled=false->true->false leaves no stale gauges
+        // from a previous, now-superseded Morphium instance either way.
+        try (InstanceHandle<MorphiumMetricsBinder> binderHandle = Arc.container().instance(MorphiumMetricsBinder.class)) {
+            if (binderHandle.isAvailable()) {
+                MorphiumMetricsBinder binder = binderHandle.get();
+                binder.close();
+                if (config.observability().enabled()) {
+                    binder.bindTo(m, config.database());
+                }
+            }
+        }
 
         // Defensive: ensure the driver knows it's a replica set when a RS name is configured.
         // PooledDriver < 6.2.1 only checked host-seed count, missing single-node replica sets.
