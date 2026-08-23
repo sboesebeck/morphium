@@ -57,12 +57,14 @@ import java.util.Map;
  * kept in {@link #registeredMeters} so {@link #close()} can remove them again. This must be
  * called before a subsequent {@link #bindTo(Morphium, String)} (or the same effect: on shutdown), or a
  * dev-mode hot-reload will otherwise leave the previous instance's gauges registered against a
- * stale {@link Morphium} reference. The extractor lambdas below close over the {@code Morphium}
- * parameter passed to {@code bindTo} directly (not a field on this bean), and this bean is itself
- * {@code @ApplicationScoped} and CDI-managed for the application's lifetime — so the referenced
- * {@code Morphium}/{@code MorphiumDriver} objects stay reachable for as long as the gauges are
- * registered, avoiding the WeakReference-GC'd-to-NaN bug the plan cites from the hand-written
- * {@code MongoConnectionPoolMetrics} precedent.
+ * stale {@link Morphium} reference. Micrometer's {@link Gauge} implementation holds the {@code m}
+ * passed to {@code bindTo} only via a {@link java.lang.ref.WeakReference} internally (see
+ * {@code io.micrometer.core.instrument.internal.DefaultGauge}) -- this binder itself never keeps
+ * a strong reference to {@code m}, only {@link Meter.Id}s in {@link #registeredMeters}. What
+ * actually prevents the WeakReference-GC'd-to-NaN bug the plan cites from the hand-written
+ * {@code MongoConnectionPoolMetrics} precedent is that {@code MorphiumProducer} itself holds the
+ * same {@link Morphium} instance strongly for the application's lifetime (its {@code instance}
+ * field, populated by {@code buildMorphium()}) -- not anything this binder bean does on its own.
  */
 @ApplicationScoped
 public class MorphiumMetricsBinder {
