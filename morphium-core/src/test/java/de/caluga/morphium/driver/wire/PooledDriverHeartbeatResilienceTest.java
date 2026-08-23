@@ -1,6 +1,5 @@
 package de.caluga.morphium.driver.wire;
 
-import de.caluga.morphium.driver.MorphiumDriver.DriverStatsKey;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -189,7 +188,19 @@ public class PooledDriverHeartbeatResilienceTest {
     @Test
     @Timeout(60)
     public void heartbeatSelfRevivesWithoutGetPrimaryConnectionCall() throws Exception {
-        PooledDriver drv = new PooledDriver();
+        AtomicInteger cycles = new AtomicInteger();
+        PooledDriver drv = new PooledDriver() {
+            @Override
+            void reseedIfAllHostsEvicted() {
+                // Only ever called from inside a heartbeat cycle (cycle start, plus the watchdog
+                // branch at the cycle's end - itself unreachable without a cycle), so every
+                // increment means a real cycle ran. A cycle that also hits the watchdog reseed
+                // counts twice, which only makes the assertion below looser, never falsely true.
+                // Same deterministic idiom as heartbeatSurvivesAnExceptionInOneOfItsCycles.
+                cycles.incrementAndGet();
+                super.reseedIfAllHostsEvicted();
+            }
+        };
         drv.setHostSeed(List.of(deadHost(), deadHost()));
         drv.setHeartbeatFrequency(100);
         drv.setServerSelectionTimeout(200);
@@ -210,9 +221,20 @@ public class PooledDriverHeartbeatResilienceTest {
             awaitOrFail(() -> drv.heartbeat != null && !drv.heartbeat.isDone(), 10_000,
                     "heartbeat should self-revive without external trigger (no getPrimaryConnection call)");
 
-            // Verify it's actually running by checking hostThreads get populated
-            awaitOrFail(() -> !drv.hostThreads.isEmpty(), 10_000,
-                    "self-revived heartbeat should actually spawn host checks");
+            // A revived-but-idle heartbeat is not enough: cycles must KEEP running afterwards.
+            // hostThreads was the previous proxy here and is a bad observable - its entries are
+            // transient claims (put right before the check thread starts, removed again when the
+            // refused connect fails microseconds later), so the map is empty for most of every
+            // cycle. The fixed awaitOrFail poll of 25ms against the 100ms heartbeat period then
+            // phase-locks: once the sampler's phases (0/25/50/75 mod 100) all miss the ~1ms
+            // populated window, it misses it EVERY time. That is what makes the old assertion
+            // fail systematically rather than flake occasionally - with independent sampling at
+            // the same hit rate, missing all ~400 polls of a 10s wait would be vanishingly
+            // unlikely, so only a phase-locked sampler explains failing run after run the way CI
+            // did (the same failure on develop and master, not just on this branch).
+            int cyclesAtBaseline = cycles.get();
+            awaitOrFail(() -> cycles.get() > cyclesAtBaseline, 10_000,
+                    "self-revived heartbeat should keep running cycles (frozen at " + cyclesAtBaseline + ")");
         } finally {
             drv.close();
         }
