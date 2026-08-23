@@ -164,6 +164,37 @@ public class MorphiumProcessor {
     }
 
     // ------------------------------------------------------------------
+    // Micrometer metrics: connection-pool / driver-stats gauges (MVP)
+    // ------------------------------------------------------------------
+
+    /**
+     * Registers {@code MorphiumMetricsBinder} as a CDI bean, but only when the application
+     * has Micrometer on its classpath (Capability.METRICS present at build time).
+     *
+     * <p>Mirrors {@link #registerMorphiumIdJsonCustomizers}'s exact structure: gating on
+     * {@link Capabilities}, producing an {@link AdditionalBeanBuildItem} referenced by class
+     * name (so this processor class never needs a compile-time dependency on Micrometer types
+     * itself), and marking it unremovable. Apps without Micrometer never get this bean added,
+     * so {@code MorphiumMetricsBinder} — which does have a hard compile-time dependency on
+     * Micrometer's {@code MeterRegistry} — never loads on their classpath at all.
+     *
+     * <p>Scope note: this build step only registers the Phase 1 (MVP) gauge binder. The
+     * Counter/Timer sources from {@code MorphiumStorageListener}/{@code MorphiumTransactionEvent}
+     * (Section 5 catalog rows {@code morphium.operations.*}/{@code morphium.transactions.*}) are
+     * explicitly deferred to a later phase and are not registered here.
+     */
+    @BuildStep
+    void registerObservability(Capabilities capabilities,
+                               BuildProducer<AdditionalBeanBuildItem> additionalBeans) {
+        if (capabilities.isPresent(Capability.METRICS)) {
+            additionalBeans.produce(AdditionalBeanBuildItem.builder()
+                .addBeanClass("de.caluga.morphium.quarkus.observability.MorphiumMetricsBinder")
+                .setUnremovable()
+                .build());
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Health check registration
     // ------------------------------------------------------------------
 

@@ -54,6 +54,18 @@
       <optional>true</optional>
     </dependency>
 
+    <!-- Micrometer deployment counterpart — required by Quarkus extension parity verification
+         because the runtime module depends on quarkus-micrometer. Optional, mirroring the
+         optional runtime dep: an app without a metrics extension must not inherit it
+         transitively. MorphiumProcessor gates MorphiumMetricsBinder registration on
+         Capability.METRICS, so this build step only matters when the app's own classpath
+         provides Micrometer. -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-micrometer-deployment</artifactId>
+      <optional>true</optional>
+    </dependency>
+
     <!-- TLS registry deployment — required by Quarkus extension parity verification
          because the runtime module depends on quarkus-tls-registry. -->
     <dependency>
