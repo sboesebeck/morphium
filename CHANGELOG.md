@@ -78,6 +78,31 @@ base stock is recycled solely via `maxConnectionLifeTime` (10min default). Secon
 hit hardest because primaries stay warm through real borrows - matching the measured
 primary/secondary asymmetry.
 
+#### Container fields of scalar-mapped types (BigDecimal, Character, Atomic*, LocalDate, ...) now deserialize correctly (#334)
+`List`/array/`Map` fields whose element type has a custom mapper with a scalar `marshall()`
+result (`BigDecimal`, `Character`, `AtomicBoolean`/`AtomicInteger`/`AtomicLong`, `LocalDate`,
+`LocalTime`, `Timestamp`, ...) are stored element-wise as a `{"value": <scalar>}` wrapper map
+without `class_name`. The read path had no branch that recognised this shape: the raw wrapper
+`Map` survived into the loaded container, so the first typed access
+(`BigDecimal.compareTo(...)`) threw a `ClassCastException` — and typed arrays like
+`BigDecimal[]` failed the whole entity read outright with `array element type mismatch`.
+
+The fix is deliberately **read-side only — the on-disk write format is bit-for-bit
+unchanged**. A write-side fix (dropping the wrapper, adding `class_name`) was tried in
+PR #333 and measurably changed the stored document shape, which breaks rollbacks,
+mixed-version operation against a shared collection, and indexes on `field.value`; a
+read-side unwrap is purely additive: existing documents load correctly, new documents look
+exactly like before, and older Morphium versions keep reading them. A new format-stability
+test pins the written raw shape so any future write-side change fails loudly.
+
+Unwrapping is generic over the registered custom mappers, not a hardcoded type list, and
+deliberately narrow: a map is only treated as a wrapper if the declared element type has a
+registered custom mapper and the map carries exactly the key `value` (plus at most a
+`class_name`). Documents that legitimately contain a field named `value` — embedded objects,
+untyped `Map<String, Object>` content — are left untouched, and if the mapper was
+deregistered at runtime the read falls back to the previous behavior instead of throwing.
+
+
 ## [6.3.6] - 2026-08-21
 
 ### Fixed
