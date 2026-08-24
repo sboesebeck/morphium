@@ -110,6 +110,16 @@
       <artifactId>assertj-core</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- QuarkusUnitTest: end-to-end lifecycle proof for the observability module's
+         MorphiumMetricsBinder CDI bean (multiple build/shutdown cycles against a real ArC
+         container), which a plain unit test cannot reach. Version resolved via the quarkus-bom
+         import above, matching this repo's ${quarkus.version} pin. Deliberately no explicit
+         version here. -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-junit-internal</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -137,6 +147,19 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-javadoc-plugin</artifactId>
+      </plugin>
+      <!-- QuarkusUnitTest (MorphiumMetricsBinderLifecycleTest) needs the JBoss LogManager
+           installed before any java.util.logging access, or ArC's own logging setup throws
+           ExceptionInInitializerError/ClassCastException at class-init time. Same property this
+           repo's integration-tests module already sets for its own Quarkus-backed tests. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <systemPropertyVariables>
+            <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
+          </systemPropertyVariables>
+        </configuration>
       </plugin>
     </plugins>
   </build>

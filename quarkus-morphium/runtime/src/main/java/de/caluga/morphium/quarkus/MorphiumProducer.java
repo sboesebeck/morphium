@@ -74,6 +74,33 @@ public class MorphiumProducer {
     // Kept as a field so the shutdown observer can close it.
     private volatile Morphium instance;
 
+    // Resolved lazily, once, and reused across buildMorphium()/onStop() (including across
+    // multiple connect/disconnect cycles, e.g. dev-mode hot-reload) -- NOT released via
+    // try-with-resources on every use. InstanceHandle.close() on a non-@Dependent-scoped bean
+    // (MorphiumMetricsBinder is @ApplicationScoped) calls ArC's InjectableContext#destroy(bean),
+    // which tears down the bean's contextual instance -- verified directly against the arc-3.32.3
+    // bytecode (AbstractInstanceHandle#destroy()/InstanceHandle#close()'s default method). A
+    // try-with-resources around this handle would destroy MorphiumMetricsBinder's instance (and
+    // its registeredMeters list) on every exit from buildMorphium()/onStop() -- in the completely
+    // ordinary, non-hot-reload lifecycle, not just under hot-reload. Flagged in review by Stephan
+    // Bösebeck (upstream maintainer) with the same bytecode-level reasoning; only released once,
+    // in onStop(), on final application shutdown.
+    private volatile InstanceHandle<MorphiumMetricsBinder> metricsBinderHandle;
+
+    private InstanceHandle<MorphiumMetricsBinder> metricsBinderHandle() {
+        InstanceHandle<MorphiumMetricsBinder> handle = metricsBinderHandle;
+        if (handle == null) {
+            synchronized (this) {
+                handle = metricsBinderHandle;
+                if (handle == null) {
+                    handle = Arc.container().instance(MorphiumMetricsBinder.class);
+                    metricsBinderHandle = handle;
+                }
+            }
+        }
+        return handle;
+    }
+
     @Produces
     @ApplicationScoped
     public Morphium morphium() {
@@ -102,18 +129,23 @@ public class MorphiumProducer {
         }
 
         // Deregister the metrics binder's gauges, if the Capability.METRICS-gated bean exists
-        // at all (i.e. Micrometer is on the app's classpath). Uses the same Arc.container()
-        // conditional lookup idiom as buildMorphium() -- see its Javadoc for why an unconditional
-        // @Inject Instance<MorphiumMetricsBinder> field on this class is avoided.
-        try (InstanceHandle<MorphiumMetricsBinder> binderHandle = Arc.container().instance(MorphiumMetricsBinder.class)) {
-            if (binderHandle.isAvailable()) {
-                try {
-                    binderHandle.get().close();
-                } catch (Exception e) {
-                    log.warn("Error while deregistering Morphium metrics", e);
-                }
+        // at all (i.e. Micrometer is on the app's classpath). Uses the same lazily-resolved,
+        // reused InstanceHandle as buildMorphium() -- see metricsBinderHandle()'s Javadoc for why
+        // an unconditional @Inject Instance<MorphiumMetricsBinder> field on this class is avoided,
+        // and this field's Javadoc for why the handle is not wrapped in try-with-resources.
+        InstanceHandle<MorphiumMetricsBinder> binderHandle = metricsBinderHandle();
+        if (binderHandle.isAvailable()) {
+            try {
+                binderHandle.get().close();
+            } catch (Exception e) {
+                log.warn("Error while deregistering Morphium metrics", e);
             }
         }
+        // Final release, on application shutdown -- this is the one place close() on this handle
+        // is correct and intended, since the process (and with it the whole ArC container) is
+        // going down anyway.
+        binderHandle.close();
+        metricsBinderHandle = null;
     }
 
     // ------------------------------------------------------------------
@@ -537,17 +569,14 @@ public class MorphiumProducer {
         // property, not a build-time one: it lets an app that has Micrometer on its classpath
         // for an unrelated reason opt out of Morphium's gauges specifically, without a rebuild.
         //
-        // Local design decision: looked up via Arc.container().instance(...) rather than an
+        // Local design decision: looked up via metricsBinderHandle() (a lazily-resolved,
+        // field-cached InstanceHandle -- see that method's Javadoc) rather than an
         // @Inject Instance<MorphiumMetricsBinder> field on this producer. An injected field
         // would still be safe to *declare* (CDI resolves Instance<T> lazily and Arc tolerates an
-        // unsatisfied Instance<T> for an optional bean), but Arc.container().instance(...) is the
-        // idiom already used by MorphiumRecorder (see its runMigrations()) for the same
-        // "try-with-resources InstanceHandle from a plain non-observer method" API shape; that
-        // precedent's beans are always-present, so isAvailable() here is new territory, added
-        // specifically because MorphiumMetricsBinder may not be a bean at all. It keeps
-        // MorphiumMetricsBinder resolution entirely inside this post-connect block rather than
-        // adding another always-present field to this class -- this bean reference is only ever
-        // needed here and in onStop().
+        // unsatisfied Instance<T> for an optional bean), but MorphiumRecorder's precedent (see
+        // its runMigrations()) uses an always-present bean, so isAvailable() here is new
+        // territory, added specifically because MorphiumMetricsBinder may not be a bean at all --
+        // this bean reference is only ever needed here and in onStop().
         //
         // isAvailable() is the "bean may not exist" guard: when Capability.METRICS was absent at
         // build time, MorphiumMetricsBinder was never added as an AdditionalBeanBuildItem, so it
@@ -559,13 +588,12 @@ public class MorphiumProducer {
         // runs unconditionally whenever the bean exists, even if observability is currently
         // disabled, so a hot-reload that flips enabled=false->true->false leaves no stale gauges
         // from a previous, now-superseded Morphium instance either way.
-        try (InstanceHandle<MorphiumMetricsBinder> binderHandle = Arc.container().instance(MorphiumMetricsBinder.class)) {
-            if (binderHandle.isAvailable()) {
-                MorphiumMetricsBinder binder = binderHandle.get();
-                binder.close();
-                if (config.observability().enabled()) {
-                    binder.bindTo(m, config.database());
-                }
+        InstanceHandle<MorphiumMetricsBinder> binderHandle = metricsBinderHandle();
+        if (binderHandle.isAvailable()) {
+            MorphiumMetricsBinder binder = binderHandle.get();
+            binder.close();
+            if (config.observability().enabled()) {
+                binder.bindTo(m, config.database());
             }
         }
 
