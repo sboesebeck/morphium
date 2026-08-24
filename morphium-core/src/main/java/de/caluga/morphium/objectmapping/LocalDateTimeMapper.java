@@ -5,15 +5,16 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Date;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 import de.caluga.morphium.driver.Doc;
 
 public class LocalDateTimeMapper implements MorphiumTypeMapper<LocalDateTime>{
 
-    private final boolean useBsonDate;
+    private final BooleanSupplier useBsonDateSupplier;
 
     /** Default constructor: uses the legacy Morphium Map{sec, n} format. */
     public LocalDateTimeMapper() {
-        this(false);
+        this(() -> false);
     }
 
     /**
@@ -21,14 +22,29 @@ public class LocalDateTimeMapper implements MorphiumTypeMapper<LocalDateTime>{
      *                    ({@link java.util.Date}) which is compatible with native MongoDB
      *                    date operations (sort, range queries, mongosh ISODate).
      *                    When {@code false}, uses the legacy Morphium Map{sec, n} format.
+     *                    Fixed for the lifetime of this mapper instance -- for a mapper that
+     *                    follows a runtime-changeable setting, use
+     *                    {@link #LocalDateTimeMapper(BooleanSupplier)} instead (this is what
+     *                    {@code ObjectMapperImpl}'s standard registration uses, backed by
+     *                    {@code ObjectMappingSettings#isUseBsonDateForJavaTime()}).
      */
     public LocalDateTimeMapper(boolean useBsonDate) {
-        this.useBsonDate = useBsonDate;
+        this(() -> useBsonDate);
+    }
+
+    /**
+     * @param useBsonDateSupplier queried fresh on every {@link #marshall(LocalDateTime)} call
+     *                            (not cached), so the effective value can change at runtime --
+     *                            e.g. via {@code ObjectMappingSettings#setUseBsonDateForJavaTime}
+     *                            after this mapper has already been constructed and registered.
+     */
+    public LocalDateTimeMapper(BooleanSupplier useBsonDateSupplier) {
+        this.useBsonDateSupplier = useBsonDateSupplier;
     }
 
     @Override
     public Object marshall(LocalDateTime o) {
-        if (useBsonDate) {
+        if (useBsonDateSupplier.getAsBoolean()) {
             return Date.from(o.toInstant(ZoneOffset.UTC));
         }
         return Doc.of("sec",o.toEpochSecond(ZoneOffset.UTC),"n",o.getNano());
