@@ -133,7 +133,12 @@ public class WatchCursorManager {
         // The async loop in InMemoryDriver will handle calling the callback when events arrive
         try {
             log.debug("Starting watch for cursor {}", cursorId);
-            driver.runCommand(wcmd);
+            // The returned stub reply (ok:1 + an empty-cursor doc) MUST be fetched even though
+            // this manager builds its own client reply: runCommand stores it in the driver's
+            // by-id result map, and only the matching read removes it - discarding the id leaks
+            // one entry per created change stream (same bug class as the ReplicationManager
+            // apply-path leak, see WatchCursorResultLeakTest).
+            driver.readSingleAnswer(driver.runCommand(wcmd));
             log.debug("Watch started for cursor {}", cursorId);
         } catch (Exception e) {
             // Do NOT hand back a cursor id for a stream that never started: the client would be

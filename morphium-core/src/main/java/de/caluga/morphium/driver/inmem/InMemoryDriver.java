@@ -593,9 +593,60 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     // Method cache for lock-free command dispatch
     private final java.util.concurrent.ConcurrentHashMap < Class<?>, Method> commandMethodCache = new java.util.concurrent.ConcurrentHashMap<>();
 
+    // Defense-in-depth against callers that run commands but never fetch the answer (the bug
+    // class behind the PoppyDB-secondary heap leak: the replication apply path discarded every
+    // message id, growing commandResultsById by ~800 bytes per replicated event, forever).
+    // Command ids are handed out by commandNumber strictly monotonically and a legitimate
+    // caller fetches its answer synchronously in the same call stack - so an entry whose id
+    // lies more than a full window of ids in the past is abandoned with certainty, never
+    // "about to be read". Eviction therefore cannot break a real fetch. The window doubles as
+    // the size trigger: no eviction work at all while the store stays small. Comparisons use
+    // int subtraction (sequence-number style) so commandNumber wrapping around
+    // Integer.MAX_VALUE keeps working.
+    private static final int MAX_PENDING_COMMAND_RESULTS = Integer.getInteger("inmemory.maxPendingCommandResults", 10_000);
+    // Sweeping is O(store size); rate-limit it to at most once per this many issued ids.
+    private static final int RESULT_SWEEP_MIN_ID_DISTANCE = 1_000;
+    private final AtomicInteger lastResultSweepId = new AtomicInteger(-RESULT_SWEEP_MIN_ID_DISTANCE - 1);
+    // diagnostic only - every eviction is a caller bug (a leaked, never-fetched reply)
+    private final AtomicLong commandResultsEvicted = new AtomicLong();
+    // Rate limit for the eviction WARN log (at most one per minute).
+    private volatile long lastResultEvictWarnAt = 0;
+
     private void addResult(int id, Map<String, Object> res) {
         Map<String, Object> toStore = res == null ? prepareResult(Doc.of("ok", 0.0, "errmsg", "null result")) : res;
         commandResultsById.put(id, toStore);
+        evictAbandonedResults(id);
+    }
+
+    private void evictAbandonedResults(int currentId) {
+        if (commandResultsById.size() <= MAX_PENDING_COMMAND_RESULTS) {
+            return;
+        }
+
+        int last = lastResultSweepId.get();
+
+        if (currentId - last < RESULT_SWEEP_MIN_ID_DISTANCE || !lastResultSweepId.compareAndSet(last, currentId)) {
+            return; // swept recently, or another thread is taking this sweep
+        }
+
+        int evicted = 0;
+
+        for (Integer key : commandResultsById.keySet()) {
+            if (currentId - key > MAX_PENDING_COMMAND_RESULTS && commandResultsById.remove(key) != null) {
+                evicted++;
+            }
+        }
+
+        if (evicted > 0) {
+            long total = commandResultsEvicted.addAndGet(evicted);
+            long now = System.currentTimeMillis();
+
+            if (now - lastResultEvictWarnAt > 60_000) {
+                lastResultEvictWarnAt = now;
+                log.warn("Evicted {} abandoned command results (total {}): some caller runs commands "
+                    + "without ever fetching the answers - that is a leak in the caller", evicted, total);
+            }
+        }
     }
 
     private void addQueuedResult(Map<String, Object> res) {
@@ -1389,6 +1440,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         eventQueue.clear();
         cursors.clear();
         commandResults.clear();
+        // The by-id result store holds replies for commands issued BEFORE the reset - after a
+        // reset nobody can meaningfully consume them anymore, and leaving them in place made
+        // resetData() the one cleanup path that missed this map entirely.
+        commandResultsById.clear();
         currentTransaction.remove();
         log.info("resetData() completed");
     }
@@ -12135,7 +12190,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             ret.put(e.getKey(), e.getValue().doubleValue());
         }
 
-        ret.put(DriverStatsKey.REPLY_IN_MEM, (double) commandResults.size());
+        // Both stores of unfetched replies count: the legacy queue AND the by-id map. The
+        // by-id map was missing here, which hid the fact that callers discarding their
+        // command id leak their reply into that map forever (see PoppyDB secondary leak).
+        ret.put(DriverStatsKey.REPLY_IN_MEM, (double) (commandResults.size() + commandResultsById.size()));
         return ret;
     }
 

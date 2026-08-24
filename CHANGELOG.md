@@ -17,6 +17,33 @@ samples, so a fresh application's cache-hit-ratio metric appeared entirely missi
 real "no data yet" 0%. Found while verifying the quarkus-morphium observability module against a
 live otel-collector/Prometheus stack. Both percentages are now also computed by reading each
 `AtomicLong` once instead of three times, so they come from one consistent snapshot.
+#### PoppyDB: secondaries no longer leak ~800 bytes of heap per replicated event
+Every `InMemoryDriver.runCommand()` stores its reply in an internal by-id map, and the entry
+only ever leaves that map when the caller fetches it (`readSingleAnswer` et al.). The
+ReplicationManager apply path called `runCommand()` and threw the returned message id away for
+every non-bulk-insert operation — update/replace (the dominant type on a live bus), delete,
+drop, dropDatabase, the idempotent replay-insert, plus the initial-sync insert batches and the
+pre-sync database drops. The same pattern hid in `WatchCursorManager.createWatchCursor`,
+which discarded the stub reply of every started change stream (one leaked entry per created
+cursor — reconnect-looping messaging clients create them all day). On the primary the Netty
+handler fetches every request's answer, so only secondaries leaked per-event — one abandoned
+reply per replicated event, forever. Proven by measurement
+on a local 3-node replica set: 20,000 update events on the primary grew the secondaries'
+live-object count by exactly +1 `java.lang.Double` (the `"ok": 1.0`) per event after full GC,
+while the primary stayed flat. At production rates (~800 bytes/event, 12 events/s) that is
+roughly 0.8 GB/day until the node runs into the memory-watermark reject. All apply sites now
+fetch their result the way the bulk-insert path always did — which also surfaces write errors
+that used to be swallowed silently (logged, never thrown: an error reported inside a delivered
+result must not make the apply path fail harder than before).
+
+As defense in depth the driver itself no longer allows unbounded growth of the by-id result
+store: command ids are strictly monotonic and a legitimate caller fetches its answer
+synchronously in the same call stack, so an entry whose id lies more than a full window
+(10,000 ids, `-Dinmemory.maxPendingCommandResults`) in the past is abandoned with certainty —
+never "about to be read" — and gets evicted with a rate-limited WARN once the store exceeds
+the window. `resetData()` now clears the store too (it was the one cleanup path that missed
+it), and `REPLY_IN_MEM` in the driver stats finally counts these pending replies, which is
+what the new regression tests assert on.
 
 
 ## [6.3.6] - 2026-08-21

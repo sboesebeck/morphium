@@ -2116,7 +2116,7 @@ public class ReplicationManager {
             cmd.setDb(dbName);
             cmd.setColl(null);
             cmd.setCmdData(Doc.of("dropDatabase", 1, "$db", dbName));
-            localDriver.runCommand(cmd);
+            runLocalApplyCommand(cmd, "pre-sync dropDatabase of " + dbName);
         }
 
         // admin.system.users DOES replicate, so the snapshot copy must fully define its
@@ -2262,7 +2262,7 @@ public class ReplicationManager {
                 "documents", documents
             ));
 
-            localDriver.runCommand(insertCmd);
+            runLocalApplyCommand(insertCmd, "initial-sync insert into " + dbName + "." + collName);
 
             log.debug("Synced {} documents to {}.{}", documents.size(), dbName, collName);
             return documents.size();
@@ -2696,7 +2696,7 @@ public class ReplicationManager {
                                 "$db", db,
                                 "documents", List.of(fullDoc)
                             ));
-                            localDriver.runCommand(cmd);
+                            runLocalApplyCommand(cmd, "insert into " + db + "." + coll);
                         }
                     }
                     break;
@@ -2721,7 +2721,7 @@ public class ReplicationManager {
                                 "upsert", true
                             ))
                         ));
-                        localDriver.runCommand(cmd);
+                        runLocalApplyCommand(cmd, "update of " + db + "." + coll);
                     }
                     break;
                 }
@@ -2740,7 +2740,7 @@ public class ReplicationManager {
                                 "limit", 1
                             ))
                         ));
-                        localDriver.runCommand(cmd);
+                        runLocalApplyCommand(cmd, "delete from " + db + "." + coll);
                     }
                     break;
                 }
@@ -2750,7 +2750,7 @@ public class ReplicationManager {
                     cmd.setDb(db);
                     cmd.setColl(coll);
                     cmd.setCmdData(Doc.of("drop", coll, "$db", db));
-                    localDriver.runCommand(cmd);
+                    runLocalApplyCommand(cmd, "drop of " + db + "." + coll);
                     break;
                 }
 
@@ -2759,7 +2759,7 @@ public class ReplicationManager {
                     cmd.setDb(db);
                     cmd.setColl(null);
                     cmd.setCmdData(Doc.of("dropDatabase", 1, "$db", db));
-                    localDriver.runCommand(cmd);
+                    runLocalApplyCommand(cmd, "dropDatabase of " + db);
                     break;
                 }
 
@@ -2817,7 +2817,7 @@ public class ReplicationManager {
      * partial-update path runs), not something introduced or relied upon here.
      */
     private void applyInsertIdempotent(String db, String coll, Map<String, Object> docKey,
-                                        Map<String, Object> fullDoc) {
+                                        Map<String, Object> fullDoc) throws MorphiumDriverException {
         GenericCommand cmd = new GenericCommand(localDriver);
         cmd.setDb(db);
         cmd.setColl(coll);
@@ -2830,7 +2830,48 @@ public class ReplicationManager {
                 "upsert", true
             ))
         ));
-        localDriver.runCommand(cmd);
+        runLocalApplyCommand(cmd, "idempotent insert replay into " + db + "." + coll);
+    }
+
+    /**
+     * Runs a command against the local driver AND fetches its result.
+     *
+     * Fetching is not optional: every {@code InMemoryDriver.runCommand()} stores its result in
+     * an internal by-id map that is only ever cleared by the matching read
+     * ({@code readSingleAnswer} et al.). On the primary the netty handler reads every answer;
+     * here on the apply path nobody did, so every replicated non-bulk operation (update,
+     * delete, drop, ...) leaked one result entry forever -- ~800 bytes per replicated event of
+     * unbounded secondary heap growth, verified via GC class histograms on a live replica set.
+     *
+     * Fetching the result also surfaces errors that used to be swallowed silently. They are
+     * logged, never thrown: an error reported inside an otherwise-delivered result must not
+     * make the apply path fail harder than it did before this fix (exceptions thrown by
+     * {@code runCommand} itself still propagate exactly as they always did). A
+     * NamespaceNotFound (code 26) logs at debug only -- a replicated drop of a collection that
+     * never materialized locally (it never held replicated documents on this node) is a normal
+     * occurrence, not an operational problem.
+     */
+    private Map<String, Object> runLocalApplyCommand(GenericCommand cmd, String opDescription)
+            throws MorphiumDriverException {
+        int msgId = localDriver.runCommand(cmd);
+        Map<String, Object> result = localDriver.readSingleAnswer(msgId);
+
+        if (result == null) {
+            log.warn("Local {} produced no result", opDescription);
+            return null;
+        }
+
+        if (result.get("ok") instanceof Number ok && ok.doubleValue() == 0.0) {
+            if (result.get("code") instanceof Number code && code.intValue() == 26) {
+                log.debug("Local {}: namespace not found ({})", opDescription, result.get("errmsg"));
+            } else {
+                log.warn("Local {} failed: {}", opDescription, result.get("errmsg"));
+            }
+        } else if (result.get("writeErrors") instanceof List<?> errors && !errors.isEmpty()) {
+            log.warn("Local {} reported writeErrors: {}", opDescription, errors);
+        }
+
+        return result;
     }
 
     /**
