@@ -21,8 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 /**
- * End-to-end proof for morphium-core/docs/architecture/javatime-bson-date-parity-plan.md
- * Section 4: the regular, type-safe {@code Query<T>} API path (here:
+ * End-to-end proof that the regular, type-safe {@code Query<T>} API path (here:
  * {@code query.f("field").eq(someLocalDateTime)}) already runs through
  * {@code MongoFieldImpl#checkValue} -> {@code ObjectMapperImpl#marshallIfCustomMapped} -- the
  * SAME custom mapper the entity-persistence path uses -- BEFORE the filter document ever reaches

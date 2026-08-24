@@ -21,8 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies BSON-Date parity to the official MongoDB Java driver's {@code org.bson.codecs.jsr310}
- * codecs (encode() behaviour re-derived from the actually pinned driver version, 4.11.5 -- see
- * morphium-core/docs/architecture/javatime-bson-date-parity-plan.md Section 5) for
+ * codecs (encode() behaviour re-derived from the driver version pinned in this repo, 4.11.5) for
  * LocalDate/LocalTime/LocalDateTime/Instant when {@code useBsonDate=true}, AND that the legacy
  * (default) format is unchanged when {@code useBsonDate=false} -- both directions matter, since
  * this is an opt-in flag, not a new default.
