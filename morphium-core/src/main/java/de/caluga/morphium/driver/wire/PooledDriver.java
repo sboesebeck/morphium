@@ -729,8 +729,9 @@ public class PooledDriver extends DriverBase {
                         try {
                             long now = System.currentTimeMillis();
 
-                            if ((connection.getLastUsed() < now - getMaxConnectionIdleTime())
-                                    || connection.getCreated() < now - getMaxConnectionLifetime()) {
+                            // The candidate is polled out of the pool, so getTotalConnectionsToHost()
+                            // counts exactly the connections the host keeps if we evict it now.
+                            if (shouldEvictPooledConnection(connection, now, getTotalConnectionsToHost(hst))) {
                                 log.debug("connection to host:{} too long idle {}ms or just too old {}ms -> remove",
                                           connection.getCon().getConnectedToHost(), getMaxConnectionIdleTime(),
                                           getMaxConnectionLifetime());
@@ -823,7 +824,9 @@ public class PooledDriver extends DriverBase {
 
                                 // Use record patterns to update fastest host
                                 updateFastestHost(hst, newStats);
-                                // container.touch();
+                                // Deliberately NO container.touch() here: heartbeat use must not
+                                // count as application use, or idle-based pool shrinking would be
+                                // dead. See shouldEvictPooledConnection() for the full rationale.
                                 handleHelloResult(result, String.format("%s:%d", getHost(hst), getPortFromHost(hst)));
 
                                 if (hosts.containsKey(hst)
@@ -953,6 +956,42 @@ public class PooledDriver extends DriverBase {
         // #330: clean up orphaned hostThreads entries for hosts no longer in hosts map
         // (happens when onConnectionError/handleHelloResult removes a host but the bookkeeping remains)
         hostThreads.entrySet().removeIf(entry -> !hosts.containsKey(entry.getKey()));
+    }
+
+    /**
+     * Decides whether the heartbeat sweep should evict a pooled connection.
+     *
+     * <p>{@code lastUsed} deliberately tracks <b>application</b> use only ({@code touch()} in
+     * borrowConnection). The heartbeat borrows a pooled connection every cycle for its hello but
+     * does not touch it - if it did, a 1s heartbeat would keep every pooled connection "warm"
+     * forever and maxConnectionIdleTime could never shrink the pool back down after a burst.
+     *
+     * <p>The flip side of that choice used to be permanent connection churn: with no application
+     * traffic every pooled connection exceeds maxConnectionIdleTime sooner or later, the sweep
+     * closed it - despite healthy heartbeat traffic running over it every second - and the refill
+     * loop immediately re-created it to satisfy minConnectionsPerHost. A full TCP(+TLS+auth)
+     * handshake every ~idleTime per pooled connection, forever (measured in production at up to
+     * 4.3 new connections/s per RS node across ~22 long-lived clients). Idle eviction therefore
+     * only shrinks the <b>surplus</b> above minConnectionsPerHost; the base stock is recycled via
+     * maxConnectionLifetime alone.
+     *
+     * @param connection the candidate, already polled out of its host's pool
+     * @param now current System.currentTimeMillis()
+     * @param remainingConnectionsToHost connections the host keeps if the candidate is evicted
+     *        (the candidate itself is not part of this count - it is out of the pool)
+     * @return true if the connection should be closed
+     */
+    boolean shouldEvictPooledConnection(ConnectionContainer connection, long now, int remainingConnectionsToHost) {
+        if (connection.getCreated() < now - getMaxConnectionLifetime()) {
+            return true; // hard lifetime cap - applies regardless of pool size
+        }
+
+        if (connection.getLastUsed() >= now - getMaxConnectionIdleTime()) {
+            return false; // recently used by the application
+        }
+
+        // idle - but only evict as long as the host keeps its configured minimum
+        return remainingConnectionsToHost >= getMinConnectionsPerHost();
     }
 
     private void startConnectionWaiter() {

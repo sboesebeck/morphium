@@ -45,6 +45,27 @@ the window. `resetData()` now clears the store too (it was the one cleanup path 
 it), and `REPLY_IN_MEM` in the driver stats finally counts these pending replies, which is
 what the new regression tests assert on.
 
+#### PooledDriver: idle long-lived clients no longer rebuild their connection pool every 30 seconds
+A long-lived `PooledDriver` client with little or no application traffic tore down and rebuilt
+its pooled connections permanently: measured in production on a 3-node replica set with ~22
+long-lived Spring Boot clients, the nodes saw 1.48 (primary), 3.76 and 4.27 (secondaries) NEW
+TCP connections per second - steady, for hours - amounting to 347,000 / 762,000 / 937,000
+connection establishments over 61h while only 150-220 connections were ever open at a time.
+The cause: `lastUsed` on a pooled connection is only refreshed by real application borrows,
+not by the heartbeat hello that runs over it every second (deliberately so - otherwise the
+heartbeat would keep every connection "warm" forever and `maxConnectionIdleTime` could never
+shrink the pool after a burst). The idle sweep therefore declared every pooled connection of a
+quiet client idle after `maxConnectionIdleTime` (30s default) and closed it - and the refill
+loop immediately re-created it to satisfy `minConnectionsPerHost`. A full TCP handshake every
+30s per pooled connection, forever, for a connection that was carrying healthy heartbeat
+traffic the whole time. The hypothesis was verified experimentally against a local 3-node
+PoppyDB RS: with 9 pooled connections and idle time 10s the reconnect rate was exactly
+0.90/s (= pool size / idle time), a 10x longer idle time cut it to a tenth, and a 5x slower
+heartbeat left it unchanged. The fix keeps both properties intact: idle eviction now only
+shrinks the surplus above `minConnectionsPerHost` (bursts still drain back down), while the
+base stock is recycled solely via `maxConnectionLifeTime` (10min default). Secondaries were
+hit hardest because primaries stay warm through real borrows - matching the measured
+primary/secondary asymmetry.
 
 ## [6.3.6] - 2026-08-21
 
