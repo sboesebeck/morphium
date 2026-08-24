@@ -174,8 +174,12 @@ public class MultiDriverTestBase {
 
         //Diferent Drivers
         if (includePooled && allowed.contains(PooledDriver.driverName)) {
+            // The properties round trip only carries what MorphiumConfig can serialize; anything
+            // TestConfig sets beyond that has to be re-applied here. The read preference matters:
+            // TestConfig pins it to primary so read-after-write is deterministic on a replica set.
             MorphiumConfig pooled = MorphiumConfig.fromProperties(base.asProperties());
-            pooled.driverSettings().setDriverName(PooledDriver.driverName);
+            pooled.driverSettings().setDriverName(PooledDriver.driverName)
+                  .setDefaultReadPreference(base.driverSettings().getDefaultReadPreference());
             pooled.connectionSettings().setDatabase(baseDbPrefix + "_" + number.incrementAndGet());
             pooled.collectionCheckSettings().setIndexCheck(IndexCheck.CREATE_ON_STARTUP)
                   .setCappedCheck(CappedCheck.CREATE_ON_STARTUP);
@@ -187,7 +191,8 @@ public class MultiDriverTestBase {
 
         if (includeSingle && allowed.contains(SingleMongoConnectDriver.driverName)) {
             MorphiumConfig single = MorphiumConfig.fromProperties(base.asProperties());
-            single.driverSettings().setDriverName(SingleMongoConnectDriver.driverName);
+            single.driverSettings().setDriverName(SingleMongoConnectDriver.driverName)
+                  .setDefaultReadPreference(base.driverSettings().getDefaultReadPreference());
             single.connectionSettings().setDatabase(baseDbPrefix + "_" + number.incrementAndGet());
             single.collectionCheckSettings().setIndexCheck(IndexCheck.CREATE_ON_STARTUP)
                   .setCappedCheck(CappedCheck.CREATE_ON_STARTUP);
@@ -211,6 +216,7 @@ public class MultiDriverTestBase {
             // expect them to behave like clients connected to the same database.
             inMemCfg.driverSettings()
                     .setDriverName(InMemoryDriver.driverName)
+                    .setDefaultReadPreference(base.driverSettings().getDefaultReadPreference())
                     .setInMemorySharedDatabases(true);
             inMemCfg.authSettings().setMongoAuthDb(null).setMongoLogin(null).setMongoPassword(null);
             inMemCfg.connectionSettings().setDatabase(baseDbPrefix + "_" + number.incrementAndGet());

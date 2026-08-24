@@ -4,7 +4,10 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Transient;
 import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.driver.ReadPreferenceType;
 import de.caluga.morphium.driver.wire.PooledDriver;
+
+import org.slf4j.LoggerFactory;
 
 import javax.net.ssl.SSLContext;
 import java.util.ArrayList;
@@ -39,8 +42,9 @@ public class DriverSettings extends Settings {
     private String appName = "Morphium";
     @Transient
     private ReadPreference defaultReadPreference = ReadPreference.nearest();
-    @Transient
-    private String defaultReadPreferenceType;
+    // Kept in sync with defaultReadPreference and, unlike the ReadPreference object itself,
+    // serializable - this is what carries the setting through a properties round trip.
+    private String defaultReadPreferenceType = ReadPreference.nearest().getType().name();
 
     private int serverSelectionTimeout = 30000;
     private boolean inMemorySharedDatabases = false;
@@ -150,18 +154,70 @@ public class DriverSettings extends Settings {
         return this;
     }
     public ReadPreference getDefaultReadPreference() {
+        // The ReadPreference object is @Transient: it survives neither a properties round trip
+        // nor Settings.copy(), both of which drop transient fields. The type name does survive,
+        // so whenever the two have drifted apart it is the one that still knows what was
+        // configured, and the object is rebuilt from it.
+        if (defaultReadPreferenceType != null
+            && (defaultReadPreference == null || defaultReadPreference.getType() == null
+                || !defaultReadPreferenceType.equalsIgnoreCase(defaultReadPreference.getType().name()))) {
+            ReadPreference rebuilt = readPreferenceFromType(defaultReadPreferenceType);
+
+            if (rebuilt != null) {
+                defaultReadPreference = rebuilt;
+            }
+        }
+
         return defaultReadPreference;
     }
     public DriverSettings setDefaultReadPreference(ReadPreference defaultReadPreference) {
         this.defaultReadPreference = defaultReadPreference;
+        this.defaultReadPreferenceType = defaultReadPreference == null || defaultReadPreference.getType() == null
+                                         ? null : defaultReadPreference.getType().name();
         return this;
     }
     public String getDefaultReadPreferenceType() {
         return defaultReadPreferenceType;
     }
     public DriverSettings setDefaultReadPreferenceType(String defaultReadPreferenceType) {
+        if (defaultReadPreferenceType == null) {
+            this.defaultReadPreferenceType = null;
+            this.defaultReadPreference = null;
+            return this;
+        }
+
+        ReadPreference rp = readPreferenceFromType(defaultReadPreferenceType);
+
+        if (rp == null) {
+            // unparseable - keep the previous setting rather than storing a value that would be
+            // written out again on the next dump and fail to parse again on the next read
+            return this;
+        }
+
         this.defaultReadPreferenceType = defaultReadPreferenceType;
+        this.defaultReadPreference = rp;
         return this;
+    }
+
+    /**
+     * Rebuilds the ReadPreference from its serialized type name. Tag sets are not part of the
+     * properties representation, so a tagged preference loses its tags on a round trip.
+     * Returns null for an unknown or absent type name, leaving the caller's value untouched.
+     */
+    private static ReadPreference readPreferenceFromType(String typeName) {
+        if (typeName == null || typeName.isBlank()) {
+            return null;
+        }
+
+        try {
+            ReadPreference rp = new ReadPreference();
+            rp.setType(ReadPreferenceType.valueOf(typeName.trim().toUpperCase()));
+            return rp;
+        } catch (IllegalArgumentException e) {
+            LoggerFactory.getLogger(DriverSettings.class)
+                         .error("Unknown read preference type '{}' - keeping current setting", typeName);
+            return null;
+        }
     }
     public int getHeartbeatFrequency() {
         return heartbeatFrequency;

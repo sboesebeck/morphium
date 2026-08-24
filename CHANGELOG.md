@@ -10,6 +10,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### A read preference stored via asProperties() silently reverted to nearest on reload
+`DriverSettings.defaultReadPreference` was `@Transient`, and so was the `defaultReadPreferenceType`
+string that could have carried it. A config that was written out with `asProperties()` and read
+back with `fromProperties()` therefore lost the setting entirely and fell back to the class default
+`nearest()` — no warning, no error, just reads drifting off to secondaries. On a replica set that
+turns every read-after-write into a coin flip against replication lag: the write is acknowledged by
+the primary, the immediately following read goes to a secondary that has not applied it yet and
+comes back empty. Single-node deployments and the in-memory driver never showed it, which is
+exactly why it could sit unnoticed.
+
+The type name is now a normal, serializable field, and the preference object is rebuilt from it
+whenever the two have drifted apart. That covers the properties round trip and `createCopy()`
+alike: the latter goes through `Settings.copy()`, which drops transient fields just as
+serialization does. Tag sets are still not part of the properties representation; a tagged
+preference keeps its type across a round trip but loses its tags.
+
+Morphium's own test suite was among the victims: `TestConfig` pins the read preference to `primary`
+precisely so tests are deterministic, but `MultiDriverTestBase` builds each driver's config through
+that same properties round trip and threw the setting away. Test reads in the MongoDB replica-set
+phase ran against `nearest` wherever the entity did not carry its own `@DefaultReadPreference` —
+the annotation wins over the config, which is why the effect stayed hidden for so long. It surfaced
+with `ScalarCustomMapperContainerTest` (new in #334), an entity without such an annotation that
+reads straight back after writing without any retry tolerance, and it failed only in that one
+phase. `MultiDriverTestBase` now re-applies the preference explicitly, so the intent survives even
+if the round trip loses something else in the future.
+
 #### CHITSPERC/CMISSPERC reported NaN instead of 0 before any cached read had happened
 `Statistics.java` computed `CHITS/(CHITS+CMISS)*100` unconditionally; before any cached read has
 happened both are 0, so the ratio was `0.0/0.0 = NaN`. Prometheus/OTel exporters silently drop NaN

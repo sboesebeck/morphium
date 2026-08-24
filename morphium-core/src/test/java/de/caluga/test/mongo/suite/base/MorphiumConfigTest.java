@@ -3,6 +3,8 @@ package de.caluga.test.mongo.suite.base;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.config.CollectionCheckSettings.CappedCheck;
 import de.caluga.morphium.config.CollectionCheckSettings.IndexCheck;
+import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.driver.ReadPreferenceType;
 import de.caluga.morphium.encryption.AESEncryptionProvider;
 
 import org.junit.jupiter.api.Tag;
@@ -12,6 +14,7 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Map;
 import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -159,6 +162,92 @@ public class MorphiumConfigTest {
         assertEquals(120, cfg.connectionSettings().getMaxConnections());
     }
 
+
+    /**
+     * A read preference set on the config must survive an asProperties()/fromProperties()
+     * round trip. It used to be dropped silently, so a config that was persisted and reloaded
+     * fell back to the class default (nearest) and started reading from secondaries — which
+     * breaks read-after-write on a replica set without any visible error.
+     */
+    @Test
+    public void readPreferenceSurvivesPropertiesRoundTrip() {
+        MorphiumConfig cfg = getConfig();
+        cfg.driverSettings().setDefaultReadPreference(ReadPreference.primary());
+
+        MorphiumConfig reloaded = MorphiumConfig.fromProperties(cfg.asProperties());
+
+        assertNotNull(reloaded.driverSettings().getDefaultReadPreference());
+        assertEquals(ReadPreferenceType.PRIMARY,
+                     reloaded.driverSettings().getDefaultReadPreference().getType());
+    }
+
+    /** Same for a prefixed round trip, which uses a different key derivation. */
+    @Test
+    public void readPreferenceSurvivesPrefixedPropertiesRoundTrip() {
+        MorphiumConfig cfg = getConfig();
+        cfg.driverSettings().setDefaultReadPreference(ReadPreference.secondaryPreferred());
+
+        MorphiumConfig reloaded = MorphiumConfig.fromProperties("prefix", cfg.asProperties("prefix"));
+
+        assertNotNull(reloaded.driverSettings().getDefaultReadPreference());
+        assertEquals(ReadPreferenceType.SECONDARY_PREFERRED,
+                     reloaded.driverSettings().getDefaultReadPreference().getType());
+    }
+
+    /**
+     * createCopy() goes through Settings.copy(), which drops transient fields — the copy used to
+     * end up with a type name saying PRIMARY and a preference object saying NEAREST. Messaging
+     * tests build their extra Morphium instances from such copies.
+     */
+    @Test
+    public void readPreferenceSurvivesCreateCopy() {
+        MorphiumConfig cfg = getConfig();
+        cfg.driverSettings().setDefaultReadPreference(ReadPreference.primary());
+
+        MorphiumConfig copy = cfg.createCopy();
+
+        assertNotNull(copy.driverSettings().getDefaultReadPreference());
+        assertEquals(ReadPreferenceType.PRIMARY,
+                     copy.driverSettings().getDefaultReadPreference().getType());
+        assertEquals("PRIMARY", copy.driverSettings().getDefaultReadPreferenceType());
+    }
+
+    /** An unparseable type name must not overwrite a valid setting, nor be stored and re-emitted. */
+    @Test
+    public void invalidReadPreferenceTypeKeepsPreviousSetting() {
+        MorphiumConfig cfg = getConfig();
+        cfg.driverSettings().setDefaultReadPreference(ReadPreference.primary());
+
+        cfg.driverSettings().setDefaultReadPreferenceType("bogusValue");
+
+        assertEquals(ReadPreferenceType.PRIMARY,
+                     cfg.driverSettings().getDefaultReadPreference().getType());
+        assertEquals("PRIMARY", cfg.driverSettings().getDefaultReadPreferenceType());
+    }
+
+    /** A tagged preference keeps its tags as long as it is not round-tripped through properties. */
+    @Test
+    public void tagSetSurvivesInMemorySetting() {
+        MorphiumConfig cfg = getConfig();
+        ReadPreference tagged = ReadPreference.secondary();
+        tagged.setTagSet(Map.of("dc", "eu-west"));
+        cfg.driverSettings().setDefaultReadPreference(tagged);
+
+        assertEquals(ReadPreferenceType.SECONDARY,
+                     cfg.driverSettings().getDefaultReadPreference().getType());
+        assertNotNull(cfg.driverSettings().getDefaultReadPreference().getTagSet());
+        assertEquals("eu-west", cfg.driverSettings().getDefaultReadPreference().getTagSet().get("dc"));
+    }
+
+    /** A config that never touched the read preference keeps the class default. */
+    @Test
+    public void defaultReadPreferenceIsKeptWhenNeverSet() {
+        MorphiumConfig reloaded = MorphiumConfig.fromProperties(getConfig().asProperties());
+
+        assertNotNull(reloaded.driverSettings().getDefaultReadPreference());
+        assertEquals(new MorphiumConfig().driverSettings().getDefaultReadPreference().getType(),
+                     reloaded.driverSettings().getDefaultReadPreference().getType());
+    }
 
     @Test
     public void testMorphiumConfig() {

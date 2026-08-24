@@ -26,14 +26,19 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Regression tests for {@link MorphiumProducer#parseReadPreference}.
  *
  * <p>Previously, {@code buildMorphium()} called
- * {@code cfg.driverSettings().setDefaultReadPreferenceType(config.readPreference())}, which sets a
- * dead {@code defaultReadPreferenceType} string field that nothing in morphium-core reads. The
- * actual read path uses {@code DriverSettings.getDefaultReadPreference()}, which defaults to
- * {@code ReadPreference.nearest()} regardless of what
+ * {@code cfg.driverSettings().setDefaultReadPreferenceType(config.readPreference())}, which at the
+ * time set a dead {@code defaultReadPreferenceType} string field that nothing in morphium-core
+ * read. The actual read path uses {@code DriverSettings.getDefaultReadPreference()}, which defaults
+ * to {@code ReadPreference.nearest()} regardless of what
  * {@code quarkus.morphium.read-preference} was configured to. Every app on a replica set
  * therefore read with NEAREST instead of the documented default {@code primary} (stale reads out
  * of the box), and no value of the setting changed that. Fixed by parsing the string into a real
  * {@link ReadPreference} and calling {@code setDefaultReadPreference(ReadPreference)} instead.
+ *
+ * <p>The string field is no longer dead: it is now the serializable carrier that keeps the
+ * preference across a properties round trip, and setting it rebuilds the preference object. Going
+ * through {@code setDefaultReadPreference(ReadPreference)} remains the right call here, because it
+ * is the only one that can carry a tag set.
  */
 class MorphiumProducerReadPreferenceTest {
 
