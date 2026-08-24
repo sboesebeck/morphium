@@ -44,6 +44,17 @@ never "about to be read" — and gets evicted with a rate-limited WARN once the 
 the window. `resetData()` now clears the store too (it was the one cleanup path that missed
 it), and `REPLY_IN_MEM` in the driver stats finally counts these pending replies, which is
 what the new regression tests assert on.
+#### SingleMongoConnection: every heartbeat hello re-ran the full SASL handshake
+`getHelloResult()` appended a complete SCRAM authentication to every hello, including
+hellos sent over a connection that had authenticated long ago. MongoDB auth state is
+bound to the socket and survives for its lifetime, so on an auth-enabled cluster this
+produced one full SASL exchange per second per client on each pooled connection - all
+of it pure overhead, and invisible as connection churn because the socket never
+changed. Measured on a production replica set as ~7,200 `Successfully authenticated`
+entries per hour per node on unchanged connection ids. Authentication state is now
+tracked per connection and re-run only on a fresh socket (or after logout), which is
+exactly when it is actually needed. `SingleMongoConnectDriver` was never affected - its
+heartbeat uses a bare `HelloCommand` without the auth follow-up.
 
 #### PooledDriver: idle long-lived clients no longer rebuild their connection pool every 30 seconds
 A long-lived `PooledDriver` client with little or no application traffic tore down and rebuilt

@@ -76,6 +76,15 @@ public class SingleMongoConnection implements MongoConnection {
     private String password = null;
 
     /**
+     * Whether this socket has already completed authentication. MongoDB auth state is
+     * per-connection and survives for the lifetime of the socket - re-running the SASL
+     * conversation on every hello is pure overhead. Before this flag, every heartbeat
+     * hello on a pooled, already-authenticated connection re-ran a full SCRAM handshake
+     * (one complete SASL exchange per second per client on auth-enabled clusters).
+     */
+    private volatile boolean authenticated = false;
+
+    /**
      * Subject DN extracted from the client certificate after TLS handshake.
      * Populated automatically when {@link DriverBase#isUseSSL()} is {@code true}
      * and the SSLContext contains a client certificate (keystore entry).
@@ -100,6 +109,8 @@ public class SingleMongoConnection implements MongoConnection {
     @Override
     public HelloResult connect(MorphiumDriver drv, String host, int port) throws MorphiumDriverException {
         driver = drv;
+        // fresh socket, fresh auth state - the handshake below authenticates it (if configured)
+        authenticated = false;
 
         try {
             //            log.info("Connecting to " + host + ":" + port);
@@ -284,10 +295,14 @@ public class SingleMongoConnection implements MongoConnection {
 
         String mechanism = driver.getAuthMechanism();
 
-        if ("MONGODB-X509".equalsIgnoreCase(mechanism)) {
+        if (authenticated) {
+            // Auth state is bound to the socket, not the hello - a heartbeat hello on an
+            // already-authenticated pooled connection must not re-run the SASL handshake.
+        } else if ("MONGODB-X509".equalsIgnoreCase(mechanism)) {
             // X.509 authentication: client certificate was already presented in the TLS
             // handshake. We now send the authenticate command with the subject DN.
             authenticateX509();
+            authenticated = true;
         } else if (authDb != null) {
             // Standard SCRAM-SHA-1 / SCRAM-SHA-256 authentication
             SaslAuthCommand auth = new SaslAuthCommand(this);
@@ -307,6 +322,7 @@ public class SingleMongoConnection implements MongoConnection {
 
             try {
                 auth.execute();
+                authenticated = true;
             } catch (Exception e) {
                 throw new MorphiumDriverException("Error Authenticating", e);
             }
@@ -499,6 +515,7 @@ public class SingleMongoConnection implements MongoConnection {
     public void close() {
         running = false;
         connected = false;
+        authenticated = false;
         // a closed connection can no longer deliver stale replies - the poison is gone
         pendingReplies.clear();
 
