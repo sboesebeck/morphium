@@ -164,7 +164,7 @@ public class MorphiumMetricsBinder {
      * Deregisters every {@link Meter} this binder has registered so far. Called from
      * {@code MorphiumProducer#onStop()} alongside {@code instance.close()}, and must also be
      * called before a subsequent {@link #bindTo(Morphium, String)} on a dev-mode hot-reload to avoid
-     * leaving stale gauges referencing a superseded {@link Morphium} instance registered
+     * leaving stale gauges referencing a superseded {@link Morphium} instance
      * (Section 6.4 of the observability plan).
      */
     public synchronized void close() {
