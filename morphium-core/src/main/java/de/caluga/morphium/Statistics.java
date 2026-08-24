@@ -29,10 +29,16 @@ public class Statistics extends HashMap<String, Double> {
             }
 
             super.put(StatisticKeys.CACHE_ENTRIES.name(), entries);
-            super.put(StatisticKeys.CHITSPERC.name(), ((double) morphium.getStats().get(StatisticKeys.CHITS).get()) / (morphium.getStats().get(StatisticKeys.CHITS).get() + morphium.getStats().get(
-                StatisticKeys.CMISS).get()) * 100.0);
-            super.put(StatisticKeys.CMISSPERC.name(), ((double) morphium.getStats().get(StatisticKeys.CMISS).get()) / (morphium.getStats().get(StatisticKeys.CHITS).get() + morphium.getStats().get(
-                StatisticKeys.CMISS).get()) * 100.0);
+
+            long chits = morphium.getStats().get(StatisticKeys.CHITS).get();
+            long cmiss = morphium.getStats().get(StatisticKeys.CMISS).get();
+            long total = chits + cmiss;
+            // Before any cached read has happened, chits+cmiss is 0 -- report
+            // 0% rather than 0.0/0.0 = NaN (NaN samples are silently dropped
+            // by Prometheus/OTel exporters, so consumers saw the metric
+            // simply missing instead of a real "no data yet" zero).
+            super.put(StatisticKeys.CHITSPERC.name(), total == 0 ? 0.0 : ((double) chits) / total * 100.0);
+            super.put(StatisticKeys.CMISSPERC.name(), total == 0 ? 0.0 : ((double) cmiss) / total * 100.0);
         }
 
         super.put(StatisticKeys.WRITE_BUFFER_ENTRIES.name(), (double) morphium.getWriteBufferCount());

@@ -45,6 +45,17 @@
       <artifactId>quarkus-jsonb</artifactId>
       <optional>true</optional>
     </dependency>
+    <!-- Micrometer metrics integration — optional. The extension ships a MorphiumMetricsBinder
+         that registers connection-pool/driver-stats gauges (morphium.driver.*, morphium.cache.*,
+         morphium.write_buffer.*) against Micrometer's MeterRegistry. Optional so apps without a
+         metrics extension are not forced into Micrometer; the build-time processor registers the
+         binder bean only when Capability.METRICS is present on the application classpath. See
+         docs/architecture/observability-module-plan.md. -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-micrometer</artifactId>
+      <optional>true</optional>
+    </dependency>
     <!-- Jakarta Data API -->
     <dependency>
       <groupId>jakarta.data</groupId>

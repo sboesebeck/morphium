@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+#### CHITSPERC/CMISSPERC reported NaN instead of 0 before any cached read had happened
+`Statistics.java` computed `CHITS/(CHITS+CMISS)*100` unconditionally; before any cached read has
+happened both are 0, so the ratio was `0.0/0.0 = NaN`. Prometheus/OTel exporters silently drop NaN
+samples, so a fresh application's cache-hit-ratio metric appeared entirely missing instead of a
+real "no data yet" 0%. Found while verifying the quarkus-morphium observability module against a
+live otel-collector/Prometheus stack. Both percentages are now also computed by reading each
+`AtomicLong` once instead of three times, so they come from one consistent snapshot.
+
 
 ## [6.3.6] - 2026-08-21
 

@@ -32,6 +32,9 @@ import de.caluga.morphium.objectmapping.LocalDateTimeMapper;
 import io.quarkus.runtime.ImageMode;
 import io.quarkus.tls.TlsConfiguration;
 import io.quarkus.tls.TlsConfigurationRegistry;
+import io.quarkus.arc.Arc;
+import io.quarkus.arc.InstanceHandle;
+import de.caluga.morphium.quarkus.observability.MorphiumMetricsBinder;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -71,6 +74,33 @@ public class MorphiumProducer {
     // Kept as a field so the shutdown observer can close it.
     private volatile Morphium instance;
 
+    // Resolved lazily, once, and reused across buildMorphium()/onStop() (including across
+    // multiple connect/disconnect cycles, e.g. dev-mode hot-reload) -- NOT released via
+    // try-with-resources on every use. InstanceHandle.close() on a non-@Dependent-scoped bean
+    // (MorphiumMetricsBinder is @ApplicationScoped) calls ArC's InjectableContext#destroy(bean),
+    // which tears down the bean's contextual instance -- verified directly against the arc-3.32.3
+    // bytecode (AbstractInstanceHandle#destroy()/InstanceHandle#close()'s default method). A
+    // try-with-resources around this handle would destroy MorphiumMetricsBinder's instance (and
+    // its registeredMeters list) on every exit from buildMorphium()/onStop() -- in the completely
+    // ordinary, non-hot-reload lifecycle, not just under hot-reload. Flagged in review by Stephan
+    // Bösebeck (upstream maintainer) with the same bytecode-level reasoning; only released once,
+    // in onStop(), on final application shutdown.
+    private volatile InstanceHandle<MorphiumMetricsBinder> metricsBinderHandle;
+
+    private InstanceHandle<MorphiumMetricsBinder> metricsBinderHandle() {
+        InstanceHandle<MorphiumMetricsBinder> handle = metricsBinderHandle;
+        if (handle == null) {
+            synchronized (this) {
+                handle = metricsBinderHandle;
+                if (handle == null) {
+                    handle = Arc.container().instance(MorphiumMetricsBinder.class);
+                    metricsBinderHandle = handle;
+                }
+            }
+        }
+        return handle;
+    }
+
     @Produces
     @ApplicationScoped
     public Morphium morphium() {
@@ -97,6 +127,25 @@ public class MorphiumProducer {
                 instance = null;
             }
         }
+
+        // Deregister the metrics binder's gauges, if the Capability.METRICS-gated bean exists
+        // at all (i.e. Micrometer is on the app's classpath). Uses the same lazily-resolved,
+        // reused InstanceHandle as buildMorphium() -- see metricsBinderHandle()'s Javadoc for why
+        // an unconditional @Inject Instance<MorphiumMetricsBinder> field on this class is avoided,
+        // and this field's Javadoc for why the handle is not wrapped in try-with-resources.
+        InstanceHandle<MorphiumMetricsBinder> binderHandle = metricsBinderHandle();
+        if (binderHandle.isAvailable()) {
+            try {
+                binderHandle.get().close();
+            } catch (Exception e) {
+                log.warn("Error while deregistering Morphium metrics", e);
+            }
+        }
+        // Final release, on application shutdown -- this is the one place close() on this handle
+        // is correct and intended, since the process (and with it the whole ArC container) is
+        // going down anyway.
+        binderHandle.close();
+        metricsBinderHandle = null;
     }
 
     // ------------------------------------------------------------------
@@ -510,6 +559,43 @@ public class MorphiumProducer {
         // structurally impossible for the detector to itself be the cause of a connect —
         // by the time this line runs, `m` already exists.
         MorphiumBlockingCallDetector.registerOn(m);
+
+        // Register Micrometer connection-pool/driver-stats gauges (Phase 1 MVP of the
+        // observability plan, quarkus-morphium/docs/architecture/observability-module-plan.md
+        // Section 4.1/6.1), but only if the Capability.METRICS-gated MorphiumMetricsBinder bean
+        // was actually registered at build time (i.e. Micrometer is on the app's classpath) AND
+        // the runtime kill-switch quarkus.morphium.observability.enabled (default true) is not
+        // set to false -- see MorphiumObservabilityConfig for why this is a plain runtime
+        // property, not a build-time one: it lets an app that has Micrometer on its classpath
+        // for an unrelated reason opt out of Morphium's gauges specifically, without a rebuild.
+        //
+        // Local design decision: looked up via metricsBinderHandle() (a lazily-resolved,
+        // field-cached InstanceHandle -- see that method's Javadoc) rather than an
+        // @Inject Instance<MorphiumMetricsBinder> field on this producer. An injected field
+        // would still be safe to *declare* (CDI resolves Instance<T> lazily and Arc tolerates an
+        // unsatisfied Instance<T> for an optional bean), but MorphiumRecorder's precedent (see
+        // its runMigrations()) uses an always-present bean, so isAvailable() here is new
+        // territory, added specifically because MorphiumMetricsBinder may not be a bean at all --
+        // this bean reference is only ever needed here and in onStop().
+        //
+        // isAvailable() is the "bean may not exist" guard: when Capability.METRICS was absent at
+        // build time, MorphiumMetricsBinder was never added as an AdditionalBeanBuildItem, so it
+        // is simply not a bean at all — Arc.container().instance(...) returns a non-throwing
+        // InstanceHandle whose isAvailable() is false, and no MeterRegistry/Micrometer type is
+        // ever touched. On a dev-mode hot-reload, close() is called first to deregister the
+        // previous Morphium instance's gauges before (conditionally) binding the new one (Section
+        // 6.4 idempotency requirement) — bindTo() itself does not deduplicate across calls. close()
+        // runs unconditionally whenever the bean exists, even if observability is currently
+        // disabled, so a hot-reload that flips enabled=false->true->false leaves no stale gauges
+        // from a previous, now-superseded Morphium instance either way.
+        InstanceHandle<MorphiumMetricsBinder> binderHandle = metricsBinderHandle();
+        if (binderHandle.isAvailable()) {
+            MorphiumMetricsBinder binder = binderHandle.get();
+            binder.close();
+            if (config.observability().enabled()) {
+                binder.bindTo(m, config.database());
+            }
+        }
 
         // Defensive: ensure the driver knows it's a replica set when a RS name is configured.
         // PooledDriver < 6.2.1 only checked host-seed count, missing single-node replica sets.
