@@ -33,6 +33,16 @@ through `MorphiumWriterImpl#marshallIfNecessary` and never consult the custom ma
 keep writing the legacy format at either setting — pre-existing behaviour, tracked separately in
 [#335](https://github.com/sboesebeck/morphium/issues/335).
 
+> **Do not enable this for a field you also update through the query API.** With the flag on,
+> `store()` writes a native Date into such a field while `set()`/`push()` write the legacy shape,
+> so one field holds two different BSON types. MongoDB's range operators are type-bracketed —
+> `$lt`/`$lte`/`$gt`/`$gte` do not compare across BSON types — so a range query silently **drops**
+> the documents written by the update path instead of ordering them oddly. Measured against a real
+> mongod: 1 of 2 documents matched. Sweep-style queries ("everything overdue", "every expired
+> lease") are the dangerous case, because a short result set looks like "nothing to do". Until
+> [#335](https://github.com/sboesebeck/morphium/issues/335) is fixed, either leave the flag off for
+> such fields or write them exclusively via `store()`.
+
 **With the flag off — the default — nothing changes on disk.** The write path is untouched at the
 default, so documents stay byte-identical to previous versions and older versions keep reading
 documents written by this one. Reading is tolerant either way: each of the four mappers accepts

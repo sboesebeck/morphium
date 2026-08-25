@@ -151,6 +151,18 @@ public class ObjectMappingSettings extends Settings {
      *       {@code de.caluga.morphium.driver.bson.BsonEncoder}; that low-level encoder writes
      *       the legacy format regardless of this setting.</li>
      * </ul>
+     * <p>
+     * <b>Do not enable this for a field you also update through the query API.</b> With the flag
+     * on, {@code store()} writes a native Date into such a field while {@code set()}/{@code push()}
+     * write the legacy shape, so one field ends up holding two different BSON types. MongoDB's
+     * range operators are type-bracketed -- {@code $lt}/{@code $lte}/{@code $gt}/{@code $gte} do
+     * not compare across BSON types -- so a range query does not merely order those documents
+     * oddly, it drops the ones written by the update path out of the result set entirely, with no
+     * error. Measured against a real mongod: a range query over such a mixed field matched 1 of 2
+     * documents. Sweep-style queries ("everything overdue", "every expired lease") are the ones
+     * that hurt, because a silently short result looks like "nothing to do". Until the update path
+     * consults the custom mappers, either leave this off for such fields or write them only via
+     * {@code store()}.
      */
     public boolean isUseBsonDateForJavaTime() {
         return useBsonDateForJavaTime;
