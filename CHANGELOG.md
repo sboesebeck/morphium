@@ -15,13 +15,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 `LocalDate`, `LocalTime`, `LocalDateTime` and `Instant` marshal to a native BSON Date
 (type `0x09`) instead of Morphium's own per-type formats — epoch-day / nano-of-day longs for
 `LocalDate`/`LocalTime`, `Doc` sub-documents for `LocalDateTime`/`Instant`. The written value is
-bit-compatible with the official MongoDB Java driver's `org.bson.codecs.jsr310` codecs, so
-`mongosh` shows `ISODate`, and native date range/sort queries and TTL indexes work directly on
-those fields.
+bit-compatible with the official MongoDB Java driver's `org.bson.codecs.jsr310` codecs.
 
 `LocalDate` is anchored at UTC start-of-day and `LocalTime` at epoch day 0 UTC, the same
 convention the official driver's codecs use. Sub-millisecond precision is lost when the flag is
 on, which is the same trade-off the driver makes for these types.
+
+**Scalar fields only.** A scalar field becomes a bare BSON Date, so `mongosh` shows `ISODate` and
+native date range/sort queries and TTL indexes work directly on it. Elements of a
+`List`/array/`Map` field do not: they keep the `{"value": …}` wrapper the generic serialization
+path produces for every scalar-returning custom mapper, with a native `Date` inside. Those values
+round-trip correctly, but a native date query against a container has to address `field.value`,
+and an index has to be declared on that sub-path.
+
+Also not covered by the flag: the update APIs (`set()`, `push()`, `addToSet()`), which route
+through `MorphiumWriterImpl#marshallIfNecessary` and never consult the custom mappers, so they
+keep writing the legacy format at either setting — pre-existing behaviour, tracked separately in
+[#335](https://github.com/sboesebeck/morphium/issues/335).
 
 **With the flag off — the default — nothing changes on disk.** The write path is untouched at the
 default, so documents stay byte-identical to previous versions and older versions keep reading

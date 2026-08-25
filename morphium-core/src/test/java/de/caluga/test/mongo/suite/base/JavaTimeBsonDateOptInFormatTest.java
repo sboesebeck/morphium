@@ -85,8 +85,15 @@ public class JavaTimeBsonDateOptInFormatTest extends MultiDriverTestBase {
     }
 
     /**
-     * flag=true: the four scalar fields become native BSON dates, i.e. the driver hands back a
-     * {@link Date} rather than a long or a sub-document. That is the whole point of the feature.
+     * flag=true: the four SCALAR fields become native BSON dates, i.e. the driver hands back a
+     * {@link Date} rather than a long or a sub-document.
+     *
+     * <p>Container elements deliberately do NOT: they keep the {@code {"value": scalar}} wrapper
+     * that {@code serialize()} produces for every scalar-returning mapper, with a native
+     * {@link Date} inside it. So the round-trip is correct either way, but the "native date
+     * queries/sorts work directly on the field" benefit only applies to scalar fields — a
+     * container needs {@code field.value}. Pinned here because this is exactly the area that
+     * regressed twice before.
      */
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
@@ -105,7 +112,23 @@ public class JavaTimeBsonDateOptInFormatTest extends MultiDriverTestBase {
                 "Instant must match the value the official driver's jsr310 codec would write");
             assertEquals(Date.from(DATE.atStartOfDay(ZoneOffset.UTC).toInstant()),
                 raw.get(fn(morphium, "date")), "LocalDate is anchored at UTC start-of-day");
+
+            // Container elements: still the {"value": ...} wrapper, now holding a native Date.
+            Date expectedDate = Date.from(DATE.atStartOfDay(ZoneOffset.UTC).toInstant());
+            assertWrappedDate(elem(raw, fn(morphium, "dateList"), 0), expectedDate,
+                "a List<LocalDate> element keeps the {\"value\": ...} wrapper with the flag on");
+            assertWrappedDate(((Map<?, ?>) raw.get(fn(morphium, "dateMap"))).get("k"), expectedDate,
+                "a Map<String, LocalDate> value keeps the {\"value\": ...} wrapper with the flag on");
         }
+    }
+
+    private static void assertWrappedDate(Object dbValue, Date expected, String why) {
+        assertInstanceOf(Map.class, dbValue, why);
+        Map<?, ?> m = (Map<?, ?>) dbValue;
+        assertEquals(Set.of("value"), m.keySet(), why + " -- exactly the key 'value', no class_name");
+        assertInstanceOf(Date.class, m.get("value"),
+            "the wrapped scalar itself IS a native date when the flag is on");
+        assertEquals(expected, m.get("value"));
     }
 
     private static JavaTimeEntity store(Morphium morphium, boolean useBsonDate) {

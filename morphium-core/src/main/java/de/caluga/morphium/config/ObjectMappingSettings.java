@@ -120,8 +120,7 @@ public class ObjectMappingSettings extends Settings {
      * {@code Instant} are marshalled as native BSON Date (type {@code 0x09}) instead of
      * Morphium's legacy per-type formats (epoch-day/nano-of-day longs, or {@code Doc}
      * sub-documents). This is bit-compatible with the official MongoDB Java driver's
-     * {@code org.bson.codecs.jsr310} codecs -- {@code mongosh} shows a native {@code ISODate},
-     * and native date sort/range queries work directly. Values are stored to millisecond
+     * {@code org.bson.codecs.jsr310} codecs. Values are stored to millisecond
      * precision (sub-millisecond precision is lost, same trade-off the official driver makes
      * for these types). {@code LocalDate}/{@code LocalTime} are anchored to
      * {@link java.time.ZoneOffset#UTC} (date-only values at start-of-day, time-only values on
@@ -132,12 +131,26 @@ public class ObjectMappingSettings extends Settings {
      * at runtime and takes effect immediately, including for already-constructed
      * {@code ObjectMapperImpl} instances.
      * <p>
-     * Only affects the standard {@code ObjectMapperImpl}-driven marshalling path (entity
-     * persistence and the type-safe {@code Query<T>} API, e.g. {@code query.f("field").eq(...)}
-     * -- see {@code MongoFieldImpl#checkValue}). Raw {@code Doc.of("field", someLocalDateTime)}
-     * calls that bypass the Query API and go directly through
-     * {@code de.caluga.morphium.driver.bson.BsonEncoder} are NOT covered by this flag; that
-     * low-level encoder keeps writing the legacy format regardless of this setting.
+     * <b>Scalar fields only.</b> A scalar field is written as a bare BSON Date, so
+     * {@code mongosh} shows {@code ISODate} and native date sort/range queries work directly on
+     * it. Elements of a {@code List}/array/{@code Map} field are NOT: they keep the
+     * {@code {"value": ...}} wrapper that the generic serialization path produces for every
+     * custom mapper returning a scalar, with a native Date inside it. Such values round-trip
+     * correctly, but a native date query against a container has to address
+     * {@code field.value}, and an index has to be declared on that sub-path.
+     * <p>
+     * Only affects the {@code ObjectMapperImpl}-driven marshalling path: entity persistence
+     * ({@code store()}) and the type-safe {@code Query<T>} API, e.g.
+     * {@code query.f("field").eq(...)} -- see {@code MongoFieldImpl#checkValue}. NOT covered:
+     * <ul>
+     *   <li>the update APIs -- {@code set()}, {@code push()}, {@code addToSet()} and friends
+     *       route through {@code MorphiumWriterImpl#marshallIfNecessary}, which never consults
+     *       the custom mappers, so the value reaches the driver unmapped and keeps the legacy
+     *       format at either setting of this flag (pre-existing behaviour, tracked separately);</li>
+     *   <li>raw {@code Doc.of("field", someLocalDateTime)} calls that go directly through
+     *       {@code de.caluga.morphium.driver.bson.BsonEncoder}; that low-level encoder writes
+     *       the legacy format regardless of this setting.</li>
+     * </ul>
      */
     public boolean isUseBsonDateForJavaTime() {
         return useBsonDateForJavaTime;
