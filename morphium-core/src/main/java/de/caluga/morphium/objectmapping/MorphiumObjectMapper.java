@@ -55,6 +55,19 @@ public interface MorphiumObjectMapper {
      */
     Object marshallIfCustomMapped(Object value);
 
+    /**
+     * Whether a custom type mapper is registered for the given class - i.e. whether
+     * {@link #marshallIfCustomMapped(Object)} would route a value of it through a mapper.
+     * Lets callers branch on mappability without invoking the mapper (which may be expensive,
+     * and whose result they might need to hand to a different code path anyway).
+     *
+     * <p>Default returns {@code false} so external implementations of this interface keep
+     * compiling and degrade to the pre-#335 pass-through behaviour.
+     */
+    default boolean isCustomMapped(Class<?> cls) {
+        return false;
+    }
+
     void setAnnotationHelper(AnnotationAndReflectionHelper an);
 
     Morphium getMorphium();

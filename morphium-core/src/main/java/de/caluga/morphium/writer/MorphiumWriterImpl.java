@@ -2670,8 +2670,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 if (upsert) {
                     qobj = morphium.simplifyQueryObject(qobj);
                 }
-
-                Object v = marshallIfNecessary(value);
+                // push/pull/addToSet address a single ARRAY ELEMENT - it must carry the exact
+                // shape store() writes for elements of that position (#335), not the whole-field
+                // shape a scalar field would get
+                Object v = marshallElement(value);
                 String fieldName = morphium.getARHelper().getMongoFieldName(cls, field);
                 Map<String, Object> set = Doc.of(fieldName, v instanceof Enum ? ((Enum) v).name() : v);
                 Map<String, Object> update = null;
@@ -2730,28 +2732,39 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         return submitAndBlockIfNecessary(callback, r);
     }
 
+    /**
+     * Marshalls a WHOLE-FIELD value for the update APIs ({@code set()}): the result must have
+     * exactly the on-disk shape {@code store()} writes for that field (#335) - a custom-mapped
+     * scalar field stores the bare mapper output, a container field routes its elements through
+     * {@link #marshallElement}, entities/enums as before.
+     */
     public Object marshallIfNecessary(Object value) {
         if (value != null) {
             if (value instanceof Enum) {
                 return ((Enum) value).name();
             }
 
+            // Order matters and mirrors ObjectMapperImpl's field serializer: Entity/Embedded
+            // BEFORE custom-mapper. Geo and friends are BOTH (@Embedded + BsonGeoMapper), and
+            // store() runs them through serialize(), whose map-shaped output carries class_name -
+            // the exact thing a polymorphic field declaration needs to pick the subclass. Taking
+            // the bare-mapper path for them would re-open the very shape split #335 fixes.
             if (morphium.getARHelper().isAnnotationPresentInHierarchy(value.getClass(), Entity.class) || morphium.getARHelper().isAnnotationPresentInHierarchy(value.getClass(), Embedded.class)) {
                 // need to serialize...
                 Map<String, Object> marshall = morphium.getMapper().serialize(value);
                 marshall.put("class_name", morphium.getARHelper().getTypeIdForClass(value.getClass()));
                 value = marshall;
+            } else if (morphium.getMapper().isCustomMapped(value.getClass())) {
+                // #335: a custom-mapped FIELD stores the bare mapper output - no {"value"}
+                // wrapper, no class_name (ObjectMapperImpl's entity-field serializer calls
+                // marshall() directly). The mappers honor useBsonDateForJavaTime dynamically,
+                // so this also keeps set() agreeing with store() when the flag is on.
+                return morphium.getMapper().marshallIfCustomMapped(value);
             } else if (List.class.isAssignableFrom(value.getClass())) {
                 List lst = new ArrayList();
 
                 for (Object o : (List) value) {
-                    if (morphium.getARHelper().isAnnotationPresentInHierarchy(o.getClass(), Embedded.class) || morphium.getARHelper().isAnnotationPresentInHierarchy(o.getClass(), Entity.class)) {
-                        Map<String, Object> marshall = morphium.getMapper().serialize(o);
-                        marshall.put("class_name", morphium.getARHelper().getTypeIdForClass(o.getClass()));
-                        lst.add(marshall);
-                    } else {
-                        lst.add(o);
-                    }
+                    lst.add(marshallElement(o));
                 }
 
                 value = lst;
@@ -2765,21 +2778,74 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         throw new IllegalArgumentException("Can't push maps with Key not of type String!");
                     }
 
-                    if (en.getValue() != null) {
-                        if (morphium.getARHelper().isAnnotationPresentInHierarchy(en.getValue().getClass(), Entity.class)
-                                || morphium.getARHelper().isAnnotationPresentInHierarchy(en.getValue().getClass(), Embedded.class)) {
-                            Map<String, Object> marshall = morphium.getMapper().serialize(en.getValue());
-                            marshall.put("class_name", morphium.getARHelper().getTypeIdForClass(en.getValue().getClass()));
-                            ((Map) value).put(en.getKey(), marshall);
-                        }
-                    } else {
-                        ((Map) value).put(en.getKey(), null);
-                    }
+                    ((Map) value).put(en.getKey(), marshallElement(en.getValue()));
                 }
             }
         }
 
         return value;
+    }
+
+    /**
+     * Marshalls a single CONTAINER ELEMENT for the update APIs ({@code push()} /
+     * {@code addToSet()} / {@code pull()} / {@code $each}): it must land in the array with
+     * exactly the shape {@code store()} gives elements of that position (#335), or queries
+     * matching store()-written documents will miss update-written ones.
+     *
+     * <p>For custom-mapped types that shape is what {@code serialize()} produces: a
+     * scalar-returning mapper is wrapped as {@code {"value": scalar}}, a map-returning one gets
+     * class_name added to its map - identical to ObjectMapperImpl#serializeIterable's routing.
+     */
+    private Object marshallElement(Object o) {
+        if (o == null) {
+            return null;
+        }
+
+        if (o instanceof Enum) {
+            return ((Enum) o).name();
+        }
+
+        if (morphium.getARHelper().isAnnotationPresentInHierarchy(o.getClass(), Entity.class)
+                || morphium.getARHelper().isAnnotationPresentInHierarchy(o.getClass(), Embedded.class)) {
+            Map<String, Object> marshall = morphium.getMapper().serialize(o);
+            marshall.put("class_name", morphium.getARHelper().getTypeIdForClass(o.getClass()));
+            return marshall;
+        }
+
+        if (morphium.getMapper().isCustomMapped(o.getClass())) {
+            // serialize() produces exactly store()'s element shape (scalar-returning mappers
+            // wrapped as {"value": scalar}, map-shaped output gets class_name) and invokes the
+            // mapper exactly once - unlike marshall-then-serialize, which would run it twice.
+            return morphium.getMapper().serialize(o);
+        }
+
+        if (List.class.isAssignableFrom(o.getClass())) {
+            List lst = new ArrayList();
+
+            for (Object el : (List) o) {
+                lst.add(marshallElement(el));
+            }
+
+            return lst;
+        }
+
+        if (Map.class.isAssignableFrom(o.getClass())) {
+            Map out = new LinkedHashMap((Map) o);
+
+            for (Object e : out.entrySet()) {
+                Map.Entry en = (Map.Entry) e;
+
+                if (!String.class.isAssignableFrom(en.getKey().getClass())) {
+                    throw new IllegalArgumentException("Can't push maps with Key not of type String!");
+                }
+
+                out.put(en.getKey(), marshallElement(en.getValue()));
+            }
+
+            return out;
+        }
+
+        return o;
     }
 
     @SuppressWarnings("CommentedOutCode")
@@ -2857,7 +2923,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 String coll = query.getCollectionName();
                 morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(cls), type);
                 long start = System.currentTimeMillis();
-                value = value.stream().map(o->marshallIfNecessary(o)).collect(Collectors.toList());
+                value = value.stream().map(o -> marshallElement(o)).collect(Collectors.toList());
 
                 try {
                     Map<String, Object> qobj = query.toQueryObject();

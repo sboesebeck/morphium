@@ -247,6 +247,11 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
     @SuppressWarnings("unchecked")
     @Override
+    public boolean isCustomMapped(Class<?> cls) {
+        return cls != null && customMappers.containsKey(cls);
+    }
+
+    @Override
     public Object marshallIfCustomMapped(Object value) {
         if (value == null) return null;
         MorphiumTypeMapper mapper = customMappers.get(value.getClass());

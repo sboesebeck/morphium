@@ -8,6 +8,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+#### `set()` / `push()` / `addToSet()` now write the same on-disk shape as `store()` for custom-mapped fields (#335)
+The update APIs routed values through `MorphiumWriterImpl#marshallIfNecessary`, which had no
+custom-mapper branch: a custom-mapped value reached the driver unmapped. On the in-memory driver
+the raw Java object was stored (unqueryable and unreadable), and on a real MongoDB the encoder's
+hardcoded legacy branches masked it — but only for scalar fields at the default flag value.
+Container elements split at **both** settings: `store()` wrote `[{"value": 18997}]` while
+`set("dateList", …)` wrote `[18997]`, so a query matching one document silently missed the other.
+
+The update path now consults the custom mappers with exactly the shape `store()` produces per
+structure position — bare mapper output for scalar fields, the `{"value": …}` wrapper (or the
+map-with-`class_name` shape for map-returning mappers) for container elements, and it follows
+`useBsonDateForJavaTime` dynamically. Documents written via `set()`/`push()`/`addToSet()` are
+now byte-shape-identical to store()-written ones and read back fully typed.
+
+**Migration note:** documents that were previously written *through the update APIs* into
+container fields of custom-mapped types keep the old flat shape. Queries predicated on such
+fields match store()-shaped documents; re-save affected documents once via `store()` if your data
+contains them. Documents written by `store()` were always correct and need no action.
+
+**BigDecimal precision converges downward (deliberate).** `store()` has always written
+`BigDecimal` through its mapper as a lossy `double`; the update APIs previously bypassed that
+mapper and wrote a lossless `Decimal128` — so one field could hold two different BSON types that
+both print as `12.34`, an invisible split this fix removes. The cost: values written *only*
+through `set()`/`push()` lose their extra precision from now on, matching store()'s long-standing
+behaviour (tracked as symptom 2 of
+[#334](https://github.com/sboesebeck/morphium/issues/334), which widens from "affects store()" to
+"affects every write path" with this change). Store amounts requiring exact decimal semantics
+before relying on either path, or keep them out of custom-mapped marshalling until #334
+addresses it.
+
 ### Added
 
 #### Opt-in: `java.time` types can be stored as native BSON Date (`useBsonDateForJavaTime`)
@@ -28,20 +60,10 @@ path produces for every scalar-returning custom mapper, with a native `Date` ins
 round-trip correctly, but a native date query against a container has to address `field.value`,
 and an index has to be declared on that sub-path.
 
-Also not covered by the flag: the update APIs (`set()`, `push()`, `addToSet()`), which route
-through `MorphiumWriterImpl#marshallIfNecessary` and never consult the custom mappers, so they
-keep writing the legacy format at either setting — pre-existing behaviour, tracked separately in
-[#335](https://github.com/sboesebeck/morphium/issues/335).
-
-> **Do not enable this for a field you also update through the query API.** With the flag on,
-> `store()` writes a native Date into such a field while `set()`/`push()` write the legacy shape,
-> so one field holds two different BSON types. MongoDB's range operators are type-bracketed —
-> `$lt`/`$lte`/`$gt`/`$gte` do not compare across BSON types — so a range query silently **drops**
-> the documents written by the update path instead of ordering them oddly. Measured against a real
-> mongod: 1 of 2 documents matched. Sweep-style queries ("everything overdue", "every expired
-> lease") are the dangerous case, because a short result set looks like "nothing to do". Until
-> [#335](https://github.com/sboesebeck/morphium/issues/335) is fixed, either leave the flag off for
-> such fields or write them exclusively via `store()`.
+The update APIs (`set()`, `push()`, `addToSet()`) consult the custom mappers with the same shape
+`store()` uses, so they follow this flag as well (#335). Still not covered: raw
+`Doc.of("field", someLocalDateTime)` calls that go directly through `BsonEncoder`; that low-level
+encoder writes the legacy format regardless of this setting.
 
 **With the flag off — the default — nothing changes on disk.** The write path is untouched at the
 default, so documents stay byte-identical to previous versions and older versions keep reading
