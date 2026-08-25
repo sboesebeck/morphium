@@ -3181,8 +3181,8 @@
 <li>❌ <strong>$lookup Joins</strong>: Not yet implemented</li>
 </ul>
 <h3 id="not-suitable-for-on-disk-format-tests-336">Not suitable for on-disk format tests (#336)<a class="headerlink" href="#not-suitable-for-on-disk-format-tests-336" title="Permanent link">&para;</a></h3>
-<p>A value that reaches a driver <strong>unmapped</strong> — a raw <code>LocalDate</code> handed to
-<code>InsertMongoCommand</code>, a <code>$set</code> operand built by hand — is normalised on the wire path
+<p>A value that reaches a driver <strong>unmapped</strong> - a raw <code>LocalDate</code> handed to
+<code>InsertMongoCommand</code>, a <code>$set</code> operand built by hand - is normalised on the wire path
 and stored verbatim in memory. The wire drivers serialise every command through
 <code>BsonEncoder</code>, so what lands on disk is whatever <code>decode(encode(v))</code> produces;
 <code>InMemoryDriver</code> has no encoder in that path and keeps the Java object:</p>
@@ -3244,12 +3244,12 @@ and stored verbatim in memory. The wire drivers serialise every command through
 </table>
 <p><strong>This does not show up in query results.</strong> The in-memory driver leaves the stored value
 <em>and</em> the filter unnormalised, so equality still matches on both sides. A format test that
-asserts on query outcomes therefore passes against <code>InMemoryDriver</code> for the wrong reason —
+asserts on query outcomes therefore passes against <code>InMemoryDriver</code> for the wrong reason -
 which is worse than failing, because nothing points at the gap. Only the raw persisted
 shape reveals it.</p>
 <p>So: pin on-disk shapes against a real MongoDB (or PoppyDB, which decodes off the wire and
 is unaffected), not against <code>InMemoryDriver</code>. Everything written through the normal
-Morphium API is unaffected — the ObjectMapper maps those values before they reach any
+Morphium API is unaffected - the ObjectMapper maps those values before they reach any
 driver, and since #335 the update APIs (<code>set()</code>/<code>push()</code>/<code>addToSet()</code>) do too.</p>
 <p><code>InMemoryWireShapeParityTest</code> pins this; it is <code>@Disabled</code> until the normalisation lands
 in 6.4.0.</p>
