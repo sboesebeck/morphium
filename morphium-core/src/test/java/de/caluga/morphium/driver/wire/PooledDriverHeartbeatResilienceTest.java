@@ -244,9 +244,34 @@ public class PooledDriverHeartbeatResilienceTest {
     @Timeout(60)
     public void orphanedHostThreadsAreCleanedWhenHostRemoved() throws Exception {
         String host = deadHost();
-        PooledDriver drv = new PooledDriver();
+        AtomicInteger failedChecks = new AtomicInteger();
+        PooledDriver drv = new PooledDriver() {
+            @Override
+            void onConnectionError(String h) {
+                String key = normalizeHostKey(h);
+                // Count only callbacks from the heartbeat's OWN check thread: it is recognizable
+                // as the thread registered in hostThreads for that host (the claim is written
+                // before start()). Reaching >=1 therefore PROVES a check ran - i.e. its put()
+                // happened - which is what makes the hostThreads.isEmpty() half of the quiesce
+                // gate below non-vacuous. Waiter/creator threads also report connection errors,
+                // but never hold the claim.
+                if (Thread.currentThread() == hostThreads.get(key)) {
+                    failedChecks.incrementAndGet();
+                }
+                super.onConnectionError(h);
+            }
+        };
         drv.setHostSeed(List.of(host));
-        drv.setHeartbeatFrequency(200);
+        // Huge frequency: this test drives onConnectionError DIRECTLY and asserts the eviction
+        // outcome - a live heartbeat would race it twice. (1) The failed hellos of every cycle
+        // increment the SAME failure counter, so the background can evict and reseed while the
+        // synthetic errors are still being counted, splitting them across two Host objects -
+        // neither of which then exceeds MAX_FAILURES. (2) reseedIfAllHostsEvicted runs at the
+        // start of EVERY cycle (#233 self-healing), so an evicted seed host is legitimately
+        // resurrected within one heartbeat period - asserting its absence from the hosts map
+        // against a live 200ms heartbeat is a phase race, not a behavior check (flaked exactly
+        // that way under parallel CI load). Same idiom as the other direct-call tests below.
+        drv.setHeartbeatFrequency(600_000);
         drv.setServerSelectionTimeout(200);
 
         try {
@@ -255,8 +280,22 @@ public class PooledDriverHeartbeatResilienceTest {
             } catch (Exception expected) {
             }
 
-            // Wait for initial cycle to finish
-            awaitOrFail(() -> drv.hostThreads.isEmpty(), 10_000, "initial cycle did not finish");
+            // Deliberately NOT cancelling the heartbeat here: the connection waiter's watchdog
+            // (every 5s) treats a DONE heartbeat future as dead and revives discovery via
+            // startHeartbeat() - which schedules with delay=0 and IGNORES the configured 600s
+            // frequency. cancel() would therefore ARM a fresh cycle ~5s later, whose
+            // reseedIfAllHostsEvicted resurrects the evicted host right under the hosts-map
+            // assertion below. The PENDING future instead keeps isDone()==false, the watchdog
+            // silent, and no second cycle can start within this test's lifetime.
+            //
+            // What still needs quiescing is the FIRST cycle (delay=0) finishing late: its check
+            // uses the same key we plant below, and its own put/remove would silently clean the
+            // orphan - the assertion would green WITHOUT onConnectionError's cleanup ever
+            // running. The gate closes that hole deterministically: failedChecks>=1 proves a
+            // check thread got as far as its failure callback (its put long since happened),
+            // and hostThreads.isEmpty() then observes the POST-put empty, i.e. the check is gone.
+            awaitOrFail(() -> failedChecks.get() >= 1 && drv.hostThreads.isEmpty(), 10_000,
+                    "initial check did not complete");
 
             // Plant an orphaned entry for a host that will be removed
             Thread finished = new Thread(() -> { });
@@ -264,6 +303,11 @@ public class PooledDriverHeartbeatResilienceTest {
             finished.join();
             String normalized = drv.normalizeHostKey(host);
             drv.hostThreads.put(normalized, finished);
+
+            // Precondition made explicit: everything below assumes the seeded host is still in
+            // the topology - if it were already evicted (e.g. by an unexpected background
+            // path), the 6 synthetic errors would silently hit nothing.
+            assertThat(drv.hosts).as("precondition: seeded host present").containsKey(normalized);
 
             // Trigger host removal via onConnectionError (simulates MAX_FAILURES exceeded)
             // Need to exceed MAX_FAILURES (5) to trigger removal

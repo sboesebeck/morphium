@@ -86,13 +86,36 @@ public class MessagingAnswerTimeoutDiagnosticsTest {
         responder.start();
 
         try {
-            Msg msg = new Msg("trace_this_topic", "q", "v", 5000);
+            // TTL must OUTLAST the poll window below: the request document carries deleteAt =
+            // now + ttl (TTL-indexed, actively swept by the InMemDriver). A late delivery after
+            // the sweep would trace "reread returned null - message gone" instead of "handling"
+            // - with the old 5000ms ttl half of the poll window was structurally dead.
+            Msg msg = new Msg("trace_this_topic", "q", "v", 15000);
             msg.setExclusive(true);
             sender.sendAndAwaitFirstAnswer(msg, 2000, false);
 
             // the responder consumed the request but produced no answer - its decision trace
-            // must show what happened to the message instead of leaving it to guesswork
-            java.util.List<String> decisions = responder.getProcessingDecisions(msg.getMsgId());
+            // must show what happened to the message instead of leaving it to guesswork.
+            // Under load the request can reach the responder AFTER the sender timed out: the
+            // trace documents the processing whenever it happens, so poll for it bounded
+            // instead of demanding it synchronously with the sender's timeout (flaked on the
+            // loaded CI runner - trace still empty at T+2000ms, delivery traced moments later).
+            java.util.List<String> decisions = java.util.List.of();
+            long until = System.currentTimeMillis() + 10_000;
+
+            while (System.currentTimeMillis() < until) {
+                decisions = responder.getProcessingDecisions(msg.getMsgId());
+
+                // wait for the HANDLING entry, not just any trace line: under load the cs-event
+                // can be traced while the runnable is still queued - stopping there would only
+                // move the race from isEmpty() to the "must show handling" assertion below
+                if (decisions.stream().anyMatch(d -> d.contains("handling"))) {
+                    break;
+                }
+
+                Thread.sleep(25);
+            }
+
             org.junit.jupiter.api.Assertions.assertFalse(decisions.isEmpty(),
                 "the responder's processing decisions for the request must be traced");
             org.junit.jupiter.api.Assertions.assertTrue(
