@@ -11,6 +11,10 @@ public class ObjectMappingSettings extends Settings {
     private boolean camelCaseConversionEnabled = true;
     private boolean warnOnNoEntitySerialization = false;
     private boolean translateAggregationFieldNames = false;
+    // volatile unlike its siblings above: read on every marshall() call via a BooleanSupplier from
+    // already-constructed mapper instances (see ObjectMapperImpl's java.time mapper registration),
+    // so a runtime setUseBsonDateForJavaTime(...) from another thread has to be visible to them.
+    private volatile boolean useBsonDateForJavaTime = false;
     public boolean isCheckForNew() {
         return checkForNew;
     }
@@ -108,6 +112,74 @@ public class ObjectMappingSettings extends Settings {
 
     public ObjectMappingSettings disableTranslateAggregationFieldNames() {
         translateAggregationFieldNames = false;
+        return this;
+    }
+
+    /**
+     * if enabled, {@code LocalDate}, {@code LocalTime}, {@code LocalDateTime}, and
+     * {@code Instant} are marshalled as native BSON Date (type {@code 0x09}) instead of
+     * Morphium's legacy per-type formats (epoch-day/nano-of-day longs, or {@code Doc}
+     * sub-documents). This is bit-compatible with the official MongoDB Java driver's
+     * {@code org.bson.codecs.jsr310} codecs. Values are stored to millisecond
+     * precision (sub-millisecond precision is lost, same trade-off the official driver makes
+     * for these types). {@code LocalDate}/{@code LocalTime} are anchored to
+     * {@link java.time.ZoneOffset#UTC} (date-only values at start-of-day, time-only values on
+     * epoch day 0) -- same convention the official driver's codecs use.
+     * <p>
+     * Default {@code false} = legacy behavior (unchanged for existing data/tests). Read live
+     * on every marshall call (not cached at mapper-construction time), so this may be toggled
+     * at runtime and takes effect immediately, including for already-constructed
+     * {@code ObjectMapperImpl} instances.
+     * <p>
+     * <b>Scalar fields only.</b> A scalar field is written as a bare BSON Date, so
+     * {@code mongosh} shows {@code ISODate} and native date sort/range queries work directly on
+     * it. Elements of a {@code List}/array/{@code Map} field are NOT: they keep the
+     * {@code {"value": ...}} wrapper that the generic serialization path produces for every
+     * custom mapper returning a scalar, with a native Date inside it. Such values round-trip
+     * correctly, but a native date query against a container has to address
+     * {@code field.value}, and an index has to be declared on that sub-path.
+     * <p>
+     * Only affects the {@code ObjectMapperImpl}-driven marshalling path: entity persistence
+     * ({@code store()}) and the type-safe {@code Query<T>} API, e.g.
+     * {@code query.f("field").eq(...)} -- see {@code MongoFieldImpl#checkValue}. NOT covered:
+     * <ul>
+     *   <li>the update APIs -- {@code set()}, {@code push()}, {@code addToSet()} and friends
+     *       route through {@code MorphiumWriterImpl#marshallIfNecessary}, which never consults
+     *       the custom mappers, so the value reaches the driver unmapped and keeps the legacy
+     *       format at either setting of this flag (pre-existing behaviour, tracked separately);</li>
+     *   <li>raw {@code Doc.of("field", someLocalDateTime)} calls that go directly through
+     *       {@code de.caluga.morphium.driver.bson.BsonEncoder}; that low-level encoder writes
+     *       the legacy format regardless of this setting.</li>
+     * </ul>
+     * <p>
+     * <b>Do not enable this for a field you also update through the query API.</b> With the flag
+     * on, {@code store()} writes a native Date into such a field while {@code set()}/{@code push()}
+     * write the legacy shape, so one field ends up holding two different BSON types. MongoDB's
+     * range operators are type-bracketed -- {@code $lt}/{@code $lte}/{@code $gt}/{@code $gte} do
+     * not compare across BSON types -- so a range query does not merely order those documents
+     * oddly, it drops the ones written by the update path out of the result set entirely, with no
+     * error. Measured against a real mongod: a range query over such a mixed field matched 1 of 2
+     * documents. Sweep-style queries ("everything overdue", "every expired lease") are the ones
+     * that hurt, because a silently short result looks like "nothing to do". Until the update path
+     * consults the custom mappers, either leave this off for such fields or write them only via
+     * {@code store()}.
+     */
+    public boolean isUseBsonDateForJavaTime() {
+        return useBsonDateForJavaTime;
+    }
+
+    public ObjectMappingSettings setUseBsonDateForJavaTime(boolean useBsonDateForJavaTime) {
+        this.useBsonDateForJavaTime = useBsonDateForJavaTime;
+        return this;
+    }
+
+    public ObjectMappingSettings enableBsonDateForJavaTime() {
+        useBsonDateForJavaTime = true;
+        return this;
+    }
+
+    public ObjectMappingSettings disableBsonDateForJavaTime() {
+        useBsonDateForJavaTime = false;
         return this;
     }
 }

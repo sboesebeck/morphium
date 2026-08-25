@@ -69,6 +69,32 @@ public class MorphiumConfigTest {
         return cfg;
     }
     @Test
+    public void useBsonDateForJavaTime_survivesPropertiesRoundTrip() {
+        // Settings.asProperties() is reflection-based, so a new field should carry automatically --
+        // but a silently dropped setting is invisible until someone's config stops taking effect,
+        // so pin it rather than trust the mechanism.
+        MorphiumConfig def = getConfig();
+        assertFalse(def.objectMappingSettings().isUseBsonDateForJavaTime(),
+            "default must stay false -- this is an opt-in flag");
+
+        def.objectMappingSettings().setUseBsonDateForJavaTime(true);
+        Properties props = def.asProperties();
+        // MorphiumConfig.asProperties() merges every Settings object into one flat namespace
+        // (MorphiumConfig.java:1329), so the key is the bare field name -- no settings prefix.
+        assertEquals("true", props.getProperty("useBsonDateForJavaTime"),
+            "the flag must appear in asProperties()");
+
+        MorphiumConfig restored = MorphiumConfig.fromProperties(props);
+        assertTrue(restored.objectMappingSettings().isUseBsonDateForJavaTime(),
+            "the flag must survive an asProperties()/fromProperties() round trip");
+
+        // and the other direction, so a false value is not just the default leaking through
+        def.objectMappingSettings().setUseBsonDateForJavaTime(false);
+        assertFalse(MorphiumConfig.fromProperties(def.asProperties())
+            .objectMappingSettings().isUseBsonDateForJavaTime());
+    }
+
+    @Test
     public void credentialsEncrypted() {
         MorphiumConfig def = getConfig();
         var cfg = MorphiumConfig.fromProperties(def.asProperties());

@@ -8,6 +8,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+#### Opt-in: `java.time` types can be stored as native BSON Date (`useBsonDateForJavaTime`)
+`ObjectMappingSettings#setUseBsonDateForJavaTime(boolean)` (default `false`) makes
+`LocalDate`, `LocalTime`, `LocalDateTime` and `Instant` marshal to a native BSON Date
+(type `0x09`) instead of Morphium's own per-type formats — epoch-day / nano-of-day longs for
+`LocalDate`/`LocalTime`, `Doc` sub-documents for `LocalDateTime`/`Instant`. The written value is
+bit-compatible with the official MongoDB Java driver's `org.bson.codecs.jsr310` codecs.
+
+`LocalDate` is anchored at UTC start-of-day and `LocalTime` at epoch day 0 UTC, the same
+convention the official driver's codecs use. Sub-millisecond precision is lost when the flag is
+on, which is the same trade-off the driver makes for these types.
+
+**Scalar fields only.** A scalar field becomes a bare BSON Date, so `mongosh` shows `ISODate` and
+native date range/sort queries and TTL indexes work directly on it. Elements of a
+`List`/array/`Map` field do not: they keep the `{"value": …}` wrapper the generic serialization
+path produces for every scalar-returning custom mapper, with a native `Date` inside. Those values
+round-trip correctly, but a native date query against a container has to address `field.value`,
+and an index has to be declared on that sub-path.
+
+Also not covered by the flag: the update APIs (`set()`, `push()`, `addToSet()`), which route
+through `MorphiumWriterImpl#marshallIfNecessary` and never consult the custom mappers, so they
+keep writing the legacy format at either setting — pre-existing behaviour, tracked separately in
+[#335](https://github.com/sboesebeck/morphium/issues/335).
+
+> **Do not enable this for a field you also update through the query API.** With the flag on,
+> `store()` writes a native Date into such a field while `set()`/`push()` write the legacy shape,
+> so one field holds two different BSON types. MongoDB's range operators are type-bracketed —
+> `$lt`/`$lte`/`$gt`/`$gte` do not compare across BSON types — so a range query silently **drops**
+> the documents written by the update path instead of ordering them oddly. Measured against a real
+> mongod: 1 of 2 documents matched. Sweep-style queries ("everything overdue", "every expired
+> lease") are the dangerous case, because a short result set looks like "nothing to do". Until
+> [#335](https://github.com/sboesebeck/morphium/issues/335) is fixed, either leave the flag off for
+> such fields or write them exclusively via `store()`.
+
+**With the flag off — the default — nothing changes on disk.** The write path is untouched at the
+default, so documents stay byte-identical to previous versions and older versions keep reading
+documents written by this one. Reading is tolerant either way: each of the four mappers accepts
+both its legacy shape and a native `Date`, so a database written before or after flipping the flag
+stays readable, and the flag can be switched at runtime on an already-constructed mapper (the
+mappers read it through a supplier rather than copying it at construction time).
+
 ### Fixed
 
 #### A read preference stored via asProperties() silently reverted to nearest on reload

@@ -136,11 +136,11 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         customMappers.put(AtomicBoolean.class, new AtomicBooleanMapper());
         customMappers.put(AtomicInteger.class, new AtomicIntegerMapper());
         customMappers.put(AtomicLong.class, new AtomicLongMapper());
-        customMappers.put(LocalDate.class, new LocalDateMapper());
-        customMappers.put(LocalTime.class, new LocalTimeMapper());
-        customMappers.put(LocalDateTime.class, new LocalDateTimeMapper());
+        customMappers.put(LocalDate.class, new LocalDateMapper(this::useBsonDateForJavaTime));
+        customMappers.put(LocalTime.class, new LocalTimeMapper(this::useBsonDateForJavaTime));
+        customMappers.put(LocalDateTime.class, new LocalDateTimeMapper(this::useBsonDateForJavaTime));
         customMappers.put(Timestamp.class, new TimestampMapper());
-        customMappers.put(Instant.class, new InstantMapper());
+        customMappers.put(Instant.class, new InstantMapper(this::useBsonDateForJavaTime));
         customMappers.put(BigDecimal.class, new BigDecimalMapper());
         customMappers.put(BigInteger.class, new BigIntegerTypeMapper());
         customMappers.put(Geo.class, new BsonGeoMapper());
@@ -193,6 +193,19 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     @Override
     public Morphium getMorphium() {
         return morphium;
+    }
+
+    /**
+     * Queried fresh on every {@code marshall()} call by the four java.time mappers (they hold a
+     * {@link java.util.function.BooleanSupplier}, not a copied boolean), so toggling
+     * {@code ObjectMappingSettings#setUseBsonDateForJavaTime(boolean)} takes effect on this
+     * already-constructed mapper. A value copied at construction time could never work: the
+     * mappers are registered in this class's constructor, before {@link #setMorphium(Morphium)}
+     * has supplied the config they would read it from.
+     */
+    private boolean useBsonDateForJavaTime() {
+        return morphium != null && morphium.getConfig() != null
+            && morphium.getConfig().objectMappingSettings().isUseBsonDateForJavaTime();
     }
 
     /**
