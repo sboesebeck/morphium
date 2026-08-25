@@ -42,6 +42,27 @@ addresses it.
 
 ### Added
 
+#### Documented: `InMemoryDriver` is unsuitable for on-disk format tests (#336)
+A value that reaches a driver **unmapped** — a raw `LocalDate` handed to `InsertMongoCommand`, a
+hand-built `$set` operand — is normalised on the wire path and stored verbatim in memory. The wire
+drivers serialise every command through `BsonEncoder`, so a real server holds whatever
+`decode(encode(v))` produces; `InMemoryDriver` has no encoder in that path and keeps the Java
+object. It affects far more than `java.time`: `Character`→`Integer`, enum→`String`,
+`Short`/`Byte`→`Integer`, `Float`→`Double`, `int[]`→`List`, `Calendar`→`Date`,
+`ObjectId`→`MorphiumId`.
+
+The trap is that **it is invisible from query results**: the in-memory driver leaves the stored
+value *and* the filter unnormalised, so equality still matches. A format test asserting on query
+outcomes passes against `InMemoryDriver` for the wrong reason — worse than failing, because
+nothing points at the gap. It cost time twice while reviewing #333.
+
+Nothing written through the normal Morphium API is affected: the ObjectMapper maps those values
+before they reach any driver, and since #335 the update APIs do too. `docs/howtos/inmemory-driver.md`
+now carries the full type table and the guidance to pin on-disk shapes against a real MongoDB (or
+PoppyDB, which decodes off the wire and is unaffected). `InMemoryWireShapeParityTest` pins the
+divergence — `@Disabled` until the in-memory write path is normalised in 6.4.0, verified red on
+`InMemDriver` and green on a real mongod before being parked.
+
 #### Opt-in: `java.time` types can be stored as native BSON Date (`useBsonDateForJavaTime`)
 `ObjectMappingSettings#setUseBsonDateForJavaTime(boolean)` (default `false`) makes
 `LocalDate`, `LocalTime`, `LocalDateTime` and `Instant` marshal to a native BSON Date

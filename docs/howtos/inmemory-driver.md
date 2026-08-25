@@ -204,6 +204,40 @@ For more MapReduce examples, see the [InMemory Driver](../inmemory-driver.md) do
 - ❌ **Authentication**: No user/role management
 - ❌ **$lookup Joins**: Not yet implemented
 
+### Not suitable for on-disk format tests (#336)
+
+A value that reaches a driver **unmapped** — a raw `LocalDate` handed to
+`InsertMongoCommand`, a `$set` operand built by hand — is normalised on the wire path
+and stored verbatim in memory. The wire drivers serialise every command through
+`BsonEncoder`, so what lands on disk is whatever `decode(encode(v))` produces;
+`InMemoryDriver` has no encoder in that path and keeps the Java object:
+
+| written value | real mongod stores | `InMemoryDriver` stores |
+|---|---|---|
+| `LocalDate` / `LocalTime` | `Long` | `LocalDate` / `LocalTime` |
+| `LocalDateTime` / `Instant` | sub-document | `LocalDateTime` / `Instant` |
+| `Character` | `Integer` | `Character` |
+| enum constant | `String` | enum object |
+| `Short` / `Byte` | `Integer` | `Short` / `Byte` |
+| `Float` | `Double` | `Float` |
+| `int[]` | `List` | `int[]` |
+| `Calendar` | `Date` | `GregorianCalendar` |
+| `org.bson.types.ObjectId` | `MorphiumId` | `ObjectId` |
+
+**This does not show up in query results.** The in-memory driver leaves the stored value
+*and* the filter unnormalised, so equality still matches on both sides. A format test that
+asserts on query outcomes therefore passes against `InMemoryDriver` for the wrong reason —
+which is worse than failing, because nothing points at the gap. Only the raw persisted
+shape reveals it.
+
+So: pin on-disk shapes against a real MongoDB (or PoppyDB, which decodes off the wire and
+is unaffected), not against `InMemoryDriver`. Everything written through the normal
+Morphium API is unaffected — the ObjectMapper maps those values before they reach any
+driver, and since #335 the update APIs (`set()`/`push()`/`addToSet()`) do too.
+
+`InMemoryWireShapeParityTest` pins this; it is `@Disabled` until the normalisation lands
+in 6.4.0.
+
 ### Performance Considerations
 - **Memory Usage**: All data stored in memory
 - **No Persistence**: Data lost when driver closes
