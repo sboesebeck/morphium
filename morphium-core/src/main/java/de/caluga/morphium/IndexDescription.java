@@ -68,17 +68,78 @@ public class IndexDescription {
         IndexDescription idx = new IndexDescription();
         for (String n : incoming.keySet()) {
             var fld = an.getField(IndexDescription.class, n);
+            // asMap() strips a leading underscore from field names (the wire spells the geo
+            // version "2dsphereIndexVersion", the Java field is _2dsphereIndexVersion) - without
+            // this fallback the asMap->fromMap round trip silently dropped that field forever.
+            if (fld == null) {
+                fld = an.getField(IndexDescription.class, "_" + n);
+            }
             if (fld == null) continue;
             try {
-                if (fld.getType().equals(Boolean.class) && incoming != null && incoming.get(n) != null && incoming.get(n).getClass().equals(Integer.class)) {
-                    incoming.put(n, incoming.get(n).equals(Integer.valueOf(1)));
-                }
-                fld.set(idx, incoming.get(n));
+                fld.set(idx, coerceForField(fld.getType(), incoming.get(n)));
             } catch (IllegalAccessException e) {
                 throw new RuntimeException(e);
             }
         }
         return idx;
+    }
+
+    /**
+     * Coerces an incoming value to the declared field type where the difference is a harmless
+     * numeric-wrapper mismatch. The wire and the dump-restore path do not guarantee wrapper
+     * types: a listIndexes answer can carry {@code expireAfterSeconds} as Int64 (e.g. served
+     * by a node that restored its indexes from a #340 dump, where the JSON parser delivers
+     * every number as {@code Long}) or as Double (mongosh sends plain number literals as
+     * doubles). Before this existed, the reflective {@code fld.set} threw
+     * {@code IllegalArgumentException} for any such mismatch - which, raised inside
+     * {@code ListIndexesCommand.execute} during a replica-set initial sync, kept the syncing
+     * node in recovery FOREVER (the ACC full-restart outage): a harmless type difference
+     * became a node that never comes back up. Every {@code Integer} field of this class has
+     * the same trap, so the coercion is generic over the numeric wrappers rather than a
+     * point fix for {@code expireAfterSeconds}. Genuinely incompatible types (non-numeric
+     * garbage in a numeric field) still fail as before - that is a real error, not a wrapper
+     * mismatch.
+     */
+    private static Object coerceForField(Class<?> type, Object value) {
+        if (value == null) {
+            return null;
+        }
+
+        // pre-existing tolerance, widened from Integer-only to any numeric wrapper:
+        // the wire encodes booleans as Int32 1/0 in some producers' index options
+        if (type.equals(Boolean.class) && value instanceof Number) {
+            return ((Number) value).longValue() == 1L;
+        }
+
+        if (value instanceof Number && !type.isInstance(value)) {
+            Number num = (Number) value;
+
+            if (type.equals(Integer.class)) {
+                return num.intValue();
+            }
+
+            if (type.equals(Long.class)) {
+                return num.longValue();
+            }
+
+            if (type.equals(Double.class)) {
+                return num.doubleValue();
+            }
+
+            if (type.equals(Float.class)) {
+                return num.floatValue();
+            }
+
+            if (type.equals(Short.class)) {
+                return num.shortValue();
+            }
+
+            if (type.equals(Byte.class)) {
+                return num.byteValue();
+            }
+        }
+
+        return value;
     }
 
     public Map<String, Object> getKey() {

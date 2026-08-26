@@ -10,6 +10,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### Dump-restored TTL indexes no longer crash peers' initial sync - full-cluster restart recovers again (#340 follow-up)
+The #340 restore recreated indexes with the JSON parser's number types: `expireAfterSeconds`
+(and every other numeric index option) was registered as `Long` instead of `Integer`. The
+restore itself ran fine - the damage surfaced only when a PEER asked for the indexes:
+`listIndexes` served the Long, the wire encoded Int64, and the syncing peer's
+`IndexDescription.fromMap` threw `IllegalArgumentException` from its reflective field set,
+failing the initial sync in an endless retry loop. After a FULL cluster restart on the
+acceptance environment - every node restoring from its own dump, no healthy peer left to
+sync indexes from - two of three nodes never left recovery and the cluster ran on a single
+node. Every TTL index in the system (13 across all databases) was affected. A rolling
+restart hides the bug completely, which is why no test caught it: restore and restart were
+each covered alone, never the combination "restored from a dump, then queried by a peer".
+
+Fixed on both sides, deliberately:
+
+- **Restore side:** the recreated spec's known Int32 option fields (`expireAfterSeconds`,
+  `textIndexVersion`, `2dsphereIndexVersion`, `bits`, `min`, `max`) are normalized to
+  `Integer`, so the wire serves Int32 again - which also keeps peers still running versions
+  WITHOUT the hardening below alive in a mixed-version replica set.
+- **Receiving side:** `IndexDescription.fromMap` now coerces numeric values against the
+  declared field type (every `Integer` field had the same trap, and the wire can also carry
+  Double there - mongosh sends plain number literals as doubles) instead of letting a
+  harmless wrapper mismatch become a node that never comes back up. The Boolean-from-Int32
+  tolerance is widened to any numeric wrapper; genuinely incompatible types still fail.
+  En passant: `fromMap` now also finds fields whose leading underscore `asMap()` strips
+  (`2dsphereIndexVersion`), which the round trip had silently dropped forever.
+- **Diagnosability:** a node whose initial sync keeps failing with the IDENTICAL error now
+  escalates to an unmissable `NODE STUCK IN RECOVERY` log line after five consecutive
+  identical failures - the outage was diagnosable only from a per-attempt error scrolling
+  past in one secondary's log.
+
+The regression tests pin exactly the missing combination: restore from a dump fixture, then
+run the indexes through `ListIndexesCommand`/`fromMap` the way a syncing peer does - plus a
+full-replica-set E2E that stops ALL nodes at once, restarts them from their dumps, and
+asserts every node returns to PRIMARY or a completed-sync SECONDARY, not merely that the
+data is back.
+
 #### InMemoryDriver: integral query values match across Integer/Long - a long field answers its own integer query again (#342)
 `find({counter: 2})` returned nothing for a stored `2L`: equality compared by wrapper type,
 so a `long` entity field never matched its own integer query literal - in everyday operation,

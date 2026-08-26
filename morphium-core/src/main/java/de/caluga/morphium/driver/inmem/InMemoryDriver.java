@@ -1049,6 +1049,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                     Map<String, Object> spec = new LinkedHashMap<>(idx);
                     spec.put("key", key);
+                    normalizeIndexSpecNumericOptions(spec);
                     // Same call shape as the createIndexes command handler: the whole spec map
                     // doubles as the options.
                     createIndex(db, collection, key, spec);
@@ -1062,6 +1063,43 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         return failed;
+    }
+
+    /**
+     * The index option fields whose canonical wire type is Int32 - the {@code Integer} fields
+     * of {@code de.caluga.morphium.IndexDescription} plus the alternate spelling the wire uses
+     * for the 2dsphere version. Kept in sync with that class; see
+     * {@link #normalizeIndexSpecNumericOptions}.
+     */
+    private static final java.util.Set<String> INT32_INDEX_OPTIONS = java.util.Set.of(
+            "expireAfterSeconds", "textIndexVersion", "2dsphereIndexVersion", "_2dsphereIndexVersion",
+            "bits", "min", "max");
+
+    /**
+     * Normalizes a dump-parsed index spec's numeric OPTION values to {@code Integer} (#340
+     * follow-up, the ACC full-restart outage): the JSON parser delivers every number as
+     * {@code Long}, and {@link #createIndex} registers the spec verbatim as the descriptor's
+     * {@code $options} - which listIndexes then serves, and the wire encodes as Int64. A peer
+     * running the initial sync feeds that into {@code IndexDescription.fromMap}, whose
+     * reflective set threw {@code IllegalArgumentException} for the {@code Integer} field
+     * {@code expireAfterSeconds} - failing the sync in an endless retry loop: after a FULL
+     * cluster restart (every node restored from its dump, no healthy peer left) two of three
+     * nodes never left recovery. {@code fromMap} is hardened against the mismatch now, but
+     * normalizing here keeps the WIRE representation Int32 so peers still running versions
+     * WITHOUT that hardening survive a mixed-version replica set.
+     *
+     * <p>Only the known Int32 option fields are touched (never {@code partialFilterExpression}
+     * or other nested query material), and only integral wrappers are converted - the values
+     * are small config numbers, {@code intValue()} is lossless for every legal spec.
+     */
+    private static void normalizeIndexSpecNumericOptions(Map<String, Object> spec) {
+        for (String opt : INT32_INDEX_OPTIONS) {
+            Object v = spec.get(opt);
+
+            if (v instanceof Number && !(v instanceof Integer)) {
+                spec.put(opt, ((Number) v).intValue());
+            }
+        }
     }
 
     /**

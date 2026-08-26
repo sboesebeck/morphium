@@ -104,6 +104,14 @@ public class ReplicationManager {
     // Package-visible so InitialSyncElectionSeedTest can put the manager into the exact
     // post-sync state the losing interleaving produces (sync done, lastAppliedSequence still 0).
     final AtomicBoolean initialSyncComplete = new AtomicBoolean(false);
+
+    // Stuck-recovery escalation (#340 follow-up, ACC full-restart outage): tracks how often the
+    // initial sync failed in a row with the identical error, so a node that will never converge
+    // logs an unmissable NODE STUCK IN RECOVERY escalation instead of only per-attempt errors.
+    // Only touched from the single initial-sync thread - no synchronization needed.
+    private String lastInitialSyncFailureKey = null;
+    private int consecutiveIdenticalSyncFailures = 0;
+    private static final int STUCK_SYNC_ESCALATION_THRESHOLD = 5;
     private final CountDownLatch initialSyncLatch = new CountDownLatch(1);
     // True when the most recently COMPLETED initial sync was satisfied by the consistency
     // shortcut (dbHash comparison against the primary, see tryConsistencyShortcut()) instead of
@@ -1639,6 +1647,29 @@ public class ReplicationManager {
                         // watch and never returns to drive the loop's retry.
                         log.error("Initial sync failed, retrying in {}ms (replication gate stays closed): {}",
                                 backoffMs, e.getMessage(), e);
+                        // A DETERMINISTIC failure retries forever without ever converging - the ACC
+                        // full-restart outage: every attempt died on the same IllegalArgumentException
+                        // from a mistyped restored index field, the node sat in recovery for good, and
+                        // the only evidence was the per-attempt ERROR above scrolling past in the log.
+                        // Escalate once the same error keeps repeating, so a stuck node names itself
+                        // and its likely cause instead of looking like a slow sync.
+                        String failureKey = e.getClass().getName() + ": " + e.getMessage();
+                        if (failureKey.equals(lastInitialSyncFailureKey)) {
+                            consecutiveIdenticalSyncFailures++;
+                        } else {
+                            lastInitialSyncFailureKey = failureKey;
+                            consecutiveIdenticalSyncFailures = 1;
+                        }
+                        if (consecutiveIdenticalSyncFailures >= STUCK_SYNC_ESCALATION_THRESHOLD
+                                && consecutiveIdenticalSyncFailures % STUCK_SYNC_ESCALATION_THRESHOLD == 0) {
+                            log.error("NODE STUCK IN RECOVERY: the initial sync has now failed {} times in a row "
+                                    + "with the SAME error ({}). This is not a transient condition - the node will "
+                                    + "keep retrying and stay a non-voting recovering member until the cause is "
+                                    + "fixed. Typical causes: an index or document on the sync source this "
+                                    + "version cannot parse, or a persistent incompatibility between the nodes. "
+                                    + "Inspect the stack trace above and the sync source's indexes.",
+                                    consecutiveIdenticalSyncFailures, failureKey);
+                        }
                         Thread.sleep(backoffMs);
                         backoffMs = Math.min(backoffMs * 2, 30_000);
                     }
