@@ -5,8 +5,92 @@ All notable changes to Morphium will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-
 ## [Unreleased]
+
+### Added
+
+#### Documented: `InMemoryDriver` is unsuitable for on-disk format tests (#336)
+A value that reaches a driver **unmapped** - a raw `LocalDate` handed to `InsertMongoCommand`, a
+hand-built `$set` operand - is normalised on the wire path and stored verbatim in memory. The wire
+drivers serialise every command through `BsonEncoder`, so a real server holds whatever
+`decode(encode(v))` produces; `InMemoryDriver` has no encoder in that path and keeps the Java
+object. It affects far more than `java.time`: `Character`->`Integer`, enum->`String`,
+`Short`/`Byte`->`Integer`, `Float`->`Double`, `int[]`->`List`, `Calendar`->`Date`,
+`ObjectId`->`MorphiumId`.
+
+The trap is that **it is invisible from query results**: the in-memory driver leaves the stored
+value *and* the filter unnormalised, so equality still matches. A format test asserting on query
+outcomes passes against `InMemoryDriver` for the wrong reason - worse than failing, because
+nothing points at the gap. It cost time twice while reviewing #333.
+
+Nothing written through the normal Morphium API is affected: the ObjectMapper maps those values
+before they reach any driver, and since #335 the update APIs do too. `docs/howtos/inmemory-driver.md`
+now carries the full type table and the guidance to pin on-disk shapes against a real MongoDB (or
+PoppyDB, which decodes off the wire and is unaffected). `InMemoryWireShapeParityTest` pins the
+divergence - `@Disabled` until the in-memory write path is normalised in 6.4.0, verified red on
+`InMemDriver` and green on a real mongod before being parked.
+
+#### Opt-in: `java.time` types can be stored as native BSON Date (`useBsonDateForJavaTime`)
+`ObjectMappingSettings#setUseBsonDateForJavaTime(boolean)` (default `false`) makes
+`LocalDate`, `LocalTime`, `LocalDateTime` and `Instant` marshal to a native BSON Date
+(type `0x09`) instead of Morphium's own per-type formats — epoch-day / nano-of-day longs for
+`LocalDate`/`LocalTime`, `Doc` sub-documents for `LocalDateTime`/`Instant`. The written value is
+bit-compatible with the official MongoDB Java driver's `org.bson.codecs.jsr310` codecs.
+
+`LocalDate` is anchored at UTC start-of-day and `LocalTime` at epoch day 0 UTC, the same
+convention the official driver's codecs use. Sub-millisecond precision is lost when the flag is
+on, which is the same trade-off the driver makes for these types.
+
+**Scalar fields only.** A scalar field becomes a bare BSON Date, so `mongosh` shows `ISODate` and
+native date range/sort queries and TTL indexes work directly on it. Elements of a
+`List`/array/`Map` field do not: they keep the `{"value": …}` wrapper the generic serialization
+path produces for every scalar-returning custom mapper, with a native `Date` inside. Those values
+round-trip correctly, but a native date query against a container has to address `field.value`,
+and an index has to be declared on that sub-path.
+
+The update APIs (`set()`, `push()`, `addToSet()`) consult the custom mappers with the same shape
+`store()` uses, so they follow this flag as well (#335). Still not covered: raw
+`Doc.of("field", someLocalDateTime)` calls that go directly through `BsonEncoder`; that low-level
+encoder writes the legacy format regardless of this setting.
+
+**With the flag off — the default — nothing changes on disk.** The write path is untouched at the
+default, so documents stay byte-identical to previous versions and older versions keep reading
+documents written by this one. Reading is tolerant either way: each of the four mappers accepts
+both its legacy shape and a native `Date`, so a database written before or after flipping the flag
+stays readable, and the flag can be switched at runtime on an already-constructed mapper (the
+mappers read it through a supplier rather than copying it at construction time).
+
+### Changed
+
+#### `set()` / `push()` / `addToSet()` now write the same on-disk shape as `store()` for custom-mapped fields (#335)
+The update APIs routed values through `MorphiumWriterImpl#marshallIfNecessary`, which had no
+custom-mapper branch: a custom-mapped value reached the driver unmapped. On the in-memory driver
+the raw Java object was stored (unqueryable and unreadable), and on a real MongoDB the encoder's
+hardcoded legacy branches masked it — but only for scalar fields at the default flag value.
+Container elements split at **both** settings: `store()` wrote `[{"value": 18997}]` while
+`set("dateList", …)` wrote `[18997]`, so a query matching one document silently missed the other.
+
+The update path now consults the custom mappers with exactly the shape `store()` produces per
+structure position — bare mapper output for scalar fields, the `{"value": …}` wrapper (or the
+map-with-`class_name` shape for map-returning mappers) for container elements, and it follows
+`useBsonDateForJavaTime` dynamically. Documents written via `set()`/`push()`/`addToSet()` are
+now byte-shape-identical to store()-written ones and read back fully typed.
+
+**Migration note:** documents that were previously written *through the update APIs* into
+container fields of custom-mapped types keep the old flat shape. Queries predicated on such
+fields match store()-shaped documents; re-save affected documents once via `store()` if your data
+contains them. Documents written by `store()` were always correct and need no action.
+
+**BigDecimal precision converges downward (deliberate).** `store()` has always written
+`BigDecimal` through its mapper as a lossy `double`; the update APIs previously bypassed that
+mapper and wrote a lossless `Decimal128` — so one field could hold two different BSON types that
+both print as `12.34`, an invisible split this fix removes. The cost: values written *only*
+through `set()`/`push()` lose their extra precision from now on, matching store()'s long-standing
+behaviour (tracked as symptom 2 of
+[#334](https://github.com/sboesebeck/morphium/issues/334), which widens from "affects store()" to
+"affects every write path" with this change). Store amounts requiring exact decimal semantics
+before relying on either path, or keep them out of custom-mapped marshalling until #334
+addresses it.
 
 ### Fixed
 
@@ -128,93 +212,6 @@ remaining indexes: the restore continues, reports the failures via
 `INDEX RESTORE INCOMPLETE` warning - an index set that looks complete but is not would be worse
 than none.
 
-### Changed
-
-#### `set()` / `push()` / `addToSet()` now write the same on-disk shape as `store()` for custom-mapped fields (#335)
-The update APIs routed values through `MorphiumWriterImpl#marshallIfNecessary`, which had no
-custom-mapper branch: a custom-mapped value reached the driver unmapped. On the in-memory driver
-the raw Java object was stored (unqueryable and unreadable), and on a real MongoDB the encoder's
-hardcoded legacy branches masked it — but only for scalar fields at the default flag value.
-Container elements split at **both** settings: `store()` wrote `[{"value": 18997}]` while
-`set("dateList", …)` wrote `[18997]`, so a query matching one document silently missed the other.
-
-The update path now consults the custom mappers with exactly the shape `store()` produces per
-structure position — bare mapper output for scalar fields, the `{"value": …}` wrapper (or the
-map-with-`class_name` shape for map-returning mappers) for container elements, and it follows
-`useBsonDateForJavaTime` dynamically. Documents written via `set()`/`push()`/`addToSet()` are
-now byte-shape-identical to store()-written ones and read back fully typed.
-
-**Migration note:** documents that were previously written *through the update APIs* into
-container fields of custom-mapped types keep the old flat shape. Queries predicated on such
-fields match store()-shaped documents; re-save affected documents once via `store()` if your data
-contains them. Documents written by `store()` were always correct and need no action.
-
-**BigDecimal precision converges downward (deliberate).** `store()` has always written
-`BigDecimal` through its mapper as a lossy `double`; the update APIs previously bypassed that
-mapper and wrote a lossless `Decimal128` — so one field could hold two different BSON types that
-both print as `12.34`, an invisible split this fix removes. The cost: values written *only*
-through `set()`/`push()` lose their extra precision from now on, matching store()'s long-standing
-behaviour (tracked as symptom 2 of
-[#334](https://github.com/sboesebeck/morphium/issues/334), which widens from "affects store()" to
-"affects every write path" with this change). Store amounts requiring exact decimal semantics
-before relying on either path, or keep them out of custom-mapped marshalling until #334
-addresses it.
-
-### Added
-
-#### Documented: `InMemoryDriver` is unsuitable for on-disk format tests (#336)
-A value that reaches a driver **unmapped** - a raw `LocalDate` handed to `InsertMongoCommand`, a
-hand-built `$set` operand - is normalised on the wire path and stored verbatim in memory. The wire
-drivers serialise every command through `BsonEncoder`, so a real server holds whatever
-`decode(encode(v))` produces; `InMemoryDriver` has no encoder in that path and keeps the Java
-object. It affects far more than `java.time`: `Character`->`Integer`, enum->`String`,
-`Short`/`Byte`->`Integer`, `Float`->`Double`, `int[]`->`List`, `Calendar`->`Date`,
-`ObjectId`->`MorphiumId`.
-
-The trap is that **it is invisible from query results**: the in-memory driver leaves the stored
-value *and* the filter unnormalised, so equality still matches. A format test asserting on query
-outcomes passes against `InMemoryDriver` for the wrong reason - worse than failing, because
-nothing points at the gap. It cost time twice while reviewing #333.
-
-Nothing written through the normal Morphium API is affected: the ObjectMapper maps those values
-before they reach any driver, and since #335 the update APIs do too. `docs/howtos/inmemory-driver.md`
-now carries the full type table and the guidance to pin on-disk shapes against a real MongoDB (or
-PoppyDB, which decodes off the wire and is unaffected). `InMemoryWireShapeParityTest` pins the
-divergence - `@Disabled` until the in-memory write path is normalised in 6.4.0, verified red on
-`InMemDriver` and green on a real mongod before being parked.
-
-#### Opt-in: `java.time` types can be stored as native BSON Date (`useBsonDateForJavaTime`)
-`ObjectMappingSettings#setUseBsonDateForJavaTime(boolean)` (default `false`) makes
-`LocalDate`, `LocalTime`, `LocalDateTime` and `Instant` marshal to a native BSON Date
-(type `0x09`) instead of Morphium's own per-type formats — epoch-day / nano-of-day longs for
-`LocalDate`/`LocalTime`, `Doc` sub-documents for `LocalDateTime`/`Instant`. The written value is
-bit-compatible with the official MongoDB Java driver's `org.bson.codecs.jsr310` codecs.
-
-`LocalDate` is anchored at UTC start-of-day and `LocalTime` at epoch day 0 UTC, the same
-convention the official driver's codecs use. Sub-millisecond precision is lost when the flag is
-on, which is the same trade-off the driver makes for these types.
-
-**Scalar fields only.** A scalar field becomes a bare BSON Date, so `mongosh` shows `ISODate` and
-native date range/sort queries and TTL indexes work directly on it. Elements of a
-`List`/array/`Map` field do not: they keep the `{"value": …}` wrapper the generic serialization
-path produces for every scalar-returning custom mapper, with a native `Date` inside. Those values
-round-trip correctly, but a native date query against a container has to address `field.value`,
-and an index has to be declared on that sub-path.
-
-The update APIs (`set()`, `push()`, `addToSet()`) consult the custom mappers with the same shape
-`store()` uses, so they follow this flag as well (#335). Still not covered: raw
-`Doc.of("field", someLocalDateTime)` calls that go directly through `BsonEncoder`; that low-level
-encoder writes the legacy format regardless of this setting.
-
-**With the flag off — the default — nothing changes on disk.** The write path is untouched at the
-default, so documents stay byte-identical to previous versions and older versions keep reading
-documents written by this one. Reading is tolerant either way: each of the four mappers accepts
-both its legacy shape and a native `Date`, so a database written before or after flipping the flag
-stays readable, and the flag can be switched at runtime on an already-constructed mapper (the
-mappers read it through a supplier rather than copying it at construction time).
-
-### Fixed
-
 #### A read preference stored via asProperties() silently reverted to nearest on reload
 `DriverSettings.defaultReadPreference` was `@Transient`, and so was the `defaultReadPreferenceType`
 string that could have carried it. A config that was written out with `asProperties()` and read
@@ -333,7 +330,6 @@ registered custom mapper and the map carries exactly the key `value` (plus at mo
 untyped `Map<String, Object>` content — are left untouched, and if the mapper was
 deregistered at runtime the read falls back to the previous behavior instead of throwing.
 
-
 ## [6.3.6] - 2026-08-21
 
 ### Fixed
@@ -369,7 +365,6 @@ itself became self-rescheduling with a watchdog (silent-cycle detection with for
 dead-task revival, orphaned per-host bookkeeping cleanup), so even an unforeseen way of
 stalling discovery now logs and recovers instead of freezing silently.
 
-
 ## [6.3.5] - 2026-08-21
 
 ### Fixed
@@ -401,7 +396,6 @@ final dump on shutdown) and restored monotonically in `restoreFromDump()` with 1
 for increments a crash may have left unpersisted. Stale client tokens thereby land in the
 well-defined behind-the-replay-window case, and peer sequence comparisons stay meaningful
 across restarts. Without a dump directory nothing changes.
-
 
 ## [6.3.4] - 2026-08-21
 
@@ -757,7 +751,6 @@ Three changes close the loop:
 The Maven Central fallback is what makes the new `./release.sh --github-assets [version]` mode
 work on releases that were cut long ago: it attaches the jars and fills in a missing body for
 any existing tag, which is how v6.3.3 was repaired retroactively.
-
 
 ## [6.3.3] - 2026-08-18
 
@@ -1616,7 +1609,6 @@ noticeably reducing secondary lag.
 - **Build: the parent POM's `<scm><tag>` had regressed to `v6.2.7`**; development iterations
   point at `HEAD` again.
 
-
 ## [6.3.0] - 2026-08-09
 
 ### Added
@@ -1925,7 +1917,6 @@ When the change-stream listener of `MultiCollectionMessaging` skipped a message 
 #### Messaging: change-stream liveness drives the fallback poll
 The change-stream watch loop receives a server reply at least every `maxTimeMS` (an empty batch when there are no events); that heartbeat is now stamped on the `WatchCommand` and exposed as `ChangeStreamMonitor.isStreamLive()`. Both messaging implementations use it to poll *immediately* when a stream falls silent — faster than any timer — instead of waiting for the next interval. The regular `messagingFallbackPollInterval` poll still always runs, deliberately: messages can (re-)appear without any matching stream event, e.g. requeueing by clearing `processedBy` via a plain DB update, and must be found before their TTL expires. `SingleCollectionMessaging` (whose own counter-based gate effectively polled every ~25s) now honors the configurable interval too, and gets the catch-up poll on every watch (re-)establishment for its message and lock monitors — including the one recreated by its stall watchdog. New diagnostics: `MultiCollectionMessaging.topicStreamsLive(topic)` and `SingleCollectionMessaging.changeStreamsLive()`.
 
-
 #### InMemoryDriver: the `$merge` aggregation stage is implemented (#241)
 `$merge` previously reported success and wrote nothing at all — every persistence call was commented-out dead code — so pipelines materialising results (rollups, denormalised views, ETL-style flows) silently produced no data. It now works: `whenMatched` `merge` (default, incoming fields win) / `replace` / `keepExisting` / `fail`, `whenNotMatched` `insert` (default) / `discard` / `fail`, `on` defaulting to `_id` and accepting a single field or a list, and `into` as a collection name or `{db, coll}`. `merge` and `replace` preserve the target document's `_id`; ambiguous `on` matches and documents missing an `on` field are refused rather than silently guessed; `$merge` is terminal and yields no documents. Writes go through the driver's `find()`/`store()`, so index maintenance, capped/TTL bookkeeping, locking and watcher events all happen. `whenMatched` may also be a custom update pipeline: it runs per match with the existing target document as input and the incoming document bound to `$$new`, supports the stages mongod allows there (`$addFields`/`$set`, `$project`/`$unset`, `$replaceRoot`/`$replaceWith` — anything else is refused), and honours `let` (which, as in mongod, *replaces* the default `{new: "$$ROOT"}`, is evaluated against the incoming document, and is rejected when `whenMatched` is not a pipeline). References to undefined `$$variables` fail up front instead of evaluating to null; the pipeline result keeps the target document's `_id`.
 
@@ -2114,7 +2105,6 @@ skip is now real (and keeps the port sequence of the remaining nodes intact).
 
 #### PoppyDB: `--auth`/`--ssl` now work on a replica set - the internal election/replication channel was always plaintext and unauthenticated
 Each of `--auth` and `--ssl`, independently, made a multi-node PoppyDB replica set completely non-functional: `ElectionNetworkClient` (vote requests, heartbeats) and `ReplicationManager` (the sync connection to the primary) connected to peers as a plain, unauthenticated, unencrypted client, regardless of the server's own `--auth`/`--ssl` configuration. With `--ssl=true` every internal connection was rejected by the peer's TLS-only listener (`NotSslRecordException`); with `--auth=true` the election RPCs (`requestVote`/`appendEntries`) aren't on the pre-auth command whitelist, so every one was rejected as unauthorized - either way, no leader could ever be elected. Single-node PoppyDB with `--auth`/`--ssl` was unaffected; the client-facing enforcement itself was never the problem. The internal channel now authenticates as the configured root user and, when TLS is on, trusts exactly the server's own configured certificate (`ssl-keystore`, reused as the internal client's pinned truststore) - no new config keys, no change to auth enforcement.
-
 
 #### InMemoryDriver: `$sample` larger than the collection threw instead of returning all documents
 `$sample` cut its shuffled copy with `subList(0, size)`, so a sample size exceeding the collection count failed with `IndexOutOfBoundsException: toIndex = N` instead of returning all documents in random order like mongod. Visible in every mongosh session against PoppyDB: tab completion samples schema documents with `$sample {size: 10}`, so completing on any collection with fewer than 10 documents printed a `Tab completion error: ... aggregate failed: toIndex = 10` stack trace.
@@ -2757,7 +2747,6 @@ All `Class.forName()` call sites now use a centralized helper preferring the thr
 #### ReadPreference fall-through clarification
 • Explicit fall-through comments for `NEAREST` → `PRIMARY_PREFERRED` → `SECONDARY` cascade in `getReadConnection()`. No behavioral change — documents the intentional degradation path.
 
-
 #### Connection Pool Exhaustion due to Hostname Case Mismatch
 - **Pool exhaustion when MongoDB reports hostnames with different casing**: When MongoDB's `hello` response reported hostnames with different casing than the seed list (e.g., `SERV-MSG1.example.com` vs `serv-msg1.example.com`), connections were being closed instead of returned to the pool. The borrowed connections counter was not decremented, causing the pool to fill up to `maxConnections` with all connections appearing "borrowed" but none available.
 - **Root cause**: The `hosts` map was keyed by the hostname as reported by MongoDB, but `releaseConnection()` looked up by the hostname stored in the connection object (from the seed list). Case mismatch caused lookup failures.
@@ -2772,7 +2761,6 @@ All `Class.forName()` call sites now use a centralized helper preferring the thr
 - forget resume token as it is invalid
 - restart changestream
 - might cause loss of a message or two, but is stable
-
 
 #### Messaging Lock TTL Bug
 - **Lock expires immediately when message has no timeout**: When a message had `timingOut=false`, the TTL was 0, causing the lock to be created with `deleteAt = now`. MongoDB's TTL monitor would delete the lock almost immediately, allowing duplicate message processing. Now uses 7 days as fallback TTL for messages without timeout.
