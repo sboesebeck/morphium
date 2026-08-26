@@ -425,6 +425,12 @@ and the node starts; the log then carries an unmissable `INDEX RESTORE INCOMPLET
 naming each failed index - do not ignore it, a missing TTL index means that collection grows
 unbounded again.
 
+Restoring over an already-populated dataset (an in-process restore rather than a fresh
+start) makes the dump the source of truth: index definitions, TTL and capped bookkeeping of
+the replaced contents are discarded with the data they described, and whatever the dump
+carries is recreated in their place. Before 6.3.7 the pre-restore index state silently
+survived such a restore and kept answering queries for documents that no longer existed.
+
 When a dump directory is configured, the node also persists its Raft term and vote to
 `<dump-dir>/election-state.properties` and reads it back on startup - without it a restarted
 node returns at term 0 and adds to term churn during rolling restarts. A *missing* file is

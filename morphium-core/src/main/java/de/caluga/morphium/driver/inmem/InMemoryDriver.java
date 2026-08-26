@@ -846,10 +846,44 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return new InMemAggregator<>(morphium, type, resultType);
     }
 
+    /**
+     * Replaces one database's collection map wholesale and discards every derived
+     * per-namespace structure that described the replaced contents (#341): index definitions,
+     * built index stores, TTL registration and expiry queues, capped config, the
+     * identity-keyed capped size cache (which would otherwise retain nothing but dead
+     * references to the old document instances) and the capped byte counters. Without this, a
+     * restore into a driver that already holds data - the one case where these maps are
+     * non-empty - kept serving index results for documents that no longer exist and kept
+     * claiming TTL indexes it would never enforce.
+     *
+     * <p>Same wholesale-invalidation contract as {@code drop(String, WriteConcern)} and
+     * {@code resetData()}: the global {@code indexStoreDropEpoch} is bumped BEFORE the stores
+     * are removed (a per-key bump could not cover collections whose store is only being built
+     * right now, #290), and the TTL queues are REMOVED rather than emptied - the sweep and the
+     * insert path only re-bootstrap a queue that is {@code null}, never one that merely came
+     * up empty (#269).
+     *
+     * <p>Index definitions are NOT carried over: setDatabase cannot know whether they hold for
+     * the new contents. {@code restore()} recreates the ones its dump carries right after this
+     * call (#340); direct callers get a database with only the lazily seeded {@code _id}
+     * index, exactly as if the data had been loaded into a fresh driver.
+     */
     public void setDatabase(String dbn, Map<String, List<Map<String, Object>>> db) {
-        if (db != null) {
-            database.put(dbn, db);
+        if (db == null) {
+            return;
         }
+
+        database.put(dbn, db);
+        indicesByDbCollection.remove(dbn);
+        cappedCollections.remove(dbn);
+        String dbPrefix = dbn + ".";
+        collectionsWithTtlIndex.keySet().removeIf(key -> key.startsWith(dbPrefix));
+        ttlQueueByCollection.keySet().removeIf(key -> key.startsWith(dbPrefix));
+        cappedDocSizesByCollection.keySet().removeIf(key -> key.startsWith(dbPrefix));
+        cappedCurrentBytesByCollection.keySet().removeIf(key -> key.startsWith(dbPrefix));
+        // Bump BEFORE the removal - same publish-fencing contract as drop()/resetData() (#290).
+        indexStoreDropEpoch.incrementAndGet();
+        indexStoreByCollection.keySet().removeIf(key -> key.startsWith(dbPrefix));
     }
 
     public void restore(InputStream in) throws IOException, ParseException {

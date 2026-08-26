@@ -10,6 +10,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### setDatabase() no longer leaves stale index/TTL/capped bookkeeping of the replaced contents (#341)
+`setDatabase()` - the wholesale replace under every dump restore - swapped a database's
+collection map and touched nothing else. Seven derived per-namespace structures kept
+describing the data that had just been replaced: index definitions, built index stores, the
+TTL registration and its expiry queues, the capped config, the identity-keyed capped size
+cache and the capped byte counters. A restore into a driver that already holds data (the
+in-process PoppyDB restore case) then served indexed reads from documents that no longer
+exist, kept listing indexes - TTL among them - that would never be enforced on the restored
+data, and the identity-keyed size cache retained nothing but dead references to the replaced
+document instances: a retention leak in the same shape as the poppydb `commandResultsById`
+one fixed this week. It went unnoticed for so long because a restore into a FRESH driver
+finds all seven structures empty.
+
+The fix reuses the wholesale-invalidation contract that `drop(String, WriteConcern)` and
+`resetData()` already follow (#290): discard the per-namespace structures for the replaced
+database and bump the global `indexStoreDropEpoch` BEFORE removing the stores, so a
+lock-free store build racing the swap cannot re-publish a pre-swap snapshot. The TTL queues
+are REMOVED, never emptied in place - the sweep and the insert path only re-bootstrap a
+queue that is `null` (#269), so an empty-but-present queue would pin restored documents in a
+never-expires state. Index definitions are deliberately not carried over: `setDatabase`
+cannot know whether they hold for the new contents; `restore()` recreates the ones its dump
+carries right after the swap (#340), and a legacy dump now yields a driver state that is at
+least CONSISTENT - no index listed that nothing enforces.
+
 #### PoppyDB dump/restore carries index definitions - TTL indexes survive a full restart (#340)
 A dump file held only the documents (`data`/`_id`/`db`), never the indexes. After a FULL
 cluster restart - every node restoring from its own dump, no running peer left to copy indexes
