@@ -8,6 +8,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+#### PoppyDB dump/restore carries index definitions - TTL indexes survive a full restart (#340)
+A dump file held only the documents (`data`/`_id`/`db`), never the indexes. After a FULL
+cluster restart - every node restoring from its own dump, no running peer left to copy indexes
+from via initial sync - the data came back and every index was silently gone: TTL indexes
+stopped expiring (on the ACC replica set the `jef_servacc` collections grew to ~9,500 documents
+unnoticed), every query fell back to a collection scan on the hot messaging path. A rolling
+restart hid the loss completely, which is why it survived so long: as long as one node stays
+up, initial sync rebuilds the indexes on every restarted peer.
+
+Dumps now carry an additional optional `indexes` section per collection, in the same
+listIndexes/createIndexes wire shape the initial sync already replicates losslessly (#258) -
+extracted into one shared `describeIndexes()` so the dump format and the wire format cannot
+drift apart. The restore recreates the indexes **after** inserting the documents, deliberately:
+`createIndex` seeds a TTL index's expiry queue from the documents present at that moment, and
+the sweep never re-bootstraps a queue that merely came up empty - index-before-data would leave
+every restored document permanently un-expirable, the same bug in a new disguise.
+
+Compatibility holds in both directions, checked against the released readers: dumps without the
+section (every pre-6.3.7 dump) restore exactly as before, and dumps with it are still readable
+by 6.3.0-6.3.6, whose restore paths both ignore unknown top-level keys. The existing three keys
+are untouched - a dump of a database without secondary indexes stays byte-shape identical to a
+pre-#340 dump. A failed index recreation (e.g. a hand-edited dump) never costs the data or the
+remaining indexes: the restore continues, reports the failures via
+`DirectoryRestoreResult.getFailedIndexes()`, and PoppyDB logs an unmissable
+`INDEX RESTORE INCOMPLETE` warning - an index set that looks complete but is not would be worse
+than none.
+
 ### Changed
 
 #### `set()` / `push()` / `addToSet()` now write the same on-disk shape as `store()` for custom-mapped fields (#335)

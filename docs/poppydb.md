@@ -409,6 +409,22 @@ platform default encoding they were written under, and raw newlines inside strin
 preserved. Keep old dumps and try them; a restore attempt is cheap and the log says exactly
 what worked.
 
+Since 6.3.7, dumps also carry the **index definitions** of every collection (unique, sparse,
+TTL, partial, compound - everything `listIndexes` reports) and the restore recreates them
+after the data. Before that, a dump held only documents: after a FULL cluster restart (no
+running peer left to copy indexes from via initial sync) every index was silently gone - TTL
+collections started growing again, queries fell back to collection scans. A rolling restart
+hid this, which is why it went unnoticed for so long. Compatibility holds in both directions:
+a pre-6.3.7 dump restores exactly as before (its indexes are simply not in the file), and a
+6.3.7 dump is still readable by older versions, which ignore the additional `indexes` section.
+Because the index definitions restore alongside the data, the restore now also builds each
+indexed collection's index structures at startup instead of lazily on first access - the same
+work, just paid earlier, so startup with very large indexed collections takes a bit longer.
+If recreating an index fails (e.g. a hand-edited dump), the data still restores completely
+and the node starts; the log then carries an unmissable `INDEX RESTORE INCOMPLETE` warning
+naming each failed index - do not ignore it, a missing TTL index means that collection grows
+unbounded again.
+
 When a dump directory is configured, the node also persists its Raft term and vote to
 `<dump-dir>/election-state.properties` and reads it back on startup - without it a restarted
 node returns at term 0 and adds to term churn during rolling restarts. A *missing* file is

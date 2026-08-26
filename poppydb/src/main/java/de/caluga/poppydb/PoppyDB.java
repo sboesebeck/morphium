@@ -2014,6 +2014,20 @@ public class PoppyDB {
             setLocalDataComplete(false);
         }
 
+        // Index-recreation failures (#340) do NOT bar candidacy - the data is complete, and after
+        // a full-cluster restart barring every node over the same broken index spec would leave
+        // the cluster without an electable node. But they must be unmissable: a TTL index that is
+        // missing means the collection silently grows again, and if this node becomes primary the
+        // periodic index sync will drop the missing index from the peers as well.
+        if (result.hasIndexFailures()) {
+            log.warn("INDEX RESTORE INCOMPLETE: {} index(es) could not be recreated from the dump - "
+                    + "affected: {}. Data is fully restored and this node starts normally, but queries on "
+                    + "the affected collections fall back to collection scans and TTL indexes among them "
+                    + "will NOT expire documents. Recreate the listed indexes manually (or resync from a "
+                    + "peer that still has them).",
+                    result.getFailedIndexes().size(), result.getFailedIndexes());
+        }
+
         return result;
     }
 

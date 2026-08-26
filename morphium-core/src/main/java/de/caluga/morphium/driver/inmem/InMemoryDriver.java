@@ -853,6 +853,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public void restore(InputStream in) throws IOException, ParseException {
+        restoreInternal(in);
+    }
+
+    /**
+     * The actual restore. Package private so {@link #restoreAllFromDirectoryResult(File)} can
+     * surface index-recreation failures (#340) without changing the public {@link #restore}
+     * signature.
+     *
+     * @return the index recreations that failed, as {@code db.collection/indexName: cause} -
+     *         empty when every index (or a pre-#340 dump without any index section) restored
+     *         cleanly. Data restore is NOT affected by entries here: a broken index spec never
+     *         aborts the restore of the documents or of the remaining indexes.
+     */
+    List<String> restoreInternal(InputStream in) throws IOException, ParseException {
         byte[] raw;
 
         try (GZIPInputStream gzin = new GZIPInputStream(in)) {
@@ -933,6 +947,112 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         setDatabase(db, data);
+        // Indexes AFTER the data, deliberately (#340): createIndex() seeds a TTL index's expiry
+        // queue from the documents present at that moment (ttlBootstrapQueue), and the sweep only
+        // re-bootstraps a queue that is null - never one that merely came up empty. Creating the
+        // indexes first would leave every restored document permanently un-expirable.
+        return recreateIndexesFromDump(db, root.get("indexes"));
+    }
+
+    /**
+     * Recreates the secondary indexes carried in a dump's optional {@code indexes} section
+     * (#340). A dump without the section - every pre-#340 dump - restores exactly as before:
+     * this is a silent no-op then. Each index goes through the same {@link #createIndex} call
+     * the {@code createIndexes} command handler uses, so name generation, TTL registration
+     * (including the expiry-queue bootstrap over the just-restored documents) and index-store
+     * invalidation all take the one existing code path.
+     *
+     * <p>Failures are collected per index, never thrown: a broken spec must not cost the
+     * restore of intact data or of the remaining indexes. Callers surface them - see
+     * {@link DirectoryRestoreResult#getFailedIndexes()}.
+     */
+    @SuppressWarnings("unchecked")
+    private List<String> recreateIndexesFromDump(String db, Object indexesObj) {
+        if (!(indexesObj instanceof Map)) {
+            if (indexesObj != null) {
+                log.error("Dump restore: 'indexes' section of db '{}' is not a document but {} - no indexes restored",
+                          db, indexesObj.getClass().getName());
+                return List.of(db + ": indexes section is not a document");
+            }
+
+            return List.of();
+        }
+
+        List<String> failed = new ArrayList<>();
+
+        for (Map.Entry<String, Object> coll : ((Map<String, Object>) indexesObj).entrySet()) {
+            String collection = coll.getKey();
+
+            if (!(coll.getValue() instanceof List)) {
+                failed.add(db + "." + collection + ": indexes entry is not a list");
+                log.error("Dump restore: indexes of {}.{} are not a list but {} - skipping this collection's indexes",
+                          db, collection, coll.getValue() == null ? "null" : coll.getValue().getClass().getName());
+                continue;
+            }
+
+            for (Object o : (List<?>) coll.getValue()) {
+                String name = (o instanceof Map) ? String.valueOf(((Map<String, Object>) o).get("name")) : "?";
+
+                try {
+                    if (!(o instanceof Map)) {
+                        throw new IllegalArgumentException("index spec is not a document but "
+                            + (o == null ? "null" : o.getClass().getName()));
+                    }
+
+                    Map<String, Object> idx = (Map<String, Object>) o;
+                    Object keyObj = idx.get("key");
+
+                    if (!(keyObj instanceof Map)) {
+                        throw new IllegalArgumentException("index key spec is not a document but "
+                            + (keyObj == null ? "null" : keyObj.getClass().getName()));
+                    }
+
+                    Map<String, Object> key = normalizeIndexKey((Map<String, Object>) keyObj);
+
+                    if (key.size() == 1 && key.containsKey("_id")) {
+                        continue; // seeded lazily by getIndexes() on every node - never recreated
+                    }
+
+                    Map<String, Object> spec = new LinkedHashMap<>(idx);
+                    spec.put("key", key);
+                    // Same call shape as the createIndexes command handler: the whole spec map
+                    // doubles as the options.
+                    createIndex(db, collection, key, spec);
+                } catch (Exception e) {
+                    failed.add(db + "." + collection + "/" + name + ": " + e);
+                    log.error("Dump restore: could not recreate index '{}' on {}.{} - continuing with the "
+                              + "remaining indexes; queries fall back to collection scans and a TTL index "
+                              + "will NOT expire documents until the index is created again", name, db, collection, e);
+                }
+            }
+        }
+
+        return failed;
+    }
+
+    /**
+     * Normalizes a dump-parsed index key spec for {@link #createIndex}: the JSON parser delivers
+     * every number as {@code Long}, but the driver registers directions as {@code Integer} - and
+     * createIndex's "already present?" comparison uses {@code equals}, where
+     * {@code Long(1).equals(Integer(1))} is false. Without this, restoring a dump into a driver
+     * that already holds the same index (a second restore, or an in-process restore) would
+     * register a duplicate descriptor. Non-numeric values ({@code "text"}, {@code "2dsphere"})
+     * pass through unchanged; field order is preserved (compound indexes are order-sensitive).
+     */
+    private static Map<String, Object> normalizeIndexKey(Map<String, Object> key) {
+        Map<String, Object> ret = new LinkedHashMap<>();
+
+        for (Map.Entry<String, Object> e : key.entrySet()) {
+            Object v = e.getValue();
+
+            if (v instanceof Number && !(v instanceof Double) && !(v instanceof Float)) {
+                ret.put(e.getKey(), ((Number) v).intValue());
+            } else {
+                ret.put(e.getKey(), v);
+            }
+        }
+
+        return ret;
     }
 
     /**
@@ -1024,6 +1144,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // no longer safe over the live ArrayList storage (was CopyOnWriteArrayList).
         d.setData(snapshotDatabase(db));
         d.setDb(db);
+        // Secondary-index definitions (#340) - null (key absent) when the db has none, so a dump
+        // without indexes keeps exactly the legacy shape.
+        d.setIndexes(snapshotIndexes(db));
         Map<String, Object> ser = mapper.serialize(d);
         OutputStreamWriter wr = new OutputStreamWriter(gzip, StandardCharsets.UTF_8);
         writeDumpJson(ser, wr);
@@ -1066,6 +1189,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 d.setCreated(System.currentTimeMillis());
                 d.setData(snapshot);
                 d.setDb(db);
+                // Secondary-index definitions (#340) - null (key absent) when the db has none,
+                // so a dump without indexes keeps exactly the legacy shape.
+                d.setIndexes(snapshotIndexes(db));
                 Map<String, Object> ser = mapper.serialize(d);
                 writeDumpJson(ser, wr);
                 wr.flush();
@@ -1172,11 +1298,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         private final int total;
         private final int restored;
         private final List<String> failedFiles;
+        private final List<String> failedIndexes;
 
         public DirectoryRestoreResult(int total, int restored, List<String> failedFiles) {
+            this(total, restored, failedFiles, List.of());
+        }
+
+        public DirectoryRestoreResult(int total, int restored, List<String> failedFiles, List<String> failedIndexes) {
             this.total = total;
             this.restored = restored;
             this.failedFiles = List.copyOf(failedFiles);
+            this.failedIndexes = List.copyOf(failedIndexes);
         }
 
         /** Number of dump files found in the directory. */
@@ -1197,6 +1329,23 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         /** True when every dump file found was restored (also true for an empty directory). */
         public boolean isComplete() {
             return restored == total;
+        }
+
+        /**
+         * Index recreations that failed (#340), as {@code db.collection/indexName: cause}. The
+         * DATA of the affected databases is fully restored regardless - but a missing index means
+         * collection scans, and a missing TTL index means the collection silently grows again, so
+         * callers should surface these loudly. Empty for pre-#340 dumps and clean restores;
+         * deliberately NOT part of {@link #isComplete()}, which keeps meaning "every dump file's
+         * data made it back".
+         */
+        public List<String> getFailedIndexes() {
+            return failedIndexes;
+        }
+
+        /** True when at least one index recreation failed - see {@link #getFailedIndexes()}. */
+        public boolean hasIndexFailures() {
+            return !failedIndexes.isEmpty();
         }
     }
 
@@ -1242,10 +1391,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         int restored = 0;
         List<String> failed = new ArrayList<>();
+        List<String> failedIndexes = new ArrayList<>();
         for (File dumpFile : dumpFiles) {
             log.info("Restoring from {}", dumpFile.getAbsolutePath());
             try {
-                restoreFromFile(dumpFile);
+                failedIndexes.addAll(restoreInternal(new FileInputStream(dumpFile)));
                 restored++;
             } catch (Exception e) {
                 failed.add(dumpFile.getName());
@@ -1260,7 +1410,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             log.warn("PARTIAL RESTORE: only {} of {} databases restored from {} - failed dump files: {}",
                     restored, dumpFiles.length, dir.getAbsolutePath(), failed);
         }
-        return new DirectoryRestoreResult(dumpFiles.length, restored, failed);
+
+        if (!failedIndexes.isEmpty()) {
+            // Not folded into the PARTIAL RESTORE warning above: the data of these databases DID
+            // restore, but an index set that looks complete and is not would be worse than none
+            // (#340) - so this must be unmissable on its own.
+            log.warn("INDEX RESTORE INCOMPLETE: {} index(es) could not be recreated from the dumps in {} - "
+                    + "affected: {}. The documents are restored, but queries on these collections fall back "
+                    + "to collection scans and TTL indexes among them will NOT expire documents.",
+                    failedIndexes.size(), dir.getAbsolutePath(), failedIndexes);
+        }
+        return new DirectoryRestoreResult(dumpFiles.length, restored, failed, failedIndexes);
     }
 
     /**
@@ -3781,9 +3941,28 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                              "ok", 1.0, "ns", cmd.getDb() + "." + cmd.getColl(), "id", 0)));
             return ret;
         }
-        var idx = indexesForDB.get(cmd.getColl());
-        // log.info(cmd.getCommandName() + " - incoming (" +
-        // cmd.getClass().getSimpleName() + ")");
+        var indices = describeIndexes(indexesForDB.get(cmd.getColl()));
+        addResult(ret, prepareResult(
+                                  Doc.of("cursor", Doc.of("firstBatch", indices, "id", 0L, "ns", cmd.getDb() + "." + cmd.getColl()), "ok",
+                                         1.0, "ns", cmd.getDb() + "." + cmd.getColl(), "id", 1)));
+        return ret;
+    }
+
+    /**
+     * Converts a collection's internal index descriptors (field-&gt;direction entries plus the
+     * reserved {@code $options} map) into the MongoDB wire shape that {@code listIndexes}
+     * returns and {@code createIndexes} accepts ({@code v}, {@code key}, {@code name},
+     * {@code unique}, {@code sparse}, {@code expireAfterSeconds}, {@code partialFilterExpression},
+     * {@code background}, {@code hidden}, plus {@code weights}/{@code textIndexVersion} for text
+     * indexes). Extracted from the {@link ListIndexesCommand} handler so the dump path (#340)
+     * writes EXACTLY the shape the wire round trip already proved lossless (PoppyDB index
+     * replication, #258) - the two must never drift apart.
+     *
+     * @param idx the raw descriptor list from {@code indicesByDbCollection}, may be null
+     * @return freshly built wire-shape maps, never null
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private ArrayList<Map<String, Object>> describeIndexes(List<Map<String, Object>> idx) {
         var indices = new ArrayList<Map<String, Object>>();
         if (idx != null)
             for (var i : idx) {
@@ -3854,10 +4033,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                 indices.add(index);
             }
-        addResult(ret, prepareResult(
-                                  Doc.of("cursor", Doc.of("firstBatch", indices, "id", 0L, "ns", cmd.getDb() + "." + cmd.getColl()), "ok",
-                                         1.0, "ns", cmd.getDb() + "." + cmd.getColl(), "id", 1)));
-        return ret;
+        return indices;
     }
 
     public int runCommand(ListDatabasesCommand cmd) {
@@ -11532,6 +11708,58 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * copied under its own READ lock. Used by the lock-free dump/backup paths so the serializer
      * iterates stable copies instead of the live {@link ArrayList}s.
      */
+    /**
+     * Snapshot of one database's secondary-index definitions for the dump (#340) - per
+     * collection, in the MongoDB wire shape produced by {@link #describeIndexes(List)}, i.e.
+     * exactly what {@code listIndexes} returns and {@code createIndexes} accepts. That is the
+     * same round trip PoppyDB's initial sync already uses to replicate indexes (#258), so
+     * everything the driver can express (unique/TTL/partial/sparse/text/compound) survives.
+     *
+     * <p>The {@code _id} index is left out (it is seeded lazily by {@link #getIndexes} on every
+     * node anyway), and so are collections without any other index. Returns {@code null} when
+     * nothing remains - the dump then omits the {@code indexes} key entirely and stays
+     * byte-shape identical to a pre-#340 dump.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, List<Map<String, Object>>> snapshotIndexes(String db) {
+        Map<String, List<Map<String, Object>>> byColl = indicesByDbCollection.get(db);
+
+        if (byColl == null) {
+            return null;
+        }
+
+        Map<String, List<Map<String, Object>>> snap = new LinkedHashMap<>();
+
+        for (String coll : new ArrayList<>(byColl.keySet())) {
+            List<Map<String, Object>> wire = new ArrayList<>();
+
+            for (Map<String, Object> idx : describeIndexes(byColl.get(coll))) {
+                Map<String, Object> key = (Map<String, Object>) idx.get("key");
+
+                if (key == null || (key.size() == 1 && key.containsKey("_id"))) {
+                    continue;
+                }
+
+                // describeIndexes builds fresh top-level maps and a fresh key Doc; the partial
+                // filter is the one nested structure still aliasing live driver state - copy it
+                // so the serializer never walks a map another thread could touch.
+                Object pfe = idx.get("partialFilterExpression");
+
+                if (pfe instanceof Map) {
+                    idx.put("partialFilterExpression", new LinkedHashMap<>((Map<String, Object>) pfe));
+                }
+
+                wire.add(idx);
+            }
+
+            if (!wire.isEmpty()) {
+                snap.put(coll, wire);
+            }
+        }
+
+        return snap.isEmpty() ? null : snap;
+    }
+
     private Map<String, List<Map<String, Object>>> snapshotDatabase(String db) {
         Map<String, List<Map<String, Object>>> live = getDatabase(db);
         if (live == null) {
