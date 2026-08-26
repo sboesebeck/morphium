@@ -10,6 +10,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### InMemoryDriver: integral query values match across Integer/Long - a long field answers its own integer query again (#342)
+`find({counter: 2})` returned nothing for a stored `2L`: equality compared by wrapper type,
+so a `long` entity field never matched its own integer query literal - in everyday operation,
+no restore involved. After a dump/restore it got worse: the JSON parser delivers every number
+as `Long`, so even `int` fields stopped answering integer queries - no error, just empty
+results. That made the #340 index fix only half effective: the index survived the restart,
+but no integer query could hit it. MongoDB treats Int32/Int64 as numerically comparable, so
+this was also a divergence from the backend being emulated.
+
+The comparison now happens in the matcher (not by converting query values against the
+declared field type - that would heal the `long`-field case but not restored data, which is
+`Long` regardless of what the field declares), in every path that compared by wrapper type:
+the interpreted matcher's direct-equality and multikey-contains branches, the compiled
+matcher's equivalents, the compiled `$in`/`$nin` hash sets (which had silently diverged from
+the interpreted `$in` already), and - critically - the index equality path: `IndexKey` now
+canonicalizes Byte/Short/Integer to `Long`, so an index built over restored (all-Long) values
+answers an integer probe instead of quietly shifting the bug from the scan path into the
+index path. Comparison is exact via `longValue()`, never through `double`, so longs past 2^53
+cannot collapse.
+
+**Scope, deliberately narrow:** the new equivalence covers the integral wrapper types only -
+Byte, Short, Integer, Long. `Double`/`Float` and `BigDecimal` are explicitly NOT included:
+direct equality against a stored `2.0` behaves exactly as before (no match for `{x: 2}`),
+because floating-point equivalence raises precision questions (`1.0` vs `1`) and the
+BigDecimal side is #334 symptom 2, which is still open. Unchanged pre-existing behavior, for
+the record: the `$eq`/`$ne`/`$in`(interpreted)/`$lt`..`$gte` operator paths have long compared
+ALL numbers via `doubleValue()` and continue to; range scans over the ordered index side and
+sorting were already numeric. This fix is not a general numeric-equivalence feature - it
+closes the integral gap and nothing else.
+
 #### setDatabase() no longer leaves stale index/TTL/capped bookkeeping of the replaced contents (#341)
 `setDatabase()` - the wholesale replace under every dump restore - swapped a database's
 collection map and touched nothing else. Seven derived per-namespace structures kept

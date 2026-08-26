@@ -761,7 +761,11 @@ public final class CompiledQuery {
                 List<?> ninList = QueryHelper.asValueList(operand);
                 Set<Object> ninSet = new HashSet<>(ninList.size());
                 for (Object v : ninList) {
-                    ninSet.add(QueryHelper.normalizeId(v));
+                    // #342: integral wrappers are lifted to Long on BOTH sides of the set
+                    // lookup, or an Integer operand never matches a stored Long (and the
+                    // compiled path silently diverges from the interpreted $nin, which goes
+                    // through compareValues).
+                    ninSet.add(QueryHelper.normalizeIntegral(QueryHelper.normalizeId(v)));
                 }
                 return doc -> {
                     Object checkValue = resolveCheckValue(key, path, doc);
@@ -785,13 +789,13 @@ public final class CompiledQuery {
                     } else if (checkValue instanceof List) {
                         found = false;
                         for (Object element : (List<Object>) checkValue) {
-                            if (ninSet.contains(QueryHelper.normalizeId(element))) {
+                            if (ninSet.contains(QueryHelper.normalizeIntegral(QueryHelper.normalizeId(element)))) {
                                 found = true;
                                 break;
                             }
                         }
                     } else {
-                        found = ninSet.contains(QueryHelper.normalizeId(checkValue));
+                        found = ninSet.contains(QueryHelper.normalizeIntegral(QueryHelper.normalizeId(checkValue)));
                     }
                     return !found;
                 };
@@ -801,7 +805,8 @@ public final class CompiledQuery {
                 List<?> inList = QueryHelper.asValueList(operand);
                 Set<Object> inSet = new HashSet<>(inList.size());
                 for (Object v : inList) {
-                    inSet.add(QueryHelper.normalizeId(v));
+                    // #342: same integral normalization as $nin above.
+                    inSet.add(QueryHelper.normalizeIntegral(QueryHelper.normalizeId(v)));
                 }
                 return doc -> {
                     Object checkValue = resolveCheckValue(key, path, doc);
@@ -822,13 +827,13 @@ public final class CompiledQuery {
                     }
                     if (checkValue instanceof List) {
                         for (Object element : (List<Object>) checkValue) {
-                            if (inSet.contains(QueryHelper.normalizeId(element))) {
+                            if (inSet.contains(QueryHelper.normalizeIntegral(QueryHelper.normalizeId(element)))) {
                                 return true;
                             }
                         }
                         return false;
                     }
-                    return inSet.contains(QueryHelper.normalizeId(checkValue));
+                    return inSet.contains(QueryHelper.normalizeIntegral(QueryHelper.normalizeId(checkValue)));
                 };
             }
 
@@ -1118,7 +1123,19 @@ public final class CompiledQuery {
                         && QueryHelper.listEquals(lst, (List<?>) expected, collUnchecked)) {
                     return true;
                 }
-                return lst.contains(expected);
+                if (lst.contains(expected)) {
+                    return true;
+                }
+                // #342: contains() is equals-based - integral wrappers compare numerically,
+                // mirroring the interpreted matcher's multikey branch.
+                if (QueryHelper.isIntegralWrapper(expected)) {
+                    for (Object element : lst) {
+                        if (QueryHelper.integralEquals(element, expected)) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
             }
 
             if (collationMap != null && docValue instanceof String && expected instanceof String) {
@@ -1127,7 +1144,9 @@ public final class CompiledQuery {
                 }
             }
 
-            return docValue.equals(expected);
+            // #342: equals() alone misses cross-wrapper integral matches - mirroring the
+            // interpreted matcher's direct-equality path.
+            return docValue.equals(expected) || QueryHelper.integralEquals(docValue, expected);
         };
     }
 }

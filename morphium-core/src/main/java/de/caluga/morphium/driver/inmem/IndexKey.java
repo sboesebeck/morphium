@@ -73,7 +73,7 @@ public final class IndexKey {
 
     /**
      * Wraps an explicit list of already-extracted values as an {@link IndexKey}. Each value is
-     * passed through {@link #normalizeIdValue} first, so a caller building a key from a raw query
+     * passed through {@link #normalizeKeyValue} first, so a caller building a key from a raw query
      * value (e.g. a {@code MorphiumId}) still lands in the same bucket as a document whose stored
      * {@code _id} is the driver's internal {@code ObjectId} representation.
      */
@@ -81,7 +81,7 @@ public final class IndexKey {
         List<Object> normalized = new ArrayList<>(values.size());
         boolean containsList = false;
         for (Object v : values) {
-            normalized.add(freeze(normalizeIdValue(v)));
+            normalized.add(freeze(normalizeKeyValue(v)));
             containsList |= v instanceof List;
         }
         return new IndexKey(Collections.unmodifiableList(normalized), containsList);
@@ -166,7 +166,7 @@ public final class IndexKey {
             current = map.get(segment);
         }
 
-        return current == null ? MISSING : normalizeIdValue(current);
+        return current == null ? MISSING : normalizeKeyValue(current);
     }
 
     /**
@@ -219,9 +219,22 @@ public final class IndexKey {
      * {@link IndexKey} must do the same normalization - otherwise a query built with a {@code
      * MorphiumId} (as every ORM-level {@code _id} lookup is) would never hash/compare equal to a
      * stored document's {@code ObjectId}, silently missing every {@code _id} index lookup.
+     *
+     * <p>Integral numbers get the same treatment (#342): Byte/Short/Integer are lifted to
+     * {@code Long}, because keys serve as {@code HashMap} keys ({@code CollectionIndexStore}'s
+     * equality buckets) where {@code Integer(9)} neither equals nor hashes like {@code Long(9)}
+     * - an index built over restored (all-Long) values would never answer an integer probe, and
+     * a {@code long} field's index would never answer its own integer query literal. The
+     * ordered {@code TreeMap} side compares numerically anyway ({@link #comparator}), so
+     * canonicalizing here makes both structures agree. Floating-point values deliberately keep
+     * their type - see {@code QueryHelper.isIntegralWrapper} for the scope rationale.
      */
-    private static Object normalizeIdValue(Object v) {
-        return (v instanceof MorphiumId || v instanceof ObjectId) ? v.toString() : v;
+    private static Object normalizeKeyValue(Object v) {
+        if (v instanceof MorphiumId || v instanceof ObjectId) {
+            return v.toString();
+        }
+
+        return QueryHelper.normalizeIntegral(v);
     }
 
     /**
@@ -355,7 +368,7 @@ public final class IndexKey {
         // inverted) slice. All three key-construction paths share these two steps so they
         // cannot drift.
         for (Object v : prefixValues) {
-            values.add(freeze(normalizeIdValue(v)));
+            values.add(freeze(normalizeKeyValue(v)));
         }
 
         for (int i = prefixValues.size(); i < fields.size(); i++) {

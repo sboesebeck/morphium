@@ -1524,7 +1524,19 @@ public class QueryHelper {
                                     && listEquals(lst, (List<?>) qv, collation != null ? getCollator(collation) : null)) {
                                 return true;
                             }
-                            return lst.contains(qv);
+                            if (lst.contains(qv)) {
+                                return true;
+                            }
+                            // #342: contains() is equals-based - a Long element never equals an
+                            // Integer probe. Integral wrappers compare numerically.
+                            if (isIntegralWrapper(qv)) {
+                                for (Object element : lst) {
+                                    if (integralEquals(element, qv)) {
+                                        return true;
+                                    }
+                                }
+                            }
+                            return false;
                         }
 
                         if (collation != null && toCheck.get(keyQuery) instanceof String && query.get(keyQuery) instanceof String) {
@@ -1533,7 +1545,12 @@ public class QueryHelper {
                                 return c.equals((String) toCheck.get(keyQuery), (String) query.get(keyQuery));
                             }
                         }
-                        return toCheck.get(keyQuery) != null && toCheck.get(keyQuery).equals(query.get(keyQuery));
+                        // #342: equals() alone misses cross-wrapper integral matches - a long
+                        // field never matched its own integer query literal, and after a
+                        // dump/restore (every number a Long) even int fields stopped matching.
+                        Object docVal = toCheck.get(keyQuery);
+                        Object queryVal = query.get(keyQuery);
+                        return docVal != null && (docVal.equals(queryVal) || integralEquals(docVal, queryVal));
                     }
     }
 
@@ -2656,6 +2673,47 @@ public class QueryHelper {
             }
         }
         return true;
+    }
+
+    /**
+     * True for the integral wrapper types this driver treats as numerically equivalent for
+     * EQUALITY purposes (#342): Byte, Short, Integer, Long. Deliberately narrow - Double/Float
+     * and BigDecimal stay out (precision questions, {@code 1.0} vs {@code 1}, and the
+     * BigDecimal side is #334 symptom 2), and so do the atomic wrappers (they never appear as
+     * stored values or query literals).
+     *
+     * <p>NOT the same predicate as the private {@code isIntegralNumber} above, which asks
+     * whether a VALUE is mathematically integral (a {@code 2.0} Double qualifies there) for
+     * JSON-schema {@code type: integer} validation. This one asks about the wrapper TYPE.
+     */
+    static boolean isIntegralWrapper(Object o) {
+        return o instanceof Integer || o instanceof Long || o instanceof Short || o instanceof Byte;
+    }
+
+    /**
+     * Exact cross-wrapper equality for integral numbers (#342): {@code 2} equals {@code 2L}
+     * equals {@code (short) 2}. Compared via {@code longValue()}, never via {@code double} -
+     * longs past 2^53 must not collapse. False whenever either side is not an integral
+     * wrapper, so callers can OR this behind a plain {@code equals} without widening any
+     * non-integral behavior.
+     */
+    static boolean integralEquals(Object a, Object b) {
+        return isIntegralWrapper(a) && isIntegralWrapper(b)
+               && ((Number) a).longValue() == ((Number) b).longValue();
+    }
+
+    /**
+     * Canonical form for hash-based lookups (#342): lifts Byte/Short/Integer to {@code Long}
+     * so a set/map built from query literals and a probe built from a stored value land on the
+     * same key regardless of wrapper type. Everything else - including Double/Float/BigDecimal
+     * - passes through unchanged (see {@link #isIntegralWrapper} for why).
+     */
+    static Object normalizeIntegral(Object v) {
+        if (v instanceof Integer || v instanceof Short || v instanceof Byte) {
+            return ((Number) v).longValue();
+        }
+
+        return v;
     }
 
     static boolean compareValues(Object left, Object right, Collator coll) {
