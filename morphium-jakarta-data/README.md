@@ -39,7 +39,7 @@ Morphium core (`de.caluga:morphium`) does **not** depend on this module. Project
 <dependency>
   <groupId>de.caluga</groupId>
   <artifactId>morphium-jakarta-data</artifactId>
-  <version>${project.version}</version> <!-- currently 6.3.7-SNAPSHOT -->
+  <version>${project.version}</version> <!-- currently 6.3.8-SNAPSHOT -->
 </dependency>
 ```
 
