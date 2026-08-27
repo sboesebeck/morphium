@@ -115,6 +115,14 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
     // and trigger a restart without resume token to jump back to the present.
     private volatile long lastCsEventMs = 0;
     private volatile long lastCsRestartMs = 0;
+    /**
+     * When the poll FIRST saw a message the stream still owes us, with no event since. Reset on
+     * every event and on restart. The watchdog needs how long the observation has HELD, not how
+     * old the message is: a message the stream missed is still processed and marked within the
+     * same tick, so it is never old - gating on its age would keep the watchdog silent through a
+     * genuinely dead cursor (#346).
+     */
+    private volatile long unannouncedSinceMs = 0;
     private final AtomicLong csStallRestarts = new AtomicLong(0);
     private List<Map<String, Object>> changeStreamPipeline;
     // Topic snapshot the live main-CS pipeline was built with; compared against
@@ -732,6 +740,7 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
      */
     private boolean onMainCsEvent(ChangeStreamEvent evt) {
         lastCsEventMs = System.currentTimeMillis();
+        unannouncedSinceMs = 0;
         return handleChangeStreamEvent(evt);
     }
 
@@ -744,23 +753,25 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
      *
      * Only call from the fallback poll thread, never from a CS listener.
      */
-    private void restartMainCsIfStalled(long stallThresholdMs, long oldestUnannouncedMs) {
+    private void restartMainCsIfStalled(long stallThresholdMs) {
         if (!running || !useChangeStream) return;
         ChangeStreamMonitor old = changeStreamMonitor;
         if (old == null) return;
 
         // Nothing the stream still owes us: every message the poll found was already announced
-        // (or predates the last event). Messages nobody ever marks processed - an answer no one
-        // awaits, a topic without a listener - linger until their TTL and would otherwise make
-        // the poll report backlog on every single tick (#346).
-        if (oldestUnannouncedMs <= 0) return;
+        // (or predates the last event). Messages nobody ever marks processed linger until their
+        // TTL and must not be read as a stall (#346).
+        long since = unannouncedSinceMs;
+        if (since <= 0) return;
 
         long now = System.currentTimeMillis();
         long silenceMs = now - lastCsEventMs;
         if (silenceMs < stallThresholdMs) return;
-        // The backlog must have had time to reach us: a message inserted moments ago proves
-        // nothing, its event may still be in flight.
-        if (now - oldestUnannouncedMs < stallThresholdMs) return;
+        // The observation must have HELD for a full threshold: a single tick proves nothing,
+        // the event for a message that just arrived may still be in flight. Any event in the
+        // meantime clears the marker, so this only trips when the stream stayed silent
+        // throughout while the poll kept finding messages it never announced.
+        if (now - since < stallThresholdMs) return;
         // Cooldown: don't restart again until the new stream had a fair chance
         // to either deliver an event or prove it is also stuck.
         if (now - lastCsRestartMs < stallThresholdMs) return;
@@ -822,6 +833,7 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
             // Reset markers — give the fresh stream the full threshold before re-evaluating.
             lastCsEventMs = System.currentTimeMillis();
             lastCsRestartMs = lastCsEventMs;
+            unannouncedSinceMs = 0;
             return true;
         } catch (Exception e) {
             log.error("Failed to restart change stream for '{}'", getCollectionName(), e);
@@ -1742,12 +1754,20 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
                         sk.set(sk.get() + requestPoll.get());
                         requestPoll.set(0);
                         long oldestUnannounced = findMessages();
-                        // Watchdog: if the poll picks up a message the stream never announced and
-                        // the stream has been silent for too long, the cursor has fallen behind —
-                        // restart it. Threshold = 2 fallback intervals before declaring a stall,
-                        // which avoids false positives from slow networks.
-                        if (oldestUnannounced > 0 && useChangeStream) {
-                            restartMainCsIfStalled(2L * settings.getMessagingFallbackPollInterval(), oldestUnannounced);
+                        // Watchdog: while the poll keeps finding messages the stream never
+                        // announced and no event arrives, the cursor has fallen behind — restart
+                        // it. Threshold = 2 fallback intervals before declaring a stall, which
+                        // avoids false positives from slow networks.
+                        if (useChangeStream) {
+                            if (oldestUnannounced > 0) {
+                                if (unannouncedSinceMs == 0) {
+                                    unannouncedSinceMs = System.currentTimeMillis();
+                                }
+
+                                restartMainCsIfStalled(2L * settings.getMessagingFallbackPollInterval());
+                            } else {
+                                unannouncedSinceMs = 0;
+                            }
                         }
                     } else {
                         morphium.inc(StatisticKeys.SKIPPED_MSG_UPDATES);
