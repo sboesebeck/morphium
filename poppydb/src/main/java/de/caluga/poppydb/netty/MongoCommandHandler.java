@@ -1549,10 +1549,18 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 return;
             }
 
-            // Build a synthetic "lock_released" event for the parent messaging collection
+            // Build a synthetic "lock_released" event for the parent messaging collection.
+            // It carries a resume token like every other event: without one, spec-compliant
+            // drivers abort the entire stream ("lacks a resume token"), which breaks any
+            // third-party client watching a messaging collection (#347). The token is the
+            // CURRENT sequence rather than a fresh one - this event is not part of the oplog
+            // and cannot be replayed, so a client resuming from it must continue at the next
+            // real event, never skip one.
             Map<String, Object> event = Doc.of(
+                "_id", Doc.of("_data", String.format(Locale.ROOT, "%016x", driver.getChangeStreamSequence())),
                 "operationType", "lock_released",
                 "ns", Doc.of("db", db, "coll", info.getCollection()),
+                "clusterTime", System.currentTimeMillis(),
                 "lockCollection", lockColl
             );
 

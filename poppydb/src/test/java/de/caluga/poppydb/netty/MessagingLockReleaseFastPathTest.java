@@ -111,6 +111,36 @@ public class MessagingLockReleaseFastPathTest {
             .isEqualTo(COLL);
     }
 
+    /**
+     * A change stream event without a resume token makes spec-compliant drivers abort the whole
+     * stream ("A change stream document has been received that lacks a resume token (_id)") -
+     * mongosh dies on the first {@code lock_released} it sees, so any third-party client watching
+     * a messaging collection breaks as soon as a lock is released (#347).
+     *
+     * <p>The token must not run ahead of the real event sequence either: a client resuming from it
+     * has to continue at the next real event rather than skip one.
+     */
+    @Test
+    public void lockReleasedEventCarriesAResumeToken() throws Exception {
+        drv.store(DB, LOCK_COLL, List.of(Doc.of("_id", "lock-1", "msg_id", "m1")), null);
+        CompletableFuture<List<Map<String, Object>>> parked = parkedSubscriber();
+
+        sendDelete(LOCK_COLL);
+
+        List<Map<String, Object>> events = parked.get(5, TimeUnit.SECONDS);
+        Map<String, Object> evt = events.get(0);
+        assertThat(evt.get("operationType")).isEqualTo("lock_released");
+
+        assertThat(evt.get("_id"))
+            .as("every change stream event needs a resume token, or spec-compliant drivers abort")
+            .isInstanceOf(Map.class);
+        Object data = ((Map<?, ?>) evt.get("_id")).get("_data");
+        assertThat(data).as("resume token must carry _data: " + evt.get("_id")).isInstanceOf(String.class);
+        assertThat(Long.parseLong((String) data, 16))
+            .as("the synthetic token must not run ahead of the real event sequence")
+            .isLessThanOrEqualTo(drv.getChangeStreamSequence());
+    }
+
     @Test
     public void deletingAnUnrelatedCollectionDoesNotWakeSubscribers() throws Exception {
         CompletableFuture<List<Map<String, Object>>> parked = parkedSubscriber();
