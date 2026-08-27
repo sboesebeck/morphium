@@ -765,14 +765,23 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
      *
      * Only call from the fallback poll thread, never from a CS listener.
      */
-    private void restartMainCsIfStalled(long stallThresholdMs) {
+    private void restartMainCsIfStalled(long stallThresholdMs, long oldestUnannouncedMs) {
         if (!running || !useChangeStream) return;
         ChangeStreamMonitor old = changeStreamMonitor;
         if (old == null) return;
 
+        // Nothing the stream still owes us: every message the poll found was already announced
+        // (or predates the last event). Messages nobody ever marks processed - an answer no one
+        // awaits, a topic without a listener - linger until their TTL and would otherwise make
+        // the poll report backlog on every single tick (#346).
+        if (oldestUnannouncedMs <= 0) return;
+
         long now = System.currentTimeMillis();
         long silenceMs = now - lastCsEventMs;
         if (silenceMs < stallThresholdMs) return;
+        // The backlog must have had time to reach us: a message inserted moments ago proves
+        // nothing, its event may still be in flight.
+        if (now - oldestUnannouncedMs < stallThresholdMs) return;
         // Cooldown: don't restart again until the new stream had a fair chance
         // to either deliver an event or prove it is also stuck.
         if (now - lastCsRestartMs < stallThresholdMs) return;
@@ -1104,13 +1113,13 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         StatisticValue sk = morphium.getStats().get(StatisticKeys.PULLSKIP);
                         sk.set(sk.get() + requestPoll.get());
                         requestPoll.set(0);
-                        boolean foundBacklog = findMessages();
-                        // Watchdog: if the poll picks up unprocessed messages but the change stream
-                        // has been silent for too long, the cursor has fallen behind — restart it.
-                        // Threshold = 2 fallback intervals before declaring a stall, which avoids
-                        // false positives from slow networks.
-                        if (foundBacklog && useChangeStream) {
-                            restartMainCsIfStalled(2L * settings.getMessagingFallbackPollInterval());
+                        long oldestUnannounced = findMessages();
+                        // Watchdog: if the poll picks up a message the stream never announced and
+                        // the stream has been silent for too long, the cursor has fallen behind —
+                        // restart it. Threshold = 2 fallback intervals before declaring a stall,
+                        // which avoids false positives from slow networks.
+                        if (oldestUnannounced > 0 && useChangeStream) {
+                            restartMainCsIfStalled(2L * settings.getMessagingFallbackPollInterval(), oldestUnannounced);
                         }
                     } else {
                         morphium.inc(StatisticKeys.SKIPPED_MSG_UPDATES);
@@ -1616,26 +1625,38 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     /**
-     * @return true if at least one unprocessed message was found by the poll. The caller uses this
-     * as a signal that there is real backlog (used by the change stream watchdog).
+     * @return timestamp of the oldest message the main change stream still owes us - i.e. one that
+     * was inserted AFTER the last event we received - or 0 if there is no such message. The change
+     * stream watchdog uses it as its stall evidence: a message that predates the last event was
+     * announced by the stream, so it lingering in the collection means nobody processed it, not
+     * that the cursor fell behind (#346).
      */
-    private boolean findMessages() {
+    private long findMessages() {
         if (!running) {
-            return false;
+            return 0;
         }
 
         // log.debug("getting messages...");
         List<ProcessingQueueElement> messages = getMessagesForProcessing();
 
         if (messages == null) {
-            return false;
+            return 0;
         }
 
         if (messages.size() == 0) {
-            return false;
+            return 0;
         }
 
+        // Snapshot once: a concurrent event must not make part of this batch look announced and
+        // the rest overdue.
+        long csMark = lastCsEventMs;
+        long oldestUnannounced = 0;
+
         for (ProcessingQueueElement el : messages) {
+            if (el.getTimestamp() > csMark && (oldestUnannounced == 0 || el.getTimestamp() < oldestUnannounced)) {
+                oldestUnannounced = el.getTimestamp();
+            }
+
             synchronized (processing) {
                 if (!processing.contains(el) && !idsInProgress.contains(el.getId())) {
                     processing.add(el);
@@ -1648,7 +1669,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 }
             }
         }
-        return true;
+        return oldestUnannounced;
     }
 
     @SuppressWarnings("CommentedOutCode")
