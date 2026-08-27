@@ -1531,8 +1531,10 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
             q.or(q.q().f(Msg.Fields.topic).in(watchedTopics),
                  // V5-legacy senders store the topic only in "name"
                  q.q().f("name").in(watchedTopics),
-                 // answers target waiters/callbacks, not topic listeners
-                 q.q().f(Msg.Fields.inAnswerTo).ne(null));
+                 // Answers target waiters/callbacks, not topic listeners - but only the ones this
+                 // instance actually awaits. An answer nobody awaits is dropped without a
+                 // processed_by mark and would otherwise be re-fetched every tick until TTL (#348).
+                 q.q().f(Msg.Fields.inAnswerTo).in(awaitedAnswerIds()));
 
             q.setLimit(windowSize);
             q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
@@ -2116,6 +2118,18 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
         return ret;
     }
 
+    /**
+     * Ids of the requests this instance is currently awaiting an answer for - by queue
+     * (sendAndAwaitFirstAnswer / sendAndAwaitAnswers) or by callback (sendAndAwaitAsync). Used to
+     * restrict the poll to answers that can actually be consumed here; both registrations happen
+     * before the request is sent, so an answer can never arrive ahead of its entry.
+     */
+    private Set<MorphiumId> awaitedAnswerIds() {
+        Set<MorphiumId> awaited = new HashSet<>(waitingForAnswers.keySet());
+        awaited.addAll(waitingForCallbacks.keySet());
+        return awaited;
+    }
+
     private List<ProcessingQueueElement> getMessagesForProcessing() {
         if (!running) {
             return new ArrayList<>();
@@ -2136,7 +2150,7 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
             if (listenerByName.isEmpty()) {
                 // No listeners - only answers will be processed
                 return q.q().f(Msg.Fields.sender).ne(id).f(processedByFieldName).ne(id).f(Msg.Fields.inAnswerTo)
-                       .in(waitingForAnswers.keySet()).limit(windowSize).idList();
+                       .in(awaitedAnswerIds()).limit(windowSize).idList();
             }
 
             // Skip messages already being processed locally
@@ -2176,8 +2190,9 @@ public class DualChannelMessaging extends Thread implements ShutdownListener, Mo
                 q.q().f(Msg.Fields.topic).in(watchedTopics),
                 // V5-legacy senders store the topic only in "name"
                 q.q().f("name").in(watchedTopics),
-                // answers target waiters/callbacks, not topic listeners - they pass regardless of topic
-                q.q().f(Msg.Fields.inAnswerTo).ne(null));
+                // Answers target waiters/callbacks, not topic listeners - but only the ones this
+                // instance actually awaits; see the DM branch above and #348.
+                q.q().f(Msg.Fields.inAnswerTo).in(awaitedAnswerIds()));
             q1.or(relevance);
             q2.or(relevance);
             q.f("_id").nin(idsToIgnore);

@@ -1491,6 +1491,18 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         return ret;
     }
 
+    /**
+     * Ids of the requests this instance is currently awaiting an answer for - by queue
+     * (sendAndAwaitFirstAnswer / sendAndAwaitAnswers) or by callback (sendAndAwaitAsync). Used to
+     * restrict the poll to answers that can actually be consumed here; both registrations happen
+     * before the request is sent, so an answer can never arrive ahead of its entry.
+     */
+    private Set<MorphiumId> awaitedAnswerIds() {
+        Set<MorphiumId> awaited = new HashSet<>(waitingForAnswers.keySet());
+        awaited.addAll(waitingForCallbacks.keySet());
+        return awaited;
+    }
+
     private List<ProcessingQueueElement> getMessagesForProcessing() {
         if (!running) {
             return new ArrayList<>();
@@ -1511,7 +1523,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             if (listenerByName.isEmpty()) {
                 // No listeners - only answers will be processed
                 return q.q().f(Msg.Fields.sender).ne(id).f(processedByFieldName).ne(id).f(Msg.Fields.inAnswerTo)
-                       .in(waitingForAnswers.keySet()).limit(windowSize).idList();
+                       .in(awaitedAnswerIds()).limit(windowSize).idList();
             }
 
             // Skip messages already being processed locally
@@ -1554,9 +1566,13 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 q.q().f(Msg.Fields.topic).in(watchedTopics),
                 // V5-legacy senders store the topic only in "name" (see buildMainCsPipeline())
                 q.q().f("name").in(watchedTopics),
-                // answers target waiters/callbacks, not topic listeners - they pass regardless
-                // of topic (same clause as the change stream filter)
-                q.q().f(Msg.Fields.inAnswerTo).ne(null));
+                // Answers target waiters/callbacks, not topic listeners, so they pass regardless of
+                // topic - but only the ones this instance is actually waiting for. An answer nobody
+                // awaits is dropped by processing without a processed_by mark (on purpose), so
+                // admitting every answer here made it re-fetched and re-queued on every tick until
+                // its TTL expired, occupying a window slot the whole time (#348). The change stream
+                // still delivers it once; it just is not backlog to be re-fetched.
+                q.q().f(Msg.Fields.inAnswerTo).in(awaitedAnswerIds()));
             q1.or(relevance);
             q2.or(relevance);
             q.f("_id").nin(idsToIgnore);
