@@ -7,6 +7,124 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+#### The change stream stall watchdog no longer misreads normal idleness as a stalled cursor (#346)
+On the genios acceptance cluster the watchdog produced **2229 alarms in 7 days**, none of them a
+real problem - one hermes process reached `restart #260`. Each alarm discards the cursor and
+rebuilds it without a resume token, so this was never merely a noisy log line, and with thousands
+of false positives a real stall would have been invisible anyway.
+
+The predicate was the bug, not the timing. It fired when the change stream had been silent for
+2 fallback poll intervals AND the poll returned any processable message. Neither half means the
+cursor fell behind: an instance that rarely receives addressed messages legitimately sees minutes
+of silence, and "the poll sees something right now" says nothing about whether the stream missed
+it. What actually drove the storm were messages nobody ever marks processed - they linger for
+their full TTL, so the poll re-finds them on every tick and the backlog flag stays permanently
+true. 83% of hermes' alarms fall in minute :00-:01, matching the hourly cron that produced them.
+
+The poll now reports the timestamp of the oldest message inserted AFTER the last event we
+received, and the watchdog additionally requires that observation to have HELD for a full
+threshold. A first attempt gated on the message's AGE instead, which would have silenced the
+watchdog for the case it exists for: a message the stream misses is picked up and marked within
+the same tick, so it is never old, and a cursor dying under normal traffic would never have
+tripped the alarm again.
+
+Known limit, deliberately accepted: this makes stall detection traffic-gated. A message found by
+the poll is excluded from the next poll server-side, so it carries evidence for about two ticks,
+and holding the marker for a full threshold needs traffic. Measured against a deliberately
+silenced cursor, the alarm fires reliably while messages arrive at up to about twice the poll
+interval and never at three times or slower. Below that rate - a quiet deployment with a silently
+dead cursor - the alarm never fires and delivery degrades to poll latency. The fallback poll still
+delivers, and an observably dead cursor is caught by the separate suspect path. The watchdog now
+has a positive test that silences a live cursor by reflection and asserts the restart happens, so
+"the watchdog still fires at all" is no longer an untested assumption.
+
+Two caveats recorded in the code rather than fixed: the predicate compares the sender's message
+timestamp against the receiver's event clock, so a sender clock running ahead by more than the
+change stream delivery latency can still produce (bounded) false restarts - fine under NTP, not
+after a VM suspend. And the DM lane of `DualChannelMessaging` has no stall watchdog at all; a
+marker that pretended otherwise was tracked but never read by anything and has been removed.
+
+#### The poll no longer re-fetches answers nobody awaits, for their whole TTL (#348)
+An answer to a fire-and-forget request - the requester registered no waiter and no callback, but
+the responder answers anyway - is dropped by processing WITHOUT a `processed_by` mark, on purpose,
+so that a listener registered later still receives it. The poll's relevance clause admitted EVERY
+answer (`inAnswerTo != null`), so such an answer was re-fetched and re-queued on every tick until
+its TTL expired.
+
+Measured on genios acc: an hourly cron produced ~35 orphaned answers, each sitting for its full
+60s TTL (n=37, p50 60684ms, `processed_by` empty throughout). Each one cost roughly 120 PRIMARY
+re-fetches per instance, and since answers carry `priority - 10` they sort AHEAD of regular
+messages into the `limit(windowSize)` window - exactly the starvation the relevance filter was
+introduced to prevent. It was also what kept the backlog flag permanently true and drove the
+false stall alarms in #346.
+
+The poll now admits only answers this instance can actually consume: `inAnswerTo` in
+(`waitingForAnswers` + `waitingForCallbacks`). All three await paths register before the request
+is sent, so an answer can never arrive ahead of its entry. The change stream still delivers every
+answer once - it just is not backlog to re-fetch. Answers consumed by a topic listener and
+status-info answers keep passing through the topic clause and are unaffected.
+
+#### Poll and messaging tests: gaps closed alongside the fixes above
+`DualChannelMessaging` had no test at all for the #348 narrowing although the change touched three
+of its query sites, and the two classes have drifted before - it now has six, covering the DM lane
+and the main lane separately, for orphaned answers as well as answers awaited by queue and by
+callback. `awaitedAnswerIds()` warns (throttled) once the awaited set passes 5000 entries, since
+that set ships as an `$in` list on every poll tick and a set that large means callbacks are being
+registered faster than they are answered.
+
+#### The answers-only poll branch threw a swallowed ClassCastException on every hit
+`getMessagesForProcessing()` returns `List<ProcessingQueueElement>`, but its no-listener shortcut
+returned `idList()` - whose unbounded generic smuggled raw `MorphiumId`s into the typed list. The
+first non-empty result blew up the poll loop with a `ClassCastException` that the loop's own catch
+swallowed. In the "no listeners registered, waiting for answers via sendAndAwait*" configuration
+that silently killed both the poll fallback and the change stream stall watchdog: the answer was
+then only ever delivered by the change stream, with nothing to recover it if the stream missed it.
+
+Reachable only with the status info listener disabled, since `installStatusInfoListener()`
+otherwise keeps the listener map non-empty - which is why no test ever hit it. Both branches now
+build their elements through one shared, number-tolerant mapper, and the shortcut sorts by
+`(priority, timestamp)` like the main branch instead of taking an arbitrary window.
+
+#### PoppyDB: the messaging insert fast path would have hit the same missing-token bug (#347)
+The sweep #347 asked for turned up a second synthetic event without a resume token: the messaging
+insert fast path in `MessagingOptimizer` built its event with neither `_id` nor `clusterTime`. The
+path is currently dead - its entry point has no caller, the fast path is deliberately disabled to
+avoid duplicate delivery - so this was a trap armed for whoever enables it, not an active bug. It
+now carries a token like every other event, with a comment naming the trap. Unlike the lock
+release, an insert is a real oplog operation, but its real event has already been emitted by the
+time the fast path runs, so the fast path event is a latency duplicate rather than a second
+operation: it reuses the current sequence instead of minting a token no replay buffer would match.
+A full sweep of `poppydb` found no further producers of change stream documents without `_id`.
+
+#### PoppyDB change stream events are now readable by spec-compliant drivers (#347)
+Two independent wire defects made every official MongoDB driver abort a change stream against
+PoppyDB, reproducible with plain `mongosh` as soon as messaging traffic flowed. Morphium's own
+driver tolerates both, which is why they stayed invisible in production while undercutting the
+wire-compatibility promise.
+
+First, the synthetic `lock_released` event carried no resume token at all, and a document without
+`_id` makes drivers error out and close the stream. It now carries a token in the same format as
+every other event. The token is the CURRENT sequence rather than a freshly allocated one: the
+event is synthetic, not part of the oplog and not replayable, so a client resuming from it must
+continue at the next real event rather than skip one.
+
+Second - and this affected EVERY event, not just the synthetic one - `clusterTime` went out as a
+BSON int64 instead of a BSON timestamp (0x11). Typed decoders such as the official Java driver's
+read that field as a timestamp and fail on an int64, so fixing only the missing token would have
+moved the breakage one line further down. The conversion now happens once at the wire boundary in
+`WatchCursorManager`, which leaves `morphium-core` and the `ChangeStreamEvent` API untouched: the
+high 32 bits carry epoch seconds, the increment comes from the event's own change stream sequence,
+so the value is deterministic per event and non-decreasing across events. `$clusterTime` and
+`operationTime` in ordinary command replies had the right type but a nonsense value - built from
+the raw-value constructor with millis, they claimed a timestamp in 1970 - and are now built the
+same way.
+
+Note for consumers of Morphium's own `ChangeStreamEvent.getClusterTime()`: against PoppyDB that
+value is now the same raw timestamp encoding real MongoDB returns, not epoch millis. Nothing in
+Morphium reads it.
+
 
 ## [6.3.7] - 2026-08-26
 
