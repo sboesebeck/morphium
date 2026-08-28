@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
+import de.caluga.morphium.driver.bson.MongoTimestamp;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 
@@ -554,11 +555,61 @@ public class WatchCursorManager {
     }
 
     /**
+     * Wire compatibility: real MongoDB sends a change stream event's {@code clusterTime} as a
+     * BSON timestamp (0x11), but the driver-internal events carry it as a plain long of epoch
+     * millis, which BsonEncoder writes as int64 (0x12). Untyped clients (mongosh, Node) swallow
+     * that, typed ones do not - the official Java driver decodes
+     * {@code ChangeStreamDocument.clusterTime} as {@code BsonTimestamp} and fails on an int64.
+     * Converted HERE, at the server's wire boundary, on purpose: in morphium-core
+     * {@code ChangeStreamEvent.clusterTime} is a public long field, so changing the internal
+     * representation would ripple through API and deserialization.
+     *
+     * <p>Timestamp semantics: seconds = the event's creation millis / 1000; increment = the low
+     * 32 bits of the change stream sequence already embedded in the resume token
+     * ({@code _id._data}). That makes the value deterministic per event - every cursor sees the
+     * SAME clusterTime for the same event, which a per-second counter at delivery time could not
+     * guarantee - and non-decreasing across consecutive events without any extra state: the
+     * sequence is globally monotonic, so within one wall-clock second the increment strictly
+     * grows, and across seconds the seconds part dominates.
+     *
+     * <p>Idempotent by design: only a present {@code Number} is converted - an absent
+     * clusterTime (defensive; all known producers set one) or an already-converted
+     * {@code MongoTimestamp} passes through untouched. The event map may be an immutable snapshot
+     * (buildChangeStreamEvent), so conversion copies shallowly instead of mutating in place.
+     */
+    static Map<String, Object> withWireClusterTime(Map<String, Object> event) {
+        if (event == null || !(event.get("clusterTime") instanceof Number millis)) {
+            return event;
+        }
+
+        int seconds = (int) (millis.longValue() / 1000L);
+        int increment = 0;
+
+        if (event.get("_id") instanceof Map<?, ?> token && token.get("_data") instanceof String hex) {
+            try {
+                increment = (int) Long.parseUnsignedLong(hex, 16);
+            } catch (NumberFormatException e) {
+                // Not a poppydb-generated %016x token - the seconds part alone still orders
+                // events across seconds, so 0 is a safe increment.
+            }
+        }
+
+        Map<String, Object> copy = new LinkedHashMap<>(event);
+        copy.put("clusterTime", new MongoTimestamp(seconds, increment));
+        return copy;
+    }
+
+    /**
      * Enqueue a change stream event, killing the cursor if its buffer is full.
      *
      * @return true if the event was buffered, false if the cursor overflowed and was killed.
      */
     private boolean offerWatchEvent(WatchCursorState state, Map<String, Object> event) {
+        // Wire boundary for change stream events: everything a client receives is queued here
+        // (driver subscription and messaging fast-path alike) and leaves via getMore/nextBatch,
+        // so this single spot fixes the clusterTime BSON type for all of them. The tailable
+        // path (offerTailableDocument) carries plain documents and is deliberately untouched.
+        event = withWireClusterTime(event);
         long bytes = InMemoryDriver.estimateBsonSize(event);
         long budget = cursorQueueByteBudget;
 

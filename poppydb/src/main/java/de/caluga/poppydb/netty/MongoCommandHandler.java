@@ -1556,6 +1556,9 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             // CURRENT sequence rather than a fresh one - this event is not part of the oplog
             // and cannot be replayed, so a client resuming from it must continue at the next
             // real event, never skip one.
+            // clusterTime stays plain epoch millis here, matching the driver-internal event
+            // shape: WatchCursorManager rewrites it into a BSON timestamp at the wire boundary
+            // (withWireClusterTime), same as for every real event.
             Map<String, Object> event = Doc.of(
                 "_id", Doc.of("_data", String.format(Locale.ROOT, "%016x", driver.getChangeStreamSequence())),
                 "operationType", "lock_released",
@@ -1767,8 +1770,15 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     }
 
     private void sendResponse(ChannelHandlerContext ctx, int requestId, Map<String, Object> answer) {
-        answer.put("$clusterTime", Doc.of("clusterTime", new MongoTimestamp(System.currentTimeMillis())));
-        answer.put("operationTime", new MongoTimestamp(System.currentTimeMillis()));
+        // A BSON timestamp's high 32 bits are epoch SECONDS. The raw-value constructor with
+        // currentTimeMillis() produced a "valid" timestamp claiming ~1970 (millis >> 32 is a
+        // few hundred seconds) - right type, nonsense value. Seconds-based encoding is also
+        // strictly LARGER as a raw value, so cluster-time gossip in connected drivers only
+        // ever sees the value step forward, never back. Increment 1, not 0: Timestamp(0, 0)
+        // is the reserved null timestamp and some drivers special-case inc 0.
+        MongoTimestamp now = new MongoTimestamp((int) (System.currentTimeMillis() / 1000L), 1);
+        answer.put("$clusterTime", Doc.of("clusterTime", now));
+        answer.put("operationTime", now);
 
         OpMsg reply = new OpMsg();
         reply.setResponseTo(requestId);

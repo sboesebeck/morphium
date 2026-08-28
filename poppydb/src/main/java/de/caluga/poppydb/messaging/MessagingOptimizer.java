@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -201,12 +202,26 @@ public class MessagingOptimizer {
         // Extract sender from the document for server-side filtering
         String sender = (String) document.get("sender");
 
-        // Build a minimal change stream event for the insert
+        // Build a minimal change stream event for the insert.
+        // It MUST carry a resume token like every other event: spec-compliant drivers abort
+        // the entire stream on an event without _id ("lacks a resume token"), so enabling
+        // this fast-path without the token reproduces #347 on the first message insert.
+        // The token is the CURRENT sequence, not a freshly allocated one: the insert itself
+        // is a real oplog operation, but its real change stream event (with its own token)
+        // has already been emitted by the driver by the time this handler runs - this event
+        // is a low-latency duplicate of it, not a second operation. Minting a fresh sequence
+        // here would create a token no replay buffer entry ever matches; the current sequence
+        // is >= the real insert event's token, so a client resuming from this token continues
+        // at the next real event without seeing the same insert twice.
+        // clusterTime stays plain epoch millis: WatchCursorManager rewrites it into a BSON
+        // timestamp at the wire boundary (withWireClusterTime), same as for every real event.
         Map<String, Object> event = Doc.of(
+                "_id", Doc.of("_data", String.format(Locale.ROOT, "%016x", driver.getChangeStreamSequence())),
                 "operationType", "insert",
                 "fullDocument", document,
                 "ns", Doc.of("db", db, "coll", collection),
-                "documentKey", Doc.of("_id", document.get("_id"))
+                "documentKey", Doc.of("_id", document.get("_id")),
+                "clusterTime", System.currentTimeMillis()
                                     );
 
         // Use fast-path notification
