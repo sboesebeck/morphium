@@ -100,6 +100,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
      * genuinely dead cursor (#346).
      */
     private volatile long unannouncedSinceMs = 0;
+    /** Size at which awaitedAnswerIds() starts warning, and the throttle for that warning. */
+    private static final int AWAITED_ANSWERS_WARN_THRESHOLD = 5000;
+    private volatile long lastAwaitedAnswersWarnMs = 0;
     private final AtomicLong csStallRestarts = new AtomicLong(0);
     private List<Map<String, Object>> changeStreamPipeline;
     // Topic snapshot the live main-CS pipeline was built with; compared against
@@ -792,6 +795,19 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         // the event for a message that just arrived may still be in flight. Any event in the
         // meantime clears the marker, so this only trips when the stream stayed silent
         // throughout while the poll kept finding messages it never announced.
+        //
+        // KNOWN LIMIT - this makes stall detection traffic-gated. A message found by the poll
+        // goes into 'processing' and is excluded from the next poll server-side via idsToIgnore,
+        // so it carries evidence for roughly two ticks (the processed_by write lands just after
+        // the following tick). Holding the marker for a full threshold therefore needs traffic:
+        // measured against a silenced cursor, the alarm fires reliably while messages arrive at
+        // up to about 2x the poll interval, and never at 3x or slower - see
+        // MessagingCsStallWatchdogTest.restartsWhenTheStreamGoesSilentUnderContinuousTraffic.
+        // Below that rate - a dead cursor on a quiet deployment, which is the very profile that
+        // motivated #346 - the marker is armed and reset in turn and the alarm never fires:
+        // delivery degrades silently to poll latency. Accepted over the 2229 false alarms per
+        // week the old predicate produced; the fallback poll still delivers, and a cursor that
+        // dies observably is caught by the separate justTurnedSuspect path.
         if (now - since < stallThresholdMs) return;
         // Cooldown: don't restart again until the new stream had a fair chance
         // to either deliver an event or prove it is also stuck.
@@ -1500,6 +1516,24 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     private Set<MorphiumId> awaitedAnswerIds() {
         Set<MorphiumId> awaited = new HashSet<>(waitingForAnswers.keySet());
         awaited.addAll(waitingForCallbacks.keySet());
+
+        // The set goes into the poll query as an $in list, twice (q1 and q2), on every tick.
+        // waitingForAnswers is bounded by blocking threads, but waitingForCallbacks grows with
+        // sendAndAwaitAsync rate times timeout - entries only leave when their timeout fires.
+        // Far from the BSON limit at this size, but a set this large means callbacks are being
+        // registered faster than they are consumed, which is worth knowing about.
+        if (awaited.size() >= AWAITED_ANSWERS_WARN_THRESHOLD) {
+            long now = System.currentTimeMillis();
+            long last = lastAwaitedAnswersWarnMs;
+
+            if (now - last > 60000) {
+                lastAwaitedAnswersWarnMs = now;
+                log.warn("{}: awaiting {} answers ({} by queue, {} by callback) - every poll ships "
+                         + "them as an $in list; check for callbacks that are registered but never answered",
+                         id, awaited.size(), waitingForAnswers.size(), waitingForCallbacks.size());
+            }
+        }
+
         return awaited;
     }
 
@@ -1521,9 +1555,32 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             Query<Msg> q = morphium.createQueryFor(Msg.class, getCollectionName());
 
             if (listenerByName.isEmpty()) {
-                // No listeners - only answers will be processed
-                return q.q().f(Msg.Fields.sender).ne(id).f(processedByFieldName).ne(id).f(Msg.Fields.inAnswerTo)
-                       .in(awaitedAnswerIds()).limit(windowSize).idList();
+                // No listeners - only answers this instance awaits can be consumed. This branch
+                // must build real ProcessingQueueElements: it used to return idList(), whose
+                // unbounded generic smuggled raw MorphiumIds into the typed list (heap
+                // pollution), so the first non-empty result blew up findMessages() with a
+                // ClassCastException - swallowed by the poll loop's catch. In the no-listener
+                // sendAndAwait* configuration that silently killed both the poll fallback and
+                // the change stream stall watchdog.
+                Query<Msg> answersOnly = q.q().f(Msg.Fields.sender).ne(id).f(processedByFieldName).ne(id)
+                                          .f(Msg.Fields.inAnswerTo).in(awaitedAnswerIds());
+                // same (priority, timestamp) order as the main branch: with more awaited answers
+                // than window slots, the oldest/most urgent ones go first instead of an
+                // arbitrary selection
+                answersOnly.sort(Msg.Fields.priority, Msg.Fields.timestamp);
+                fnd = new FindCommand(
+                                morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(Msg.class)));
+                fnd.setDb(morphium.getDatabase());
+                fnd.setFilter(answersOnly.toQueryObject());
+                fnd.setProjection(Doc.of("_id", 1, "priority", 1, "timestamp", 1));
+                fnd.setLimit(windowSize);
+                fnd.setSort(answersOnly.getSort());
+                fnd.setColl(getCollectionName());
+                var answerResult = fnd.execute();
+                // to make it work with SingleMongoConnection!
+                fnd.releaseConnection();
+                fnd = null;
+                return toQueueElements(answerResult);
             }
 
             // Skip messages already being processed locally
@@ -1592,7 +1649,6 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             // answers...
             q.setLimit(windowSize);
             q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
-            List<ProcessingQueueElement> queueElements = new ArrayList<>();
             // just trigger unprocessed messages for Changestream...
             int ws = windowSize;
             // get IDs of messages to process
@@ -1610,21 +1666,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             // to make it work with SingleMongoConnection!
             fnd.releaseConnection();
             fnd = null;
-
-            if (!result.isEmpty()) {
-                for (Map<String, Object> el : result) {
-                    el.putIfAbsent("priority", 100);
-                    el.putIfAbsent("timestamp", System.currentTimeMillis());
-                    // Number-tolerant, same rule as this class's changestream path: wire BSON
-                    // does not guarantee the boxed type (int64 priority occurs after a PoppyDB
-                    // failover, and real MongoDB may return it any time). A hard (Integer) cast
-                    // here killed EVERY poll with a ClassCastException - and the poll is exactly
-                    // the path that recovers the backlog after a changestream outage, so the
-                    // receiver never delivered again (DriverFailoverProxyTest failure mode).
-                    queueElements.add(new ProcessingQueueElement(((Number) el.get("priority")).intValue(),
-                                      ((Number) el.get("timestamp")).longValue(), (MorphiumId) el.get("_id")));
-                }
-            }
+            List<ProcessingQueueElement> queueElements = toQueueElements(result);
 
             // Optimization: Avoid expensive countAll() on every poll
             // If we got exactly windowSize results, there might be more messages
@@ -1653,6 +1695,29 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 fnd.releaseConnection();
             }
         }
+    }
+
+    /**
+     * Maps a projected poll result (_id, priority, timestamp) onto queue elements - shared by
+     * the answers-only and the main poll branch so their element construction cannot drift.
+     * Number-tolerant on purpose, same rule as this class's changestream path: wire BSON does
+     * not guarantee the boxed type (int64 priority occurs after a PoppyDB failover, and real
+     * MongoDB may return it any time). A hard (Integer) cast here killed EVERY poll with a
+     * ClassCastException - and the poll is exactly the path that recovers the backlog after a
+     * changestream outage, so the receiver never delivered again (DriverFailoverProxyTest
+     * failure mode).
+     */
+    private List<ProcessingQueueElement> toQueueElements(List<Map<String, Object>> result) {
+        List<ProcessingQueueElement> queueElements = new ArrayList<>();
+
+        for (Map<String, Object> el : result) {
+            el.putIfAbsent("priority", 100);
+            el.putIfAbsent("timestamp", System.currentTimeMillis());
+            queueElements.add(new ProcessingQueueElement(((Number) el.get("priority")).intValue(),
+                              ((Number) el.get("timestamp")).longValue(), (MorphiumId) el.get("_id")));
+        }
+
+        return queueElements;
     }
 
     public void triggerCheck() {
@@ -1685,6 +1750,17 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
         // Snapshot once: a concurrent event must not make part of this batch look announced and
         // the rest overdue.
+        //
+        // CLOCK ASSUMPTION - this compares two different clocks: Msg.timestamp is stamped by the
+        // SENDER in preStore(), lastCsEventMs by the RECEIVER when the event arrives. The margin
+        // is not the stall threshold but the change stream delivery latency, i.e. milliseconds.
+        // With a sender clock running ahead by more than that, a correctly announced message
+        // reads as unannounced, and a lingering one can produce the very false restarts #346
+        // removed - bounded, though: each restart re-stamps lastCsEventMs to now, so a drift of
+        // D costs on the order of D/threshold restarts per linger episode rather than a storm.
+        // A sender clock running behind only delays detection. Fine under NTP, not after a VM
+        // suspend or on an unsynchronised host. A clock-free formulation would track the ids the
+        // stream actually delivered instead of timestamps.
         long csMark = lastCsEventMs;
         long oldestUnannounced = 0;
 

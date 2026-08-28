@@ -144,11 +144,17 @@ public class MessagingCsStallWatchdogTest {
      * answered by the responder, but the requester never registered a waiter or callback for
      * the answer. The answer (recipients=[requester], inAnswerTo set) is delivered by the change
      * stream once, then dropped by the requester's processing WITHOUT a processed_by mark ("no
-     * listener for topic" path). From then on the requester's poll re-finds it on EVERY tick
-     * (q2 + the inAnswerTo relevance clause) until its TTL expires.
+     * listener for topic" path).
      *
      * The stream delivered that answer correctly, so nothing is stalled - the lingering backlog
      * must not be read as evidence that the cursor fell behind.
+     *
+     * HISTORY - when this test was written, the poll's relevance clause admitted every answer
+     * (inAnswerTo != null), so the orphan was re-found on EVERY tick and drove the alarm storm.
+     * #348 has since narrowed that clause to awaited answers only, so the requester's poll no
+     * longer sees the orphan at all and this passes for a second, weaker reason. It is kept as a
+     * regression guard for the production scenario end to end; the discriminating test for the
+     * watchdog predicate itself is doesNotRestartWhileAnotherParticipantProcessesSlowly above.
      */
     @Test
     public void orphanAnswerDoesNotTriggerFalseRestarts() throws Exception {
@@ -188,6 +194,101 @@ public class MessagingCsStallWatchdogTest {
         assertThat(responder.getCsStallRestarts() - responderBefore)
                 .as("the answer is not addressed to the responder - its poll finds no backlog")
                 .isZero();
+    }
+
+    /**
+     * The positive case: a cursor that SILENTLY stops delivering while traffic keeps flowing
+     * must trip the watchdog and get restarted. Without this test, a "return;" as the first
+     * line of restartMainCsIfStalled() would go unnoticed - the three tests above only prove
+     * the absence of false alarms.
+     *
+     * Failure injection: poll filter and change stream filter are deliberately congruent, so a
+     * healthy stream never leaves an unannounced message behind - a real stall cannot be
+     * provoked through the public API. Instead of a production-code test seam, this reaches
+     * into the RECEIVER's live ChangeStreamMonitor via reflection and clears its listener list:
+     * the watch loop keeps running and isStreamLive() stays true (so the messaging does not
+     * notice anything and keeps polling on the regular fallback timer), but no event reaches
+     * onMainCsEvent() anymore - exactly the "cursor delivers nothing, nobody knows" profile
+     * the watchdog exists for.
+     *
+     * TIMING - the watchdog is traffic-gated (see the KNOWN LIMIT comment in
+     * restartMainCsIfStalled): a polled message is consumed within a tick or two and is then
+     * excluded from the next poll (processed_by / idsToIgnore), so it is evidence only briefly,
+     * while the unannounced-marker must HOLD for a full threshold (600ms here). The sender below
+     * therefore provides a continuous stream: one fresh message per poll interval (150ms sends
+     * vs 300ms interval) is guaranteed to keep the marker armed. Measured with this setup:
+     * arrival intervals up to 700ms still trip the alarm (a message stays poll-visible slightly
+     * past the tick that found it, because the processed_by mark lands just after the next tick
+     * starts), intervals of 1000ms and above never do - the marker resets in the gaps and a dead
+     * cursor on such quiet traffic degrades silently to poll latency, exactly as the KNOWN LIMIT
+     * comment predicts.
+     */
+    @Test
+    public void restartsWhenTheStreamGoesSilentUnderContinuousTraffic() throws Exception {
+        String db = "cs_stall_watchdog_positive";
+        SingleCollectionMessaging receiver = start(newMorphium(db));
+        SingleCollectionMessaging sender = start(newMorphium(db));
+
+        receiver.addListenerForTopic("stall_topic", (m, msg) -> null);
+        waitUntilLive(receiver);
+        // registering the listener makes the poll loop rebuild the CS filter (and with it the
+        // monitor) on one of the next ticks - wait that out, or the rebuild would replace the
+        // monitor we are about to silence and undo the injection
+        long until = System.currentTimeMillis() + 5000;
+
+        while (!receiver.getCsFilterTopics().contains("stall_topic") && System.currentTimeMillis() < until) {
+            Thread.sleep(50);
+        }
+
+        assertThat(receiver.getCsFilterTopics()).as("CS filter rebuild must have settled before injecting").contains("stall_topic");
+
+        Object silencedMonitor = silenceMainCs(receiver);
+        long restartsBefore = receiver.getCsStallRestarts();
+
+        // continuous traffic while the cursor is dead: one fresh message per 150ms, i.e. at
+        // least one per 300ms poll tick - the minimum rate for the hold-gate (see javadoc)
+        long deadline = System.currentTimeMillis() + 8000;
+        int sent = 0;
+
+        while (System.currentTimeMillis() < deadline && receiver.getCsStallRestarts() == restartsBefore) {
+            Msg m = new Msg("stall_topic", "keepalive " + (sent++), "value");
+            m.setExclusive(false);
+            sender.sendMessage(m);
+            Thread.sleep(150);
+        }
+
+        assertThat(receiver.getCsStallRestarts() - restartsBefore)
+                .as("a stream that stops announcing while fresh messages keep arriving is a stall - "
+                    + "the watchdog must restart the cursor")
+                .isGreaterThanOrEqualTo(1);
+        // and the restart must actually have replaced the silenced cursor with a live one
+        assertThat(mainCsMonitorOf(receiver))
+                .as("the restart must install a FRESH monitor, not re-trigger the dead one")
+                .isNotSameAs(silencedMonitor);
+        assertThat(receiver.changeStreamsLive())
+                .as("after the restart the main stream must be live again")
+                .isTrue();
+    }
+
+    /**
+     * Failure injection (see restartsWhenTheStreamGoesSilentUnderContinuousTraffic): clears the
+     * listener list of the receiver's live main ChangeStreamMonitor via reflection, simulating a
+     * cursor that silently stops delivering events without the messaging noticing.
+     *
+     * @return the silenced monitor instance, for asserting it got replaced
+     */
+    private Object silenceMainCs(SingleCollectionMessaging messaging) throws Exception {
+        Object monitor = mainCsMonitorOf(messaging);
+        java.lang.reflect.Field listenersField = monitor.getClass().getDeclaredField("listeners");
+        listenersField.setAccessible(true);
+        ((java.util.Collection<?>) listenersField.get(monitor)).clear();
+        return monitor;
+    }
+
+    private Object mainCsMonitorOf(SingleCollectionMessaging messaging) throws Exception {
+        java.lang.reflect.Field monitorField = SingleCollectionMessaging.class.getDeclaredField("changeStreamMonitor");
+        monitorField.setAccessible(true);
+        return monitorField.get(messaging);
     }
 
     /** Occupies the processing slot well past the stall threshold. */

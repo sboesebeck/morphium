@@ -156,7 +156,10 @@ public class MessagingOrphanAnswerPollTest {
         SingleCollectionMessaging requester = start(newMorphium(db), false);
         SingleCollectionMessaging responder = start(newMorphium(db), false);
 
-        // deliberately NO listener on the requester -> answers-only branch
+        // deliberately NO listener registered here - but the status info listener keeps
+        // listenerByName non-empty, so this still runs through the MAIN branch, not the
+        // answers-only one (see the javadoc above). MessagingAnswersOnlyPollBranchTest
+        // covers that branch.
         responder.addListenerForTopic("callback_topic", (m, msg) -> msg.createAnswerMsg());
 
         CountDownLatch got = new CountDownLatch(1);
