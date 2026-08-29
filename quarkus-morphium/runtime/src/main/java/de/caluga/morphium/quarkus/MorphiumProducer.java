@@ -438,6 +438,50 @@ public class MorphiumProducer {
         }
     }
 
+    /**
+     * Applies {@code quarkus.morphium.use-bson-date-for-java-time} to the config, covering
+     * {@code Instant}, {@code LocalDate}, {@code LocalTime} and {@code LocalDateTime} at once.
+     *
+     * <p><b>Why the flag goes on the config instead of re-registering mappers.</b>
+     * {@code ObjectMapperImpl} registers the four {@code java.time} mappers in its own constructor,
+     * each holding a {@code BooleanSupplier} that reads
+     * {@code ObjectMappingSettings#isUseBsonDateForJavaTime()} fresh on every {@code marshall()}. The
+     * value therefore has to sit on the config before Morphium builds the mapper -- which is exactly
+     * what this method does, being called while the config is assembled. It also means one flag reaches
+     * all four types, which the deprecated {@code local-date-time.use-bson-date} cannot: that one swaps
+     * in a {@code LocalDateTimeMapper} carrying a FIXED boolean, so the replaced type stops following
+     * the config flag entirely. That is why {@code morphium()} skips the override once this property is
+     * set -- keeping both would pin {@code LocalDateTime} while the other three types follow the flag,
+     * i.e. reintroduce the per-type split this property exists to remove.
+     *
+     * <p>Empty means "not configured": the extension then behaves exactly as before, and the on-disk
+     * format of existing data is untouched. Nothing here defaults the flag to {@code true} on the
+     * caller's behalf -- {@code ObjectMappingSettings} is all-or-nothing across the four types, so a
+     * default would silently rewrite the format of {@code Instant}, {@code LocalDate} and
+     * {@code LocalTime} fields on upgrade.
+     *
+     * @param cfg                    the config being built
+     * @param useBsonDateForJavaTime the configured value, empty when the property is absent
+     */
+    static void applyJavaTimeFormat(MorphiumConfig cfg, Optional<Boolean> useBsonDateForJavaTime) {
+        useBsonDateForJavaTime.ifPresent(cfg.objectMappingSettings()::setUseBsonDateForJavaTime);
+    }
+
+    /**
+     * Whether the deprecated {@code local-date-time.use-bson-date} override still has to be registered.
+     *
+     * <p>Only when {@code use-bson-date-for-java-time} is absent. Registering it alongside the new
+     * property would pin {@code LocalDateTime} to a fixed boolean while {@code Instant},
+     * {@code LocalDate} and {@code LocalTime} follow the config flag -- the per-type split the new
+     * property exists to remove. See {@link #applyJavaTimeFormat} for why the override wins locally.
+     *
+     * @param useBsonDateForJavaTime the new property's value, empty when absent
+     * @return {@code true} when the legacy per-type override must be applied
+     */
+    static boolean registersDeprecatedLocalDateTimeOverride(Optional<Boolean> useBsonDateForJavaTime) {
+        return useBsonDateForJavaTime.isEmpty();
+    }
+
     private Morphium buildMorphium() {
         // Clear static caches and pre-register entities for the current ClassLoader.
         // This is essential for Quarkus dev-mode hot-reload where the QuarkusClassLoader
@@ -540,6 +584,10 @@ public class MorphiumProducer {
         cfg.cacheSettings().setGlobalCacheValidTime(toIntGlobalCacheValidTime(config.cache().globalValidTime()));
         cfg.cacheSettings().setReadCacheEnabled(config.cache().readCacheEnabled());
 
+        // java.time on-disk format for all four specially mapped types (Instant, LocalDate, LocalTime,
+        // LocalDateTime). See applyJavaTimeFormat.
+        applyJavaTimeFormat(cfg, config.useBsonDateForJavaTime());
+
         // TLS / X.509 settings
         configureSsl(cfg, config.ssl());
 
@@ -608,11 +656,22 @@ public class MorphiumProducer {
             m.getDriver().isReplicaSet(),
             m.getDriver().getReplicaSetName() != null ? m.getDriver().getReplicaSetName() : "(none)");
 
-        // Override the default LocalDateTimeMapper with the configured format.
-        // useBsonDate=true  → ISODate (native MongoDB dates, compatible with Morphia data)
-        // useBsonDate=false → Map{sec, n} (legacy Morphium format)
-        m.getMapper().registerCustomMapperFor(LocalDateTime.class,
-                new LocalDateTimeMapper(config.localDateTime().useBsonDate()));
+        // java.time on-disk format. Two paths, and only one of them can win per JVM.
+        //
+        // The new property reaches all four types the object mapper maps specially, because it sets the
+        // core flag the mappers query fresh on every marshall (ObjectMapperImpl registers them with a
+        // BooleanSupplier). The deprecated per-type property cannot express that -- it replaces the
+        // registered LocalDateTimeMapper with one holding a FIXED boolean, which then ignores the core
+        // flag for that type. So when the new property is set, the override must NOT be registered:
+        // registering it anyway would leave LocalDateTime pinned while Instant, LocalDate and LocalTime
+        // follow the flag, i.e. exactly the per-type split the new property exists to remove.
+        if (registersDeprecatedLocalDateTimeOverride(config.useBsonDateForJavaTime())) {
+            // Legacy behaviour, kept byte-identical for applications that have not opted in.
+            // useBsonDate=true  → ISODate (native MongoDB dates, compatible with Morphia data)
+            // useBsonDate=false → Map{sec, n} (legacy Morphium format)
+            m.getMapper().registerCustomMapperFor(LocalDateTime.class,
+                    new LocalDateTimeMapper(config.localDateTime().useBsonDate()));
+        }
 
         // Morphium's built-in index creation uses ClassGraph which does not work
         // with Quarkus's classloader. Use the entity classes discovered at build time
