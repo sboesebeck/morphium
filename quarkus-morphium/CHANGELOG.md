@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+#### `quarkus.morphium.use-bson-date-for-java-time` reaches all four `java.time` types
+The extension could configure the on-disk format of exactly one of the four types the object
+mapper maps specially. `quarkus.morphium.local-date-time.use-bson-date` replaced the registered
+`LocalDateTimeMapper` with one built from that property; `Instant`, `LocalDate` and `LocalTime`
+stayed on Morphium's legacy formats with no property able to change them. Applications whose
+timestamps are `Instant` — the usual choice for a stored point in time — therefore could not get
+native BSON dates, and with them native range queries, sorts and TTL indexes, from Quarkus at all.
+
+The new property sets `ObjectMappingSettings#setUseBsonDateForJavaTime(boolean)` on the config
+before Morphium builds its mapper, which is what makes it reach all four types: `ObjectMapperImpl`
+registers them with a `BooleanSupplier` that reads the flag fresh on every `marshall()`.
+
+**It has no default, deliberately.** The core flag is all-or-nothing across the four types, so it
+cannot reproduce the per-type split the old property produces (`LocalDateTime` native by default,
+the other three legacy). Defaulting the new property would silently change the on-disk format of
+existing `Instant`, `LocalDate` and `LocalTime` fields on upgrade. Left unset, the extension
+behaves exactly as before.
+
+While the new property IS set, the deprecated per-type override is no longer registered — it holds
+a fixed boolean and would pin `LocalDateTime` against the flag, recreating the very split the new
+property removes.
+
+### Deprecated
+
+#### `quarkus.morphium.local-date-time.use-bson-date`
+Superseded by `quarkus.morphium.use-bson-date-for-java-time`. It keeps working and still governs
+`LocalDateTime` while the new property is unset, so nothing breaks on upgrade. Removal in 6.4.0.
+
 ### Changed
 
 #### Integrated into the Morphium reactor as an optional module
