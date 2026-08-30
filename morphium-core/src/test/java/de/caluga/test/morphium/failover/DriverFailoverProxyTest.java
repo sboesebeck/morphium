@@ -19,6 +19,8 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import de.caluga.test.mongo.suite.base.TestUtils;
+
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.Doc;
@@ -471,8 +473,14 @@ public class DriverFailoverProxyTest {
         writer.start();
         String primaryName = null;
         try {
-            Thread.sleep(1000);
-            assertTrue(writeOk.get() > 0, "no writes succeeded before the fault - harness itself is broken");
+            // Wait for the harness to become productive instead of assuming a fixed second is
+            // enough. Under the CI box's five-parallel-phase load, connection setup plus replica
+            // set discovery can exceed it, and this precondition then reports a broken harness
+            // where only the machine was busy - it is what made this test flaky in the
+            // 2026-08-07, 2026-08-20 and 2026-08-29 runs. The deadline still fails the test if
+            // the harness really is broken, just not because the box was slow for a moment.
+            TestUtils.waitForIntegerValueMin(15000,
+                    "no writes succeeded before the fault - harness itself is broken", writeOk, 1, null);
 
             // Find and freeze the current primary's proxy, then step it down.
             primaryName = faultAndStepDownCurrentPrimary(backend, backendToProxy,
@@ -610,8 +618,19 @@ public class DriverFailoverProxyTest {
         reader.start();
         String primaryName = null;
         try {
-            Thread.sleep(1000);
-            assertTrue(writeOk.get() > 0, "no writes succeeded before the fault - harness itself is broken");
+            // Wait for the harness to become productive instead of assuming a fixed second is
+            // enough. Under the CI box's five-parallel-phase load, connection setup plus replica
+            // set discovery can exceed it, and this precondition then reports a broken harness
+            // where only the machine was busy - it is what made this test flaky in the
+            // 2026-08-07, 2026-08-20 and 2026-08-29 runs. The deadline still fails the test if
+            // the harness really is broken, just not because the box was slow for a moment.
+            // Both threads, not just the writer: the recovery check below measures readOk against
+            // a baseline taken after the fault, so a reader that had not started yet turns that into
+            // an absolute "more than two reads" requirement rather than the intended delta.
+            TestUtils.waitForIntegerValueMin(15000,
+                    "no writes succeeded before the fault - harness itself is broken", writeOk, 1, null);
+            TestUtils.waitForIntegerValueMin(15000,
+                    "no reads succeeded before the fault - harness itself is broken", readOk, 1, null);
 
             primaryName = faultAndStepDownCurrentPrimary(backend, backendToProxy, faultMode);
 
@@ -723,9 +742,11 @@ public class DriverFailoverProxyTest {
                 trackedThreads.add(sendThread);
                 sendThread.start();
                 try {
-                    Thread.sleep(1500);
+                    // Same reasoning as the write/read scenarios above: a fixed wait turns a busy box
+                    // into a "broken harness" verdict.
+                    TestUtils.waitForIntegerValueMin(15000,
+                            "no messages delivered before the fault - harness itself is broken", received, 1, null);
                     int receivedBefore = received.get();
-                    assertTrue(receivedBefore > 0, "no messages delivered before the fault - harness itself is broken");
 
                     String primaryName = faultAndStepDownCurrentPrimary(backend, backendToProxy,
                             de.caluga.test.morphium.testutil.proxy.FaultMode.close);
