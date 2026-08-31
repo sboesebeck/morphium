@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+#### `$group` no longer re-derives its constant spec for every document
+Counting a collection through the aggregation path cost far more than the scan underneath it: on
+the acceptance cluster a plain `countDocuments({})` over 28.250 documents took 545-977ms
+server-side. Locally the same collection size breaks down into 13.9ms of materializing the whole
+collection and 26.6ms inside `$group` - against 1.6-2.5ms for a filtered `find` doing an actual
+COLLSCAN over the same data.
+
+Two things made `$group` expensive, both per document and neither of them work: it copied each
+incoming document although the block only reads from it (the documents are pipeline-owned copies
+already, and the copy was shallow anyway), and it re-interpreted the group spec - constant for the
+whole stage - on every document, allocating a fresh `_id` string, a stream pipeline per
+accumulator field, and a throwaway map for every document after the first of its group.
+
+The non-Map `_id` spec is now interpreted once before the loop, `$sum` binds its result map and
+operand once, and the throwaway allocations are gone. `$group` drops by 38%, the counting pipeline
+by 29% end to end, and by 45% on wide documents.
+
+Worth stating plainly: this is not a general read-path problem. A filtered COLLSCAN pays
+0.06-0.09us per document, since the query is compiled once per operation - it is the aggregation
+and `count` paths that are expensive. The structural part (feeding a pipeline by materializing and
+deep-copying the entire collection, and `count` deep-copying every match only to take its size)
+remains and is tracked separately.
+
 
 ## [6.3.8] - 2026-08-31
 
