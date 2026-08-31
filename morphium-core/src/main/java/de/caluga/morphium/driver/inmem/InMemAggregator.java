@@ -1234,10 +1234,26 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> group = (Map<String, Object>) step.get(stage);
                 Map<Object, Map<String, Object>> res = new HashMap<>();
+                // The group spec is constant for the whole stage, yet the loop below used to
+                // re-derive "is _id a $-field-reference?" from scratch for EVERY document -
+                // id.toString() alone allocated a fresh String per document (measurable as
+                // Integer.getChars in profiles of counting pipelines, #354). Hoist the
+                // interpretation of the non-Map _id spec out of the per-document loop; the
+                // Map-typed (expression / combined) _id branch keeps its per-document handling.
+                Object idSpec = group.get("_id");
+                String idSpecFieldRef = (!(idSpec instanceof Map) && idSpec != null && idSpec.toString().startsWith("$"))
+                        ? idSpec.toString().substring(1) : null;
 
                 for (Map<String, Object> obj : data) {
-                    Map<String, Object> o = new HashMap<>(obj);
-                    Object id = group.get("_id");
+                    // No per-document copy here (#354): this block only ever READS from the
+                    // document (o.get / Expr.evaluate), it never writes to it, and the incoming
+                    // documents are already pipeline-owned copies materialized by doAggregation's
+                    // find() fetch - so the former "new HashMap<>(obj)" per document was pure
+                    // allocation overhead (~0.5us/doc, dominating $group on large collections).
+                    // The copy was a shallow one anyway, so accumulator results referencing
+                    // nested values shared them with obj before this change too.
+                    Map<String, Object> o = obj;
+                    Object id = idSpec;
 
                     if (id instanceof Map) {
                         //deal with combined Group IDs
@@ -1286,12 +1302,17 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                             res.get(id).putIfAbsent("_id", newIdMap);
                         }
                     } else {
-                        if (id != null && id.toString().startsWith("$")) {
-                            id = o.get(id.toString().substring(1));
+                        // idSpecFieldRef was resolved once before the loop (see above) - only the
+                        // per-document field lookup happens here now.
+                        if (idSpecFieldRef != null) {
+                            id = o.get(idSpecFieldRef);
                         }
 
-                        res.putIfAbsent(id, new HashMap<>());
-                        res.get(id).putIfAbsent("_id", id);
+                        // computeIfAbsent instead of putIfAbsent(id, new HashMap<>()): the latter
+                        // allocated a throwaway HashMap for every document after the first one of
+                        // its group (#354).
+                        final Object gid = id;
+                        res.computeIfAbsent(gid, k -> new HashMap<>()).putIfAbsent("_id", gid);
                     }
 
                     for (String fld : group.keySet()) {
@@ -1303,8 +1324,12 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
                         if (opValue instanceof Map) {
                             //expression?
+                            // iterator().next() instead of stream().findFirst().get(): same result
+                            // (first key, NoSuchElementException when empty either way), but this
+                            // runs once per document per accumulator field and the stream pipeline
+                            // allocation showed up in counting-pipeline profiles (#354).
                             @SuppressWarnings("unchecked")
-                            String op = ((Map<String, Object>) opValue).keySet().stream().findFirst().get();
+                            String op = ((Map<String, Object>) opValue).keySet().iterator().next();
 
                             switch (op) {
                                 case "$addToSet":
@@ -1416,19 +1441,29 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                     break;
 
                                 case "$sum":
-                                    res.get(id).putIfAbsent(fld, 0);
-                                    Number current = (Number) res.get(id).get(fld);
+                                    // Bind the group's result map and the operand once per document:
+                                    // the old code called res.get(id) up to four times and re-derived
+                                    // the operand's String form each time around - for the
+                                    // countDocuments shape ({$sum: 1}) that toString() allocated a
+                                    // fresh String for every single document (#354). Testing
+                                    // instanceof Number BEFORE the "$"-prefix test is
+                                    // semantics-preserving because a Number's toString() can never
+                                    // start with "$"; the relative order of the field-reference and
+                                    // Expr branches is unchanged.
+                                    Map<String, Object> sumGroupDoc = res.get(id);
+                                    sumGroupDoc.putIfAbsent(fld, 0);
+                                    Number current = (Number) sumGroupDoc.get(fld);
+                                    Object sumSpec = ((Map <?, ? >) opValue).get(op);
 
-                                    if (((Map <?, ? >) opValue).get(op).toString().startsWith("$")) {
+                                    if (sumSpec instanceof Number) {
+                                        sumGroupDoc.put(fld, current.doubleValue() + ((Number) sumSpec).doubleValue());
+                                    } else if (sumSpec.toString().startsWith("$")) {
                                         //field reference
-                                        Number v = (Number) o.get(((Map <?, ? >) opValue).get(op).toString().substring(1));
-                                        res.get(id).put(fld, current.doubleValue() + v.doubleValue());
-                                    } else if (((Map <?, ? >) opValue).get(op) instanceof Number) {
-                                        Number v = (Number)((Map <?, ? >) opValue).get(op);
-                                        res.get(id).put(fld, current.doubleValue() + v.doubleValue());
-                                    } else if (((Map <?, ? >) opValue).get(op) instanceof Expr) {
-                                        Number v = (Number)(o.get(((Expr)((Map <?, ? >) opValue).get(op)).evaluate(o)));
-                                        res.get(id).put(fld, current.doubleValue() + v.doubleValue());
+                                        Number v = (Number) o.get(sumSpec.toString().substring(1));
+                                        sumGroupDoc.put(fld, current.doubleValue() + v.doubleValue());
+                                    } else if (sumSpec instanceof Expr) {
+                                        Number v = (Number)(o.get(((Expr) sumSpec).evaluate(o)));
+                                        sumGroupDoc.put(fld, current.doubleValue() + v.doubleValue());
                                     }
 
                                     break;
