@@ -10,6 +10,7 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -38,8 +39,9 @@ import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
  *       users intact.</li>
  *   <li>{@link #fallbackOnDivergence()} - a follower whose local state was made to diverge
  *       (test-only backdoor write into its InMemoryDriver) must take today's full clear +
- *       snapshot path ({@code wasLastSyncShortcut()} false) and end up converged to the new
- *       primary's state - the injected divergence is gone.</li>
+ *       snapshot path (asserted via the monotone clear-counter, because a later reconnect
+ *       cycle may legitimately overwrite {@code wasLastSyncShortcut()} once converged) and
+ *       end up converged to the new primary's state - the injected divergence is gone.</li>
  *   <li>{@link #fallbackOnSystemVersionDivergence()} - the same shape as
  *       {@link #fallbackOnDivergence()}, but the injected divergence lives ONLY in
  *       {@code admin.system.version} (the users-file version-gate meta doc), not in application
@@ -391,6 +393,76 @@ public class FastResyncTest {
                 "a write on the new primary must replicate to the shortcut-synced follower");
     }
 
+    /**
+     * Regression for the 2026-08-30 EmptyNodeRestartWipeTest testrunner failure: a follower
+     * whose documents are logically IDENTICAL to the primary's but materialized with a
+     * different field order must still take the consistency shortcut - never a destructive
+     * full re-sync.
+     *
+     * <p>In the incident, a benign duplicate-_id race during initial sync pushed one
+     * data-bearing node's documents through the idempotent replay (a replace-style upsert,
+     * which re-materializes the document in a different map order than a plain insert). The
+     * order-sensitive dbHash then reported divergence between two nodes holding the same data,
+     * and the next failover made the healthy follower drop its whole database for a full
+     * re-copy - the exact transient wipe EmptyNodeRestartWipeTest watches for. Here the replay
+     * is simulated deterministically: every document on node3 is re-applied to itself via the
+     * exact replace-upsert shape ReplicationManager.applyInsertIdempotent uses.
+     */
+    @Test
+    public void shortcutSurvivesReplayReorderedDocuments() throws Exception {
+        Cluster c = bootstrapClusterWithData();
+
+        // Re-apply every document to itself on node3 through the idempotent-replay command
+        // shape (replace-upsert with the identical full document), handing the replacement in
+        // REVERSED field order: identical content, different materialized key order - exactly
+        // the representation a real replay race can leave behind (the replay's fullDocument
+        // map need not iterate in the same order as the originally-inserted one).
+        List<Map<String, Object>> before = c.node3().getDriver().find(DB, COLL, Doc.of(), null, null, 0, 0);
+        assertEquals(DOCS, before.size(), "precondition: node3 must hold all documents");
+        for (Map<String, Object> doc : before) {
+            LinkedHashMap<String, Object> reversed = new LinkedHashMap<>();
+            List<String> keys = new ArrayList<>(doc.keySet());
+            for (int i = keys.size() - 1; i >= 0; i--) {
+                reversed.put(keys.get(i), doc.get(keys.get(i)));
+            }
+            GenericCommand replay = new GenericCommand(c.node3().getDriver());
+            replay.setDb(DB);
+            replay.setColl(COLL);
+            replay.setCmdData(Doc.of(
+                    "update", COLL, "$db", DB,
+                    "updates", List.of(Doc.of(
+                            "q", Doc.of("_id", doc.get("_id")),
+                            "u", reversed,
+                            "upsert", true))));
+            int msgId = c.node3().getDriver().runCommand(replay);
+            Map<String, Object> reply = c.node3().getDriver().readSingleAnswer(msgId);
+            assertEquals(1.0, okOf(reply), "replay-style self-upsert must succeed: " + reply);
+        }
+        // Logical content unchanged - Map.equals ignores field order.
+        List<Map<String, Object>> after = c.node3().getDriver().find(DB, COLL, Doc.of(), null, null, 0, 0);
+        assertEquals(DOCS, after.size(), "the replay must not add or remove documents");
+
+        ReplicationManager rmBefore = c.node3().getReplicationManagerForTest();
+
+        c.node1().shutdown(); // forcing failover
+        nodes.remove(c.node1());
+        waitForPrimary(c.node2());
+
+        // The crux: identical data in a replay-reordered representation must converge via the
+        // shortcut - and node3 must never have wiped its local databases on the way.
+        assertTrue(poll(30_000, () -> {
+            ReplicationManager rm = c.node3().getReplicationManagerForTest();
+            return rm != null && rm != rmBefore && rm.isInitialSyncComplete()
+                    && rm.wasLastSyncShortcut();
+        }), "a follower with identical-but-reordered documents must sync via the shortcut");
+
+        ReplicationManager rm = c.node3().getReplicationManagerForTest();
+        assertEquals(0, Objects.requireNonNull(rm).getClearLocalDatabasesInvocationsForTest(),
+                "identical-but-reordered data must never trigger a destructive clear + snapshot");
+        assertEquals(DOCS, c.node3().getDriver().count(DB, COLL, Doc.of(), null, null),
+                "all documents must still be present after the shortcut sync");
+    }
+
     @Test
     public void fallbackOnDivergence() throws Exception {
         Cluster c = bootstrapClusterWithData();
@@ -419,9 +491,15 @@ public class FastResyncTest {
             return rm != null && rm != rmBefore && rm.isInitialSyncComplete();
         }), "re-targeted follower must complete a sync after the failover");
 
+        // NOT wasLastSyncShortcut(): that flag reports the LATEST completed cycle, and a
+        // replication-loop hiccup (watch timeout etc.) can legitimately re-run the sync AFTER
+        // the full sync already converged this node - at which point the shortcut correctly
+        // matches and overwrites the flag. The monotone clear-counter proves the divergence
+        // was resolved by a destructive full sync at least once on this post-failover manager.
         ReplicationManager rm = c.node3().getReplicationManagerForTest();
-        assertFalse(Objects.requireNonNull(rm).wasLastSyncShortcut(),
-                "a diverged follower must NOT take the consistency shortcut");
+        assertTrue(Objects.requireNonNull(rm).getClearLocalDatabasesInvocationsForTest() > 0,
+                "a diverged follower must have gone through a full clear + snapshot, "
+                        + "never a consistency shortcut that masks the divergence");
 
         // Full sync converged the follower to the new primary's state: the injected document is
         // gone, the real data and the user survived.
@@ -464,9 +542,13 @@ public class FastResyncTest {
             return rm != null && rm != rmBefore && rm.isInitialSyncComplete();
         }), "re-targeted follower must complete a sync after the failover");
 
+        // Same reasoning as in fallbackOnDivergence: the last-sync flag can be overwritten by a
+        // later, legitimately-matching shortcut cycle once the full sync has converged this node,
+        // so assert on the monotone clear-counter instead.
         ReplicationManager rm = c.node3().getReplicationManagerForTest();
-        assertFalse(Objects.requireNonNull(rm).wasLastSyncShortcut(),
-                "a follower diverged only in system.version must NOT take the consistency shortcut");
+        assertTrue(Objects.requireNonNull(rm).getClearLocalDatabasesInvocationsForTest() > 0,
+                "a follower diverged only in system.version must have gone through a full "
+                        + "clear + snapshot, never a consistency shortcut that masks the divergence");
 
         // Full sync converged the follower to the new primary's state: the injected meta doc is
         // gone, and system.version agrees with the new primary's hash again.

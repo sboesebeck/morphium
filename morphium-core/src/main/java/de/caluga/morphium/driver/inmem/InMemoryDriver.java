@@ -2049,6 +2049,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * their encoded bytes), so two nodes holding the same data produce the same hash even
      * when initial sync and live replication materialized the lists in different order.
      * Optional {@code collections: [...]} restricts the hash to a subset.
+     *
+     * <p>Field order WITHIN each document is canonicalized too (keys sorted recursively, see
+     * {@link #canonicalizeForHash}): this engine stores documents in hash-ordered maps and its
+     * different apply paths materialize the same logical document with different key orders
+     * (plain insert vs. the replace-style upsert that replication's idempotent replay and
+     * update/replace events use). Real mongod's dbHash is byte-faithful instead - but real
+     * mongod also preserves field order end-to-end, which this engine never promises. Hashing
+     * the bytes verbatim made two replica-set nodes holding identical data report different
+     * hashes after a benign duplicate-_id sync race, which made the replication consistency
+     * check trigger a destructive full re-sync (drop + snapshot) of a healthy data-bearing
+     * follower (EmptyNodeRestartWipeTest failure, 2026-08-30). Array element order remains
+     * significant - it is part of BSON document equality.
      */
     private int handleDbHash(Map<String, Object> cmdMap) {
         long start = System.currentTimeMillis();
@@ -2107,7 +2119,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                 for (Map<String, Object> doc : data) {
                     try {
-                        encoded.add(BsonEncoder.encodeDocument(doc));
+                        encoded.add(BsonEncoder.encodeDocument((Map<String, Object>) canonicalizeForHash(doc)));
                     } catch (Exception e) {
                         // a value the BSON encoder cannot handle must not break the hash command
                     }
@@ -2124,6 +2136,41 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         } finally {
             lock.readLock().unlock();
         }
+    }
+
+    /**
+     * Key-sorted deep copy of a document for {@link #handleDbHash}: map keys are ordered by
+     * their string form on every nesting level, list element order is preserved (BSON array
+     * order is semantically significant, key order is not - this engine's apply paths do not
+     * keep it stable, see the dbHash javadoc). Values that are neither maps nor lists are
+     * shared, not copied - the copy exists only to feed the BSON encoder a canonical key
+     * order, never to be mutated.
+     */
+    @SuppressWarnings("unchecked")
+    private Object canonicalizeForHash(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Map<Object, Object> sorted = new TreeMap<>(Comparator.comparing(String::valueOf));
+            sorted.putAll((Map<Object, Object>) map);
+            Map<String, Object> result = new LinkedHashMap<>(sorted.size());
+
+            for (Map.Entry<Object, Object> e : sorted.entrySet()) {
+                result.put(String.valueOf(e.getKey()), canonicalizeForHash(e.getValue()));
+            }
+
+            return result;
+        }
+
+        if (value instanceof List<?> list) {
+            List<Object> result = new ArrayList<>(list.size());
+
+            for (Object o : list) {
+                result.add(canonicalizeForHash(o));
+            }
+
+            return result;
+        }
+
+        return value;
     }
 
     /**
