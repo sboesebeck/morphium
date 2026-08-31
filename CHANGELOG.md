@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### A healthy replica-set follower could wipe itself over a phantom hash mismatch
+A data-bearing PoppyDB follower dropped its own database and re-synced from scratch although it
+held exactly the same 100 documents as the primary. `EmptyNodeRestartWipeTest` samples the local
+document count on every tick and caught it at 0 in the window between drop and snapshot.
+
+The election was not at fault, and neither was the empty-node guard from #298: the node that had
+been restarted empty never became leader, and the node that won the term was data-bearing. The
+wipe came out of the consistency check between two healthy nodes.
+
+`handleDbHash` hashed the encoded BSON bytes verbatim, which makes it sensitive to field order -
+but this engine never promises a stable one. The plain insert path and the replace-style upsert
+path materialize the same logical document with different key orders, and replication's
+idempotent replay uses the latter. One follower populated via change stream replay, the other via
+snapshot plus replay after a benign duplicate-`_id` race, and both ended up holding identical data
+in byte-different form. At the next failover their hashes disagreed, the consistency check read
+that as divergence, and fell back to the destructive full sync - drop first, then copy.
+
+It only ever showed under load: the duplicate race needs writes inside the window between watch
+registration and the end of the snapshot, roughly 200ms on a loaded CI box and practically zero on
+a developer machine.
+
+The hash now canonicalizes key order recursively before encoding; array order stays significant,
+since it is part of BSON document equality. Real mongod hashes bytes verbatim, but it also keeps
+field order stable end to end - the javadoc records that difference so it does not get "fixed"
+back. Latent since dbHash and the replay path met in July.
+
+Not addressed here, tracked separately: the full sync remains drop-then-copy, so a genuinely
+diverged follower still has a transient window where local readers see an empty collection.
+
 #### The change stream stall watchdog no longer misreads normal idleness as a stalled cursor (#346)
 On the genios acceptance cluster the watchdog produced **2229 alarms in 7 days**, none of them a
 real problem - one hermes process reached `restart #260`. Each alarm discards the cursor and
