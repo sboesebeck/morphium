@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+#### A write retry after a lost reply no longer fails on its own insert
+When the reply to a write is lost - the connection dies, or the answer does not arrive in time -
+`WriteMongoCommand` re-sends the command on a re-resolved primary. Since Morphium assigns the
+`_id` on the client, that retry collides with its own first attempt whenever that attempt had in
+fact committed, and mongod answers `E11000 duplicate key error ... index: _id_`. The result was a
+successful write reported to the caller as a failure.
+
+This is not theoretical: on the production message bus it happened 142 times in 24 hours, 131 of
+them ending as an HTTP 500 for a request whose message had been stored and was processed normally
+by the consumer. The trigger is any stall on the database side - every one of the observed cases
+followed a `Network error during write (No reply for write request ...)` within the same second.
+
+A duplicate-key error is now reconciled when all three hold: the command was re-sent after a
+network error, the violated index is `_id`, and the reported id is one from this very batch. Then
+the first attempt committed and the document counts as written. A collision on any other unique
+index remains an error, as does one on a first attempt - there is no earlier attempt of ours that
+could have caused it. Update and delete are untouched; their lost-reply problem needs real
+`(lsid, txnNumber)` deduplication (#293).
+
 ### Changed
 
 #### `$group` no longer re-derives its constant spec for every document

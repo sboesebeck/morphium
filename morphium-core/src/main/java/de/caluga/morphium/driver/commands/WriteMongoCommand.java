@@ -62,6 +62,16 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
         return true;
     }
 
+    /**
+     * Hook for the network-retry path: when a write is re-sent because the reply to the first
+     * attempt was lost, the answer can carry errors that our own first attempt caused - it may
+     * well have committed. Only commands that can recognise such an error override this;
+     * by default the answer stands as the server sent it.
+     */
+    protected Map<String, Object> reconcileWriteErrorsAfterNetworkRetry(Map<String, Object> result) {
+        return result;
+    }
+
     public Map<String, Object> execute() throws MorphiumDriverException {
         List<Map<String, Object>> statements = getPayloadStatements();
 
@@ -120,6 +130,10 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
         int attempts = 0;
         MorphiumDriver drv = getConnection().getDriver();
         int maxAttempts = Math.max(0, drv.getRetriesOnNetworkError()) + 5;
+        // Set once this command was re-sent after a lost reply: from then on the answer may
+        // report errors that our own first attempt caused (issue #359). Step-down retries do
+        // NOT set it - there the write was rejected, so it cannot have left anything behind.
+        boolean resentAfterNetworkError = false;
 
         while (true) {
             MongoConnection con = getConnection();
@@ -162,7 +176,7 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
                     continue;
                 }
 
-                return crs;
+                return resentAfterNetworkError ? reconcileWriteErrorsAfterNetworkRetry(crs) : crs;
             } catch (MorphiumDriverException e) {
                 String errMsg = e.getMessage() == null ? "" : e.getMessage().toLowerCase();
                 if (isStepDownError(e, errMsg)) {
@@ -242,6 +256,7 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
                     // MongoDB's retryWrites behavior. Without this, every in-flight write during
                     // a failover is lost even though retriesOnNetworkError is configured.
                     log.warn("Network error during write ({}) - re-resolving primary, retry {}/{}", e.getMessage(), attempts, maxAttempts);
+                    resentAfterNetworkError = true;
                     try {
                         drv.releaseConnection(getConnection());
                     } catch (Exception ignore) {
