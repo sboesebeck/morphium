@@ -260,6 +260,10 @@ public class AggregatorFieldNameTranslationTest extends MorphiumInMemTestBase {
     private List<ILoggingEvent> runAndCaptureWarns(Aggregator<AggEntity, Map> agg, Runnable pipelineBuilder) {
         ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(agg.getClass());
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        // ListAppender.list is a plain ArrayList and the appender is still attached while the
+        // events are read below - a background thread logging at that moment would break the
+        // stream with a ConcurrentModificationException. Copy-on-write reads a snapshot.
+        appender.list = new java.util.concurrent.CopyOnWriteArrayList<>();
         appender.start();
         logger.addAppender(appender);
         try {

@@ -58,6 +58,10 @@ public class InMemoryDriverSlowQueryTest {
         ch.qos.logback.classic.Logger logger =
                 (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(InMemoryDriver.class);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        // ListAppender.list is a plain ArrayList and the appender is still attached while the
+        // events are read below - a background thread of the driver logging at that moment would
+        // break the stream with a ConcurrentModificationException. Copy-on-write reads a snapshot.
+        appender.list = new java.util.concurrent.CopyOnWriteArrayList<>();
         appender.start();
         logger.addAppender(appender);
         try {

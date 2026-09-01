@@ -41,6 +41,11 @@ public class InMemRestoreDirectoryTest {
     @BeforeEach
     public void attachLogWatcher() {
         logWatcher = new ListAppender<>();
+        // ListAppender.list is a plain ArrayList and the appender stays attached for the whole
+        // test, including while the events are read - a background thread of the driver logging
+        // at that moment would break the stream with a ConcurrentModificationException.
+        // Copy-on-write reads a snapshot.
+        logWatcher.list = new java.util.concurrent.CopyOnWriteArrayList<>();
         logWatcher.start();
         ((Logger) LoggerFactory.getLogger(InMemoryDriver.class)).addAppender(logWatcher);
     }
