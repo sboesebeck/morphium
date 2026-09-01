@@ -486,6 +486,11 @@ public class PooledDriverHeartbeatResilienceTest {
                 (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(PooledDriver.class);
         ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
                 new ch.qos.logback.core.read.ListAppender<>();
+        // The driver's heartbeat threads keep logging into this appender while the assertion
+        // below reads it, and ListAppender.list is a plain ArrayList - streaming it while an
+        // append lands throws ConcurrentModificationException. Copy-on-write makes the read
+        // see a stable snapshot instead of failing the test for a reason it does not test.
+        appender.list = new java.util.concurrent.CopyOnWriteArrayList<>();
         appender.start();
         logger.addAppender(appender);
 
