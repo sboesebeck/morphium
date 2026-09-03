@@ -12,9 +12,13 @@
         <meta name="author" content="Morphium Development Team">
       
       
-        <link rel="canonical" href="https://sboesebeck.github.io/morphium/releases/">
+        <link rel="canonical" href="https://sboesebeck.github.io/morphium/deprecation-policy/">
       
       
+        <link rel="prev" href="../configuration-reference/">
+      
+      
+        <link rel="next" href="../v5-vs-v6-performance/">
       
       
         
@@ -25,7 +29,7 @@
     
     
       
-        <title>Release Documentation - Morphium Documentation</title>
+        <title>Deprecation Policy - Morphium Documentation</title>
       
     
     
@@ -78,7 +82,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#release-documentation" class="md-skip">
+        <a href="#deprecation-policy" class="md-skip">
           Skip to content
         </a>
       
@@ -115,7 +119,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Release Documentation
+              Deprecation Policy
             
           </span>
         </div>
@@ -365,10 +369,12 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
+      <li class="md-tabs__item md-tabs__item--active">
         <a href="../api-reference/" class="md-tabs__link">
           
   
@@ -1729,28 +1735,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
-        
-          
-          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
             
   
   
@@ -1768,7 +1777,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_8">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1839,10 +1848,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../deprecation-policy/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deprecation Policy
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1858,6 +1894,105 @@
   
 
       </a>
+      
+        
+
+  
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#rule-1-deprecations-can-happen-any-time-but-they-have-to-name-the-successor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rule 1: Deprecations can happen any time, but they have to name the successor
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rule-2-a-major-release-removes-the-deprecated-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rule 2: A major release removes the deprecated API
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rule-3-keeping-a-deprecation-past-a-major-needs-a-written-reason" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rule 3: Keeping a deprecation past a major needs a written reason
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checklist-deprecating-something" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checklist: deprecating something
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checklist-preparing-a-major-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checklist: preparing a major release
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-this-means-when-you-upgrade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What this means when you upgrade
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See Also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -2155,10 +2290,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#documentation-structure" class="md-nav__link">
+  <a href="#rule-1-deprecations-can-happen-any-time-but-they-have-to-name-the-successor" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Documentation Structure
+        Rule 1: Deprecations can happen any time, but they have to name the successor
       
     </span>
   </a>
@@ -2166,10 +2301,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#why-this-structure" class="md-nav__link">
+  <a href="#rule-2-a-major-release-removes-the-deprecated-api" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why This Structure?
+        Rule 2: A major release removes the deprecated API
       
     </span>
   </a>
@@ -2177,10 +2312,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#release-process" class="md-nav__link">
+  <a href="#rule-3-keeping-a-deprecation-past-a-major-needs-a-written-reason" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Release Process
+        Rule 3: Keeping a deprecation past a major needs a written reason
       
     </span>
   </a>
@@ -2188,10 +2323,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#for-future-releases" class="md-nav__link">
+  <a href="#checklist-deprecating-something" class="md-nav__link">
     <span class="md-ellipsis">
       
-        For Future Releases
+        Checklist: deprecating something
       
     </span>
   </a>
@@ -2199,30 +2334,35 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#available-releases" class="md-nav__link">
+  <a href="#checklist-preparing-a-major-release" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Available Releases
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Available Releases">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#601-tbd" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6.0.1 - TBD
+        Checklist: preparing a major release
       
     </span>
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#what-this-means-when-you-upgrade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What this means when you upgrade
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See Also
+      
+    </span>
+  </a>
   
 </li>
       
@@ -2246,63 +2386,106 @@
   
 
 
-<h1 id="release-documentation">Release Documentation<a class="headerlink" href="#release-documentation" title="Permanent link">&para;</a></h1>
-<p>This directory contains detailed release notes for each Morphium version.</p>
-<h2 id="documentation-structure">Documentation Structure<a class="headerlink" href="#documentation-structure" title="Permanent link">&para;</a></h2>
-<p><strong>Root Level:</strong>
-- <code>CHANGELOG.md</code> - Single changelog file with all releases (standard format, <a href="https://keepachangelog.com/">Keep a Changelog</a>)</p>
-<p><strong>This Directory (<code>docs/releases/</code>):</strong>
-- <code>CHANGELOG-X.Y.Z.md</code> - Comprehensive technical changelog with implementation details
-- <code>RELEASE-NOTES-X.Y.Z.md</code> - Quick summary and migration guide for users</p>
-<h2 id="why-this-structure">Why This Structure?<a class="headerlink" href="#why-this-structure" title="Permanent link">&para;</a></h2>
-<ul>
-<li><strong>Single CHANGELOG.md</strong>: Industry standard, easy to browse all versions</li>
-<li><strong>Detailed docs</strong>: Technical teams need deep dive documentation</li>
-<li><strong>Quick notes</strong>: Users need fast migration info without technical details</li>
-<li><strong>No clutter</strong>: Root directory stays clean with just one changelog file</li>
-</ul>
-<h2 id="release-process">Release Process<a class="headerlink" href="#release-process" title="Permanent link">&para;</a></h2>
-<p>Releases are managed via <code>release.sh</code> in the project root:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Patch release (default): 6.1.9 → 6.1.10</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>./release.sh
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Minor release: 6.1.9 → 6.2.0</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>./release.sh<span class="w"> </span>--minor
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># Major release: 6.1.9 → 7.0.0</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>./release.sh<span class="w"> </span>--major
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="c1"># Test the release process without uploading</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>./release.sh<span class="w"> </span>--minor<span class="w"> </span>--dry-run
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="c1"># Roll back a failed release</span>
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>./release.sh<span class="w"> </span>--rollback
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>
-</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="c1"># Fix broken state after aborted release</span>
-</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>./release.sh<span class="w"> </span>--reset
+<h1 id="deprecation-policy">Deprecation Policy<a class="headerlink" href="#deprecation-policy" title="Permanent link">&para;</a></h1>
+<p>Morphium versions are <code>MAJOR.MINOR.PATCH</code>. This page describes when API gets deprecated,
+what a deprecation has to look like, and when it disappears again.</p>
+<p>It applies to everything users compile against: <code>morphium-core</code> and the extension modules
+(<code>poppydb</code>, <code>morphium-jakarta-data</code>, <code>quarkus-morphium</code>, <code>spring-boot-morphium</code>).</p>
+<h2 id="rule-1-deprecations-can-happen-any-time-but-they-have-to-name-the-successor">Rule 1: Deprecations can happen any time, but they have to name the successor<a class="headerlink" href="#rule-1-deprecations-can-happen-any-time-but-they-have-to-name-the-successor" title="Permanent link">&para;</a></h2>
+<p>A deprecation can be introduced in any release, including a patch release. Deprecating
+something breaks nobody, it only adds a compiler warning, and the earlier the warning
+shows up the more time people have to react.</p>
+<p>The price for that freedom: a deprecation has to answer the question "and what do I use
+instead?" right where the user sees it, which is the Javadoc.</p>
+<p>If there is a replacement, name it and show it:</p>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="cm">/**</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="cm"> * @deprecated since 6.3, use {@code connectionSettings().setDatabase(db)} instead:</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="cm"> *             &lt;pre&gt;</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="cm"> *             cfg.setDatabase("mydb");                          // old</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="cm"> *             cfg.connectionSettings().setDatabase("mydb");     // new</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="cm"> *             &lt;/pre&gt;</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="cm"> */</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="nd">@Deprecated</span><span class="p">(</span><span class="n">since</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"6.3"</span><span class="p">,</span><span class="w"> </span><span class="n">forRemoval</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">)</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">setDatabase</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">db</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div>
-<p>The script handles version calculation (from last git tag), Maven release:prepare,
-artifact signing, Sonatype upload, and git operations (tag, merge to master).</p>
-<p><strong>Multi-module:</strong> The release creates a single Sonatype bundle containing
-morphium-parent, morphium (core), and poppydb.</p>
-<h2 id="for-future-releases">For Future Releases<a class="headerlink" href="#for-future-releases" title="Permanent link">&para;</a></h2>
-<p>When creating a new release:</p>
-<ol>
-<li>Run <code>./release.sh --minor</code> (or <code>--patch</code>/<code>--major</code>)</li>
-<li>Add entry to root <code>CHANGELOG.md</code> (concise)</li>
-<li>Create <code>docs/releases/CHANGELOG-X.Y.Z.md</code> (detailed)</li>
-<li>Create <code>docs/releases/RELEASE-NOTES-X.Y.Z.md</code> (user-facing)</li>
-<li>Update this README with the new release</li>
-</ol>
-<h2 id="available-releases">Available Releases<a class="headerlink" href="#available-releases" title="Permanent link">&para;</a></h2>
-<h3 id="601-tbd"><a href="CHANGELOG-6.0.1/">6.0.1</a> - TBD<a class="headerlink" href="#601-tbd" title="Permanent link">&para;</a></h3>
-<p>Bugfix release with enhanced null handling and connection stability
-- <a href="CHANGELOG-6.0.1/">Detailed Changelog</a>
-- <a href="RELEASE-NOTES-6.0.1/">Quick Release Notes</a></p>
-<p><strong>Highlights:</strong>
-- Bidirectional @UseIfNull behavior (protection from null contamination)
-- Socket timeout retry logic
-- Annotation rename: @UseIfnull → @UseIfNull</p>
+<p>If there is no replacement, say why not. "The feature is gone" is a reason, "it never
+worked and could not be fixed" is a reason, "we forgot to write one" is not:</p>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="cm">/**</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="cm"> * @deprecated since 6.4. The buffered writer decides the flush interval on its own</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="cm"> *             now, the setting has been ignored since 6.2. No replacement, drop the</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="cm"> *             call.</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="cm"> */</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="nd">@Deprecated</span><span class="p">(</span><span class="n">since</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"6.4"</span><span class="p">,</span><span class="w"> </span><span class="n">forRemoval</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">)</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">setFlushGranularity</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">g</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">}</span>
+</span></code></pre></div>
+<p>(Both snippets are illustrations, not verbatim quotes from the codebase.)</p>
+<p>Formal minimum for every deprecation:</p>
+<ul>
+<li><code>@Deprecated(since = "&lt;version&gt;", ...)</code>, <code>since</code> is not optional</li>
+<li>a Javadoc <code>@deprecated</code> tag with the replacement or the reason there is none</li>
+<li>an entry in <code>CHANGELOG.md</code> under <code>### Deprecated</code></li>
+<li>our own code no longer uses the deprecated member, otherwise the build warns about
+  itself and nobody looks at warnings anymore</li>
+</ul>
+<p>A bare <code>@Deprecated</code> with no Javadoc is not a deprecation, it is a bug. Fix it or remove
+the annotation.</p>
+<h2 id="rule-2-a-major-release-removes-the-deprecated-api">Rule 2: A major release removes the deprecated API<a class="headerlink" href="#rule-2-a-major-release-removes-the-deprecated-api" title="Permanent link">&para;</a></h2>
+<p>Default expectation: <strong>after a major release, there is no deprecated API left.</strong></p>
+<p><code>forRemoval = true</code> is therefore the normal case when deprecating something. Use
+<code>forRemoval = false</code> only for the exceptions described in rule 3.</p>
+<p>The reasoning is simple. A major release contains API changes anyway, that is what makes
+it a major release. Everybody who upgrades across a major expects to sit down with a list
+of TODOs and work through it. That is exactly the moment where removing the old stuff is
+cheapest, because the migration is already happening. If we let that moment pass, the
+deprecated members survive into the next major, and the one after that, and then nobody
+dares to touch them at all.</p>
+<p>So: crossing a major is the forced cleanup, for us and for the users.</p>
+<h2 id="rule-3-keeping-a-deprecation-past-a-major-needs-a-written-reason">Rule 3: Keeping a deprecation past a major needs a written reason<a class="headerlink" href="#rule-3-keeping-a-deprecation-past-a-major-needs-a-written-reason" title="Permanent link">&para;</a></h2>
+<p>There are members that stay deprecated forever, and that is fine as long as the reason is
+documented. The typical case is a deprecation we do not own. <code>MongoType.UNDEFINED</code>,
+<code>DB_PTR</code>, <code>SYMBOL</code> and <code>JAVASCRIPT_SCOPE</code> mirror BSON types that the BSON spec itself
+deprecated. We cannot remove them, we still have to decode documents that contain them.
+They carry <code>forRemoval = false</code> and a Javadoc line saying so.</p>
+<p>Rules for keeping one:</p>
+<ul>
+<li>the Javadoc says why it survives, not just that it is deprecated</li>
+<li>it is marked <code>forRemoval = false</code></li>
+<li>the migration guide of that major mentions it under "stays deprecated"</li>
+</ul>
+<p>"Somebody out there might still use it" is not a reason. That is what the deprecation
+cycle was for.</p>
+<h2 id="checklist-deprecating-something">Checklist: deprecating something<a class="headerlink" href="#checklist-deprecating-something" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[ ] <code>@Deprecated(since = "&lt;version&gt;", forRemoval = true)</code> (or <code>false</code> plus a reason, see rule 3)</li>
+<li>[ ] Javadoc <code>@deprecated</code> names the replacement, with a before/after snippet if the call shape changes</li>
+<li>[ ] the replacement exists, is public and is covered by tests</li>
+<li>[ ] <code>CHANGELOG.md</code> entry under <code>### Deprecated</code></li>
+<li>[ ] all internal call sites moved over to the replacement</li>
+</ul>
+<h2 id="checklist-preparing-a-major-release">Checklist: preparing a major release<a class="headerlink" href="#checklist-preparing-a-major-release" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[ ] list everything: <code>grep -rn "@Deprecated" --include='*.java' */src/main/java</code></li>
+<li>[ ] remove everything marked <code>forRemoval = true</code></li>
+<li>[ ] for each remaining one: remove it, or document the reason it stays (rule 3)</li>
+<li>[ ] the migration guide (<code>docs/howtos/migration-vX-to-vY.md</code>) lists every removal with
+      its replacement, so the compile errors people hit are searchable</li>
+<li>[ ] afterwards: no <code>forRemoval = true</code> left in <code>src/main/java</code></li>
+</ul>
+<h2 id="what-this-means-when-you-upgrade">What this means when you upgrade<a class="headerlink" href="#what-this-means-when-you-upgrade" title="Permanent link">&para;</a></h2>
+<p>Minor and patch upgrades never remove API. Deprecation warnings that appear there are the
+cheap warning shot: you can fix them at your own pace, with both old and new code
+compiling side by side.</p>
+<p>Major upgrades turn those warnings into compile errors. If you kept the warning list at
+zero during the minor releases, a major upgrade is mostly a version bump. If you ignored
+them for two years, the major is where the bill arrives. The migration guide for that
+version is the map.</p>
+<h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../howtos/migration-v6_2-to-v6_3/">Upgrade v6.2 → v6.3</a></li>
+<li><a href="../howtos/migration-v6_1-to-v6_2/">Upgrade v6.1 → v6.2</a></li>
+<li><a href="../howtos/migration-v5-to-v6/">Migration v5 → v6</a></li>
+<li><a href="../api-reference/">API Reference</a></li>
+</ul>
 
 
 
