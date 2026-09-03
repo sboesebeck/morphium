@@ -116,6 +116,7 @@ nav:
   - Reference:
     - API Reference: api-reference.md
     - Configuration: configuration-reference.md
+    - Deprecation Policy: deprecation-policy.md
   - Operations:
     - v5 vs v6 Performance: v5-vs-v6-performance.md
     - Performance & Scalability: performance-scalability-guide.md

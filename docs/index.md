@@ -70,6 +70,7 @@ Morphium includes a complete in-memory MongoDB-compatible implementation for tes
 
 ## Reference
 - **[API Reference](./api-reference.md)** - Complete API documentation with examples
+- **[Deprecation Policy](./deprecation-policy.md)** - What a deprecation has to look like, and when it gets removed (short version: at the next major)
 
 ## Extensions (Optional Modules)
 Morphium's core module (`de.caluga:morphium`) is fully self-contained and does not need

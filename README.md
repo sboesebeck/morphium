@@ -434,6 +434,10 @@ cfg.driverSettings().setDriverName("PooledDriver");
 
 Available sub-objects: `connectionSettings()`, `clusterSettings()`, `driverSettings()`, `messagingSettings()`, `cacheSettings()`, `authSettings()`, `threadPoolSettings()`, `objectMappingSettings()`, `writerSettings()`.
 
+The old setters stay in place for the whole 6.x line and are removed with 7.0. See the
+[Deprecation Policy](docs/deprecation-policy.md) for what that means in general: deprecations
+can show up in any release and always name their replacement, and a major release removes them.
+
 ### New: Multi-Module Maven Structure
 
 The `morphium` core artifact no longer bundles server dependencies (Netty, etc.). If you only use Morphium as ODM, your dependency tree is ~90% leaner — no changes to your pom needed.
