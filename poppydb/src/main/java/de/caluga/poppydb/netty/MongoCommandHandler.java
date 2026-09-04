@@ -744,7 +744,6 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             future.whenComplete((batch, error) -> {
                 Map<String, Object> answer;
                 if (error != null) {
-                    log.error("getMore error for cursor {}: {}", cursorId, error.getMessage());
                     Throwable cause = error instanceof java.util.concurrent.CompletionException && error.getCause() != null
                                       ? error.getCause() : error;
 
@@ -752,9 +751,27 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                         // Same code the replication resume gate uses: the client has to tell
                         // "the window is gone, resync" apart from an ordinary failure, which a
                         // bare errmsg does not allow.
+                        //
+                        // Not an ERROR: this is a protocol-defined answer the client handles by
+                        // re-establishing its stream. Resume tokens do not survive a change of
+                        // primary (#361), so every failover and every rolling restart produces
+                        // one of these per change stream - on a bus with a few dozen
+                        // participants that is a three-digit burst of alarm noise burying real
+                        // errors. Same reasoning as #331 for the IOException family.
+                        long occurrence = cursorManager.recordHistoryLost();
+
+                        if (cursorManager.shouldReport(occurrence)) {
+                            log.info("getMore on cursor {}: {} - client re-establishes the stream"
+                                     + " (occurrence {} of the current burst)",
+                                     cursorId, cause.getMessage(), occurrence);
+                        } else {
+                            log.debug("getMore on cursor {}: {} - client re-establishes the stream",
+                                      cursorId, cause.getMessage());
+                        }
                         answer = Doc.of("ok", 0.0, "code", 286, "codeName", "ChangeStreamHistoryLost",
                                         "errmsg", cause.getMessage());
                     } else {
+                        log.error("getMore error for cursor {}: {}", cursorId, error.getMessage());
                         answer = Doc.of("ok", 0.0, "errmsg", cause.getMessage());
                     }
                 } else {

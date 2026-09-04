@@ -89,6 +89,40 @@ public class WatchCursorManager {
     /**
      * Generate a new cursor ID.
      */
+    // A change of primary invalidates every client's resume token at once (#361), so the
+    // expected ChangeStreamHistoryLost answers arrive as one burst - one per change stream,
+    // three digits on a bus with a few dozen participants. Logging each of them is unreadable
+    // even below ERROR, so the burst is throttled to its powers of two: 1, 2, 4, 8, ... keeps
+    // the beginning, the growth and the final order of magnitude, and drops the rest to DEBUG.
+    // Shared across connections because the burst is, too - the counter lives here, next to the
+    // cursors, and not in the per-connection handler.
+    private static final long HISTORY_LOST_QUIET_RESET_MS = 60_000;
+    private final java.util.concurrent.atomic.AtomicLong historyLostCount =
+            new java.util.concurrent.atomic.AtomicLong();
+    private final java.util.concurrent.atomic.AtomicLong historyLostLastSeen =
+            new java.util.concurrent.atomic.AtomicLong();
+
+    /**
+     * Count one expected history-lost answer and return its running number. A quiet period
+     * starts a fresh count, so the next failover is reported from 1 again instead of
+     * disappearing behind a counter that has grown past its next power of two.
+     */
+    public long recordHistoryLost() {
+        long now = System.currentTimeMillis();
+        long last = historyLostLastSeen.getAndSet(now);
+
+        if (last != 0 && now - last > HISTORY_LOST_QUIET_RESET_MS) {
+            historyLostCount.set(0);
+        }
+
+        return historyLostCount.incrementAndGet();
+    }
+
+    /** Is this occurrence one of the ones worth a line of its own? (1, 2, 4, 8, ...) */
+    public boolean shouldReport(long occurrence) {
+        return occurrence > 0 && (occurrence & (occurrence - 1)) == 0;
+    }
+
     public long nextCursorId() {
         return cursorIdGenerator.incrementAndGet();
     }
