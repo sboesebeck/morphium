@@ -5257,14 +5257,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public MongoConnection getReadConnection(ReadPreference rp) {
         activeConnections.incrementAndGet();
         stats.get(DriverStatsKey.CONNECTIONS_BORROWED).incrementAndGet();
-        return new InMemConnectionWrapper(this);
+        InMemConnectionWrapper con = new InMemConnectionWrapper(this);
+        con.setEffectiveReadPreference(rp == null ? getDefaultReadPreference() : rp);
+        return con;
     }
 
     @Override
     public MongoConnection getPrimaryConnection(WriteConcern wc) {
         activeConnections.incrementAndGet();
         stats.get(DriverStatsKey.CONNECTIONS_BORROWED).incrementAndGet();
-        return new InMemConnectionWrapper(this);
+        InMemConnectionWrapper con = new InMemConnectionWrapper(this);
+        con.setEffectiveReadPreference(ReadPreference.primary());
+        return con;
     }
 
     @Override
@@ -13420,6 +13424,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * - Only driver.shutdown() actually stops the driver
      */
     private class InMemConnectionWrapper implements MongoConnection {
+        private ReadPreference effectiveReadPreference;
+
+        @Override
+        public ReadPreference getEffectiveReadPreference() {
+            return effectiveReadPreference;
+        }
+
+        @Override
+        public void setEffectiveReadPreference(ReadPreference readPreference) {
+            this.effectiveReadPreference = readPreference;
+        }
+
         private final InMemoryDriver driver;
         private boolean closed = false;
 

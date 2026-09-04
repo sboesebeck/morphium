@@ -1362,7 +1362,11 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         MongoConnection con = null;
 
         try {
-            con = morphiumDriver.getReadConnection(getReadPreferenceForClass(o.getClass()));
+            // reread() has to answer with the state that IS in the database: a secondary that has not
+            // caught up yet answers with an older version of the document - or with nothing at all,
+            // making reread() return null for a document that is there. So this always reads from the
+            // primary, like the driver already does inside transactions and after a commit.
+            con = morphiumDriver.getReadConnection(ReadPreference.primary());
             settings = new FindCommand(con).setDb(getConfig().connectionSettings().getDatabase()).setColl(collection).setFilter(Doc.of(srch)).setBatchSize(1).setLimit(1);
             List<Map<String, Object >> found = settings.execute();
             settings.releaseConnection();

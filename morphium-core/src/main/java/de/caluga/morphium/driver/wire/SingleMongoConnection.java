@@ -31,6 +31,18 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static de.caluga.morphium.driver.MorphiumDriver.DriverStatsKey.*;
 
 public class SingleMongoConnection implements MongoConnection {
+    private volatile ReadPreference effectiveReadPreference;
+
+    @Override
+    public ReadPreference getEffectiveReadPreference() {
+        return effectiveReadPreference;
+    }
+
+    @Override
+    public void setEffectiveReadPreference(ReadPreference readPreference) {
+        this.effectiveReadPreference = readPreference;
+    }
+
 
     private final Logger log = LoggerFactory.getLogger(SingleMongoConnection.class);
     private Socket s;
