@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "commit": "e31b27c3a223b1b92c9c3bc0b45388b3a7c0abd9",
+  "branch": "rerun-6.3.8",
+  "timestamp": "2026-09-04T08:24:58Z",
+  "runner": "testrunner",
+  "scope": {
+    "complete": true,
+    "tags": null,
+    "testPattern": null
+  },
+  "phases": {
+    "inmem": {
+      "classes": 333,
+      "methods": 2249,
+      "passed": 2233,
+      "skipped": 16,
+      "broken": 0,
+      "duration_s": 4515,
+      "flaky": 0
+    }
+  }
+}
