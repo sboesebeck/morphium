@@ -333,7 +333,8 @@ public List<Map<String, Object>> salesByCategory() {
 | `quarkus.morphium.driver-name` | `PooledDriver` | `PooledDriver` (production) or `InMemDriver` (tests) |
 | `quarkus.morphium.cache.read-cache-enabled` | `true` | Enable query result cache |
 | `quarkus.morphium.cache.global-valid-time` | `60000` | Cache TTL in milliseconds |
-| `quarkus.morphium.local-date-time.use-bson-date` | `true` | Store `LocalDateTime` as BSON `ISODate` |
+| `quarkus.morphium.use-bson-date-for-java-time` | -- | Store `Instant`, `LocalDate`, `LocalTime` and `LocalDateTime` as BSON `ISODate`. Unset leaves the previous per-type behaviour untouched |
+| `quarkus.morphium.local-date-time.use-bson-date` | `true` | **Deprecated** (removal in 6.4.0), use `use-bson-date-for-java-time`: reaches `LocalDateTime` only |
 | `quarkus.morphium.ssl.enabled` | `false` | Enable TLS |
 | `quarkus.morphium.ssl.auth-mechanism` | -- | `MONGODB-X509` for client-cert auth |
 | `quarkus.morphium.ssl.keystore-path` | -- | Keystore path (JKS/PKCS12) |

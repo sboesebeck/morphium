@@ -35,7 +35,18 @@ public interface LocalDateTimeConfig {
      *
      * <p>Defaults to {@code true}. Set to {@code false} only if you need backward
      * compatibility with existing data written by Morphium in the Map format.
+     *
+     * @deprecated Use {@code quarkus.morphium.use-bson-date-for-java-time} instead, which covers all
+     *             four {@code java.time} types the object mapper maps specially ({@code Instant},
+     *             {@code LocalDate}, {@code LocalTime}, {@code LocalDateTime}) through
+     *             {@code ObjectMappingSettings#setUseBsonDateForJavaTime(boolean)}. This property
+     *             reaches {@code LocalDateTime} only: it registers a single
+     *             {@code LocalDateTimeMapper} and leaves the other three types on the legacy format,
+     *             which is a per-type split no application asked for. It keeps working and still wins
+     *             when the new property is unset, so nothing breaks on upgrade; it will be removed in
+     *             6.4.0.
      */
+    @Deprecated(since = "6.3.8", forRemoval = true)
     @WithDefault("true")
     boolean useBsonDate();
 }
