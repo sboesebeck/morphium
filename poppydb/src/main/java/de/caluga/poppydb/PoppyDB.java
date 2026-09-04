@@ -675,6 +675,50 @@ public class PoppyDB {
     }
 
     /**
+     * Does this seed name the address this node is bound to? A seed that does not resolve here is
+     * simply not this node - an unreachable peer must not abort the identity search.
+     */
+    private boolean seedResolvesToBindAddress(String seed) {
+        int sep = seed.lastIndexOf(':');
+        String seedHost = sep < 0 ? seed : seed.substring(0, sep);
+
+        try {
+            java.net.InetAddress bound = java.net.InetAddress.getByName(host);
+            // A wildcard bind names no address of its own, so the seed to claim is the one pointing
+            // at any interface of this machine.
+            java.util.Set<java.net.InetAddress> mine =
+                    bound.isAnyLocalAddress() ? localAddresses() : java.util.Set.of(bound);
+
+            for (java.net.InetAddress candidate : java.net.InetAddress.getAllByName(seedHost)) {
+                if (mine.contains(candidate)) {
+                    return true;
+                }
+            }
+        } catch (java.net.UnknownHostException e) {
+            return false;
+        }
+
+        return false;
+    }
+
+    /** Every address this machine answers on, for matching a seed against a wildcard bind. */
+    private static java.util.Set<java.net.InetAddress> localAddresses() {
+        java.util.Set<java.net.InetAddress> addresses = new java.util.HashSet<>();
+
+        try {
+            var interfaces = java.net.NetworkInterface.getNetworkInterfaces();
+
+            while (interfaces.hasMoreElements()) {
+                addresses.addAll(java.util.Collections.list(interfaces.nextElement().getInetAddresses()));
+            }
+        } catch (java.net.SocketException e) {
+            log.warn("Cannot enumerate local addresses for replica set identity: {}", e.getMessage());
+        }
+
+        return addresses;
+    }
+
+    /**
      * Configure replica set with optional automatic election.
      *
      * @param name        Replica set name
@@ -698,14 +742,31 @@ public class PoppyDB {
         // for itself as a peer) and the priority lookup below misses.
         if (!hosts.isEmpty() && !hosts.contains(myAddress)) {
             List<String> samePortSeeds = hosts.stream().filter(h -> h.endsWith(":" + port)).toList();
+            // The literal comparison above misses the normal production case: bind by IP while the
+            // seeds are host names. Resolve them - the seed that answers with our bind address IS
+            // this node.
+            List<String> resolvingSeeds = samePortSeeds.stream()
+                    .filter(seed -> seedResolvesToBindAddress(seed)).toList();
 
-            if (samePortSeeds.size() == 1) {
+            if (resolvingSeeds.size() == 1) {
+                log.info("Bind address {} resolves to seed {} - using it as member identity",
+                         myAddress, resolvingSeeds.get(0));
+                myAddress = resolvingSeeds.get(0);
+            } else if (samePortSeeds.size() == 1) {
                 log.info("Bind address {} is not a replica set seed - using seed {} as member identity",
                          myAddress, samePortSeeds.get(0));
                 myAddress = samePortSeeds.get(0);
             } else {
-                log.warn("Bind address {} is not in the replica set seed list {} and no unique seed matches "
-                         + "port {} - member identity may be wrong (rs.status/election)", myAddress, hosts, port);
+                // Continuing here means every quorum this node computes is wrong: self stays in the
+                // peer list, so totalNodes counts one member too many, and the node answers its own
+                // vote request over the network - a second vote under the seed name it failed to
+                // claim. With an odd node count those two errors cancel and the damage stays
+                // invisible; with an even one, two of four nodes elect a leader.
+                throw new IllegalArgumentException(
+                        "Bind address " + myAddress + " matches no replica set seed in " + hosts
+                        + " - neither literally nor by resolving the seed names. Member identity is "
+                        + "undecidable and the election would miscount the quorum. Set 'bind' to this "
+                        + "node's seed name.");
             }
         }
 
