@@ -564,12 +564,24 @@ public class SingleMongoConnectDriver extends DriverBase {
 
     @Override
     public MongoConnection getReadConnection(ReadPreference rp) {
-        return getConnection();
+        MongoConnection con = getConnection();
+
+        if (con != null) {
+            con.setEffectiveReadPreference(rp == null ? getDefaultReadPreference() : rp);
+        }
+
+        return con;
     }
 
     @Override
     public MongoConnection getPrimaryConnection(WriteConcern wc) {
-        return getConnection();
+        MongoConnection con = getConnection();
+
+        if (con != null) {
+            con.setEffectiveReadPreference(ReadPreference.primary());
+        }
+
+        return con;
     }
 
     /**

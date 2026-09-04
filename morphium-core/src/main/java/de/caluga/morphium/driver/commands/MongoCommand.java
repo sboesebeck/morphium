@@ -7,12 +7,15 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.driver.ReadPreferenceType;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.NetworkCallHelper;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -34,10 +37,35 @@ public abstract class MongoCommand<T extends MongoCommand> {
 
     @Transient
     private MongoConnection connection;
-    private Doc $readPreference = Doc.of("mode", "primaryPreferred");
+    /**
+     * The read preference this command was created for. Excluded from the generic field
+     * serialization in {@link #asMap()} (by name) - it is sent as {@code $readPreference}.
+     */
+    @Transient
+    private ReadPreference readPreference;
 
     public MongoCommand(MongoConnection c) {
         connection = c;
+    }
+
+    /**
+     * @return the read preference this command is sent with, {@code null} if none was set
+     */
+    public ReadPreference getReadPreference() {
+        return readPreference;
+    }
+
+    /**
+     * Sets the read preference this command is sent with. A mongos routes reads by the
+     * {@code $readPreference} of the command, so this is what makes a read preference effective on
+     * a sharded cluster. Takes precedence over the read preference of the connection.
+     *
+     * @param readPreference the read preference, {@code null} to fall back to the connection's
+     * @return the command itself
+     */
+    public T setReadPreference(ReadPreference readPreference) {
+        this.readPreference = readPreference;
+        return (T) this;
     }
 
     private Logger getLog() {
@@ -282,7 +310,36 @@ public abstract class MongoCommand<T extends MongoCommand> {
             }
         }
 
+        map.put("$readPreference", readPreferenceAsDoc());
         return map;
+    }
+
+    /**
+     * The {@code $readPreference} this command is sent with: the one set on the command, else the
+     * one the connection was handed out for, else the {@code primaryPreferred} morphium has always
+     * sent. A mongos routes reads by this field, a mongod ignores it.
+     *
+     * @return the read preference as it goes over the wire, never {@code null}
+     */
+    private Doc readPreferenceAsDoc() {
+        ReadPreference rp = readPreference;
+
+        if (rp == null && connection != null) {
+            rp = connection.getEffectiveReadPreference();
+        }
+
+        if (rp == null || rp.getType() == null) {
+            return Doc.of("mode", ReadPreferenceType.PRIMARY_PREFERRED.getMode());
+        }
+
+        Doc ret = Doc.of("mode", rp.getType().getMode());
+
+        if (rp.getTagSet() != null && !rp.getTagSet().isEmpty()) {
+            // the wire protocol expects a list of tag documents, ordered by preference
+            ret.put("tags", List.of(rp.getTagSet()));
+        }
+
+        return ret;
     }
 
     public void clear() {
@@ -318,7 +375,7 @@ public abstract class MongoCommand<T extends MongoCommand> {
             }
         }
 
-        $readPreference = Doc.of("mode", "primaryPreferred");
+        readPreference = null;
     }
 
     /**
