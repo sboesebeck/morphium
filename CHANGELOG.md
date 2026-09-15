@@ -55,6 +55,12 @@ reads there from its verified oplog; PoppyDB has no oplog and cannot verify a du
 guard reads the same state and now logs the actual reason ("has not completed its first sync")
 instead of claiming the node is re-syncing.
 
+Authentication had to move to the control plane for this: `saslStart`, `saslContinue` and
+`logout` went through the same data-plane guard, and with `--auth` the election client has to
+SCRAM against its peers before any leader exists - every member refusing every other member's
+handshake is a bootstrap that never elects. A syncing node refused the handshake before as well;
+it just never coincided with the bootstrap until every member started out in that state.
+
 #### Chaos harness: a probe that does not perturb the run, exact accounting, and a diverge scenario that fails when it cannot diverge (#372)
 The once-a-second probe was `countDocuments()`, which mongosh sends as an aggregation, which on
 this driver copies the whole collection (#355). At the heavy profile that allocated on the order of

@@ -101,7 +101,12 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             "replsetgetconfig", "serverstatus",
             // read-only diagnostics that MUST work on secondaries: dbHash exists to compare
             // replica-set members, validate checks local data<->index consistency
-            "dbhash", "validate"
+            "dbhash", "validate",
+            // Authentication is control plane: with --auth the election client has to SCRAM
+            // against its peers before any leader exists, and since #371 every member with peers
+            // starts out refusing data-plane commands (13436). Sending saslStart through that
+            // guard deadlocked the bootstrap - nobody could authenticate, so nobody could vote.
+            "saslstart", "saslcontinue", "logout"
     );
 
     /**
