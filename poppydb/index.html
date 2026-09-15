@@ -3906,6 +3906,16 @@ case/separator-insensitive) — flags without one are CLI-only (there is nothing
 <li>The first node that starts without detecting peers becomes primary immediately.</li>
 <li>Any later node that can reach an existing peer demotes itself to secondary, runs an initial sync from the detected primary (or highest-priority reachable host), and only participates in elections after the sync finishes.</li>
 <li>Elections and automatic failover continue to respect the configured host priorities, but a node will not promote itself until it completed the initial copy of data.</li>
+<li>Until that first sync has completed - or the node has become primary itself - a member with
+  peers refuses data-plane commands with <code>NotPrimaryOrSecondary</code> (13436), advertises
+  <code>secondary: false</code> in <code>hello</code>, and reports <code>RECOVERING</code> in <code>replSetGetStatus</code>. This holds from
+  the moment the node starts listening, not only once a sync is under way; a node that restored a
+  dump is not exempt, because it holds data of unknown age that no primary has confirmed yet. The
+  consequence to plan for: a member restarted into a set that currently has no primary (quorum
+  lost) stays unavailable until one exists. MongoDB would serve secondary reads there from its
+  verified oplog; PoppyDB has no oplog and cannot verify a dump, so it prefers an error over a
+  plausible stale answer. A standalone node, or a set configured with a single member, never
+  enters this state.</li>
 </ul>
 <p>Practical tips:</p>
 <ol>
