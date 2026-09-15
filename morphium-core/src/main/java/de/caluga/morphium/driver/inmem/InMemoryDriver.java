@@ -11,6 +11,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.Reader;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
@@ -19,7 +20,6 @@ import java.io.Writer;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.lang.reflect.Method;
@@ -34,6 +35,7 @@ import java.lang.reflect.Modifier;
 import java.text.Collator;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -891,6 +893,86 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     /**
+     * How many characters the restore pulls from the dump per read (#366). Only the granularity of
+     * the streaming reader - the parse is incremental either way, so this changes nothing about
+     * what can be restored. Package-private and non-final so a test can shrink it and prove the
+     * parse really does span many refills, instead of needing a dump big enough to matter.
+     */
+    /* package-private */ volatile int dumpRestoreChunkChars = 8192;
+
+    /**
+     * Parses one dump off its stream with the given decoder. The caller owns the retry policy:
+     * a {@link CharacterCodingException} from here means the bytes are not in that charset, and
+     * the stream has been partly consumed - it cannot be decoded again without reopening.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> parseDump(InputStream in, CharsetDecoder dec) throws IOException, ParseException {
+        try (GZIPInputStream gzin = new GZIPInputStream(in);
+            ChunkedTailReader rd = new ChunkedTailReader(new InputStreamReader(gzin, dec), dumpRestoreChunkChars)) {
+            try {
+                return (Map<String, Object>) new JSONParser().parse(rd);
+            } catch (ParseException e) {
+                // No full-text context any more - the dump is never in memory as a whole. The last
+                // characters the parser actually consumed are the ones around the error anyway, and
+                // they cost a fixed-size buffer instead of a copy of the database.
+                String tail = rd.tail();
+                throw new RuntimeException("Dump restore failed: invalid JSON at position " + e.getPosition()
+                    + " (" + e + ")"
+                    + (tail.isEmpty() ? "" : " - context before the error: ..."
+                       + tail.replaceAll("[\\r\\n\\t]", " ")), e);
+            }
+        }
+    }
+
+    /**
+     * Hands the parser at most {@code chunk} characters per read and remembers the last few it
+     * delivered. The cap is what makes the streaming provable in a test; the tail is what is left
+     * of the old parse-error context once the dump is no longer held as one String.
+     */
+    private static final class ChunkedTailReader extends Reader {
+        private static final int TAIL_CHARS = 120;
+        private final Reader delegate;
+        private final int chunk;
+        private final char[] tail = new char[TAIL_CHARS];
+        private int tailLen;
+        private int tailPos;
+
+        ChunkedTailReader(Reader delegate, int chunk) {
+            this.delegate = delegate;
+            this.chunk = Math.max(1, chunk);
+        }
+
+        @Override
+        public int read(char[] cbuf, int off, int len) throws IOException {
+            int read = delegate.read(cbuf, off, Math.min(len, chunk));
+
+            for (int i = 0; i < read; i++) {
+                tail[tailPos] = cbuf[off + i];
+                tailPos = (tailPos + 1) % TAIL_CHARS;
+                tailLen = Math.min(tailLen + 1, TAIL_CHARS);
+            }
+
+            return read;
+        }
+
+        /** The last characters handed to the parser, oldest first. */
+        String tail() {
+            StringBuilder sb = new StringBuilder(tailLen);
+
+            for (int i = 0; i < tailLen; i++) {
+                sb.append(tail[(tailPos - tailLen + i + TAIL_CHARS) % TAIL_CHARS]);
+            }
+
+            return sb.toString();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
+    }
+
+    /**
      * The actual restore. Package private so {@link #restoreAllFromDirectoryResult(File)} can
      * surface index-recreation failures (#340) without changing the public {@link #restore}
      * signature.
@@ -901,33 +983,26 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      *         aborts the restore of the documents or of the remaining indexes.
      */
     List<String> restoreInternal(InputStream in) throws IOException, ParseException {
-        byte[] raw;
+        return restoreInternal(in, null);
+    }
 
-        try (GZIPInputStream gzin = new GZIPInputStream(in)) {
-            raw = gzin.readAllBytes();
-        }
-
-        // Dumps are written as UTF-8 (see dump()/dumpToFile()). Legacy dumps were written with
-        // the platform default charset (#306), so a dump that is not valid UTF-8 gets a
-        // tolerant second chance as ISO-8859-1 - that decodes every byte sequence and maps the
-        // typical legacy defaults (latin-1/latin-9/windows-1252) closely enough for umlauts.
-        // Decoding must REPORT malformed input instead of silently replacing characters with
-        // U+FFFD, or a legacy dump would be mojibake'd without anyone noticing.
-        // The content is decoded as a whole, NOT line by line: the previous readLine() loop
-        // silently deleted raw newlines that legacy dumps contain inside string values.
-        String json;
-
-        try {
-            json = StandardCharsets.UTF_8.newDecoder()
-                   .onMalformedInput(CodingErrorAction.REPORT)
-                   .onUnmappableCharacter(CodingErrorAction.REPORT)
-                   .decode(ByteBuffer.wrap(raw)).toString();
-        } catch (CharacterCodingException e) {
-            log.warn("Dump is not valid UTF-8 - assuming a legacy dump written with a platform "
-                     + "default charset, falling back to ISO-8859-1");
-            json = new String(raw, StandardCharsets.ISO_8859_1);
-        }
-
+    /**
+     * The actual restore, streaming (#366).
+     *
+     * <p>The dump is parsed straight off the gzip stream. It used to be read with
+     * {@code readAllBytes()} and decoded into one {@code String} first, which put two hard
+     * ceilings on a database: {@code byte[]} tops out near 2GB, and a {@code String} at 2^30
+     * characters - past that the restore died with {@code OutOfMemoryError: UTF16 String size is
+     * ...} no matter how much heap was available, on a dump the write side had produced without
+     * complaint. Reading through a {@link Reader} removes both; what remains is the ordinary
+     * requirement that the data fit in the heap.
+     *
+     * @param reopen reopens the same dump from the start, or {@code null} when the caller cannot.
+     *               Only needed for the legacy-charset retry below: a stream cannot be rewound
+     *               once the failed UTF-8 decode has consumed part of it.
+     */
+    private List<String> restoreInternal(InputStream in, Callable<InputStream> reopen)
+        throws IOException, ParseException {
         // The dump is parsed as PLAIN JSON and converted back at the dump boundary
         // (restoreDumpValue) - deliberately NOT through the entity-aware ObjectMapperImpl.
         // The store holds plain document maps; the previous restore resolved every document
@@ -937,14 +1012,35 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // document ("Parsing failed ... 'd' is null", #306 follow-up).
         Map<String, Object> root;
 
+        // Dumps are written as UTF-8 (see dump()/dumpToFile()). Legacy dumps were written with
+        // the platform default charset (#306), so a dump that is not valid UTF-8 gets a
+        // tolerant second chance as ISO-8859-1 - that decodes every byte sequence and maps the
+        // typical legacy defaults (latin-1/latin-9/windows-1252) closely enough for umlauts.
+        // Decoding must REPORT malformed input instead of silently replacing characters with
+        // U+FFFD, or a legacy dump would be mojibake'd without anyone noticing.
         try {
-            root = (Map<String, Object>) new JSONParser().parse(json);
-        } catch (ParseException e) {
-            int pos = e.getPosition();
-            int from = Math.max(0, pos - 40);
-            int to = Math.min(json.length(), pos + 40);
-            throw new RuntimeException("Dump restore failed: invalid JSON at position " + pos + " (" + e + ")"
-                + (from < to ? " - context: ..." + json.substring(from, to).replaceAll("[\\r\\n\\t]", " ") + "..." : ""), e);
+            root = parseDump(in, StandardCharsets.UTF_8.newDecoder()
+                             .onMalformedInput(CodingErrorAction.REPORT)
+                             .onUnmappableCharacter(CodingErrorAction.REPORT));
+        } catch (CharacterCodingException e) {
+            if (reopen == null) {
+                throw new RuntimeException("Dump restore failed: not valid UTF-8, and this restore was "
+                    + "handed a plain stream that cannot be read a second time for the legacy "
+                    + "ISO-8859-1 retry (#306). Restore a legacy dump via restoreFromFile() or "
+                    + "restoreAllFromDirectory().", e);
+            }
+
+            log.warn("Dump is not valid UTF-8 - assuming a legacy dump written with a platform "
+                     + "default charset, falling back to ISO-8859-1");
+
+            try {
+                root = parseDump(reopen.call(), StandardCharsets.ISO_8859_1.newDecoder());
+            } catch (IOException | ParseException | RuntimeException retry) {
+                throw retry;
+            } catch (Exception retry) {
+                throw new RuntimeException("Dump restore failed: could not reopen the dump for the "
+                    + "legacy ISO-8859-1 retry", retry);
+            }
         }
 
         String db = root.get("db") == null ? null : root.get("db").toString();
@@ -963,11 +1059,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     + (coll.getValue() == null ? "null" : coll.getValue().getClass().getName()));
             }
 
-            List<Map<String, Object>> docs = new ArrayList<>();
+            List<?> parsed = (List<?>) coll.getValue();
+            List<Map<String, Object>> docs = new ArrayList<>(parsed.size());
+            // Drop each parsed document as soon as it has been converted (#366). restoreDumpValue
+            // rebuilds every map and list, so the parsed tree and the converted one are two full
+            // copies of the database - holding both at once is what turned a restorable dump into
+            // an OutOfMemoryError once the data got large (12GB heap, 1.07M documents). Nulling the
+            // slot instead of removing it keeps this O(1) per document on an ArrayList, and lets
+            // the old copy shrink at the same rate the new one grows.
+            ListIterator<?> it = parsed.listIterator();
             int i = 0;
 
-            for (Object o : (List<?>) coll.getValue()) {
-                Object doc = restoreDumpValue(o, coll.getKey() + "[" + i++ + "]");
+            while (it.hasNext()) {
+                Object doc = restoreDumpValue(it.next(), coll.getKey() + "[" + i++ + "]");
+                it.set(null);
 
                 if (!(doc instanceof Map)) {
                     throw new RuntimeException("Dump restore failed: document " + coll.getKey() + "[" + (i - 1)
@@ -976,6 +1081,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                 docs.add((Map<String, Object>) doc);
             }
+
+            // The parsed list's own backing array goes too - data is the parser's map, ours is
+            // built up in `data` below.
+            coll.setValue(null);
 
             data.put(coll.getKey(), docs);
         }
@@ -1196,7 +1305,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public void restoreFromFile(File f) throws IOException, ParseException {
-        restore(new FileInputStream(f));
+        // Pass the reopen alongside the stream: a legacy dump (#306) is only recognisable after a
+        // failed UTF-8 decode has already consumed part of it, and the retry needs the file again.
+        restoreInternal(new FileInputStream(f), () -> new FileInputStream(f));
     }
 
     public void dumpToFile(Morphium m, String db, File f) throws IOException {
@@ -1467,7 +1578,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         for (File dumpFile : dumpFiles) {
             log.info("Restoring from {}", dumpFile.getAbsolutePath());
             try {
-                failedIndexes.addAll(restoreInternal(new FileInputStream(dumpFile)));
+                failedIndexes.addAll(restoreInternal(new FileInputStream(dumpFile),
+                                                    () -> new FileInputStream(dumpFile)));
                 restored++;
             } catch (Exception e) {
                 failed.add(dumpFile.getName());
@@ -1523,25 +1635,26 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     /**
-     * The largest dump {@link #restoreInternal(InputStream)} can read back, in characters (#366).
-     * The restore decodes the whole file into one {@code String}, so the JVM's UTF16 String limit
-     * applies - a dump past it fails with {@code OutOfMemoryError: UTF16 String size is ...,
-     * should be less than 1073741823}, no matter how much heap the process has.
+     * The ceiling a pre-streaming restore had, in characters (#366). Until the restore read dumps
+     * incrementally it decoded the whole file into one {@code String}, so anything past the JVM's
+     * UTF16 String limit died with {@code OutOfMemoryError: UTF16 String size is ...} regardless of
+     * heap. This version reads such a dump fine - but an older jar does not, and rolling a node
+     * back to one is a normal recovery step, so a dump that has grown past it is worth saying out
+     * loud.
      *
-     * <p>Conservative on purpose: a String of Latin-1-only content can hold roughly twice as many
-     * characters, but a single character outside Latin-1 anywhere in the dump drops the ceiling to
-     * this value, and the {@code readAllBytes()} one line above the decode caps things again at
-     * ~2GB. A dump that stays below this is restorable whatever it contains.
+     * <p>Conservative on purpose: a String of Latin-1-only content held roughly twice as many
+     * characters, but a single character outside Latin-1 anywhere in the dump dropped the ceiling
+     * to this value.
      *
      * <p>Package-private and non-final so a test can lower it instead of serializing an actual
      * gigabyte - same threshold seam as {@link #setSlowQueryThresholdMillis(long)}.
      */
-    /* package-private */ volatile long dumpRestoreLimitChars = Integer.MAX_VALUE >> 1;
+    /* package-private */ volatile long dumpRollbackLimitChars = Integer.MAX_VALUE >> 1;
 
     /**
-     * Writes one dump's JSON and measures it on the way out, so an unrestorable dump reports
-     * itself (#366). Both dump paths go through here - counting while writing costs nothing and
-     * avoids serializing the database a second time just to learn its size.
+     * Writes one dump's JSON and measures it on the way out, so a dump that has outgrown older
+     * readers reports itself (#366). Both dump paths go through here - counting while writing costs
+     * nothing and avoids serializing the database a second time just to learn its size.
      */
     private void writeDumpMeasured(String db, Map<String, Object> ser, Writer wr) throws IOException {
         CountingWriter counting = new CountingWriter(wr);
@@ -1550,26 +1663,24 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     /**
-     * Warns when a dump just written is too large to ever be restored (#366). The file is kept:
-     * refusing to write it would turn a restore problem into immediate data loss at shutdown, and
-     * a reader that can handle it may well exist later. What must not happen is silence - the
-     * write side streams, so without this nothing reports the problem until the next restart finds
-     * the dump unreadable.
+     * Warns when a dump has outgrown what older readers can restore (#366). The dump itself is
+     * fine for this version; what is gone is the option to roll the process back to a jar from
+     * before the streaming restore and still load it.
      */
     private void warnIfDumpExceedsRestoreLimit(String db, long chars) {
-        if (chars <= dumpRestoreLimitChars) {
+        if (chars <= dumpRollbackLimitChars) {
             return;
         }
 
-        log.warn("Dump of database '{}' is {} characters and cannot be restored: the limit is {} "
-                 + "(the restore decodes a dump into a single String). The file was written, but "
-                 + "this database has no working persistence until it shrinks - check TTL/retention "
-                 + "on its largest collections.", db, chars, dumpRestoreLimitChars);
+        log.warn("Dump of database '{}' is {} characters. This version restores it, but any morphium "
+                 + "or PoppyDB from before the streaming restore (#366) cannot - their limit is {}, "
+                 + "so rolling this process back to an older jar would leave the dump unreadable.",
+                 db, chars, dumpRollbackLimitChars);
     }
 
     /**
      * Counts the characters handed to the underlying writer, so a dump can be measured against
-     * {@link #dumpRestoreLimitChars} while it is written rather than serialized twice. All other
+     * {@link #dumpRollbackLimitChars} while it is written rather than serialized twice. All other
      * {@code Writer} methods funnel into these three.
      */
     private static final class CountingWriter extends Writer {

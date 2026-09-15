@@ -9,18 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-#### A dump too large to restore now says so while it is written (#366)
-The restore decodes a whole dump into a single `String`, so a database stops being restorable once
-its serialized JSON crosses the JVM's UTF16 String limit - `restoreInternal` then dies with
-`OutOfMemoryError: UTF16 String size is ..., should be less than 1073741823` no matter how much
-heap the process has. The write side streams, so it produced such files without a word: on PoppyDB
-6.3.8 a 1.07M document database dumped to 72MB gz / 1.94GB of JSON every hour for days, and the
-node came back dead on the first restart.
+#### The restore reads a dump incrementally, so its size no longer has a ceiling (#366)
+`restoreInternal` used to call `readAllBytes()` and decode the result into a single `String` before
+parsing. That put two hard limits on a database: a `byte[]` tops out near 2GB, and a `String` at
+2^30 characters - past it the restore died with `OutOfMemoryError: UTF16 String size is ..., should
+be less than 1073741823` no matter how much heap the process had. The write side streams, so it
+produced such files without a word: on PoppyDB 6.3.8 a 1.07M document database dumped to 72MB gz /
+1.94GB of JSON every hour for days, and the node came back dead on the first restart - and the JVM
+then stayed up with no listener, so systemd reported a healthy service.
 
-Both dump paths now measure the JSON as they write it and log a WARN naming the database, its size
-and the limit. The dump is still written - refusing it would turn a restore problem into immediate
-data loss at shutdown, and a reader that can handle it may exist later. Removing the size wall
-itself, rather than reporting it, is #367.
+The dump is now parsed straight off the gzip stream through json-simple's `parse(Reader)`. Both
+buffers are gone; what remains is the ordinary requirement that the data fit in the heap.
+
+Streaming the bytes alone was not enough, and the way it failed is worth recording: with the String
+gone the same dump died in `restoreDumpValue` with a plain `Java heap space` instead. That path
+rebuilds every map and list, so the parsed tree and the converted one are two complete copies of
+the database, and the parsed one stays reachable until the last document is done. Each parsed
+document is now released as soon as it has been converted (`ListIterator.set(null)`, O(1) on the
+ArrayList the parser produces), so the old copy shrinks at the rate the new one grows. Verified on
+the dump that started this: 1.07M documents restore in 38s and settle at 7.84GB of a 12GB heap,
+where before the fix neither buffer nor heap could hold them.
+
+One behaviour had to change with it. A legacy non-UTF-8 dump (#306) is only recognisable once a
+failed decode has already consumed part of the stream, and a plain `InputStream` cannot be rewound
+for the ISO-8859-1 retry. The file-based entry points (`restoreFromFile`, `restoreAllFromDirectory`)
+reopen the file and still read such dumps; `restore(InputStream)` now fails with a message naming
+the entry point that can. The parse-error message keeps its position and quotes the last characters
+the parser consumed instead of a slice of a String that no longer exists.
+
+A dump past the old ceiling still logs a WARN while being written - not because this version cannot
+read it, but because rolling a process back to an older jar is a normal recovery step and that jar
+would not be able to load it.
 
 #### `dropDatabase` no longer leaves TTL and capped rules behind (#369)
 Dropping a whole database cleared its documents and index definitions but kept the per-collection
