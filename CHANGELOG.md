@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### A superseded ReplicationManager is refused at the write, not merely asked to stop (#323)
+`stop()` joins the sync thread with a 5s bound while the sync connection reads with a 60s timeout,
+so the join loses routinely and an abandoned thread can resurface with a completed collection read
+in hand - inserting documents from the *old* primary into local data that by then belongs to its
+successor. Cooperative cancellation and closing the in-flight connection (`e1424c460`) narrowed that
+window; they could not close it, because every check is a check and the thread can be descheduled
+between passing one and reaching the write it guards. The local insert needs no network, so nothing
+external stops it either.
+
+`runLocalApplyCommand` is the single choke point for every local write a manager makes - snapshot
+inserts, the pre-sync drops and the change-stream applies - and the check now sits there, where
+there is no window left. The authority is the one that already decides it: `PoppyDB` binds each
+manager's "am I still in charge" question to its own `replicationManager` field, at both creation
+sites. A manager built without a node around it, as most tests do, defaults to allowed.
+
 #### A node in the middle of a re-sync no longer dumps its empty state over the last good dump (#352, partial)
 A resync resolves divergence by dropping the local databases and then copying a fresh snapshot, so
 between those two steps the local store is legitimately empty. Over the wire that window is already

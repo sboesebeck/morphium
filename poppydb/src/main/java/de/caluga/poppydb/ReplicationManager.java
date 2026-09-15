@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -222,6 +223,25 @@ public class ReplicationManager {
     // #323: the sync connection currently blocked (or about to block) in a collection read.
     // stop() closes it so a socket read on a slow primary aborts instead of running out its
     // 60s read timeout - interrupts cannot unblock a socket read.
+    /**
+     * Whether this manager is still the one its node applies replication through (#323, part 3).
+     *
+     * <p>Cooperative cancellation and closing the in-flight read (parts 1 and 2) narrow the window
+     * in which a superseded sync thread can still write, but they cannot close it: every check is a
+     * check, and the thread can be descheduled between passing one and reaching the write. This is
+     * the check that sits AT the write, where there is no window left. Defaults to "yes" so a
+     * manager used without a node around it - the way most tests build one - behaves as before.
+     */
+    private volatile BooleanSupplier stillCurrentApplier = () -> true;
+
+    /**
+     * Lets the owning node say which manager is current. Wired by {@code PoppyDB} to its own
+     * {@code replicationManager} field, the authority that already decides who is in charge.
+     */
+    public void setStillCurrentApplier(BooleanSupplier stillCurrent) {
+        this.stillCurrentApplier = stillCurrent == null ? () -> true : stillCurrent;
+    }
+
     private volatile MongoConnection inFlightSyncConnection;
 
     MongoConnection getInFlightSyncConnectionForTest() {
@@ -2884,6 +2904,17 @@ public class ReplicationManager {
      */
     private Map<String, Object> runLocalApplyCommand(GenericCommand cmd, String opDescription)
             throws MorphiumDriverException {
+        // #323 part 3: the last line of defence against a straggler. A sync thread that was
+        // abandoned mid-copy can resurface with a completed collection read in hand long after
+        // stop() gave up on it, and by then the local data belongs to this manager's successor.
+        // Parts 1 and 2 make that unlikely; only a check here makes it impossible, because there
+        // is no window between this test and the write it guards.
+        if (!stillCurrentApplier.getAsBoolean()) {
+            throw new MorphiumDriverException("replication apply refused: this ReplicationManager has "
+                + "been superseded, and " + opDescription + " would write into data that now belongs "
+                + "to its successor (#323)");
+        }
+
         int msgId = localDriver.runCommand(cmd);
         Map<String, Object> result = localDriver.readSingleAnswer(msgId);
 

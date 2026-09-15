@@ -1160,6 +1160,10 @@ public class PoppyDB {
         // late cannot release the guard on the strength of a stale sync.
         newReplicationManager.setOnInitialSyncComplete(
                 () -> releaseDataCompleteAfterSync(newReplicationManager));
+        // #323 part 3: bind the manager's "am I still in charge" question to the field that
+        // actually decides it. A manager superseded by a later leader change is then refused at
+        // the point of writing, not merely asked to stop.
+        newReplicationManager.setStillCurrentApplier(() -> replicationManager == newReplicationManager);
         // Assigned BEFORE start() (#306 review round 2): the sync-complete notification is
         // one-shot (maybeFireSyncCompleteNotify CASes the flag), and on a fast sync (e.g. the
         // consistency shortcut against loopback) the batch tick can fire it before a
@@ -1836,6 +1840,9 @@ public class PoppyDB {
             ReplicationManager staticModeManager = replicationManager;
             staticModeManager.setOnInitialSyncComplete(
                     () -> releaseDataCompleteAfterSync(staticModeManager));
+            // #323 part 3, same binding as the election path: a manager that has been replaced is
+            // refused at the point of writing, not merely asked to stop.
+            staticModeManager.setStillCurrentApplier(() -> replicationManager == staticModeManager);
             replicationManager.start();
 
             // Wait for initial sync (up to 30 seconds)
