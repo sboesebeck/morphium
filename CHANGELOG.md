@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### A node in the middle of a re-sync no longer dumps its empty state over the last good dump (#352, partial)
+A resync resolves divergence by dropping the local databases and then copying a fresh snapshot, so
+between those two steps the local store is legitimately empty. Over the wire that window is already
+covered - `preDispatch` answers every data-plane command with NotPrimaryOrSecondary (13436) while
+the initial sync runs. The dump path was not: it reads the driver in-process, and a periodic tick
+landing in that window renamed an *empty* file over the last good dump. After that the node's
+persistence is emptiness, and a crash brings it back empty holding a dump that looks perfectly
+valid.
+
+Both the periodic tick and `dumpNow` now refuse while the node is re-syncing or its local data is
+otherwise known incomplete, and say so - the same reasoning the shutdown gate already spelled out
+("would rename EMPTY databases over the last good dump files"), one window further back.
+
+Still open in #352: in-process readers other than the dump path see the empty phase, which the
+copy-then-swap the issue describes would close.
+
 #### `replSetGetStatus` no longer calls a node usable while it answers nothing (#356, partial)
 A secondary re-running its initial sync rejects every data-plane command with 13436 and already
 advertises `secondary:false` in hello - but `replSetGetStatus`, the command an operator types to ask

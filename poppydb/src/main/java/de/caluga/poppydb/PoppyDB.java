@@ -1676,6 +1676,13 @@ public class PoppyDB {
         dumpScheduler.scheduleAtFixedRate(() -> {
             // Skipped, never queued (#317): if a manual dumpNow (or a still-running earlier
             // tick) holds the guard, this tick does nothing - the next one is due anyway.
+            if (dumpWouldCaptureAnIncompleteCopy()) {
+                log.warn("Skipping periodic dump: this node is re-syncing and its local data is "
+                         + "incomplete - writing it out would replace the last good dump with an "
+                         + "empty one (#352)");
+                return;
+            }
+
             if (!dumpGuard.tryAcquire()) {
                 log.info("Skipping periodic dump: another dump is already running");
                 return;
@@ -1861,9 +1868,24 @@ public class PoppyDB {
      * handler so it can reject data-plane traffic (RECOVERING) while syncing. A primary has no
      * replication manager, so this is false there.
      */
-    private boolean isSecondarySyncing() {
+    // Package-private rather than private so a test can stand in for "this node is mid-resync"
+    // without building a live replica set around it (see DumpDuringResyncTest).
+    boolean isSecondarySyncing() {
         ReplicationManager rm = replicationManager;
         return rm != null && rm.isSyncing();
+    }
+
+    /**
+     * Whether a dump would capture a database that is mid-resync, i.e. dropped-but-not-yet-copied
+     * (#352). {@code clearLocalDatabases()} runs at the start of every snapshot, so between it and
+     * the copy the local store is legitimately empty. The wire layer already refuses reads in that
+     * window (RECOVERING, 13436), but the dump path reads the driver in-process and would happily
+     * rename an empty file over the last good one - after which a crash brings the node back empty
+     * holding a dump that looks perfectly valid. Same reasoning the shutdown gate in
+     * {@link #dumpNow()} already spells out, one window further back.
+     */
+    private boolean dumpWouldCaptureAnIncompleteCopy() {
+        return isSecondarySyncing() || !localDataComplete;
     }
 
     /** Read-only persistence info backing the dumpStatus admin command. */
@@ -1972,6 +1994,12 @@ public class PoppyDB {
         // guard alone does not prevent that; only refusing to start does.
         if (shuttingDown) {
             log.info("Not dumping: shutting down (a final dump runs as part of shutdown)");
+            return -1;
+        }
+
+        if (dumpWouldCaptureAnIncompleteCopy()) {
+            log.warn("Not dumping: this node is re-syncing and its local data is incomplete - "
+                     + "writing it out would replace the last good dump with an empty one (#352)");
             return -1;
         }
 
