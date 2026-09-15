@@ -242,6 +242,32 @@ public class ReplicationManager {
         this.stillCurrentApplier = stillCurrent == null ? () -> true : stillCurrent;
     }
 
+    /**
+     * Refuses a local write from a manager that has been replaced (#323, part 3).
+     *
+     * <p>A sync thread abandoned mid-copy can resurface with a completed collection read in hand
+     * long after {@code stop()} gave up on it, and by then the local data belongs to this
+     * manager's successor. Parts 1 and 2 (cooperative cancellation, closing the in-flight
+     * connection) make that unlikely; this makes it harmless.
+     *
+     * <p>It does not eliminate the window - this test and the write it guards are two statements,
+     * and a thread can be descheduled between them. What it does is shrink the window to a few
+     * instructions with no I/O in it, from one that spanned a whole network read. Closing it
+     * outright would need the ownership change and the write to be serialised against each other.
+     *
+     * <p>Must be called from EVERY path that writes to the local driver, not just
+     * {@link #runLocalApplyCommand}: the change-stream bulk insert and the admin-collection drops
+     * in {@link #clearLocalDatabases()} reach the driver directly, and the bulk insert is the most
+     * frequent write this manager makes.
+     */
+    private void assertStillCurrentApplier(String opDescription) throws MorphiumDriverException {
+        if (!stillCurrentApplier.getAsBoolean()) {
+            throw new MorphiumDriverException("replication apply refused: this ReplicationManager has "
+                + "been superseded, and " + opDescription + " would write into data that now belongs "
+                + "to its successor (#323)");
+        }
+    }
+
     private volatile MongoConnection inFlightSyncConnection;
 
     MongoConnection getInFlightSyncConnectionForTest() {
@@ -950,6 +976,14 @@ public class ReplicationManager {
     @SuppressWarnings("unchecked")
     private void applyBulkInserts(String collKey, List<Map<String, Object>> events) {
         if (events.isEmpty()) return;
+
+        // #323: the most frequent write this manager makes, and it reaches the driver directly
+        // rather than through runLocalApplyCommand. Checked HERE rather than next to the insert
+        // on purpose: the insert sits inside a try whose catch treats any failure as "the bulk
+        // failed" and replays the run event by event. A refusal raised in there would be
+        // swallowed into that fallback instead of stopping the apply, which is the opposite of
+        // what it is for.
+        assertStillCurrentApplier("bulk insert into " + collKey);
 
         String[] parts = collKey.split("\\.", 2);
         String db = parts[0];
@@ -2180,6 +2214,11 @@ public class ReplicationManager {
         // configured), a delete's internal find() would phantom-create an empty system.users
         // on every resyncing secondary but not on the primary, asymmetrically diverging the
         // namespace set the consistency shortcut compares.
+        // #323: a direct driver call, so the ownership check does not come for free here. A
+        // superseded manager dropping the successor's user collection is worse than a stray
+        // insert - on a node whose only databases are admin/local/config the loop above makes no
+        // guarded call at all, so without this nothing would have stopped it.
+        assertStillCurrentApplier("pre-sync drop of admin.system.users");
         localDriver.drop("admin", "system.users", null);
 
         // admin.system.version DOES replicate too (the users-file version-gate meta doc), and is
@@ -2205,6 +2244,7 @@ public class ReplicationManager {
         // a full sync instead of taking the shortcut. drop() is the safe idempotent primitive:
         // it removes the map entry outright (a no-op if the collection was never created) and
         // never conjures one into existence.
+        assertStillCurrentApplier("pre-sync drop of admin.system.version");
         localDriver.drop("admin", "system.version", null);
     }
 
@@ -2904,17 +2944,7 @@ public class ReplicationManager {
      */
     private Map<String, Object> runLocalApplyCommand(GenericCommand cmd, String opDescription)
             throws MorphiumDriverException {
-        // #323 part 3: the last line of defence against a straggler. A sync thread that was
-        // abandoned mid-copy can resurface with a completed collection read in hand long after
-        // stop() gave up on it, and by then the local data belongs to this manager's successor.
-        // Parts 1 and 2 make that unlikely; only a check here makes it impossible, because there
-        // is no window between this test and the write it guards.
-        if (!stillCurrentApplier.getAsBoolean()) {
-            throw new MorphiumDriverException("replication apply refused: this ReplicationManager has "
-                + "been superseded, and " + opDescription + " would write into data that now belongs "
-                + "to its successor (#323)");
-        }
-
+        assertStillCurrentApplier(opDescription);
         int msgId = localDriver.runCommand(cmd);
         Map<String, Object> result = localDriver.readSingleAnswer(msgId);
 

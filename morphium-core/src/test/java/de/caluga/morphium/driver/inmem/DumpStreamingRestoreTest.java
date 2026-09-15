@@ -10,8 +10,6 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -105,27 +103,13 @@ public class DumpStreamingRestoreTest {
         }
     }
 
-    /**
-     * The proof that the whole-file buffer is gone, without a file big enough to overflow it: a
-     * stream that serves sequential reads but refuses to be slurped. The old restore called
-     * {@code readAllBytes()} as its very first act and would fail here; the streaming one never
-     * asks.
-     */
-    @Test
-    public void theRestoreNeverSlurpsTheWholeDump(@TempDir Path tmp) throws Exception {
-        int docCount = 200;
-        InMemoryDriver source = sourceDriver(docCount);
-        File f = new File(tmp.toFile(), "noslurp.morphium.gz");
-        source.dumpToFile(db, f);
-
-        InMemoryDriver target = new InMemoryDriver();
-
-        try (InputStream in = new UnslurpableInputStream(new FileInputStream(f))) {
-            target.restore(in);
-        }
-
-        assertRestoredFaithfully(target, docCount, "unslurpable stream");
-    }
+    // A test that asserted "the restore never calls readAllBytes()" used to live here, using an
+    // InputStream that threw from readAllBytes()/readNBytes(). It proved nothing: GZIPInputStream
+    // does not override readAllBytes(), so the default implementation loops on read(byte[],off,len)
+    // against ITSELF and reaches the wrapped stream only through fill() - the overrides were never
+    // called, and the test passed against the pre-fix code that still slurped. Verified by running
+    // it against 5a3125911. The chunked round-trip above is the real evidence: it fails the moment
+    // the parse stops being incremental.
 
     /**
      * The one behaviour the streaming restore cannot keep: a legacy non-UTF-8 dump (#306) is only
@@ -183,37 +167,4 @@ public class DumpStreamingRestoreTest {
                 "the text leading up to the error must stay in the message: " + ex.getMessage());
     }
 
-    /** Serves sequential reads normally, but refuses every attempt to read it all at once. */
-    private static final class UnslurpableInputStream extends InputStream {
-        private final InputStream delegate;
-
-        UnslurpableInputStream(InputStream delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public int read() throws IOException {
-            return delegate.read();
-        }
-
-        @Override
-        public int read(byte[] b, int off, int len) throws IOException {
-            return delegate.read(b, off, len);
-        }
-
-        @Override
-        public byte[] readAllBytes() {
-            throw new AssertionError("the restore must not buffer the whole dump (#366)");
-        }
-
-        @Override
-        public byte[] readNBytes(int len) {
-            throw new AssertionError("the restore must not buffer the whole dump (#366)");
-        }
-
-        @Override
-        public void close() throws IOException {
-            delegate.close();
-        }
-    }
 }

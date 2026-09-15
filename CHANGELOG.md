@@ -18,11 +18,20 @@ window; they could not close it, because every check is a check and the thread c
 between passing one and reaching the write it guards. The local insert needs no network, so nothing
 external stops it either.
 
-`runLocalApplyCommand` is the single choke point for every local write a manager makes - snapshot
-inserts, the pre-sync drops and the change-stream applies - and the check now sits there, where
-there is no window left. The authority is the one that already decides it: `PoppyDB` binds each
-manager's "am I still in charge" question to its own `replicationManager` field, at both creation
-sites. A manager built without a node around it, as most tests do, defaults to allowed.
+The check now sits at every path that writes to the local driver: `runLocalApplyCommand`, the
+change-stream bulk insert, and the two admin-collection drops in `clearLocalDatabases()`. The first
+version of this fix claimed `runLocalApplyCommand` was a single choke point; it is not. The bulk
+insert is the most frequent write a manager makes and reaches the driver directly, and on a node
+whose only databases are admin/local/config the drops are the first thing that touches data. The
+bulk insert is checked before entering the try block that treats any failure as "the bulk failed"
+and replays it event by event - a refusal raised inside would have been swallowed into that
+fallback.
+
+This shrinks the window rather than closing it: the check and the write are two statements, and a
+thread can be descheduled between them. What changes is that the window no longer spans a network
+read. Closing it outright would need the ownership change and the write serialised against each
+other. The authority is the one that already decides it: `PoppyDB` binds each manager's "am I still
+in charge" question to its own `replicationManager` field, at both creation sites.
 
 #### A node in the middle of a re-sync no longer dumps its empty state over the last good dump (#352, partial)
 A resync resolves divergence by dropping the local databases and then copying a fresh snapshot, so
@@ -33,9 +42,16 @@ landing in that window renamed an *empty* file over the last good dump. After th
 persistence is emptiness, and a crash brings it back empty holding a dump that looks perfectly
 valid.
 
-Both the periodic tick and `dumpNow` now refuse while the node is re-syncing or its local data is
-otherwise known incomplete, and say so - the same reasoning the shutdown gate already spelled out
-("would rename EMPTY databases over the last good dump files"), one window further back.
+The periodic tick, both `dumpNow` paths (the in-process one and the admin command behind
+`triggerDumpNow`) and the final dump on shutdown now refuse while the node is re-syncing, and say
+so. The shutdown case is the one most likely to be hit: a rolling restart that stops a node
+mid-resync would otherwise persist its emptied store as the last word.
+
+The "local data is incomplete" arm applies only while a ReplicationManager exists to fix it.
+`localDataComplete` returns to true in exactly one place, driven by a manager's initial-sync
+completion - so on a standalone node or a static-mode primary, refusing on that flag alone would
+have disabled persistence for the life of the process, and every write after a failed restore would
+have existed only in memory.
 
 Still open in #352: in-process readers other than the dump path see the empty phase, which the
 copy-then-swap the issue describes would close.
@@ -71,14 +87,21 @@ sweep had freed nine tenths of the heap. At the default `memory-reject` of 90, t
 refuses writes with `ExceededMemoryLimit` on a heap that is 30% free.
 
 The reading now comes from a GC notification's `GcInfo`, which reports every pool as of the end of
-one collection - a number that belongs to a single known instant. Two are kept: the last collection
-of any kind, and the last one that reclaimed the old generation, since only the latter has seen the
-garbage. `serverStatus.memoryWatermark` gained `heapUsedAfterGcAgeMs` and
-`heapReadingSeesOldGeneration`, because a number that may be 20 points off is useless without them.
+one collection - a number belonging to a single known instant. The estimate is the **lowest
+occupancy observed in the last 60 seconds**, not the reading from the last "major" collection: G1
+reports its concurrent-cycle end as "end of major GC" before much of anything is freed, while the
+mixed collections that actually reclaim old-generation garbage report as "end of minor GC", so
+preferring "major" picks the reading that has *not* seen the garbage. The live set is a floor every
+collection approaches from above, and the lowest recent reading is the closest thing to it available
+without forcing a full GC. Readings age out, so a low one from a quiet period cannot pin the number
+down while the heap fills up. `serverStatus.memoryWatermark` gained `heapUsedAfterGcAgeMs` and
+`heapReadingIsFresh`, because a number that may be 20 points off is useless without them.
 
-And the reject stage no longer refuses a write on a reading that cannot see the garbage: if no
-collection has reclaimed the old generation in the last 10 seconds, it asks for one (at most every
-30s) and looks again. A heap that is genuinely full is still refused, without the extra collection.
+And the reject stage no longer refuses a write on a stale reading: if the estimate is older than 10
+seconds it asks for a collection (at most every 30s) and looks again. It waits, briefly, for that
+collection's notification to arrive - the notification is delivered asynchronously, so re-reading
+immediately would see the old number and refuse anyway, with the collection's benefit arriving
+milliseconds too late. A heap that is genuinely full is still refused, without the extra collection.
 
 On a JVM without `com.sun.management` GC notifications, everything falls back to the raw gauge as
 before, with one warning.

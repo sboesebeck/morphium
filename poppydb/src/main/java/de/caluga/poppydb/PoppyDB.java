@@ -556,6 +556,13 @@ public class PoppyDB {
                             Thread.currentThread().interrupt();
                         }
                     }
+                } else if (dumpWouldCaptureAnIncompleteCopy()) {
+                    // The most likely way to hit this: a rolling restart that stops a node while
+                    // it is re-syncing (#352/#356). Its store is emptied, and writing that out is
+                    // the one moment where an empty dump is guaranteed to outlive the process -
+                    // the last good dump is worth more, and the node re-syncs on restart anyway.
+                    log.warn("Skipping the final dump: this node is re-syncing and its local data "
+                             + "is incomplete - the last good dump is worth more than an empty one");
                 } else {
                     log.info("Performing final dump before shutdown...");
                     int count = writeDumpFiles();
@@ -1892,7 +1899,26 @@ public class PoppyDB {
      * {@link #dumpNow()} already spells out, one window further back.
      */
     private boolean dumpWouldCaptureAnIncompleteCopy() {
-        return isSecondarySyncing() || !localDataComplete;
+        // A resync deliberately empties the store between clearLocalDatabases() and the copy.
+        // Persisting that is the failure mode this guards.
+        if (isSecondarySyncing()) {
+            return true;
+        }
+
+        // A node whose data is not authoritative should not persist it either - but only while
+        // something is coming that will make it authoritative again. `localDataComplete` returns
+        // to true in exactly one place, releaseDataCompleteAfterSync(), which fires from a
+        // ReplicationManager's initial-sync completion. A standalone node or a static-mode primary
+        // has no manager and will never get that, so refusing there would disable its persistence
+        // for the life of the process - every write after a failed restore would exist only in
+        // memory and die with it. That is worse than the empty dump this guard prevents.
+        return !localDataComplete && hasReplicationManager();
+    }
+
+    // Package-private for the same reason as isSecondarySyncing(): a test has to be able to say
+    // "a sync is coming" or "none ever will" without building a live replica set around the node.
+    boolean hasReplicationManager() {
+        return replicationManager != null;
     }
 
     /** Read-only persistence info backing the dumpStatus admin command. */
@@ -2041,6 +2067,15 @@ public class PoppyDB {
 
         if (shuttingDown) {
             log.info("dumpNow: shutting down - not starting a dump (a final dump runs on shutdown)");
+            return false;
+        }
+
+        // Same guard as the in-process dumpNow() and the periodic tick (#352). This is the path
+        // the admin command is wired to, so leaving it out meant an operator could do by hand
+        // exactly what the scheduler was stopped from doing.
+        if (dumpWouldCaptureAnIncompleteCopy()) {
+            log.warn("dumpNow: this node is re-syncing and its local data is incomplete - writing "
+                     + "it out would replace the last good dump with an empty one (#352)");
             return false;
         }
 

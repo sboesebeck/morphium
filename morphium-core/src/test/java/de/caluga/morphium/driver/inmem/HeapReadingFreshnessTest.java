@@ -25,9 +25,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * A pool's value is only refreshed when a collection touches that pool, and under G1 a young
  * collection never touches the old generation - so the sum blended a reading from milliseconds ago
  * with one that could be minutes old. Measured on a 12GB heap holding 7.2GB: 92.1% or 70.2% for the
- * identical dataset depending only on whether a full collection had just run, and 71.8% right after
- * a TTL sweep had freed nine tenths of the heap. At the default {@code memory-reject} of 90 that
- * first number refuses writes with ExceededMemoryLimit on a heap that is 30% free.
+ * identical dataset depending only on whether a full collection had just run. At the default
+ * {@code memory-reject} of 90 that first number refuses writes with ExceededMemoryLimit on a heap
+ * that is 30% free.
+ *
+ * <p>The estimate is now the lowest occupancy seen in a recent window rather than the reading from
+ * the last "major" collection. A review caught why that distinction cannot be trusted: G1 reports
+ * its concurrent-cycle end as "end of major GC" before anything much is freed, while the mixed
+ * collections that actually reclaim old-generation garbage report as "end of minor GC". Preferring
+ * "major" picks the reading that has not seen the garbage and throws away the ones that have.
  */
 @Tag("inmemory")
 public class HeapReadingFreshnessTest {
@@ -48,32 +54,48 @@ public class HeapReadingFreshnessTest {
     }
 
     @Test
-    public void theReadingComesFromACollectionThatSawTheOldGeneration() throws Exception {
+    public void theEstimateIsTheLowestOccupancySeenRecently() throws Exception {
         HeapAfterGc.resetForTest();
         drv = new InMemoryDriver();
         drv.connect();
+        long now = System.currentTimeMillis();
 
-        // A young collection: high occupancy, because the old generation's garbage is still there.
-        HeapAfterGc.recordForTest(percentOfHeap(92), System.currentTimeMillis(), false);
+        // A young collection leaves the old generation's garbage in place: high.
+        HeapAfterGc.recordForTest(percentOfHeap(92), now - 3000);
         assertEquals(92.0, drv.heapUsedAfterGcPercent(), 0.5,
-                "with no major collection on record the young reading is all there is");
-        assertFalse(drv.heapReadingSeesOldGeneration(),
-                "a young-only reading must not claim to have seen the whole heap");
+                "with one reading, that is the estimate");
 
-        // A major collection follows and finds most of it collectable.
-        HeapAfterGc.recordForTest(percentOfHeap(70), System.currentTimeMillis(), true);
+        // A collection that reclaims produces a lower one. Under G1 this is a MIXED collection,
+        // which the JVM reports as a minor GC - which is why the action is not consulted.
+        HeapAfterGc.recordForTest(percentOfHeap(70), now - 2000);
         assertEquals(70.0, drv.heapUsedAfterGcPercent(), 0.5,
-                "the major collection's reading must win - it is the only one that saw the garbage");
-        assertTrue(drv.heapReadingSeesOldGeneration());
+                "the lowest recent reading is the closest thing to the live set");
 
-        // Another young collection afterwards must not push the number back up: it knows less.
-        HeapAfterGc.recordForTest(percentOfHeap(88), System.currentTimeMillis(), false);
+        // A later young collection must not push the estimate back up: it knows less than the one
+        // that reclaimed, and the live set has not grown just because garbage accumulated again.
+        HeapAfterGc.recordForTest(percentOfHeap(88), now - 1000);
         assertEquals(70.0, drv.heapUsedAfterGcPercent(), 0.5,
-                "a later young reading must not override what a major collection established");
+                "a later, higher reading must not override a lower one from the same window");
     }
 
     @Test
-    public void anOldReadingIsReportedAsOld() throws Exception {
+    public void readingsAgeOutOfTheWindow() throws Exception {
+        HeapAfterGc.resetForTest();
+        drv = new InMemoryDriver();
+        drv.connect();
+        long now = System.currentTimeMillis();
+
+        // A very low reading from well outside the window describes a heap that no longer exists.
+        HeapAfterGc.recordForTest(percentOfHeap(5), now - (HeapAfterGc.WINDOW_MS + 30_000));
+        HeapAfterGc.recordForTest(percentOfHeap(80), now - 1000);
+
+        assertEquals(80.0, drv.heapUsedAfterGcPercent(), 0.5,
+                "an expired reading must not hold the estimate down - that was the other half of "
+                + "the bug: a full GC at startup pinned the number at 5% while the heap filled up");
+    }
+
+    @Test
+    public void anOldReadingIsReportedAsOldAndNotActedOn() throws Exception {
         HeapAfterGc.resetForTest();
         drv = new InMemoryDriver();
         drv.connect();
@@ -81,18 +103,18 @@ public class HeapReadingFreshnessTest {
         assertEquals(-1, drv.heapUsedAfterGcAgeMs(),
                 "with nothing recorded the age must say so rather than pretend to be current");
 
-        HeapAfterGc.recordForTest(percentOfHeap(70), System.currentTimeMillis() - 45_000, true);
+        HeapAfterGc.recordForTest(percentOfHeap(70), System.currentTimeMillis() - 45_000);
         assertTrue(drv.heapUsedAfterGcAgeMs() >= 45_000,
                 "the age must be reported, got: " + drv.heapUsedAfterGcAgeMs());
-        assertFalse(drv.heapReadingSeesOldGeneration(),
-                "a 45s old major reading is not a basis for refusing writes");
+        assertFalse(drv.heapReadingIsFresh(),
+                "a 45s old reading is not a basis for refusing writes");
     }
 
     /**
      * The tests above drive the logic through {@code recordForTest}, which says nothing about
      * whether the JVM actually delivers what the logic expects. This one goes through the real
-     * notification path: provoke a collection and require that a reading arrives, that it comes
-     * from something which saw the old generation, and that it is a plausible fraction of the heap.
+     * notification path: provoke a collection and require that a reading arrives, carries a sane
+     * age, and is a plausible fraction of the heap.
      */
     @Test
     public void aRealCollectionPopulatesTheReadingThroughJmx() throws Exception {
@@ -105,14 +127,14 @@ public class HeapReadingFreshnessTest {
 
         long deadline = System.currentTimeMillis() + 10_000;
 
-        while (HeapAfterGc.lastMajor() == null && System.currentTimeMillis() < deadline) {
+        while (HeapAfterGc.mostRecent() == null && System.currentTimeMillis() < deadline) {
             Thread.sleep(50);
             System.gc();
         }
 
-        assertTrue(HeapAfterGc.lastMajor() != null,
-                "a System.gc() must produce a major-collection reading through the GC notification "
-                + "listener - without it every watermark decision falls back to the raw gauge");
+        assertTrue(HeapAfterGc.mostRecent() != null,
+                "a System.gc() must produce a reading through the GC notification listener - "
+                + "without it every watermark decision falls back to the raw gauge");
         double pct = drv.heapUsedAfterGcPercent();
         assertTrue(pct > 0 && pct < 100,
                 "the reading must be a plausible share of the heap, got: " + pct);
@@ -139,7 +161,7 @@ public class HeapReadingFreshnessTest {
         }
 
         @Override
-        public boolean heapReadingSeesOldGeneration() {
+        public boolean heapReadingIsFresh() {
             return collected;
         }
 

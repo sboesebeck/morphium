@@ -112,30 +112,92 @@ public class SupersededApplierTest {
                 "negative control: the guard defaults to allowing the apply");
     }
 
+    /** Invokes a private method and unwraps what it actually threw, so a NPE cannot pass for a refusal. */
+    private Throwable invokeAndCatch(ReplicationManager rm, String method, Class<?>[] sig, Object[] args) {
+        try {
+            java.lang.reflect.Method m = ReplicationManager.class.getDeclaredMethod(method, sig);
+            m.setAccessible(true);
+            m.invoke(rm, args);
+            return null;
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            return e.getCause();
+        } catch (Exception e) {
+            throw new AssertionError("could not invoke " + method, e);
+        }
+    }
+
     @Test
-    public void theRefusalCoversEveryLocalApplyNotJustTheSnapshotInsert() throws Exception {
+    public void theChangeStreamBulkInsertIsCoveredToo() throws Exception {
         drv = new InMemoryDriver();
         drv.connect();
-        new InsertMongoCommand(drv).setDb("payload").setColl("c")
-                .setDocuments(List.of(Doc.of("_id", "pre-existing"))).execute();
 
         ReplicationManager superseded = managerFor(drv);
         superseded.setStillCurrentApplier(() -> false);
 
-        // The same choke point carries the pre-sync dropDatabase and the change-stream applies.
-        // A superseded manager dropping the successor's database would be worse than a stray
-        // insert, so the guard has to sit below all of them, not at the snapshot insert.
-        java.lang.reflect.Method m = ReplicationManager.class.getDeclaredMethod(
-                "runLocalApplyCommand", de.caluga.morphium.driver.commands.GenericCommand.class, String.class);
-        m.setAccessible(true);
-        var drop = new de.caluga.morphium.driver.commands.GenericCommand(drv);
-        drop.setDb("payload");
-        drop.setColl(null);
-        drop.setCmdData(Doc.of("dropDatabase", 1, "$db", "payload"));
+        // applyBulkInserts reaches the driver directly, NOT through runLocalApplyCommand - and it
+        // is the most frequent write a manager makes, so a guard that misses it guards very little.
+        // A review caught exactly that: the first version of this fix claimed a single choke point
+        // that was not one.
+        List<Map<String, Object>> events = List.of(Doc.of(
+                "operationType", "insert",
+                "fullDocument", Doc.of("_id", "from-the-old-primary"),
+                "sequence", 1L));
 
-        assertThrows(java.lang.reflect.InvocationTargetException.class,
-                () -> m.invoke(superseded, drop, "pre-sync dropDatabase of payload"));
-        assertEquals(1, drv.find("payload", "c", Doc.of(), null, null, 0, 0).size(),
-                "the successor's data must still be there");
+        Throwable t = invokeAndCatch(superseded, "applyBulkInserts",
+                new Class<?>[] {String.class, List.class},
+                new Object[] {"payload.c", events});
+
+        assertTrue(t instanceof MorphiumDriverException,
+                "the bulk insert must be refused, got: " + t);
+        assertTrue(t.getMessage().contains("superseded"), t.getMessage());
+        assertEquals(0, drv.find("payload", "c", Doc.of(), null, null, 0, 0).size(),
+                "nothing from the superseded manager may have landed");
+    }
+
+    @Test
+    public void thePreSyncAdminDropsAreCoveredToo() throws Exception {
+        drv = new InMemoryDriver();
+        drv.connect();
+        new InsertMongoCommand(drv).setDb("admin").setColl("system.users")
+                .setDocuments(List.of(Doc.of("_id", "root"))).execute();
+
+        // The case the review named: a node whose listDatabases() yields only admin/local/config
+        // makes NO guarded call in clearLocalDatabases()'s loop, so the two admin drops below it
+        // are the first thing that touches data. A fresh driver carries an empty `test`, and
+        // leaving it there is how the first version of this test fooled itself - the loop threw on
+        // `test` and the test called that a pass, while the drops were never reached at all.
+        drv.drop("test", null);
+        assertTrue(drv.listDatabases().stream().noneMatch(d ->
+                        !"admin".equals(d) && !"local".equals(d) && !"config".equals(d)),
+                "precondition: no user database may remain, or the loop throws before the drops: "
+                + drv.listDatabases());
+
+        ReplicationManager superseded = managerFor(drv);
+        superseded.setStillCurrentApplier(() -> false);
+
+        Throwable t = invokeAndCatch(superseded, "clearLocalDatabases", new Class<?>[] {}, new Object[] {});
+
+        assertTrue(t instanceof MorphiumDriverException,
+                "the pre-sync drops must be refused, got: " + t);
+        assertTrue(t.getMessage().contains("admin.system.users"),
+                "the refusal must come from the admin drop itself, not from the loop above it: "
+                + t.getMessage());
+        assertEquals(1, drv.find("admin", "system.users", Doc.of(), null, null, 0, 0).size(),
+                "the successor's user collection must survive - losing it locks the cluster out");
+    }
+
+    @Test
+    public void theRefusalNamesTheOperationSoItIsNotMistakenForATransportError() throws Exception {
+        drv = new InMemoryDriver();
+        drv.connect();
+        ReplicationManager superseded = managerFor(drv);
+        superseded.setStillCurrentApplier(() -> false);
+
+        Throwable t = invokeAndCatch(superseded, "assertStillCurrentApplier",
+                new Class<?>[] {String.class}, new Object[] {"some local write"});
+
+        assertTrue(t instanceof MorphiumDriverException, "got: " + t);
+        assertTrue(t.getMessage().contains("some local write") && t.getMessage().contains("#323"),
+                "the message must name the operation and the reason: " + t.getMessage());
     }
 }

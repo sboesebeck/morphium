@@ -35,6 +35,7 @@ public class DumpDuringResyncTest {
     private static class ResyncablePoppyDB extends PoppyDB {
         private final AtomicInteger dumpsWritten = new AtomicInteger();
         volatile boolean syncing = false;
+        volatile boolean hasRm = true;
 
         ResyncablePoppyDB(int port) {
             super(port, "127.0.0.1", 100, 10);
@@ -43,6 +44,11 @@ public class DumpDuringResyncTest {
         @Override
         boolean isSecondarySyncing() {
             return syncing;
+        }
+
+        @Override
+        boolean hasReplicationManager() {
+            return hasRm;
         }
 
         @Override
@@ -89,14 +95,35 @@ public class DumpDuringResyncTest {
     }
 
     @Test
-    public void aNodeWithAnIncompleteRestoreRefusesToDump(@TempDir Path dir) throws Exception {
+    public void aNodeWaitingForASyncRefusesToDump(@TempDir Path dir) throws Exception {
         db = serverWithDumpDir(dir);
         db.setLocalDataComplete(false);
+        db.hasRm = true;   // a replication manager exists, so a sync is coming
 
         assertEquals(-1, db.dumpNow(),
-                "the same applies after a failed restore - the node is waiting for an authoritative "
-                + "sync and holds nothing worth persisting");
+                "a node whose data is not authoritative and which is about to be re-synced holds "
+                + "nothing worth persisting");
         assertEquals(0, db.dumpsWritten.get());
+    }
+
+    /**
+     * The regression this test exists for: the first version of the guard refused whenever
+     * {@code localDataComplete} was false, full stop. That flag returns to true in exactly one
+     * place - {@code releaseDataCompleteAfterSync()}, driven by a ReplicationManager's initial-sync
+     * completion. A standalone node or a static-mode primary has no manager and never gets that, so
+     * the guard disabled its persistence for the life of the process: every write after a failed
+     * restore would have existed only in memory and died with it. Worse than the empty dump the
+     * guard was meant to prevent.
+     */
+    @Test
+    public void aNodeNoSyncWillEverReachMustKeepDumping(@TempDir Path dir) throws Exception {
+        db = serverWithDumpDir(dir);
+        db.setLocalDataComplete(false);
+        db.hasRm = false;  // nothing will ever set the flag back
+
+        assertTrue(db.dumpNow() >= 0,
+                "refusing here would mean this node never persists anything again");
+        assertEquals(1, db.dumpsWritten.get());
     }
 
     @Test

@@ -78,26 +78,34 @@ public class ReplSetGetStatusSyncStateTest {
     }
 
     @Test
-    public void aNodeRunningItsFirstSyncReportsStartup2NotSecondary() {
+    public void aSyncingNodeReportsRecoveringNotSecondary() {
         Map<String, Object> status = statusOfSecondary(() -> true);
 
         assertThat(status.get("myState"))
                 .as("a node that answers 13436 to every read must not report itself usable")
-                .isEqualTo(5);
-        assertThat(self(status).get("stateStr")).isEqualTo("STARTUP2");
-    }
-
-    @Test
-    public void aNodeResyncingOverExistingDataReportsRecovering() throws Exception {
-        new InsertMongoCommand(drv).setDb("payload").setColl("c")
-                .setDocuments(List.of(Doc.of("_id", "d1"))).execute();
-
-        Map<String, Object> status = statusOfSecondary(() -> true);
-
-        assertThat(status.get("myState"))
-                .as("re-syncing over data it already had is RECOVERING, not a first startup")
                 .isEqualTo(3);
         assertThat(self(status).get("stateStr")).isEqualTo("RECOVERING");
+    }
+
+    /**
+     * The state must not depend on how far the copy has got. An earlier version decided STARTUP2
+     * versus RECOVERING by asking whether the node currently held data, which inverts mid-resync:
+     * clearLocalDatabases() empties the store first, so the node would have claimed STARTUP2 while
+     * empty and RECOVERING once the data arrived - backwards, and changing under an operator who
+     * is watching it.
+     */
+    @Test
+    public void theSyncingStateDoesNotFlipAsTheCopyArrives() throws Exception {
+        Map<String, Object> emptied = statusOfSecondary(() -> true);
+
+        new InsertMongoCommand(drv).setDb("payload").setColl("c")
+                .setDocuments(List.of(Doc.of("_id", "d1"))).execute();
+        Map<String, Object> partiallyCopied = statusOfSecondary(() -> true);
+
+        assertThat(partiallyCopied.get("myState"))
+                .as("same node, same sync, one collection further along - the state must not move")
+                .isEqualTo(emptied.get("myState"));
+        assertThat(self(partiallyCopied).get("stateStr")).isEqualTo("RECOVERING");
     }
 
     @Test

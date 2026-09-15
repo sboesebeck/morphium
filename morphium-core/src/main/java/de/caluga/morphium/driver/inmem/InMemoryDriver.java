@@ -913,9 +913,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             try {
                 return (Map<String, Object>) new JSONParser().parse(rd, DUMP_CONTAINERS);
             } catch (ParseException e) {
-                // No full-text context any more - the dump is never in memory as a whole. The last
-                // characters the parser actually consumed are the ones around the error anyway, and
-                // they cost a fixed-size buffer instead of a copy of the database.
+                // No full-text context any more - the dump is never in memory as a whole, so this
+                // is the tail of what was READ, not of what was parsed. json-simple's lexer reads
+                // ahead by up to its own buffer (capped here by dumpRestoreChunkChars), so the tail
+                // can sit some way PAST the reported position. It is a neighbourhood, not a
+                // pinpoint; the position is the precise part.
                 String tail = rd.tail();
                 throw new RuntimeException("Dump restore failed: invalid JSON at position " + e.getPosition()
                     + " (" + e + ")"
@@ -929,6 +931,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * Hands the parser at most {@code chunk} characters per read and remembers the last few it
      * delivered. The cap is what makes the streaming provable in a test; the tail is what is left
      * of the old parse-error context once the dump is no longer held as one String.
+     *
+     * <p>The tail is what the READER handed over, which the lexer may not have consumed yet - it
+     * reads ahead. Close to the error, not at it.
      */
     private static final class ChunkedTailReader extends Reader {
         private static final int TAIL_CHARS = 120;
@@ -2549,10 +2554,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      */
     public double heapUsedAfterGcPercent() {
         HeapAfterGc.install();
-        HeapAfterGc.Reading r = HeapAfterGc.lastMajor();
+        long now = System.currentTimeMillis();
+        HeapAfterGc.Reading r = HeapAfterGc.liveEstimate(now);
 
         if (r == null) {
-            r = HeapAfterGc.lastAny();
+            // Nothing within the window. The most recent reading of any age still beats the raw
+            // gauge, which counts every byte of collectable garbage - but the caller is told how
+            // old it is via heapUsedAfterGcAgeMs(), and the reject stage will not act on it.
+            r = HeapAfterGc.mostRecent();
         }
 
         if (r == null) {
@@ -2565,39 +2574,52 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     /**
      * How old the reading behind {@link #heapUsedAfterGcPercent()} is, in milliseconds, or -1 when
      * it is the raw gauge because no collection has been observed yet (#368). Exposed through
-     * {@code serverStatus.memoryWatermark} so an operator can tell a fresh number from one taken
-     * before whatever they are currently looking at.
+     * {@code serverStatus.memoryWatermark}: a number that may be twenty points off is not
+     * actionable unless you can tell which kind it is.
      */
     public long heapUsedAfterGcAgeMs() {
         HeapAfterGc.install();
-        HeapAfterGc.Reading r = HeapAfterGc.lastMajor();
+        long now = System.currentTimeMillis();
+        HeapAfterGc.Reading r = HeapAfterGc.liveEstimate(now);
 
         if (r == null) {
-            r = HeapAfterGc.lastAny();
+            r = HeapAfterGc.mostRecent();
         }
 
-        return r == null ? -1 : r.ageMs(System.currentTimeMillis());
+        return r == null ? -1 : r.ageMs(now);
     }
 
-    /** Whether the current reading comes from a collection that reclaimed the old generation. */
-    public boolean heapReadingSeesOldGeneration() {
-        HeapAfterGc.install();
-        return HeapAfterGc.lastMajor() != null
-            && HeapAfterGc.lastMajor().ageMs(System.currentTimeMillis()) <= FRESH_HEAP_READING_MS;
+    /**
+     * Whether the current reading is recent enough to refuse a write on. Anything older describes
+     * a heap that may no longer exist.
+     */
+    public boolean heapReadingIsFresh() {
+        long age = heapUsedAfterGcAgeMs();
+        return age >= 0 && age <= FRESH_HEAP_READING_MS;
     }
 
-    /** How recent a major-collection reading has to be to decide a rejection on it. */
+    /** How recent a reading has to be to decide a rejection on it. */
     private static final long FRESH_HEAP_READING_MS = 10_000;
     private final AtomicLong lastGcRequestMs = new AtomicLong(0);
     /** Never ask for more than one collection per this interval - a full GC is not cheap. */
     private static final long GC_REQUEST_INTERVAL_MS = 30_000;
+    /** How long to wait for the collection we asked for to report back. */
+    private static final long GC_NOTIFICATION_WAIT_MS = 500;
 
     /**
-     * Asks the JVM for a collection that reclaims the old generation, at most once per
-     * {@link #GC_REQUEST_INTERVAL_MS}. Overridable so a test can observe the request without
-     * paying for a real full GC.
+     * Asks the JVM for a collection and waits, briefly, for its reading to arrive (#368).
      *
-     * @return true if a collection was actually requested
+     * <p>The wait is the point. {@code System.gc()} returns when the collection is done, but the
+     * reading comes from a JMX notification delivered asynchronously on another thread - so without
+     * it, the re-read after this call sees the same number as before and refuses the write anyway,
+     * with the collection's benefit arriving milliseconds too late to matter. Bounded, because the
+     * JVM may also decline: {@code -XX:+DisableExplicitGC} makes this a no-op, and
+     * {@code -XX:+ExplicitGCInvokesConcurrent} returns before the cycle ends.
+     *
+     * <p>Rate-limited to one request per {@link #GC_REQUEST_INTERVAL_MS}. Overridable so a test can
+     * observe the request without paying for a real full GC.
+     *
+     * @return true if a collection was requested AND a newer reading arrived to act on
      */
     protected boolean requestFullGc() {
         long now = System.currentTimeMillis();
@@ -2607,8 +2629,27 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             return false;
         }
 
+        HeapAfterGc.Reading before = HeapAfterGc.mostRecent();
+        long beforeAt = before == null ? 0 : before.atMs;
         System.gc();
-        return true;
+        long deadline = System.nanoTime() + GC_NOTIFICATION_WAIT_MS * 1_000_000L;
+
+        while (System.nanoTime() < deadline) {
+            HeapAfterGc.Reading r = HeapAfterGc.mostRecent();
+
+            if (r != null && r.atMs > beforeAt) {
+                return true;
+            }
+
+            try {
+                Thread.sleep(5);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -2692,7 +2733,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // was the difference between a reported 92% and an actual 70%. If no collection has
             // reclaimed the old generation recently, ask for one and look again; only a reading that
             // has seen the whole heap may turn a write away.
-            if (live >= memoryRejectPercent && !heapReadingSeesOldGeneration() && requestFullGc()) {
+            if (live >= memoryRejectPercent && !heapReadingIsFresh() && requestFullGc()) {
                 live = heapUsedAfterGcPercent();
             }
 
@@ -3742,7 +3783,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // #368: the reading's age and whether it saw the old generation - without those two, a
         // number that is 20 points off is indistinguishable from one that is right.
         watermark.put("heapUsedAfterGcAgeMs", heapUsedAfterGcAgeMs());
-        watermark.put("heapReadingSeesOldGeneration", heapReadingSeesOldGeneration());
+        watermark.put("heapReadingIsFresh", heapReadingIsFresh());
         m.put("memoryWatermark", watermark);
         // Replay-buffer state. Primary operational metric is the retained resume window in
         // seconds - the analogue of mongod's oplog "log length start to end"

@@ -8,29 +8,47 @@ import javax.management.NotificationListener;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryUsage;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Map;
 
 /**
- * Heap occupancy as of the end of a garbage collection, taken as one coherent snapshot (#368).
+ * Heap occupancy as of the end of a garbage collection, taken as coherent snapshots (#368).
  *
  * <p>The previous reading summed {@code MemoryPoolMXBean.getCollectionUsage()} over the heap pools.
  * That value is refreshed for a pool only when a collection touches <em>that</em> pool, and under G1
  * a young collection never touches the old generation - so the sum mixed a reading from milliseconds
  * ago with one that could be minutes old. It was not stale so much as incoherent: it described no
  * moment in time. Measured on a 12GB heap holding 7.2GB of live data, it reported 92.1% or 70.2%
- * for the identical dataset depending only on whether a full collection had just run, and it sat at
- * 71.8% right after a TTL sweep had freed nine tenths of the heap.
+ * for the identical dataset depending only on whether a full collection had just run.
  *
  * <p>A GC notification carries {@code GcInfo.getMemoryUsageAfterGc()}, which reports every pool as
- * of the end of that one collection. Summing <em>that</em> gives a number that belongs to a single
- * instant, and the instant is known - so a consumer can tell a fresh reading from an old one instead
- * of being handed a blend.
+ * of the end of one collection. Summing <em>that</em> gives a number belonging to a single instant,
+ * and the instant is known.
  *
- * <p>Two readings are kept: the most recent collection of any kind, and the most recent one that
- * reclaimed the old generation. Only the latter approximates the live set; after a young-only
- * collection the number still counts every piece of old-generation garbage. Whoever acts on these
- * must decide how much staleness they can live with - see {@code InMemoryDriver.checkMemoryWatermark},
- * which asks for a collection rather than refusing writes on a reading that cannot see the garbage.
+ * <h2>Why the minimum, and not "the last major collection"</h2>
+ *
+ * <p>The obvious approach - keep the reading from the last collection that reclaimed the old
+ * generation - does not survive contact with G1, and an earlier version of this class got it
+ * exactly backwards. G1 reports its concurrent-cycle end (Remark/Cleanup) as {@code "end of major
+ * GC"}, and at that point almost nothing has been freed: marking only reclaims regions that are
+ * entirely empty. The collections that actually reclaim old-generation garbage are G1's <em>mixed</em>
+ * collections, and those are reported as {@code "end of minor GC"}. Preferring "major" therefore
+ * systematically picks the reading that has <em>not</em> seen the garbage, and discards the lower
+ * ones that have. Only an explicit full GC fits the naive reading - which is precisely why the
+ * measurement that motivated this looked right.
+ *
+ * <p>So instead of trusting the collector's own vocabulary, this takes the <strong>lowest occupancy
+ * observed in a recent window</strong>. The live set is a floor that every collection approaches
+ * from above: a collection that frees a lot produces a low reading, one that frees little produces a
+ * high one, and the lowest recent reading is the closest thing to the live set that can be had
+ * without forcing a full GC. It is collector-agnostic, and it errs toward believing the heap has
+ * room - the right direction, given that the failure being fixed was refusing writes on a heap that
+ * was 30% free.
+ *
+ * <p>The window matters as much as the minimum: a reading from five minutes ago describes a heap
+ * that no longer exists, so readings age out and every answer carries the age of the reading behind
+ * it.
  *
  * <p>JVM-wide state, so it is static: every driver in a process shares one heap and one listener.
  * Registration is best-effort - {@code com.sun.management.GarbageCollectionNotificationInfo} is not
@@ -38,6 +56,12 @@ import java.util.Map;
  */
 final class HeapAfterGc {
     private static final Logger log = LoggerFactory.getLogger(HeapAfterGc.class);
+
+    /** How far back a reading may be and still count toward the estimate. */
+    static final long WINDOW_MS = 60_000;
+
+    /** Plenty for a minute of collections; an allocation-heavy JVM does a few per second. */
+    private static final int MAX_READINGS = 256;
 
     /** One reading: heap bytes in use at the end of a collection, and when that was. */
     static final class Reading {
@@ -54,8 +78,7 @@ final class HeapAfterGc {
         }
     }
 
-    private static volatile Reading lastAny;
-    private static volatile Reading lastMajor;
+    private static final Deque<Reading> READINGS = new ArrayDeque<>();
     private static volatile boolean installed;
     private static volatile boolean unavailable;
 
@@ -98,21 +121,21 @@ final class HeapAfterGc {
             try {
                 var info = com.sun.management.GarbageCollectionNotificationInfo
                            .from((javax.management.openmbean.CompositeData) notification.getUserData());
-                long used = heapUsedAfter(info.getGcInfo().getMemoryUsageAfterGc());
-                Reading r = new Reading(used, System.currentTimeMillis());
-                lastAny = r;
-
-                // "end of major GC" is the documented action for a collection that covers the old
-                // generation. G1 reports its concurrent-cycle end and every full GC this way; a G1
-                // mixed collection does not, which is exactly why the major reading is kept apart
-                // rather than assumed to be current.
-                if (info.getGcAction() != null && info.getGcAction().contains("major")) {
-                    lastMajor = r;
-                }
+                // The GC action is deliberately not consulted - see the class comment on why
+                // "major" does not mean "reclaimed the old generation" under G1.
+                record(heapUsedAfter(info.getGcInfo().getMemoryUsageAfterGc()), System.currentTimeMillis());
             } catch (RuntimeException ignored) {
                 // A malformed notification must never take down whatever thread delivered it.
             }
         };
+    }
+
+    private static synchronized void record(long usedBytes, long atMs) {
+        READINGS.addLast(new Reading(usedBytes, atMs));
+
+        while (READINGS.size() > MAX_READINGS) {
+            READINGS.removeFirst();
+        }
     }
 
     /** Sums the heap pools of one after-GC snapshot, skipping the non-heap ones by name. */
@@ -134,32 +157,39 @@ final class HeapAfterGc {
         return used;
     }
 
-    /** The most recent reading of any collection, or {@code null} when none has been seen. */
-    static Reading lastAny() {
-        return lastAny;
+    /**
+     * The lowest occupancy observed within {@link #WINDOW_MS}, or {@code null} when no collection
+     * has been seen in that time. The returned reading carries the instant it was taken at, so a
+     * caller can decide whether it is fresh enough to act on.
+     */
+    static synchronized Reading liveEstimate(long now) {
+        Reading best = null;
+
+        for (Reading r : READINGS) {
+            if (now - r.atMs > WINDOW_MS) {
+                continue;
+            }
+
+            if (best == null || r.usedBytes < best.usedBytes) {
+                best = r;
+            }
+        }
+
+        return best;
     }
 
-    /**
-     * The most recent reading from a collection that reclaimed the old generation - the only one
-     * that approximates the live set. {@code null} when no such collection has happened yet.
-     */
-    static Reading lastMajor() {
-        return lastMajor;
+    /** The most recent reading of any collection, regardless of age. Used only as a last resort. */
+    static synchronized Reading mostRecent() {
+        return READINGS.peekLast();
     }
 
     /** Test seam: feed readings without provoking real collections. */
-    static void recordForTest(long usedBytes, long atMs, boolean major) {
-        Reading r = new Reading(usedBytes, atMs);
-        lastAny = r;
-
-        if (major) {
-            lastMajor = r;
-        }
+    static void recordForTest(long usedBytes, long atMs) {
+        record(usedBytes, atMs);
     }
 
     /** Test seam: forget everything recorded so far. */
-    static void resetForTest() {
-        lastAny = null;
-        lastMajor = null;
+    static synchronized void resetForTest() {
+        READINGS.clear();
     }
 }

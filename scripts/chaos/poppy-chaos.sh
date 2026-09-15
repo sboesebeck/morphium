@@ -31,6 +31,7 @@ DUMP_INTERVAL="${POPPY_DUMP_INTERVAL:-30}"   # short on purpose: the dump guard 
 PROFILE="normal"
 SCENARIO="all"
 KEEP=false
+DUMP_INTERVAL_SET=false
 
 DB="chaos"
 COLLS=("orders" "events" "audit")
@@ -59,6 +60,7 @@ Usage: $(basename "$0") [options]
 
   --profile P     load profile: ${!PROFILES[*]}  (default: $PROFILE)
   --scenario S    all | kill-primary | leader-change-mid-sync | diverge | rolling-restart
+                  | dump-guard
                   (default: $SCENARIO)
   --jar PATH      poppydb cli jar (default: \$POPPY_JAR or the built one in this repo)
   --heap SIZE     heap per node (default: $HEAP) - three nodes share this machine, so not 12g
@@ -80,6 +82,7 @@ while [ $# -gt 0 ]; do
         --jar)      JAR="$2"; shift 2 ;;
         --heap)     HEAP="$2"; shift 2 ;;
         --dir)      WORKDIR="$2"; shift 2 ;;
+        --dump-interval) DUMP_INTERVAL="$2"; DUMP_INTERVAL_SET=true; shift 2 ;;
         --keep)     KEEP=true; shift ;;
         -h|--help)  usage; exit 0 ;;
         *)          echo "unknown option: $1" >&2; usage; exit 2 ;;
@@ -88,6 +91,13 @@ done
 
 [ -n "${PROFILES[$PROFILE]:-}" ] || { echo "unknown profile: $PROFILE (have: ${!PROFILES[*]})" >&2; exit 2; }
 read -r WRITERS BATCH PAUSE_MS PAYLOAD <<<"${PROFILES[$PROFILE]}"
+
+# The dump-guard scenario is pointless with the default interval: the earlier smoke runs never
+# had a tick inside a resync window, so "the guard never fired" said nothing about whether it
+# works. 2s guarantees it gets the chance.
+if [ "$SCENARIO" = "dump-guard" ] && ! $DUMP_INTERVAL_SET; then
+    DUMP_INTERVAL=2
+fi
 
 PORTS=("$BASE_PORT" "$((BASE_PORT + 1))" "$((BASE_PORT + 2))")
 SEED="127.0.0.1:${PORTS[0]},127.0.0.1:${PORTS[1]},127.0.0.1:${PORTS[2]}"
@@ -352,6 +362,54 @@ scenario_diverge() {
     fi
 }
 
+scenario_dump_guard() {
+    say "scenario: a node dumping while its resync has the data emptied (#352)"
+    say "  dump interval is ${DUMP_INTERVAL}s - short enough that a tick lands inside the window"
+
+    # The guard can only be observed if a dump tick actually falls into the resync. That needs the
+    # resync to take longer than the interval, which needs enough data to copy - the earlier smoke
+    # runs had 3320 documents and were done before the first tick. Load a burst first.
+    say "loading a burst so the resync takes longer than a dump interval"
+    rs_eval "
+      const pad = 'x'.repeat(2000);
+      for (let b = 0; b < 20; b++) {
+        const docs = [];
+        for (let k = 0; k < 500; k++) docs.push({_id: 'burst-' + b + '-' + k, pad: pad});
+        db.getSiblingDB('$DB').getCollection('${COLLS[0]}').insertMany(docs, {ordered: false});
+      }
+      print('burst loaded: ' + db.getSiblingDB('$DB').getCollection('${COLLS[0]}').countDocuments({}));" | tail -1 | sed 's/^/    /'
+
+    local primary; primary=$(port_of_primary) || { note_failure "no primary"; return 1; }
+    local victim=-1
+    for i in 0 1 2; do [ "${PORTS[$i]}" != "$primary" ] && victim=$i && break; done
+
+    warn "wiping node$victim's dumps and restarting it - a full initial sync, with dumps ticking"
+    kill -9 "$(pid_of "$victim")" 2>/dev/null
+    sleep 2
+    rm -rf "$WORKDIR/node$victim/dumps"/*
+    local dump_before
+    dump_before=$(ls -1 "$WORKDIR/node$victim/dumps" 2>/dev/null | wc -l | tr -d ' ')
+    start_node "$victim"
+
+    # Watch the node through its sync, so the window is observed rather than assumed.
+    local deadline=$((SECONDS + 90)) saw_sync=false
+    while [ $SECONDS -lt $deadline ]; do
+        local st
+        st=$(node_eval "${PORTS[$victim]}" 'print(db.adminCommand({replSetGetStatus:1}).myState)' | tail -1)
+        case "$st" in
+            3|5) saw_sync=true ;;
+            1|2) $saw_sync && break ;;
+        esac
+        sleep 1
+    done
+
+    $saw_sync && ok "node$victim was observed in STARTUP2/RECOVERING during the sync" \
+              || warn "the sync was never sampled in a syncing state - it may still have been too fast"
+
+    say "node$victim had $dump_before dump files when it started; letting it settle"
+    sleep 10
+}
+
 scenario_rolling_restart() {
     say "scenario: rolling restart, the way the deploy pipeline does it"
     for i in 2 1 0; do
@@ -453,8 +511,13 @@ verify_dump_guard() {
 
     if [ "$skipped" -gt 0 ]; then
         ok "the guard refused $skipped dump(s) during a resync window (#352)"
+    elif [ "$SCENARIO" = "dump-guard" ] || [ "$SCENARIO" = "all" ]; then
+        # With a ${DUMP_INTERVAL}s interval and a resync that was observed to take longer, a tick
+        # must have landed inside the window. Not firing then means the guard is not working -
+        # not that it was never asked.
+        note_failure "the guard never fired although a dump tick had to fall inside the resync window"
     else
-        warn "the guard never fired - either no dump coincided with a resync, or it is not working"
+        warn "the guard never fired - no dump coincided with a resync in this scenario"
     fi
 
     # An empty dump over a good one is the damage this prevents. Any dump file that shrank to
@@ -550,12 +613,14 @@ case "$SCENARIO" in
         scenario_kill_primary
         scenario_leader_change_mid_sync
         scenario_diverge
+        scenario_dump_guard
         scenario_rolling_restart
         ;;
     kill-primary)           scenario_kill_primary ;;
     leader-change-mid-sync) scenario_leader_change_mid_sync ;;
     diverge)                scenario_diverge ;;
     rolling-restart)        scenario_rolling_restart ;;
+    dump-guard)             scenario_dump_guard ;;
     *) echo "unknown scenario: $SCENARIO" >&2; stop_background; stop_cluster; exit 2 ;;
 esac
 

@@ -1991,27 +1991,34 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
      * types to ask "is this node usable?", used to answer SECONDARY regardless. A rolling restart
      * driven off that answer walks from node to node while each one holds nothing.
      *
-     * <p>STARTUP2 (5) when the node has no user data yet - a first sync - and RECOVERING (3) when
-     * it is re-syncing over data it already had, which is how mongod distinguishes the two.
+     * <p>A syncing node reports RECOVERING (3), never STARTUP2 (5). An earlier version tried to
+     * make mongod's distinction between the two by asking whether the node currently holds data -
+     * which inverts during exactly the situation it describes: {@code clearLocalDatabases()}
+     * empties the store at the start of every sync, so a re-syncing node would have reported
+     * STARTUP2 while empty and flipped to RECOVERING as the copy arrived. Backwards. Telling a
+     * first sync from a re-sync needs a record of whether this node ever held authoritative data,
+     * which the store cannot supply once it has been cleared. Both states say the same thing to a
+     * client and to a deploy script - do not send me anything - so this reports the one that is
+     * true in every case instead of guessing between them.
      */
-    private int[] myMemberState() {
+    private int myMemberState() {
         boolean syncing = secondarySyncingSupplier.getAsBoolean();
         ElectionState state = electionManager == null ? null : electionManager.getState();
         boolean isPrimaryNow = electionManager == null ? primary : state == ElectionState.LEADER;
 
         if (!isPrimaryNow && syncing) {
-            return new int[] {hasUserData() ? 3 : 5};
+            return 3; // RECOVERING
         }
 
         if (electionManager == null) {
-            return new int[] {isPrimaryNow ? 1 : 2};
+            return isPrimaryNow ? 1 : 2;
         }
 
-        return new int[] {switch (state) {
+        return switch (state) {
             case LEADER -> 1;
             case FOLLOWER -> 2;
             case CANDIDATE -> 3;
-        }};
+        };
     }
 
     private static String memberStateStr(int state) {
@@ -2023,39 +2030,6 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             case 8 -> "DOWN";
             default -> "UNKNOWN";
         };
-    }
-
-    /**
-     * Whether this node holds any data of its own. Deliberately about documents, not database
-     * names: a driver that has only ever been started already carries an empty {@code test}
-     * alongside admin/local/config, and counting those as data would report every first sync as
-     * RECOVERING. Walks the collection lists rather than counting documents - a count is O(n) per
-     * collection here (#354), and all this needs to know is whether anything is in there at all.
-     */
-    private boolean hasUserData() {
-        try {
-            for (String db : driver.listDatabases()) {
-                if ("admin".equals(db) || "local".equals(db) || "config".equals(db)) {
-                    continue;
-                }
-
-                Map<String, List<Map<String, Object>>> content = driver.getDatabase(db);
-
-                if (content == null) {
-                    continue;
-                }
-
-                for (List<Map<String, Object>> coll : content.values()) {
-                    if (coll != null && !coll.isEmpty()) {
-                        return true;
-                    }
-                }
-            }
-        } catch (RuntimeException e) {
-            return true; // cannot tell - the more conservative answer is "had data"
-        }
-
-        return false;
     }
 
     private Map<String, Object> processReplSetGetStatus() {
@@ -2078,7 +2052,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             status.put("term", electionStats.get("term"));
             status.put("heartbeatIntervalMillis", (long) electionManager.getHeartbeatIntervalMs());
 
-            int myState = myMemberState()[0];
+            int myState = myMemberState();
             status.put("myState", myState);
 
             List<Map<String, Object>> members = new ArrayList<>();
@@ -2140,7 +2114,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
             status.put("members", members);
         } else {
-            status.put("myState", myMemberState()[0]);
+            status.put("myState", myMemberState());
             status.put("term", 0);
 
             List<Map<String, Object>> members = new ArrayList<>();
@@ -2154,7 +2128,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 member.put("name", h);
                 boolean isSelf = h.equals(myAddress);
                 boolean isPrimary = h.equals(primaryHost);
-                int state = isSelf ? myMemberState()[0] : (isPrimary ? 1 : 2);
+                int state = isSelf ? myMemberState() : (isPrimary ? 1 : 2);
                 member.put("health", 1.0);
                 member.put("state", state);
                 member.put("stateStr", memberStateStr(state));
