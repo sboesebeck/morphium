@@ -2218,6 +2218,11 @@ public class ReplicationManager {
 
     private void clearLocalDatabases() throws Exception {
         clearLocalDatabasesInvocations.incrementAndGet();
+        // Announced BEFORE the first drop, not after the last (#352). A clear that throws part way
+        // through - a superseded manager, an IO failure - has still emptied some of the store, and
+        // the flag being set when nothing was dropped costs one skipped dump, while the flag being
+        // unset after a partial drop costs the last good dump. The asymmetry decides the placement.
+        onLocalDataCleared.run();
         for (String dbName : localDriver.listDatabases()) {
             // admin/local/config are never dropped wholesale: they hold node-local state beyond
             // the replicated admin system collections (admin.system.users and
@@ -2274,9 +2279,6 @@ public class ReplicationManager {
         // never conjures one into existence.
         assertStillCurrentApplier("pre-sync drop of admin.system.version");
         localDriver.drop("admin", "system.version", null);
-        // The store is now empty. Tell the node, so a dump - including the final one on shutdown,
-        // by which time this manager no longer exists - knows not to persist this (#352).
-        onLocalDataCleared.run();
     }
 
     /**

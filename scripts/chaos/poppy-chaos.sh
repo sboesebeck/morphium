@@ -141,6 +141,13 @@ port_of_primary() {
 
 pid_of() { cat "$WORKDIR/node$1.pid" 2>/dev/null; }
 
+# stat's spelling differs between BSD and GNU, and this script should survive being run on the
+# build host as well as on a Mac.
+mtime_of() {
+    [ -f "$1" ] || { echo 0; return; }
+    stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0
+}
+
 # ---------------------------------------------------------------------------------------------
 # Cluster lifecycle
 # ---------------------------------------------------------------------------------------------
@@ -530,6 +537,41 @@ verify_dump_guard() {
     done
 }
 
+verify_dumping_resumed() {
+    # The mirror image of the dump guard, and the check that was missing: a guard that never lets
+    # go is worse than no guard. The flag behind it ("a sync emptied this store") is cleared by
+    # exactly one event - a completed sync - so if anything leaves it set, the node stops
+    # persisting for the rest of its life and nothing in the earlier checks would notice. That is
+    # the shape of a real regression that shipped once already today.
+    say "recovery check: does every node dump again once it has finished syncing?"
+
+    local -a before=()
+    for i in 0 1 2; do
+        local f="$WORKDIR/node$i/dumps/$DB.morphium.gz"
+        before+=("$(mtime_of "$f")")
+    done
+
+    local wait_s=$((DUMP_INTERVAL + 10))
+    say "  waiting ${wait_s}s for at least one dump tick"
+    sleep "$wait_s"
+
+    for i in 0 1 2; do
+        local f="$WORKDIR/node$i/dumps/$DB.morphium.gz"
+        local now_mtime; now_mtime=$(mtime_of "$f")
+        local was="${before[$i]}"
+        local state
+        state=$(node_eval "${PORTS[$i]}" 'print(db.adminCommand({replSetGetStatus:1}).myState)' | tail -1)
+
+        if [ "$state" != "1" ] && [ "$state" != "2" ]; then
+            warn "node$i is in state $state - still not usable, so not dumping is correct"
+        elif [ "$now_mtime" -gt "$was" ]; then
+            ok "node$i dumped again after settling"
+        else
+            note_failure "node$i has not dumped since before the wait although it reports state $state - the resync guard looks stuck, which disables its persistence for good"
+        fi
+    done
+}
+
 verify_status_honesty() {
     say "status check: what did the nodes say about themselves while they were unusable?"
     local states
@@ -630,6 +672,7 @@ say "================ results ================"
 verify_convergence
 verify_no_silent_empty
 verify_dump_guard
+verify_dumping_resumed
 verify_status_honesty
 report_errors
 report_writes

@@ -53,6 +53,13 @@ guard that asked the manager would be told everything was fine on precisely the 
 was empty. The same flag closes the gap between one manager being nulled and its replacement
 starting, where a periodic tick would otherwise find no manager and dump the emptied store.
 
+Clearing the store also marks the node's data incomplete, which the candidacy guard already acts
+on. That is the more important half: without it a node could be promoted mid-resync - it looks
+current, because `triggerResync` deliberately preserves `lastAppliedSequence` - and would then lead
+the replica set holding an empty store, with its replication manager stopped and nothing left to
+ever complete a sync. "It never dumps again" was the symptom; an empty node as primary was the
+cause.
+
 The "local data is incomplete" arm applies only while a ReplicationManager exists to fix it.
 `localDataComplete` returns to true in exactly one place, driven by a manager's initial-sync
 completion - so on a standalone node or a static-mode primary, refusing on that flag alone would

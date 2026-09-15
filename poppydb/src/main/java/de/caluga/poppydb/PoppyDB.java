@@ -1183,7 +1183,7 @@ public class PoppyDB {
         // actually decides it. A manager superseded by a later leader change is then refused at
         // the point of writing, not merely asked to stop.
         newReplicationManager.setStillCurrentApplier(() -> replicationManager == newReplicationManager);
-        newReplicationManager.setOnLocalDataCleared(() -> localDataClearedForSync = true);
+        newReplicationManager.setOnLocalDataCleared(this::onLocalDataClearedForSync);
         // Assigned BEFORE start() (#306 review round 2): the sync-complete notification is
         // one-shot (maybeFireSyncCompleteNotify CASes the flag), and on a fast sync (e.g. the
         // consistency shortcut against loopback) the batch tick can fire it before a
@@ -1863,7 +1863,7 @@ public class PoppyDB {
             // #323 part 3, same binding as the election path: a manager that has been replaced is
             // refused at the point of writing, not merely asked to stop.
             staticModeManager.setStillCurrentApplier(() -> replicationManager == staticModeManager);
-            staticModeManager.setOnLocalDataCleared(() -> localDataClearedForSync = true);
+            staticModeManager.setOnLocalDataCleared(this::onLocalDataClearedForSync);
             replicationManager.start();
 
             // Wait for initial sync (up to 30 seconds)
@@ -2240,6 +2240,27 @@ public class PoppyDB {
                     + "this node may stand for election");
             setLocalDataComplete(true);
         }
+    }
+
+    /**
+     * A sync has emptied this node's store (#352/#323).
+     *
+     * <p>Two consequences, and the second one is the point. The obvious one is that a dump taken
+     * now would persist nothing over something. The other is that this node must not win an
+     * election in this state: the candidacy guard already holds back a node whose data is
+     * incomplete, and a store that was deliberately emptied is the most incomplete a node gets.
+     * Without this, a node could be promoted mid-resync - it looks current, because
+     * {@code triggerResync} deliberately preserves {@code lastAppliedSequence} - and would then
+     * hold an empty store as primary, with its replication manager stopped and nothing left to
+     * ever complete a sync and clear the flag. That is not just "it never dumps again": it is an
+     * empty node leading the replica set.
+     *
+     * <p>Both are released by the same event, a completed sync, in
+     * {@link #releaseDataCompleteAfterSync}.
+     */
+    private void onLocalDataClearedForSync() {
+        localDataClearedForSync = true;
+        setLocalDataComplete(false);
     }
 
     /** Test seam: stand in for "a sync emptied this node's store". */

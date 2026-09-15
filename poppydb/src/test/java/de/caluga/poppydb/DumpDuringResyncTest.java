@@ -160,6 +160,41 @@ public class DumpDuringResyncTest {
         assertEquals(1, db.dumpsWritten.get());
     }
 
+    /**
+     * L2 from the third review: the test above drives {@code dumpNow()}, while the commit message
+     * called it "the shutdown case". Those are different code paths, and the shutdown one is the
+     * one that was dead before - so it gets its own test rather than an assumption.
+     */
+    @Test
+    public void theFinalDumpOnShutdownIsSkippedForAnEmptiedStore(@TempDir Path dir) throws Exception {
+        ResyncablePoppyDB srv = serverWithDumpDir(dir);
+        // Started on purpose: shutdown() returns immediately when !running, so an unstarted server
+        // writes no final dump for reasons that have nothing to do with the guard. The first
+        // version of this test asserted 0 dumps against exactly that - green, and meaningless. Its
+        // negative control is what caught it.
+        srv.start();
+        srv.setLocalDataClearedForSyncForTest(true);
+
+        srv.shutdown();
+        db = null; // shut down already; tearDown must not do it again
+
+        assertEquals(0, srv.dumpsWritten.get(),
+                "shutdown() nulls the ReplicationManager before the final dump, so the guard has to "
+                + "rest on node state - if it asked the manager it would be told all is well here");
+    }
+
+    @Test
+    public void theFinalDumpOnShutdownStillHappensNormally(@TempDir Path dir) throws Exception {
+        ResyncablePoppyDB srv = serverWithDumpDir(dir);
+        srv.start();
+
+        srv.shutdown();
+        db = null;
+
+        assertEquals(1, srv.dumpsWritten.get(),
+                "negative control: an ordinary node must still get its final dump");
+    }
+
     @Test
     public void aSyncedNodeStillDumps(@TempDir Path dir) throws Exception {
         db = serverWithDumpDir(dir);
