@@ -161,6 +161,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     // coordinator created (or cleared) by a later election, not the value that existed when
     // the connection's pipeline was built.
     private final Supplier<ReplicationCoordinator> replicationCoordinatorSupplier;
+    /** When this handler's process started - feeds the per-member {@code uptime} (#356). */
+    private static final long startedAtMs = System.currentTimeMillis();
     private final ElectionManager electionManager;
     // Resolved live per command: true while this node is a secondary (re-)running its initial sync
     // and therefore possibly serving from a half-cleared local database. Such a node is RECOVERING
@@ -1981,94 +1983,239 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     /**
      * Get replica set status including election state.
      */
+    /**
+     * Member state of this node for replSetGetStatus (#356).
+     *
+     * <p>A secondary re-running its initial sync rejects every data-plane command with 13436 and
+     * already advertises {@code secondary:false} in hello - but this command, the one an operator
+     * types to ask "is this node usable?", used to answer SECONDARY regardless. A rolling restart
+     * driven off that answer walks from node to node while each one holds nothing.
+     *
+     * <p>STARTUP2 (5) when the node has no user data yet - a first sync - and RECOVERING (3) when
+     * it is re-syncing over data it already had, which is how mongod distinguishes the two.
+     */
+    private int[] myMemberState() {
+        boolean syncing = secondarySyncingSupplier.getAsBoolean();
+        ElectionState state = electionManager == null ? null : electionManager.getState();
+        boolean isPrimaryNow = electionManager == null ? primary : state == ElectionState.LEADER;
+
+        if (!isPrimaryNow && syncing) {
+            return new int[] {hasUserData() ? 3 : 5};
+        }
+
+        if (electionManager == null) {
+            return new int[] {isPrimaryNow ? 1 : 2};
+        }
+
+        return new int[] {switch (state) {
+            case LEADER -> 1;
+            case FOLLOWER -> 2;
+            case CANDIDATE -> 3;
+        }};
+    }
+
+    private static String memberStateStr(int state) {
+        return switch (state) {
+            case 1 -> "PRIMARY";
+            case 2 -> "SECONDARY";
+            case 3 -> "RECOVERING";
+            case 5 -> "STARTUP2";
+            case 8 -> "DOWN";
+            default -> "UNKNOWN";
+        };
+    }
+
+    /**
+     * Whether this node holds any data of its own. Deliberately about documents, not database
+     * names: a driver that has only ever been started already carries an empty {@code test}
+     * alongside admin/local/config, and counting those as data would report every first sync as
+     * RECOVERING. Walks the collection lists rather than counting documents - a count is O(n) per
+     * collection here (#354), and all this needs to know is whether anything is in there at all.
+     */
+    private boolean hasUserData() {
+        try {
+            for (String db : driver.listDatabases()) {
+                if ("admin".equals(db) || "local".equals(db) || "config".equals(db)) {
+                    continue;
+                }
+
+                Map<String, List<Map<String, Object>>> content = driver.getDatabase(db);
+
+                if (content == null) {
+                    continue;
+                }
+
+                for (List<Map<String, Object>> coll : content.values()) {
+                    if (coll != null && !coll.isEmpty()) {
+                        return true;
+                    }
+                }
+            }
+        } catch (RuntimeException e) {
+            return true; // cannot tell - the more conservative answer is "had data"
+        }
+
+        return false;
+    }
+
     private Map<String, Object> processReplSetGetStatus() {
         Map<String, Object> status = new LinkedHashMap<>();
         status.put("set", rsName);
+        // mongosh computes a member's lag as (date - optimeDate), so without `date` the whole
+        // rs.status() output is decoration (#356).
+        status.put("date", new java.util.Date());
         status.put("ok", 1.0);
 
+        ReplicationCoordinator coordinator = replicationCoordinator();
+        Map<String, Object> replStats = coordinator == null ? null : coordinator.getStats();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> secondaryStats = replStats == null ? Map.of()
+            : (Map<String, Object>) replStats.getOrDefault("secondaries", Map.of());
+        long now = System.currentTimeMillis();
+
         if (electionManager != null) {
-            // Include election manager stats
             Map<String, Object> electionStats = electionManager.getStats();
             status.put("term", electionStats.get("term"));
+            status.put("heartbeatIntervalMillis", (long) electionManager.getHeartbeatIntervalMs());
 
-            // Determine myState based on election state - reported in MongoDB member-state
-            // nomenclature, never the internal Raft enum names (clients parse stateStr)
-            ElectionState state = electionManager.getState();
-            int myState = switch (state) {
-                case LEADER -> 1;    // PRIMARY
-                case FOLLOWER -> 2;  // SECONDARY
-                case CANDIDATE -> 3; // RECOVERING (closest match)
-            };
-            String myStateStr = switch (state) {
-                case LEADER -> "PRIMARY";
-                case FOLLOWER -> "SECONDARY";
-                case CANDIDATE -> "RECOVERING";
-            };
+            int myState = myMemberState()[0];
             status.put("myState", myState);
 
-            // Build members list
             List<Map<String, Object>> members = new ArrayList<>();
             String myAddress = electionManager.getMyAddress();
             String currentLeader = electionManager.getCurrentLeader();
+            int voters = 1 + electionManager.getPeerAddresses().size();
+            status.put("majorityVoteCount", voters / 2 + 1);
 
-            // Add self
             Map<String, Object> selfMember = new LinkedHashMap<>();
             selfMember.put("_id", 0);
             selfMember.put("name", myAddress);
+            selfMember.put("health", 1.0);
             selfMember.put("state", myState);
-            selfMember.put("stateStr", myStateStr);
+            selfMember.put("stateStr", memberStateStr(myState));
+            selfMember.put("uptime", (now - startedAtMs) / 1000);
             selfMember.put("self", true);
+
+            if (myState == 1 && electionManager.getLeaderSinceMs() > 0) {
+                selfMember.put("electionDate", new java.util.Date(electionManager.getLeaderSinceMs()));
+            } else if (currentLeader != null && !currentLeader.equals(myAddress)) {
+                selfMember.put("syncSourceHost", currentLeader);
+            }
+
             members.add(selfMember);
 
-            // Add peers
             int memberId = 1;
+
             for (String peer : electionManager.getPeerAddresses()) {
                 Map<String, Object> peerMember = new LinkedHashMap<>();
                 peerMember.put("_id", memberId++);
                 peerMember.put("name", peer);
+                boolean reachable = electionManager.isPeerReachable(peer);
+                int peerState;
 
-                // Determine peer state (we know leader, others are likely followers)
                 if (peer.equals(currentLeader)) {
-                    peerMember.put("state", 1);
-                    peerMember.put("stateStr", "PRIMARY");
-                } else if (!electionManager.isPeerReachable(peer)) {
+                    peerState = 1;
+                } else if (!reachable) {
                     // Matches real MongoDB's member state for this situation exactly
                     // (state=8, stateStr="DOWN") - was reachable, heartbeat ack has since
                     // gone stale. See ElectionManager#isPeerReachable for why a peer we've
                     // never yet heard from is NOT reported DOWN (avoids a startup race).
-                    peerMember.put("state", 8);
-                    peerMember.put("stateStr", "DOWN");
+                    peerState = 8;
                 } else {
-                    peerMember.put("state", 2);
-                    peerMember.put("stateStr", "SECONDARY");
+                    peerState = 2;
                 }
+
+                peerMember.put("health", reachable ? 1.0 : 0.0);
+                peerMember.put("state", peerState);
+                peerMember.put("stateStr", memberStateStr(peerState));
+                long lastContact = electionManager.getPeerLastContactMs(peer);
+
+                if (lastContact > 0) {
+                    peerMember.put("lastHeartbeat", new java.util.Date(lastContact));
+                }
+
+                addReplicationProgress(peerMember, secondaryStats, peer);
                 members.add(peerMember);
             }
 
             status.put("members", members);
         } else {
-            // No election manager - static configuration
-            status.put("myState", primary ? 1 : 2);
+            status.put("myState", myMemberState()[0]);
             status.put("term", 0);
 
             List<Map<String, Object>> members = new ArrayList<>();
             int memberId = 0;
             // compare against the seed-list identity, not the raw bind address (0.0.0.0)
             String myAddress = memberAddress();
+
             for (String h : hosts) {
                 Map<String, Object> member = new LinkedHashMap<>();
                 member.put("_id", memberId++);
                 member.put("name", h);
+                boolean isSelf = h.equals(myAddress);
                 boolean isPrimary = h.equals(primaryHost);
-                member.put("state", isPrimary ? 1 : 2);
-                member.put("stateStr", isPrimary ? "PRIMARY" : "SECONDARY");
-                member.put("self", h.equals(myAddress));
+                int state = isSelf ? myMemberState()[0] : (isPrimary ? 1 : 2);
+                member.put("health", 1.0);
+                member.put("state", state);
+                member.put("stateStr", memberStateStr(state));
+                member.put("self", isSelf);
+
+                if (isSelf) {
+                    member.put("uptime", (now - startedAtMs) / 1000);
+                } else {
+                    addReplicationProgress(member, secondaryStats, h);
+                }
+
                 members.add(member);
             }
+
             status.put("members", members);
         }
 
+        // PoppyDB replicates by a write sequence, which has no oplog-shaped equivalent - it gets
+        // its own sub-document rather than being squeezed into optime fields that would then mean
+        // something different here than they do against mongod (#356).
+        if (replStats != null) {
+            Map<String, Object> repl = new LinkedHashMap<>();
+            repl.put("currentSequence", replStats.get("currentSequence"));
+            repl.put("activeSecondaries", replStats.get("activeSecondaries"));
+            repl.put("replicaSetSize", replStats.get("replicaSetSize"));
+            // Progress is pushed to the primary via replSetProgress, so only the primary holds
+            // first-hand numbers. A secondary answering this sees its own view and nothing else -
+            // same caveat as rs.status() against a mongod secondary.
+            repl.put("lagAccurate", isCurrentPrimary());
+            status.put("poppyReplication", repl);
+        }
+
         return status;
+    }
+
+    /** Copies one peer's replication progress into its member document, when the primary has it. */
+    private void addReplicationProgress(Map<String, Object> member, Map<String, Object> secondaryStats,
+                                        String peer) {
+        Object raw = secondaryStats.get(peer);
+
+        if (!(raw instanceof Map)) {
+            return;
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> sec = (Map<String, Object>) raw;
+        Object lastSeq = sec.get("lastSequence");
+        Object lag = sec.get("lagSequences");
+        Object heartbeat = sec.get("lastHeartbeat");
+
+        if (lastSeq != null) {
+            member.put("lastSequence", lastSeq);
+        }
+
+        if (lag != null) {
+            member.put("lagSequences", lag);
+        }
+
+        if (heartbeat instanceof Number && ((Number) heartbeat).longValue() > 0) {
+            member.put("lastProgressReceived", new java.util.Date(((Number) heartbeat).longValue()));
+        }
     }
 
     /**

@@ -2042,6 +2042,25 @@ public class ElectionManager {
         return stats;
     }
 
+    /** Heartbeat interval in ms - mongod reports this in rs.status() as heartbeatIntervalMillis. */
+    public int getHeartbeatIntervalMs() {
+        return config.getHeartbeatIntervalMs();
+    }
+
+    /**
+     * When this node last heard from {@code peer}, in epoch millis, or 0 if never (#356). Feeds
+     * the per-member {@code lastHeartbeat} of replSetGetStatus.
+     */
+    public long getPeerLastContactMs(String peer) {
+        Long last = peerLastContact.get(peer);
+        return last == null ? 0 : last;
+    }
+
+    /** Epoch millis at which this node became leader, or 0 if it is not the leader (#356). */
+    public long getLeaderSinceMs() {
+        return state == ElectionState.LEADER ? leaderSince : 0;
+    }
+
     /**
      * Get this node's election priority.
      */

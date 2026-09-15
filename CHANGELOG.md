@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### `replSetGetStatus` no longer calls a node usable while it answers nothing (#356, partial)
+A secondary re-running its initial sync rejects every data-plane command with 13436 and already
+advertises `secondary:false` in hello - but `replSetGetStatus`, the command an operator types to ask
+whether a node is usable, reported `stateStr: "SECONDARY"` regardless. A rolling restart driven off
+that answer walks from node to node while each one in turn holds nothing, and every check stays
+green. It now reports STARTUP2 while a node has no data of its own yet and RECOVERING while it is
+re-syncing over data it had, the same distinction mongod makes.
+
+The status document also carried no numbers - no `date`, no health, no heartbeats, no replication
+progress - although `ReplicationCoordinator.getStats()` has computed the progress all along and the
+secondaries push it themselves via `replSetProgress`. It now carries `date` (without which even
+mongosh's own lag column is decoration, since it computes lag as `date - optimeDate`),
+`heartbeatIntervalMillis`, `majorityVoteCount`, and per member `health`, `uptime`, `lastHeartbeat`,
+`syncSourceHost` and `electionDate`. PoppyDB's write-sequence progress goes into its own
+`poppyReplication` sub-document rather than being squeezed into optime-shaped fields that would then
+mean something different here than against mongod; it carries `lagAccurate`, since only the primary
+holds first-hand progress.
+
+Still open in #356: a working `shutdown` command, and `getLog`.
+
 #### Memory watermarks no longer decide on an incoherent heap reading (#368)
 `heapUsedAfterGcPercent` summed `MemoryPoolMXBean.getCollectionUsage()` across the heap pools. A
 pool's value is refreshed only when a collection touches that pool, and under G1 a young collection
