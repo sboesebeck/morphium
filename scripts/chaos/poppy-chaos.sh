@@ -111,6 +111,8 @@ bad()  { echo "${RED}  XX${CL} $*"; }
 
 FAILURES=0
 note_failure() { bad "$*"; FAILURES=$((FAILURES + 1)); }
+# Set by scenario_dump_guard, read by verify_dump_guard: was the resync window ever sampled?
+DUMP_GUARD_WINDOW_SEEN=false
 
 # ---------------------------------------------------------------------------------------------
 # mongosh helpers
@@ -177,6 +179,16 @@ wait_for_primary() {
 }
 
 start_cluster() {
+    # A port that already answers belongs to a cluster this run did not start - a leftover from
+    # an aborted run, most likely. Every node started here would fail to bind, and the whole run
+    # would measure the stranger instead. Refuse, loudly (#372).
+    for p in "${PORTS[@]}"; do
+        if (exec 3<>"/dev/tcp/127.0.0.1/$p") 2>/dev/null; then
+            bad "port $p is already in use - a leftover cluster? stop it first: pkill -f 'poppydb.*cli.jar'"
+            return 1
+        fi
+    done
+
     say "starting 3 nodes on ${PORTS[*]} (heap $HEAP, dump every ${DUMP_INTERVAL}s)"
     for i in 0 1 2; do start_node "$i"; done
 
@@ -449,7 +461,10 @@ scenario_dump_guard() {
         const docs = [];
         for (let k = 0; k < 500; k++) docs.push({_id: 'burst-' + b + '-' + k, pad: pad});
         try {
-          inserted += db.getSiblingDB('$DB').getCollection('${COLLS[0]}').insertMany(docs, {ordered: false}).insertedCount;
+          // mongosh's insertMany result has insertedIds, not insertedCount - the writers make
+          // the same allowance. A NaN here once took the whole summary down (unbound variable).
+          const r = db.getSiblingDB('$DB').getCollection('${COLLS[0]}').insertMany(docs, {ordered: false});
+          inserted += (r.insertedCount !== undefined ? r.insertedCount : Object.keys(r.insertedIds || {}).length);
         } catch (e) {
           // Refused mid-failover: whatever did land is acknowledged, the rest is not.
           inserted += (e.insertedCount || 0);
@@ -485,8 +500,11 @@ scenario_dump_guard() {
         sleep 1
     done
 
+    # Remembered for verify_dump_guard: a window the once-a-second sampler never caught is
+    # narrower than a second, and a ${DUMP_INTERVAL}s tick cannot be expected to land in it.
+    DUMP_GUARD_WINDOW_SEEN=$saw_sync
     $saw_sync && ok "node$victim was observed in STARTUP2/RECOVERING during the sync" \
-              || warn "the sync was never sampled in a syncing state - it may still have been too fast"
+              || warn "the sync was never sampled in a syncing state - it was faster than one sample"
 
     say "node$victim had $dump_before dump files when it started; letting it settle"
     sleep 10
@@ -595,11 +613,17 @@ verify_dump_guard() {
 
     if [ "$skipped" -gt 0 ]; then
         ok "the guard refused $skipped dump(s) during a resync window (#352)"
-    elif [ "$SCENARIO" = "dump-guard" ] || [ "$SCENARIO" = "all" ]; then
-        # With a ${DUMP_INTERVAL}s interval and a resync that was observed to take longer, a tick
-        # must have landed inside the window. Not firing then means the guard is not working -
-        # not that it was never asked.
+    elif { [ "$SCENARIO" = "dump-guard" ] || [ "$SCENARIO" = "all" ]; } && [ "${DUMP_GUARD_WINDOW_SEEN:-false}" = true ]; then
+        # With a ${DUMP_INTERVAL}s interval and a resync that was OBSERVED to last longer than a
+        # sample, a tick must have landed inside the window. Not firing then means the guard is
+        # not working - not that it was never asked.
         note_failure "the guard never fired although a dump tick had to fall inside the resync window"
+    elif [ "$SCENARIO" = "dump-guard" ] || [ "$SCENARIO" = "all" ]; then
+        # The sync of the burst finished inside one sample (an in-memory copy over loopback runs
+        # ~100k documents per second on a fast machine), so no ${DUMP_INTERVAL}s tick could fall
+        # into it. That says nothing about the guard either way - the unit tests cover it, this
+        # scenario needs a burst large enough to outlast a tick on this machine (#372).
+        warn "the resync window was shorter than one sample - the guard was never asked; raise the burst to observe it here"
     else
         warn "the guard never fired - no dump coincided with a resync in this scenario"
     fi
@@ -684,8 +708,12 @@ report_writes() {
         [ -f "$f" ] || continue
         local a b
         read -r a b < "$f"
-        acked=$((acked + ${a:-0}))
-        failed=$((failed + ${b:-0}))
+        # A count file holds numbers or it holds nothing usable - bash arithmetic on "NaN" is an
+        # unbound-variable abort under set -u, and that once left the cluster running.
+        [[ "${a:-}" =~ ^[0-9]+$ ]] || { warn "$(basename "$f") holds '$a', not a count - ignored"; a=0; }
+        [[ "${b:-}" =~ ^[0-9]+$ ]] || b=0
+        acked=$((acked + a))
+        failed=$((failed + b))
     done
 
     # estimatedDocumentCount() is the count command, which PoppyDB answers from the collection
@@ -724,7 +752,21 @@ rm -rf "$WORKDIR"; mkdir -p "$WORKDIR"
 # estimatedDocumentCount() mapping to the count command) is attributable to the mongosh in use.
 say "mongosh $(mongosh --version 2>/dev/null | head -1), jar $(basename "$JAR")"
 
-trap 'echo; say "interrupted - cleaning up"; stop_background; $KEEP || stop_cluster; exit 130' INT TERM
+trap 'echo; say "interrupted - cleaning up"; FINISHED=true; stop_background; $KEEP || stop_cluster; exit 130' INT TERM
+
+# An unexpected exit (set -u tripping on a bad count, a failing command in a pipeline the run
+# did not guard) used to leave three nodes running on the well-known ports, and the next run then
+# silently measured them instead of its own cluster. Whatever ends this script, the cluster it
+# started goes with it unless --keep asked otherwise.
+FINISHED=false
+on_exit() {
+    $FINISHED && return
+    echo
+    bad "aborted unexpectedly (around line ${BASH_LINENO[0]:-?}) - stopping what this run started"
+    stop_background
+    $KEEP || stop_cluster
+}
+trap on_exit EXIT
 
 start_cluster || { stop_cluster; exit 1; }
 
@@ -775,4 +817,5 @@ else
     stop_cluster
 fi
 
+FINISHED=true
 [ "$FAILURES" -eq 0 ] && exit 0 || exit 1
