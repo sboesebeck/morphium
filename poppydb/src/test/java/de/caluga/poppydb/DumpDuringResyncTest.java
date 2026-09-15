@@ -126,6 +126,40 @@ public class DumpDuringResyncTest {
         assertEquals(1, db.dumpsWritten.get());
     }
 
+    /**
+     * H1 from the second review: the guard on the final dump was dead code. {@code shutdown()}
+     * calls {@code stopReplication()} first, which nulls the ReplicationManager - so by the time
+     * the guard ran, both of its manager-based inputs said "nothing is syncing" on precisely the
+     * node whose store was empty. A rolling restart that stops a node mid-resync is the likeliest
+     * way to reach it, and it would have persisted the emptied store as the last word.
+     *
+     * <p>Hence the node-level flag: "a sync emptied this store" is a property of the node, and it
+     * has to outlive the manager that caused it.
+     */
+    @Test
+    public void aNodeStoppedMidResyncDoesNotPersistItsEmptyStore(@TempDir Path dir) throws Exception {
+        db = serverWithDumpDir(dir);
+        db.hasRm = false;          // as it will be by the time shutdown() reaches the final dump
+        db.syncing = false;        // likewise - the manager is gone
+        db.setLocalDataClearedForSyncForTest(true);
+
+        assertEquals(-1, db.dumpNow(),
+                "the emptied-store flag must survive the manager being stopped and nulled");
+        assertEquals(0, db.dumpsWritten.get());
+    }
+
+    @Test
+    public void theFlagIsWhatSurvivesNotTheManager(@TempDir Path dir) throws Exception {
+        db = serverWithDumpDir(dir);
+        db.hasRm = false;
+        db.syncing = false;
+        db.setLocalDataClearedForSyncForTest(false);
+
+        assertTrue(db.dumpNow() >= 0,
+                "negative control: without the flag this is an ordinary node and must dump");
+        assertEquals(1, db.dumpsWritten.get());
+    }
+
     @Test
     public void aSyncedNodeStillDumps(@TempDir Path dir) throws Exception {
         db = serverWithDumpDir(dir);

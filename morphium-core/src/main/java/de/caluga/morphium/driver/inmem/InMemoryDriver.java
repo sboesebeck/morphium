@@ -2598,6 +2598,23 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return age >= 0 && age <= FRESH_HEAP_READING_MS;
     }
 
+    /**
+     * Occupancy at the end of the most recent collection, whatever it freed - or -1 when none has
+     * been observed (#368).
+     *
+     * <p>The estimate {@link #heapUsedAfterGcPercent()} returns is the lowest reading in the
+     * window, which is right for deciding whether the heap is genuinely full, and wrong for
+     * noticing that it is filling. A live set that GROWS makes every later reading higher, so the
+     * minimum sits at the old value for as long as the window lasts - and growth is the situation
+     * the watermark exists for. This is the number that moves with the heap, and it is what decides
+     * whether to go and get a truthful one.
+     */
+    public double heapUsedAfterMostRecentGcPercent() {
+        HeapAfterGc.install();
+        HeapAfterGc.Reading r = HeapAfterGc.mostRecent();
+        return r == null ? -1 : 100.0 * r.usedBytes / Runtime.getRuntime().maxMemory();
+    }
+
     /** How recent a reading has to be to decide a rejection on it. */
     private static final long FRESH_HEAP_READING_MS = 10_000;
     private final AtomicLong lastGcRequestMs = new AtomicLong(0);
@@ -2624,20 +2641,38 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     protected boolean requestFullGc() {
         long now = System.currentTimeMillis();
         long last = lastGcRequestMs.get();
-
-        if (now - last < GC_REQUEST_INTERVAL_MS || !lastGcRequestMs.compareAndSet(last, now)) {
-            return false;
-        }
-
         HeapAfterGc.Reading before = HeapAfterGc.mostRecent();
         long beforeAt = before == null ? 0 : before.atMs;
+
+        if (now - last < GC_REQUEST_INTERVAL_MS || !lastGcRequestMs.compareAndSet(last, now)) {
+            // Someone else is already doing it, or did it moments ago. Waiting for THEIR reading is
+            // still worth it: refusing immediately would turn one thread's collection into a burst
+            // of wrong rejections from every other thread that arrived during it - the exact error
+            // this is meant to prevent, multiplied.
+            return awaitReadingNewerThan(beforeAt);
+        }
+
         System.gc();
+        return awaitReadingNewerThan(beforeAt);
+    }
+
+    /**
+     * Waits, briefly, for a GC notification newer than {@code afterMs}.
+     *
+     * <p>The wait is the point. {@code System.gc()} returns when the collection is done, but the
+     * reading comes from a JMX notification delivered asynchronously on another thread - so without
+     * it, the re-read sees the same number as before and refuses the write anyway, with the
+     * collection's benefit arriving milliseconds too late to matter. Bounded, because the JVM may
+     * also decline: {@code -XX:+DisableExplicitGC} makes the request a no-op, and
+     * {@code -XX:+ExplicitGCInvokesConcurrent} returns before the cycle ends.
+     */
+    private boolean awaitReadingNewerThan(long afterMs) {
         long deadline = System.nanoTime() + GC_NOTIFICATION_WAIT_MS * 1_000_000L;
 
         while (System.nanoTime() < deadline) {
             HeapAfterGc.Reading r = HeapAfterGc.mostRecent();
 
-            if (r != null && r.atMs > beforeAt) {
+            if (r != null && r.atMs > afterMs) {
                 return true;
             }
 
@@ -2728,12 +2763,21 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
 
             // Refusing writes is the most disruptive thing this driver does, so it must not be
-            // decided on a number that cannot see the garbage (#368). After a young-only collection
-            // the reading still counts every dead object in the old generation - on a 12GB heap that
-            // was the difference between a reported 92% and an actual 70%. If no collection has
-            // reclaimed the old generation recently, ask for one and look again; only a reading that
-            // has seen the whole heap may turn a write away.
-            if (live >= memoryRejectPercent && !heapReadingIsFresh() && requestFullGc()) {
+            // decided on a number that cannot see the garbage (#368) - on a 12GB heap that was the
+            // difference between a reported 92% and an actual 70%. But the opposite error is worse:
+            // the estimate is the lowest reading in the window, and while the live set is GROWING
+            // every later reading is higher, so the minimum keeps reporting the old, low value
+            // right through the period the watermark exists to catch. A reject decided on that
+            // never fires, and the process runs into an OOM instead of an error the caller can act
+            // on.
+            //
+            // So the trigger is the MOST RECENT reading, which moves with the heap, while the
+            // decision stays with the estimate. Recent readings over the line and no fresh estimate
+            // to weigh them against means: go get a truthful number, then decide on that.
+            double recent = heapUsedAfterMostRecentGcPercent();
+
+            if ((live >= memoryRejectPercent || recent >= memoryRejectPercent)
+                    && !heapReadingIsFresh() && requestFullGc()) {
                 live = heapUsedAfterGcPercent();
             }
 

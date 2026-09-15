@@ -243,6 +243,18 @@ public class ReplicationManager {
     }
 
     /**
+     * Told when this manager has emptied the local store for a snapshot (#352). The node needs to
+     * know, because "the store was cleared and not yet refilled" outlives the manager that cleared
+     * it: {@code stopReplication()} nulls the manager, and anything that asked the manager
+     * afterwards would be told everything is fine.
+     */
+    private volatile Runnable onLocalDataCleared = () -> { };
+
+    public void setOnLocalDataCleared(Runnable hook) {
+        this.onLocalDataCleared = hook == null ? () -> { } : hook;
+    }
+
+    /**
      * Refuses a local write from a manager that has been replaced (#323, part 3).
      *
      * <p>A sync thread abandoned mid-copy can resurface with a completed collection read in hand
@@ -983,7 +995,16 @@ public class ReplicationManager {
         // failed" and replays the run event by event. A refusal raised in there would be
         // swallowed into that fallback instead of stopping the apply, which is the opposite of
         // what it is for.
-        assertStillCurrentApplier("bulk insert into " + collKey);
+        try {
+            assertStillCurrentApplier("bulk insert into " + collKey);
+        } catch (MorphiumDriverException e) {
+            // This escapes into processBatch(), which runs on a scheduleAtFixedRate tick - an
+            // exception there cancels the periodic task SILENTLY. For a superseded manager that is
+            // the desired outcome, but it should not happen without a word in the log, or the next
+            // person to wonder why a manager stopped applying has nothing to go on.
+            log.warn("Superseded ReplicationManager stops applying: {}", e.getMessage());
+            throw e;
+        }
 
         String[] parts = collKey.split("\\.", 2);
         String db = parts[0];
@@ -2103,6 +2124,13 @@ public class ReplicationManager {
      * anyway (IndexOptionsConflict), so a name match means the spec matches.
      */
     void applyIndexDiff(String db, String coll, List<IndexDescription> primaryIndexes) throws Exception {
+        // #323: index DDL is a local write too, and it reaches the driver through a connection
+        // rather than a localDriver.<mutator> call - which is how the first sweep missed it. A
+        // superseded manager here would put the OLD primary's indexes on its successor's data, or
+        // drop the successor's: a stray TTL index would then expire documents that are not its to
+        // expire, which outlives the manager that created it.
+        assertStillCurrentApplier("index sync for " + db + "." + coll);
+
         List<IndexDescription> localIndexes = listIndexesOf(localDriver, db, coll);
         Set<String> localNames = new HashSet<>();
         Set<String> primaryNames = new HashSet<>();
@@ -2246,6 +2274,9 @@ public class ReplicationManager {
         // never conjures one into existence.
         assertStillCurrentApplier("pre-sync drop of admin.system.version");
         localDriver.drop("admin", "system.version", null);
+        // The store is now empty. Tell the node, so a dump - including the final one on shutdown,
+        // by which time this manager no longer exists - knows not to persist this (#352).
+        onLocalDataCleared.run();
     }
 
     /**

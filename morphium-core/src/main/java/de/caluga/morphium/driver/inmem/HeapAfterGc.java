@@ -60,8 +60,13 @@ final class HeapAfterGc {
     /** How far back a reading may be and still count toward the estimate. */
     static final long WINDOW_MS = 60_000;
 
-    /** Plenty for a minute of collections; an allocation-heavy JVM does a few per second. */
-    private static final int MAX_READINGS = 256;
+    /**
+     * Enough readings to cover the window under load. G1 on a busy node does ten or more young
+     * collections a second, so this is the real bound on the window most of the time - and it
+     * errs the safe way: fewer readings means a shorter effective window, which can only make the
+     * minimum higher, never lower.
+     */
+    private static final int MAX_READINGS = 1024;
 
     /** One reading: heap bytes in use at the end of a collection, and when that was. */
     static final class Reading {

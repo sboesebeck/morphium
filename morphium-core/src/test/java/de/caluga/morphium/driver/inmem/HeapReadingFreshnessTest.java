@@ -142,6 +142,73 @@ public class HeapReadingFreshnessTest {
                 "and carry a sane age, got: " + drv.heapUsedAfterGcAgeMs());
     }
 
+    /**
+     * M2 from the second review, and the reason the first version of this fix was dangerous: the
+     * estimate is the lowest reading in the window, so while the live set GROWS every later reading
+     * is higher and the minimum keeps reporting the old, low value. A reject decided on that never
+     * fires - the process runs into an OOM instead of returning an error the caller can act on.
+     * The trigger therefore has to be the most recent reading, which moves with the heap.
+     */
+    @Test
+    public void aGrowingHeapIsNoticedEvenThoughTheMinimumLagsBehind() throws Exception {
+        HeapAfterGc.resetForTest();
+        drv = new InMemoryDriver();
+        drv.connect();
+        long now = System.currentTimeMillis();
+
+        // A low reading, then a live set that climbs past the reject watermark. All within the
+        // window, so the minimum stays at 70 the whole time.
+        HeapAfterGc.recordForTest(percentOfHeap(70), now - 30_000);
+
+        for (int pct : new int[] {80, 88, 93, 96}) {
+            HeapAfterGc.recordForTest(percentOfHeap(pct), now);
+        }
+
+        assertEquals(70.0, drv.heapUsedAfterGcPercent(), 0.5,
+                "the estimate does lag - that is what makes it safe for deciding, and unsafe for "
+                + "noticing");
+        assertEquals(96.0, drv.heapUsedAfterMostRecentGcPercent(), 0.5,
+                "the most recent reading is the one that moves with the heap, and it is what the "
+                + "reject stage triggers on");
+    }
+
+    @Test
+    public void withNoReadingsAtAllTheMostRecentGaugeSaysSo() throws Exception {
+        HeapAfterGc.resetForTest();
+        drv = new InMemoryDriver();
+        drv.connect();
+        assertEquals(-1, drv.heapUsedAfterMostRecentGcPercent(), 0.001,
+                "no reading must be reported as absent, not as zero occupancy");
+    }
+
+    /**
+     * The H4 fix - waiting for the notification rather than racing it - had no test that ran it
+     * against a real JVM; the one that looked like it stubbed requestFullGc() out entirely. This
+     * calls the real thing.
+     */
+    @Test
+    public void requestFullGcWaitsForTheReadingItAskedFor() throws Exception {
+        HeapAfterGc.resetForTest();
+        InMemoryDriver d = new InMemoryDriver();
+        drv = d;
+        d.connect();
+
+        boolean got = d.requestFullGc();
+
+        if (!got) {
+            // -XX:+DisableExplicitGC and friends make this legitimately impossible. Say so rather
+            // than failing, but do not let it pass silently either.
+            System.out.println("requestFullGc() reported no new reading - explicit GC may be "
+                    + "disabled on this JVM");
+            return;
+        }
+
+        assertTrue(HeapAfterGc.mostRecent() != null,
+                "a true return must mean a reading actually arrived");
+        assertTrue(drv.heapReadingIsFresh(),
+                "and it must be fresh enough to decide on - otherwise the wait bought nothing");
+    }
+
     /** Counts collection requests instead of paying for a real full GC. */
     private static class GcCountingDriver extends InMemoryDriver {
         final AtomicInteger gcRequests = new AtomicInteger();

@@ -186,6 +186,32 @@ public class SupersededApplierTest {
                 "the successor's user collection must survive - losing it locks the cluster out");
     }
 
+    /**
+     * H2 from the second review: index replication is a local write too, and the first sweep missed
+     * it because it goes through {@code localDriver.getPrimaryConnection(null)} rather than a
+     * {@code localDriver.<mutator>} call. A superseded manager here would put the old primary's
+     * indexes on its successor's data or drop the successor's - and a stray TTL index outlives the
+     * manager that created it, expiring documents that are not its to expire.
+     */
+    @Test
+    public void theIndexSyncIsCoveredToo() throws Exception {
+        drv = new InMemoryDriver();
+        drv.connect();
+        new InsertMongoCommand(drv).setDb("payload").setColl("c")
+                .setDocuments(List.of(Doc.of("_id", "d1"))).execute();
+
+        ReplicationManager superseded = managerFor(drv);
+        superseded.setStillCurrentApplier(() -> false);
+
+        Throwable t = invokeAndCatch(superseded, "applyIndexDiff",
+                new Class<?>[] {String.class, String.class, List.class},
+                new Object[] {"payload", "c", List.of()});
+
+        assertTrue(t instanceof MorphiumDriverException,
+                "the index sync must be refused, got: " + t);
+        assertTrue(t.getMessage().contains("index sync"), t.getMessage());
+    }
+
     @Test
     public void theRefusalNamesTheOperationSoItIsNotMistakenForATransportError() throws Exception {
         drv = new InMemoryDriver();

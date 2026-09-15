@@ -47,6 +47,12 @@ The periodic tick, both `dumpNow` paths (the in-process one and the admin comman
 so. The shutdown case is the one most likely to be hit: a rolling restart that stops a node
 mid-resync would otherwise persist its emptied store as the last word.
 
+"A sync emptied this store" is tracked on the node, not on the ReplicationManager. It has to be:
+`shutdown()` calls `stopReplication()` - which nulls the manager - *before* the final dump, so a
+guard that asked the manager would be told everything was fine on precisely the node whose store
+was empty. The same flag closes the gap between one manager being nulled and its replacement
+starting, where a periodic tick would otherwise find no manager and dump the emptied store.
+
 The "local data is incomplete" arm applies only while a ReplicationManager exists to fix it.
 `localDataComplete` returns to true in exactly one place, driven by a manager's initial-sync
 completion - so on a standalone node or a static-mode primary, refusing on that flag alone would
@@ -98,7 +104,11 @@ down while the heap fills up. `serverStatus.memoryWatermark` gained `heapUsedAft
 `heapReadingIsFresh`, because a number that may be 20 points off is useless without them.
 
 And the reject stage no longer refuses a write on a stale reading: if the estimate is older than 10
-seconds it asks for a collection (at most every 30s) and looks again. It waits, briefly, for that
+seconds it asks for a collection (at most every 30s) and looks again. The trigger is the **most
+recent** reading rather than the estimate, because the estimate is a minimum and a *growing* live
+set keeps it at the old low value for as long as the window lasts - which is exactly the period the
+watermark exists to catch. Deciding the trigger on it would mean no rejection and no collection
+while the heap fills, trading an error in the safe direction for one that ends in an OOM. It waits, briefly, for that
 collection's notification to arrive - the notification is delivered asynchronously, so re-reading
 immediately would see the old number and refuse anyway, with the collection's benefit arriving
 milliseconds too late. A heap that is genuinely full is still refused, without the extra collection.

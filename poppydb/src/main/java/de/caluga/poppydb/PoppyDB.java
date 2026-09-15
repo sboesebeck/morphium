@@ -114,6 +114,18 @@ public class PoppyDB {
     // (#306 review, P1-2). Kept as a field because the restore runs before the election manager
     // exists, and applied to it as soon as it does.
     private volatile boolean localDataComplete = true;
+    /**
+     * True from the moment a sync empties the local store until a sync completes (#352).
+     *
+     * <p>Lives on the node, not on the ReplicationManager, because that is where the condition
+     * actually lives. The manager that cleared the store can be stopped and nulled - by
+     * {@code stopReplication()}, which {@code shutdown()} calls BEFORE the final dump - and a guard
+     * that asks the manager would then be told everything is fine, on precisely the node whose
+     * store is empty. It also covers the gap between one manager being nulled and its replacement
+     * being started, where a periodic tick would otherwise find no manager and dump the emptied
+     * store.
+     */
+    private volatile boolean localDataClearedForSync = false;
     private ElectionNetworkClient electionNetworkClient = null;
 
     // SSL configuration
@@ -1171,6 +1183,7 @@ public class PoppyDB {
         // actually decides it. A manager superseded by a later leader change is then refused at
         // the point of writing, not merely asked to stop.
         newReplicationManager.setStillCurrentApplier(() -> replicationManager == newReplicationManager);
+        newReplicationManager.setOnLocalDataCleared(() -> localDataClearedForSync = true);
         // Assigned BEFORE start() (#306 review round 2): the sync-complete notification is
         // one-shot (maybeFireSyncCompleteNotify CASes the flag), and on a fast sync (e.g. the
         // consistency shortcut against loopback) the batch tick can fire it before a
@@ -1850,6 +1863,7 @@ public class PoppyDB {
             // #323 part 3, same binding as the election path: a manager that has been replaced is
             // refused at the point of writing, not merely asked to stop.
             staticModeManager.setStillCurrentApplier(() -> replicationManager == staticModeManager);
+            staticModeManager.setOnLocalDataCleared(() -> localDataClearedForSync = true);
             replicationManager.start();
 
             // Wait for initial sync (up to 30 seconds)
@@ -1899,6 +1913,13 @@ public class PoppyDB {
      * {@link #dumpNow()} already spells out, one window further back.
      */
     private boolean dumpWouldCaptureAnIncompleteCopy() {
+        // Set when a sync emptied the store, cleared when one completes. Checked first because it
+        // is the only one of the three that survives the manager being stopped and nulled - which
+        // is exactly what happens on the shutdown path.
+        if (localDataClearedForSync) {
+            return true;
+        }
+
         // A resync deliberately empties the store between clearLocalDatabases() and the copy.
         // Persisting that is the failure mode this guards.
         if (isSecondarySyncing()) {
@@ -2210,11 +2231,20 @@ public class PoppyDB {
             return;
         }
 
+        // Cleared unconditionally: the store has been refilled, which is the only way out of
+        // this state. A completed sync is the sole event that makes an emptied store whole again.
+        localDataClearedForSync = false;
+
         if (!localDataComplete) {
             log.info("Initial sync completed (backlog drained) - local data is authoritative again, "
                     + "this node may stand for election");
             setLocalDataComplete(true);
         }
+    }
+
+    /** Test seam: stand in for "a sync emptied this node's store". */
+    void setLocalDataClearedForSyncForTest(boolean cleared) {
+        this.localDataClearedForSync = cleared;
     }
 
     public int getConnectionCount() {
