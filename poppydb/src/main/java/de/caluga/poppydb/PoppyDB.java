@@ -1085,6 +1085,29 @@ public class PoppyDB {
      * {@link #REPLICATION_RETRY_INITIAL_DELAY_MS}; only the retry chain itself threads a doubled
      * delay back in here.
      */
+    /**
+     * Wires the callbacks through which a ReplicationManager reports to the node it serves. One
+     * place for both creation sites (the election path and static mode), so the two cannot
+     * drift. Every callback is bound to THIS manager instance: a superseded manager firing late
+     * must not act on the node on the strength of a stale sync - see
+     * {@link #releaseDataCompleteAfterSync}, {@link #onLocalDataClearedForSync}, and #323 part 3
+     * for the applier check.
+     *
+     * <p>Must run BEFORE the manager's {@code start()} and before it is assigned to
+     * {@link #replicationManager}: the completion notification is one-shot, and on a fast sync
+     * the batch tick can fire it before a post-start() assignment lands.
+     */
+    private void bindNodeCallbacks(ReplicationManager rm) {
+        // Released only by actual sync COMPLETION (snapshot copied AND backlog applied, see
+        // ReplicationManager#maybeFireSyncCompleteNotify) - never on mere replication start,
+        // since a guard released early would be no guard at all (#306 P1-2 follow-up).
+        rm.setOnInitialSyncComplete(() -> releaseDataCompleteAfterSync(rm));
+        // #323 part 3: a manager superseded by a later leader change is refused at the point of
+        // writing, not merely asked to stop.
+        rm.setStillCurrentApplier(() -> replicationManager == rm);
+        rm.setOnLocalDataCleared(() -> onLocalDataClearedForSync(rm));
+    }
+
     private synchronized void startReplicationToLeader(String leaderId, long delayOnFailureMs) {
         if (!running) {
             // Shutdown already ran (it flips running=false before stopReplication()): a late
@@ -1172,18 +1195,8 @@ public class PoppyDB {
         // waitForInitialSync) - this path, the one election mode actually takes, never lifted
         // it, so a partially-restored node stayed barred from candidacy FOREVER even after a
         // complete authoritative sync; when the primary later died, the cluster stayed without
-        // one. The completion hook fires only once an initial sync has COMPLETED and its
-        // buffered backlog has drained (see ReplicationManager#maybeFireSyncCompleteNotify) -
-        // never on mere replication start, since a guard released early would be no guard at
-        // all. The callback is bound to THIS manager instance so a superseded manager firing
-        // late cannot release the guard on the strength of a stale sync.
-        newReplicationManager.setOnInitialSyncComplete(
-                () -> releaseDataCompleteAfterSync(newReplicationManager));
-        // #323 part 3: bind the manager's "am I still in charge" question to the field that
-        // actually decides it. A manager superseded by a later leader change is then refused at
-        // the point of writing, not merely asked to stop.
-        newReplicationManager.setStillCurrentApplier(() -> replicationManager == newReplicationManager);
-        newReplicationManager.setOnLocalDataCleared(() -> onLocalDataClearedForSync(newReplicationManager));
+        // one. The wiring lives in bindNodeCallbacks, shared with static mode.
+        bindNodeCallbacks(newReplicationManager);
         // Assigned BEFORE start() (#306 review round 2): the sync-complete notification is
         // one-shot (maybeFireSyncCompleteNotify CASes the flag), and on a fast sync (e.g. the
         // consistency shortcut against loopback) the batch tick can fire it before a
@@ -1292,6 +1305,15 @@ public class PoppyDB {
     synchronized void handleReplicationStartFailure(String leaderId, ReplicationManager failedManager,
                                                       Exception e, long delayOnFailureMs) {
         log.error("Failed to start replication from {}: {}", leaderId, e.getMessage());
+        // #370: a node whose data is not authoritative depends on THIS start succeeding to ever be
+        // released - a superseded manager's completion is discarded by design. The retry chain
+        // below keeps producing replacements, but an operator watching a node that neither dumps
+        // nor stands for election should be told why.
+        if (localDataClearedForSync || !localDataComplete) {
+            log.warn("Replication start failed while this node's local data is not authoritative "
+                    + "(emptied for a sync, or restored incompletely): it stays out of elections and "
+                    + "does not dump until a replacement sync from {} completes - retrying", leaderId);
+        }
         // start() failed partway through; the instance may hold live resources
         // (executors, a connected primaryMorphium) that must be released so we
         // don't leak them. Never assign it to the field: leaving a dead-but-non-null
@@ -1853,17 +1875,11 @@ public class PoppyDB {
                     authRequired, rootUser, rootPassword, sslEnabled ? internalSslContext : null);
             // Set this secondary's address for progress reporting
             replicationManager.setMyAddress(host + ":" + port);
-            // Same completion hook as the election path (startReplicationToLeader): the
-            // partial-restore guard is released by actual sync COMPLETION, wherever and
-            // whenever that happens - including a sync that finishes only after the bounded
-            // wait below has given up (#306 review, P1-2). Instance-bound like there.
-            ReplicationManager staticModeManager = replicationManager;
-            staticModeManager.setOnInitialSyncComplete(
-                    () -> releaseDataCompleteAfterSync(staticModeManager));
-            // #323 part 3, same binding as the election path: a manager that has been replaced is
-            // refused at the point of writing, not merely asked to stop.
-            staticModeManager.setStillCurrentApplier(() -> replicationManager == staticModeManager);
-            staticModeManager.setOnLocalDataCleared(() -> onLocalDataClearedForSync(staticModeManager));
+            // Same wiring as the election path (startReplicationToLeader): the partial-restore
+            // guard is released by actual sync COMPLETION, wherever and whenever that happens -
+            // including a sync that finishes only after the bounded wait below has given up
+            // (#306 review, P1-2).
+            bindNodeCallbacks(replicationManager);
             replicationManager.start();
 
             // Wait for initial sync (up to 30 seconds)
@@ -2276,6 +2292,27 @@ public class PoppyDB {
     /** Test seam: stand in for "a sync emptied this node's store". */
     void setLocalDataClearedForSyncForTest(boolean cleared) {
         this.localDataClearedForSync = cleared;
+    }
+
+    /** Test seam: the flag behind the dump guard (#352). */
+    boolean isLocalDataClearedForSyncForTest() {
+        return localDataClearedForSync;
+    }
+
+    /** Test seam: install {@code rm} as the current manager, wired exactly like a real one. */
+    void installReplicationManagerForTest(ReplicationManager rm) {
+        bindNodeCallbacks(rm);
+        replicationManager = rm;
+    }
+
+    /** Test seam: what a manager's cleared-store notice does to the node. */
+    void onLocalDataClearedForSyncForTest(ReplicationManager source) {
+        onLocalDataClearedForSync(source);
+    }
+
+    /** Test seam: what a manager's sync completion does to the node. */
+    void releaseDataCompleteAfterSyncForTest(ReplicationManager source) {
+        releaseDataCompleteAfterSync(source);
     }
 
     public int getConnectionCount() {
