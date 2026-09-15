@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### `dropDatabase` no longer leaves TTL and capped rules behind (#369)
+Dropping a whole database cleared its documents and index definitions but kept the per-collection
+registries hanging off it. A collection recreated under the same name then inherited rules that
+`getIndexes()` no longer reported: its documents were expired by the TTL index that went down with
+the database, and its inserts were evicted against a cap nobody had re-declared. Verified against
+PoppyDB 6.3.8 - after a `dropDatabase()` and a fresh load, the reloaded documents disappeared
+within one sweep interval while `getIndexes()` showed nothing but `_id_`.
+
+`drop(db, collection, wc)` and `setDatabase()` had always purged these registries for what they
+removed; the whole-database drop was the only path that forgot. It now performs the same cleanup
+for `collectionsWithTtlIndex`, the expiry queues and the three capped bookkeeping maps.
+
 #### A write retry after a lost reply no longer fails on its own insert
 When the reply to a write is lost - the connection dies, or the answer does not arrive in time -
 `WriteMongoCommand` re-sends the command on a re-resolved primary. Since Morphium assigns the

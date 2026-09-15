@@ -11969,6 +11969,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         String dbPrefix = db + ".";
+        // The per-collection registries that hang off the dropped database go with it (#369).
+        // Without this, a collection recreated under the same name inherits rules that
+        // getIndexes() no longer reports: the TTL sweep iterates collectionsWithTtlIndex and
+        // would expire the new documents by the index that was dropped, and the capped
+        // bookkeeping would evict inserts against a cap nobody re-declared. Same cleanup that
+        // drop(db, collection, wc) does for a single collection and setDatabase() does for a
+        // replaced one - whole-DB drop was the only path that forgot.
+        collectionsWithTtlIndex.keySet().removeIf(key -> key.startsWith(dbPrefix));
+        ttlQueueByCollection.keySet().removeIf(key -> key.startsWith(dbPrefix));
+        cappedCollections.remove(db);
+        cappedDocSizesByCollection.keySet().removeIf(key -> key.startsWith(dbPrefix));
+        cappedCurrentBytesByCollection.keySet().removeIf(key -> key.startsWith(dbPrefix));
         // Bump BEFORE the removal - same publish-fencing contract as invalidateIndexStore's
         // bump-before-remove, but via the global drop epoch: a per-key bump could not cover
         // collections whose store is only being built right now (#290).
