@@ -349,6 +349,21 @@ scenario_diverge() {
         [ "${PORTS[$i]}" != "$primary" ] && victim=$i && vport="${PORTS[$i]}" && break
     done
 
+    # The victim has to be a usable secondary first: a node still waiting for its first sync
+    # (#371) accepts the \$fromPrimary write but refuses to dump, and the failure would land on
+    # the wrong suspect. Under load the first non-primary after the previous scenario may still
+    # be syncing, so wait for it rather than assume.
+    local deadline=$((SECONDS + 90)) vstate=
+    while [ $SECONDS -lt $deadline ]; do
+        vstate=$(node_eval "$vport" 'print(db.adminCommand({replSetGetStatus:1}).myState)' | tail -1)
+        [ "$vstate" = "2" ] && break
+        sleep 2
+    done
+    if [ "$vstate" != "2" ]; then
+        note_failure "node$victim did not become a usable SECONDARY within 90s (state '$vstate') - cannot run the diverge scenario against it"
+        return 1
+    fi
+
     warn "writing a foreign document straight into node$victim's local driver (port $vport)"
     # The write has to carry \$fromPrimary at the COMMAND level - that is where preDispatch looks.
     # insertOne() puts it inside the document, where it means nothing, and the secondary refuses
@@ -372,22 +387,39 @@ scenario_diverge() {
     # the check passes whether or not the resync cleaned anything up. Persist it on purpose, and
     # prove it is in the file before killing the node.
     local dump="$WORKDIR/node$victim/dumps/$DB.morphium.gz"
-    local before; before=$(mtime_of "$dump")
     say "persisting the marker on node$victim (dumpNow) before the restart"
-    node_eval "$vport" "print(JSON.stringify(db.adminCommand({dumpNow: 1})))" | tail -1 | sed 's/^/    /'
-    local deadline=$((SECONDS + 30))
-    while [ $SECONDS -lt $deadline ] && [ "$(mtime_of "$dump")" -le "$before" ]; do sleep 1; done
-    if ! gzip -dc "$dump" 2>/dev/null | grep -aq divergence-marker; then
-        note_failure "the marker did not make it into node$victim's dump within 30s - the restart would restore a state without it and the check would be vacuous"
+    # The status has to be checked, not printed: the same command answers 'alreadyRunning' both
+    # for a dump in progress and for a refusal by the dump guard, and either way the marker would
+    # not be in the file this scenario relies on.
+    local status
+    status=$(node_eval "$vport" "print(db.adminCommand({dumpNow: 1}).status)" | tail -1)
+    if [ "$status" != "started" ]; then
+        note_failure "dumpNow on node$victim answered '$status' instead of 'started' - the marker cannot be persisted, the scenario cannot run"
         return 1
     fi
+    # Wait for the marker itself, not for the file's mtime: a periodic tick that started before
+    # the injection also advances the mtime, with a dump that does not contain the marker.
+    deadline=$((SECONDS + 30))
+    until gzip -dc "$dump" 2>/dev/null | grep -aq divergence-marker; do
+        [ $SECONDS -ge $deadline ] && { note_failure "the marker did not make it into node$victim's dump within 30s - the restart would restore a state without it and the check would be vacuous"; return 1; }
+        sleep 1
+    done
     ok "marker is in node$victim's dump - the restart will bring it back"
 
     say "restarting node$victim so the consistency check runs against the primary"
     kill -9 "$(pid_of "$victim")" 2>/dev/null
     sleep 2
     start_node "$victim"
-    sleep 20
+
+    # After #371 the node refuses every read until its sync is done, and the marker forces a
+    # dbHash mismatch, i.e. a full copy - under load that takes longer than any fixed sleep.
+    # Wait for the node to call itself usable, as the rolling-restart scenario does.
+    deadline=$((SECONDS + 120))
+    while [ $SECONDS -lt $deadline ]; do
+        vstate=$(node_eval "$vport" 'print(db.adminCommand({replSetGetStatus:1}).myState)' | tail -1)
+        case "$vstate" in 1|2) break ;; esac
+        sleep 2
+    done
 
     local marker
     marker=$(node_eval "$vport" "
@@ -398,7 +430,7 @@ scenario_diverge() {
     case "$marker" in
         0) ok "the foreign document is gone - the resync replaced the local state" ;;
         1) note_failure "the foreign document survived the resync - silent divergence" ;;
-        *) note_failure "could not check the marker on node$victim after 20s ($marker) - the node is still not serving" ;;
+        *) note_failure "could not check the marker on node$victim after 120s ($marker) - the node is still not serving" ;;
     esac
 }
 

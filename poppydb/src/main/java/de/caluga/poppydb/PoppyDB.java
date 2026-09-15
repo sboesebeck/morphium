@@ -1970,6 +1970,15 @@ public class PoppyDB {
             return false;
         }
 
+        // A store emptied for a sync stays empty until a sync completes, whatever happens to the
+        // manager that emptied it (superseded, failed to start, stopped for shutdown). Checked
+        // before the manager, for the same reason the dump guard checks it first: it is the one
+        // signal that survives the manager being nulled - and a node between managers with an
+        // emptied store answering SECONDARY is exactly the #352/#371 shape (code review #1).
+        if (localDataClearedForSync) {
+            return true;
+        }
+
         ReplicationManager rm = replicationManager;
 
         if (rm != null) {

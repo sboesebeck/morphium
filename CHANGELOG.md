@@ -22,8 +22,9 @@ have no candidate when the primary died.
 highest sequence the watch had delivered when the snapshot finished (or the primary's sequence at
 watch registration, whichever is higher) and releases once the applied sequence has passed it -
 "everything that existed when I finished copying has been applied", which is reached under load
-rather than in spite of it. The mark is reset whenever a session is discarded (resync, dead
-watch), so a discarded backlog cannot leave an unreachable mark behind. The empty-queue rule
+rather than in spite of it. The "newest sequence delivered" reading the mark is built from is
+reset whenever a session is discarded (resync, dead watch), so a discarded backlog cannot feed
+an unreachable mark into the next capture. The empty-queue rule
 stays as a fallback: a sync with no sequence information, or a quiet stream whose trailing event
 failed to apply, can only be released that way.
 

@@ -1,14 +1,21 @@
 package de.caluga.poppydb;
 
+import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.wireprotocol.OpMsg;
+import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
 import de.caluga.poppydb.election.ElectionConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.net.Socket;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -137,6 +144,75 @@ public class PreSyncWindowTest {
         assertFalse(db.isSecondarySyncing(),
                 "a lagging secondary is a secondary: reads are served from the gate opening, as "
                         + "before - the pre-sync state must not hold them back until the drain");
+    }
+
+    /**
+     * A store emptied for a sync must stay unavailable while the manager that emptied it is gone
+     * (superseded by a leader change whose replacement failed to start, or stopped): the flag
+     * outlives the manager, and a node between managers answering SECONDARY over an empty store
+     * is the #352/#371 shape through yet another door.
+     */
+    @Test
+    public void anEmptiedStoreStaysUnavailableAfterItsManagerIsGone() throws Exception {
+        electionMember();
+        db.enterAwaitingFirstSyncIfReplicating();
+        ReplicationManager first = new ReplicationManager(db.getDriver(), "127.0.0.1", 1);
+        db.installReplicationManagerForTest(first);
+        db.releaseDataCompleteAfterSyncForTest(first);   // served for a while
+        assertFalse(db.isSecondarySyncing());
+
+        db.onLocalDataClearedForSyncForTest(first);      // a resync emptied the store...
+        ReplicationManager replacement = new ReplicationManager(db.getDriver(), "127.0.0.1", 1);
+        db.installReplicationManagerForTest(replacement); // ...then a leader change replaced the manager
+        assertTrue(db.isSecondarySyncing(),
+                "the replacement has not opened its gate, the store is empty: unavailable");
+
+        db.releaseDataCompleteAfterSyncForTest(replacement);
+        assertFalse(db.isSecondarySyncing(), "the replacement's completed sync refills the store");
+    }
+
+    /** One raw OP_MSG round trip on a fresh socket - no driver, so no client-side role logic. */
+    private static Map<String, Object> rawCommand(int port, Map<String, Object> cmd) throws Exception {
+        try (Socket raw = new Socket()) {
+            raw.connect(new InetSocketAddress("127.0.0.1", port), 2000);
+            raw.setSoTimeout(5000);
+            OpMsg msg = new OpMsg();
+            msg.setMessageId(7);
+            msg.setFlags(0);
+            msg.setFirstDoc(cmd);
+            raw.getOutputStream().write(msg.bytes());
+            raw.getOutputStream().flush();
+            return ((OpMsg) WireProtocolMessage.parseFromStream(raw.getInputStream())).getFirstDoc();
+        }
+    }
+
+    /**
+     * The one test that pins the wiring in {@code start()} rather than the decision method: the
+     * node is started for real, with two seeds that answer nothing, and asked over the wire from
+     * its very first connection. Before #371 this node answered {@code secondary: true},
+     * {@code SECONDARY} and an empty find; the unit tests above would all pass with the call in
+     * {@code start()} removed, this one would not.
+     */
+    @Test
+    @Timeout(60)
+    public void theWindowIsClosedOverTheWireFromTheFirstConnection() throws Exception {
+        electionMember();
+        db.start();   // returns after waitForElectionResult gives up (10s) - no peer ever answers
+        int port = db.getPort();
+
+        Map<String, Object> hello = rawCommand(port, Doc.of("hello", 1, "$db", "admin"));
+        assertEquals(false, hello.get("isWritablePrimary"), "not primary: " + hello);
+        assertEquals(false, hello.get("secondary"),
+                "hello must not advertise a node that has confirmed nothing as a usable secondary");
+
+        Map<String, Object> status = rawCommand(port, Doc.of("replSetGetStatus", 1, "$db", "admin"));
+        assertEquals(3, status.get("myState"), "replSetGetStatus must say RECOVERING: " + status);
+
+        Map<String, Object> find = rawCommand(port,
+                Doc.of("find", "anything", "filter", Doc.of(), "$db", "somedb"));
+        assertEquals(13436, find.get("code"),
+                "a read before the first sync must be refused with NotPrimaryOrSecondary, "
+                        + "not answered with an empty result: " + find);
     }
 
     @Test
