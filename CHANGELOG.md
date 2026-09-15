@@ -23,12 +23,33 @@ buffers are gone; what remains is the ordinary requirement that the data fit in 
 
 Streaming the bytes alone was not enough, and the way it failed is worth recording: with the String
 gone the same dump died in `restoreDumpValue` with a plain `Java heap space` instead. That path
-rebuilds every map and list, so the parsed tree and the converted one are two complete copies of
-the database, and the parsed one stays reachable until the last document is done. Each parsed
-document is now released as soon as it has been converted (`ListIterator.set(null)`, O(1) on the
-ArrayList the parser produces), so the old copy shrinks at the rate the new one grows. Verified on
-the dump that started this: 1.07M documents restore in 38s and settle at 7.84GB of a 12GB heap,
-where before the fix neither buffer nor heap could hold them.
+rebuilt every map and list, so the parsed tree and the converted one were two complete copies of the
+database, and the parsed one stayed reachable until the last document was done.
+
+Dump values are now converted **in place**: the parser is handed a `ContainerFactory` that builds
+the same `LinkedHashMap`/`ArrayList` the store uses (json-simple's own `JSONObject` is a `HashMap`
+and would have lost field order), and `restoreDumpValue` replaces marker values through
+`Map.Entry.setValue`/`ListIterator.set` instead of allocating a parallel structure. The parsed list
+*is* the restored collection. Only the marked values themselves - Date, UUID, ObjectId/MorphiumId,
+byte[] - are newly allocated.
+
+Measured on the dump that started this, 1.07M documents / 1.94GB of JSON into a 12GB heap:
+
+| | peak occupancy | full GCs | result |
+|---|---|---|---|
+| before | - | - | `OutOfMemoryError: UTF16 String size` |
+| streaming only | out of heap | - | `OutOfMemoryError: Java heap space` |
+| \+ release after convert | 11.99GB of 12 | 1 | restored, on a lucky full GC |
+| \+ convert in place | **10.38GB of 12** | **0** | restored in 42s, 7.87GB live |
+
+#### A failed restore no longer leaves a running process with nothing listening (#366)
+`PoppyDBCLI` already treated a failed restore the way it should: a dump only saves the node a full
+sync, so the node comes up without the data, logs the failure and calls `setLocalDataComplete(false)`
+so it cannot win an election and overwrite intact peers. That handler caught `Exception` - and an
+`OutOfMemoryError` is not one. It walked out of `buildServer` and `configureServer` into `main`,
+which catches only `ConfigException`, so there was no log line, no guard, and no exit: the process
+stayed alive on its non-daemon threads with nothing bound to its port, which an init system reads as
+a healthy service. The handler now catches `Throwable`.
 
 One behaviour had to change with it. A legacy non-UTF-8 dump (#306) is only recognisable once a
 failed decode has already consumed part of the stream, and a plain `InputStream` cannot be rewound

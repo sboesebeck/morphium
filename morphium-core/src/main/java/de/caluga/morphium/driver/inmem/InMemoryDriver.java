@@ -57,6 +57,7 @@ import java.util.zip.GZIPOutputStream;
 import javax.net.ssl.SSLContext;
 
 import org.bson.types.ObjectId;
+import org.json.simple.parser.ContainerFactory;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.openjdk.jol.vm.VM;
@@ -910,7 +911,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         try (GZIPInputStream gzin = new GZIPInputStream(in);
             ChunkedTailReader rd = new ChunkedTailReader(new InputStreamReader(gzin, dec), dumpRestoreChunkChars)) {
             try {
-                return (Map<String, Object>) new JSONParser().parse(rd);
+                return (Map<String, Object>) new JSONParser().parse(rd, DUMP_CONTAINERS);
             } catch (ParseException e) {
                 // No full-text context any more - the dump is never in memory as a whole. The last
                 // characters the parser actually consumed are the ones around the error anyway, and
@@ -1059,32 +1060,21 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     + (coll.getValue() == null ? "null" : coll.getValue().getClass().getName()));
             }
 
-            List<?> parsed = (List<?>) coll.getValue();
-            List<Map<String, Object>> docs = new ArrayList<>(parsed.size());
-            // Drop each parsed document as soon as it has been converted (#366). restoreDumpValue
-            // rebuilds every map and list, so the parsed tree and the converted one are two full
-            // copies of the database - holding both at once is what turned a restorable dump into
-            // an OutOfMemoryError once the data got large (12GB heap, 1.07M documents). Nulling the
-            // slot instead of removing it keeps this O(1) per document on an ArrayList, and lets
-            // the old copy shrink at the same rate the new one grows.
-            ListIterator<?> it = parsed.listIterator();
+            // The parsed list IS the collection (#366): restoreDumpValue converts the documents in
+            // place, so there is one copy of the database in memory, not two.
+            List<Map<String, Object>> docs = (List<Map<String, Object>>) coll.getValue();
             int i = 0;
 
-            while (it.hasNext()) {
-                Object doc = restoreDumpValue(it.next(), coll.getKey() + "[" + i++ + "]");
-                it.set(null);
+            for (ListIterator<Map<String, Object>> it = docs.listIterator(); it.hasNext(); i++) {
+                Object doc = restoreDumpValue(it.next(), coll.getKey() + "[" + i + "]");
 
                 if (!(doc instanceof Map)) {
-                    throw new RuntimeException("Dump restore failed: document " + coll.getKey() + "[" + (i - 1)
+                    throw new RuntimeException("Dump restore failed: document " + coll.getKey() + "[" + i
                         + "] is not a document but " + (doc == null ? "null" : doc.getClass().getName()));
                 }
 
-                docs.add((Map<String, Object>) doc);
+                it.set((Map<String, Object>) doc);
             }
-
-            // The parsed list's own backing array goes too - data is the parser's map, ours is
-            // built up in `data` below.
-            coll.setValue(null);
 
             data.put(coll.getKey(), docs);
         }
@@ -1281,28 +1271,50 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
             }
 
-            Map<String, Object> ret = new LinkedHashMap<>();
-
+            // Converted IN PLACE (#366): the parser already built this map, and rebuilding it into
+            // a fresh one meant holding the parsed copy of the database and the converted copy at
+            // the same time. On a 1.07M document dump that drove heap occupancy to 11.99GB of 12
+            // for 7.21GB of actual data - it survived on one lucky Full GC. setValue() on an entry
+            // is not a structural modification, so iterating while replacing is safe, and the
+            // parser is handed LinkedHashMap/ArrayList (see DUMP_CONTAINERS) so the types the store
+            // ends up holding are the same ones it held before.
             for (Map.Entry<String, Object> e : m.entrySet()) {
-                ret.put(e.getKey(), restoreDumpValue(e.getValue(), path + "." + e.getKey()));
+                e.setValue(restoreDumpValue(e.getValue(), path + "." + e.getKey()));
             }
 
-            return ret;
+            return m;
         }
 
         if (val instanceof List) {
-            List<Object> ret = new ArrayList<>(((List<?>) val).size());
+            ListIterator<Object> it = ((List<Object>) val).listIterator();
             int i = 0;
 
-            for (Object o : (List<?>) val) {
-                ret.add(restoreDumpValue(o, path + "[" + i++ + "]"));
+            while (it.hasNext()) {
+                it.set(restoreDumpValue(it.next(), path + "[" + i++ + "]"));
             }
 
-            return ret;
+            return val;
         }
 
         return val;
     }
+
+    /**
+     * Makes the JSON parser build the same container types the store uses (#366). json-simple's
+     * own JSONObject is a HashMap, which loses field order - and since a restored document is now
+     * the parsed map itself rather than a copy, that order would be the store's.
+     */
+    private static final ContainerFactory DUMP_CONTAINERS = new ContainerFactory() {
+        @Override
+        public Map createObjectContainer() {
+            return new LinkedHashMap<String, Object>();
+        }
+
+        @Override
+        public List creatArrayContainer() { // json-simple's own spelling
+            return new ArrayList<>();
+        }
+    };
 
     public void restoreFromFile(File f) throws IOException, ParseException {
         // Pass the reopen alongside the stream: a legacy dump (#306) is only recognisable after a
