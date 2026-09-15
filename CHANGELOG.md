@@ -54,6 +54,19 @@ reads there from its verified oplog; PoppyDB has no oplog and cannot verify a du
 guard reads the same state and now logs the actual reason ("has not completed its first sync")
 instead of claiming the node is re-syncing.
 
+#### Chaos harness: a probe that does not perturb the run, exact accounting, and a diverge scenario that fails when it cannot diverge (#372)
+The once-a-second probe was `countDocuments()`, which mongosh sends as an aggregation, which on
+this driver copies the whole collection (#355). At the heavy profile that allocated on the order of
+300MB per node per second and took a node down with an OutOfMemoryError; other failures in the same
+run were at least partly the harness competing with the thing it measured. The probe is now
+`find().limit(1)` - constant cost, and it distinguishes data, no data and error, which is all the
+assertion needs. Where a count is really wanted, `estimatedDocumentCount()` takes the direct path.
+The burst the dump-guard scenario loads is now counted as acknowledged, `grep -a` keeps a node log
+with a control character from being skipped as "binary", and the diverge scenario injects its
+marker at the command level (where `$fromPrimary` is actually read), persists it with `dumpNow`
+and proves it is in the dump before the restart - without that, "gone afterwards" was true
+whether or not the resync had cleaned anything - and fails when any of that does not happen.
+
 #### A superseded ReplicationManager is refused at the write, not merely asked to stop (#323)
 `stop()` joins the sync thread with a 5s bound while the sync connection reads with a 60s timeout,
 so the join loses routinely and an abandoned thread can resurface with a completed collection read

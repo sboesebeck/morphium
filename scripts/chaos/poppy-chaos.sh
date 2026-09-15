@@ -244,6 +244,11 @@ start_writers() {
 # A reader that talks to ONE node directly and records what it gets. The interesting outcome is
 # not an error - a node that is re-syncing SHOULD answer 13436. The interesting outcome is an
 # empty successful read, which is what #352 is about: a consistent-looking nothing.
+#
+# The probe answers exactly one question - data, no data, or an error - at constant cost. It used
+# to be countDocuments(), which mongosh sends as an aggregation, which on this driver copies the
+# whole collection (#355): at the heavy profile that was ~300MB per node per second and took a
+# node down with an OutOfMemoryError (#372). A probe must not perturb what it measures.
 start_probe_reader() {
     local port="$1"
     (
@@ -251,8 +256,8 @@ start_probe_reader() {
             local out
             out=$(node_eval "$port" "
               try {
-                const n = db.getSiblingDB('$DB').getCollection('${COLLS[0]}').countDocuments({});
-                print('COUNT ' + n);
+                const d = db.getSiblingDB('$DB').getCollection('${COLLS[0]}').find({}).limit(1).toArray();
+                print(d.length > 0 ? 'DATA' : 'EMPTY');
               } catch (e) {
                 print('ERR ' + (e.code || '?') + ' ' + e.codeName);
               }" | tail -1)
@@ -345,12 +350,38 @@ scenario_diverge() {
     done
 
     warn "writing a foreign document straight into node$victim's local driver (port $vport)"
-    node_eval "$vport" "
+    # The write has to carry \$fromPrimary at the COMMAND level - that is where preDispatch looks.
+    # insertOne() puts it inside the document, where it means nothing, and the secondary refuses
+    # the write with NotWritablePrimary; the scenario then "passed" having diverged nothing (#372).
+    local injected
+    injected=$(node_eval "$vport" "
       try {
-        db.getSiblingDB('$DB').getCollection('${COLLS[0]}').insertOne(
-          {_id: 'divergence-marker', \$fromPrimary: true});
-        print('injected');
-      } catch (e) { print('inject failed: ' + (e.codeName||e.message)); }" | tail -1
+        const res = db.getSiblingDB('$DB').runCommand(
+          {insert: '${COLLS[0]}', documents: [{_id: 'divergence-marker'}], \$fromPrimary: true});
+        print(res.ok === 1 && res.n === 1 ? 'injected' : 'inject failed: ' + JSON.stringify(res));
+      } catch (e) { print('inject failed: ' + (e.codeName || e.message)); }" | tail -1)
+
+    if [ "$injected" != "injected" ]; then
+        note_failure "diverge scenario could not inject its marker ($injected) - nothing was diverged, so the resync was never tested"
+        return 1
+    fi
+    ok "marker injected into node$victim"
+
+    # The marker has to SURVIVE the restart, or "gone afterwards" proves nothing: a kill -9 right
+    # after the injection leaves it out of every dump, the restart restores a dump without it, and
+    # the check passes whether or not the resync cleaned anything up. Persist it on purpose, and
+    # prove it is in the file before killing the node.
+    local dump="$WORKDIR/node$victim/dumps/$DB.morphium.gz"
+    local before; before=$(mtime_of "$dump")
+    say "persisting the marker on node$victim (dumpNow) before the restart"
+    node_eval "$vport" "print(JSON.stringify(db.adminCommand({dumpNow: 1})))" | tail -1 | sed 's/^/    /'
+    local deadline=$((SECONDS + 30))
+    while [ $SECONDS -lt $deadline ] && [ "$(mtime_of "$dump")" -le "$before" ]; do sleep 1; done
+    if ! gzip -dc "$dump" 2>/dev/null | grep -aq divergence-marker; then
+        note_failure "the marker did not make it into node$victim's dump within 30s - the restart would restore a state without it and the check would be vacuous"
+        return 1
+    fi
+    ok "marker is in node$victim's dump - the restart will bring it back"
 
     say "restarting node$victim so the consistency check runs against the primary"
     kill -9 "$(pid_of "$victim")" 2>/dev/null
@@ -360,13 +391,15 @@ scenario_diverge() {
 
     local marker
     marker=$(node_eval "$vport" "
-      print(db.getSiblingDB('$DB').getCollection('${COLLS[0]}').countDocuments({_id:'divergence-marker'}))" | tail -1)
+      try {
+        print(db.getSiblingDB('$DB').getCollection('${COLLS[0]}').findOne({_id: 'divergence-marker'}) ? 1 : 0);
+      } catch (e) { print('unavailable ' + (e.codeName || e.message)); }" | tail -1)
 
-    if [ "$marker" = "0" ]; then
-        ok "the foreign document is gone - the resync replaced the local state"
-    else
-        note_failure "the foreign document survived the resync (count=$marker) - silent divergence"
-    fi
+    case "$marker" in
+        0) ok "the foreign document is gone - the resync replaced the local state" ;;
+        1) note_failure "the foreign document survived the resync - silent divergence" ;;
+        *) note_failure "could not check the marker on node$victim after 20s ($marker) - the node is still not serving" ;;
+    esac
 }
 
 scenario_dump_guard() {
@@ -379,12 +412,22 @@ scenario_dump_guard() {
     say "loading a burst so the resync takes longer than a dump interval"
     rs_eval "
       const pad = 'x'.repeat(2000);
+      let inserted = 0;
       for (let b = 0; b < 20; b++) {
         const docs = [];
         for (let k = 0; k < 500; k++) docs.push({_id: 'burst-' + b + '-' + k, pad: pad});
-        db.getSiblingDB('$DB').getCollection('${COLLS[0]}').insertMany(docs, {ordered: false});
+        try {
+          inserted += db.getSiblingDB('$DB').getCollection('${COLLS[0]}').insertMany(docs, {ordered: false}).insertedCount;
+        } catch (e) {
+          // Refused mid-failover: whatever did land is acknowledged, the rest is not.
+          inserted += (e.insertedCount || 0);
+        }
       }
-      print('burst loaded: ' + db.getSiblingDB('$DB').getCollection('${COLLS[0]}').countDocuments({}));" | tail -1 | sed 's/^/    /'
+      // Counted like the writers' acknowledgements, so the summary's 'acknowledged' and 'in
+      // cluster' agree instead of the burst showing up as documents nobody wrote (#372).
+      fs.writeFileSync('$WORKDIR/burst.count', String(inserted));
+      print('burst loaded: ' + inserted + ' acknowledged, '
+            + db.getSiblingDB('$DB').getCollection('${COLLS[0]}').estimatedDocumentCount() + ' now in the collection');" | tail -1 | sed 's/^/    /'
 
     local primary; primary=$(port_of_primary) || { note_failure "no primary"; return 1; }
     local victim=-1
@@ -494,26 +537,28 @@ verify_no_silent_empty() {
 
     for f in "$WORKDIR"/probe-*.log; do
         [ -f "$f" ] || continue
-        # A COUNT 0 after the first non-zero count is the signature: not an error, just empty.
-        local first_nonzero
-        first_nonzero=$(grep -n "COUNT [1-9]" "$f" | head -1 | cut -d: -f1)
-        [ -z "$first_nonzero" ] && continue
-        local zeros
-        zeros=$(tail -n +"$first_nonzero" "$f" | grep -c "COUNT 0")
-        [ "$zeros" -gt 0 ] && { note_failure "$(basename "$f"): $zeros empty-but-successful reads after data existed"; found=1; }
+        # An EMPTY after the first DATA is the signature: not an error, just nothing.
+        local first_data
+        first_data=$(grep -an " DATA$" "$f" | head -1 | cut -d: -f1)
+        [ -z "$first_data" ] && continue
+        local empties
+        empties=$(tail -n +"$first_data" "$f" | grep -ac " EMPTY$")
+        [ "$empties" -gt 0 ] && { note_failure "$(basename "$f"): $empties empty-but-successful reads after data existed"; found=1; }
     done
 
     [ "$found" = "0" ] && ok "no empty successful reads - unusable nodes answered with an error instead"
 
     local rejects
-    rejects=$(cat "$WORKDIR"/probe-*.log 2>/dev/null | grep -c "ERR 13436")
+    rejects=$(cat "$WORKDIR"/probe-*.log 2>/dev/null | grep -ac "ERR 13436")
     say "  (the probe was correctly refused with 13436 $rejects times)"
 }
 
 verify_dump_guard() {
     say "dump check: did any node dump while it was re-syncing?"
     local skipped
-    skipped=$(grep -h "Skipping periodic dump: this node is re-syncing\|Not dumping: this node is re-syncing" \
+    # grep -a: a control character in a logged document payload makes grep call the log "binary"
+    # and print nothing for it, silently skipping that node (#372).
+    skipped=$(grep -ah "Skipping periodic dump: this node is re-syncing\|Not dumping: this node is re-syncing" \
               "$WORKDIR"/node*/poppy.log 2>/dev/null | wc -l | tr -d ' ')
 
     if [ "$skipped" -gt 0 ]; then
@@ -588,10 +633,10 @@ verify_status_honesty() {
 report_errors() {
     say "errors in the node logs"
     local n
-    n=$(grep -hcE "ERROR|OutOfMemory|Exception in thread" "$WORKDIR"/node*/poppy.log 2>/dev/null | paste -sd+ - | bc 2>/dev/null || echo 0)
+    n=$(grep -ahcE "ERROR|OutOfMemory|Exception in thread" "$WORKDIR"/node*/poppy.log 2>/dev/null | paste -sd+ - | bc 2>/dev/null || echo 0)
     if [ "${n:-0}" -gt 0 ]; then
         warn "$n error lines - first few:"
-        grep -hE "ERROR|OutOfMemory|Exception in thread" "$WORKDIR"/node*/poppy.log 2>/dev/null | head -5 | sed 's/^/    /'
+        grep -ahE "ERROR|OutOfMemory|Exception in thread" "$WORKDIR"/node*/poppy.log 2>/dev/null | head -5 | sed 's/^/    /'
     else
         ok "no ERROR lines"
     fi
@@ -601,7 +646,9 @@ report_writes() {
     say "writes: acknowledged versus actually present"
     local acked=0 failed=0
 
-    for f in "$WORKDIR"/writer*.count; do
+    # burst.count is what scenario_dump_guard loaded through rs_eval - acknowledged writes like
+    # any other, just not from a writer process.
+    for f in "$WORKDIR"/writer*.count "$WORKDIR"/burst.count; do
         [ -f "$f" ] || continue
         local a b
         read -r a b < "$f"
@@ -609,10 +656,12 @@ report_writes() {
         failed=$((failed + ${b:-0}))
     done
 
+    # estimatedDocumentCount() is the count command, which PoppyDB answers from the collection
+    # size - exact on this server, and not the collection-copying aggregation (#355, #372).
     local present
     present=$(rs_eval "
       let n = 0;
-      $COLLS_JS.forEach(c => n += db.getSiblingDB('$DB').getCollection(c).countDocuments({}));
+      $COLLS_JS.forEach(c => n += db.getSiblingDB('$DB').getCollection(c).estimatedDocumentCount());
       print(n);" | tail -1)
     present=${present:-0}
 
@@ -638,6 +687,10 @@ command -v mongosh >/dev/null || { echo "mongosh is required" >&2; exit 1; }
 
 say "work directory: $WORKDIR"
 rm -rf "$WORKDIR"; mkdir -p "$WORKDIR"
+
+# Logged so a failure of a client-side assumption (runCommand with a top-level \$fromPrimary,
+# estimatedDocumentCount() mapping to the count command) is attributable to the mongosh in use.
+say "mongosh $(mongosh --version 2>/dev/null | head -1), jar $(basename "$JAR")"
 
 trap 'echo; say "interrupted - cleaning up"; stop_background; $KEEP || stop_cluster; exit 130' INT TERM
 
