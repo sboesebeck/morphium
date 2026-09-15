@@ -263,6 +263,16 @@ PoppyDB now performs a lightweight initial sync whenever you start an additional
 - The first node that starts without detecting peers becomes primary immediately.
 - Any later node that can reach an existing peer demotes itself to secondary, runs an initial sync from the detected primary (or highest-priority reachable host), and only participates in elections after the sync finishes.
 - Elections and automatic failover continue to respect the configured host priorities, but a node will not promote itself until it completed the initial copy of data.
+- Until that first sync has completed - or the node has become primary itself - a member with
+  peers refuses data-plane commands with `NotPrimaryOrSecondary` (13436), advertises
+  `secondary: false` in `hello`, and reports `RECOVERING` in `replSetGetStatus`. This holds from
+  the moment the node starts listening, not only once a sync is under way; a node that restored a
+  dump is not exempt, because it holds data of unknown age that no primary has confirmed yet. The
+  consequence to plan for: a member restarted into a set that currently has no primary (quorum
+  lost) stays unavailable until one exists. MongoDB would serve secondary reads there from its
+  verified oplog; PoppyDB has no oplog and cannot verify a dump, so it prefers an error over a
+  plausible stale answer. A standalone node, or a set configured with a single member, never
+  enters this state.
 
 Practical tips:
 

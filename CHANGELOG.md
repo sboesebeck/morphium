@@ -31,6 +31,29 @@ The `source != replicationManager` branch that discards a superseded manager's c
 unchanged; the replacement's own completion is the release, and a test now pins that. A
 replication start that fails while the node is barred logs a WARN saying so.
 
+#### A node no longer serves empty reads as SECONDARY between startup and its first sync (#371)
+Between accepting connections and the start of its initial sync - about four seconds in a local
+chaos run - a replica-set member reported `SECONDARY` and answered data reads successfully, with
+nothing in them. Both wire guards (13436 in `preDispatch`, RECOVERING in `replSetGetStatus`) key
+on "the replication manager is syncing", and before the manager exists that is false. A caller
+reading through the node in that window got a consistent-looking empty result rather than an
+error - the same shape #352 is about, reached through a different door.
+
+The missing state is "this node has not yet established that its data is authoritative", which is
+true from process start until a sync completes or the node becomes primary - not merely while a
+sync runs. A member with peers (election mode with more than one seed, or a static-mode
+secondary) now starts in that state and leaves it on a completed sync or on becoming primary; the
+existing supplier folds it in, so `hello`, `preDispatch` and `replSetGetStatus` all answer
+consistently without changes of their own. A standalone node or a single-member set never enters
+it. A node restored from a dump is deliberately not exempt: it holds data of unknown age that no
+primary has confirmed, and a plausible stale answer with no signal is exactly what this closes.
+
+The operational consequence, stated so nobody meets it by surprise: a member restarted into a set
+that currently has no primary stays unavailable until one exists. MongoDB would serve secondary
+reads there from its verified oplog; PoppyDB has no oplog and cannot verify a dump. The dump
+guard reads the same state and now logs the actual reason ("has not completed its first sync")
+instead of claiming the node is re-syncing.
+
 #### A superseded ReplicationManager is refused at the write, not merely asked to stop (#323)
 `stop()` joins the sync thread with a 5s bound while the sync connection reads with a 60s timeout,
 so the join loses routinely and an abandoned thread can resurface with a completed collection read

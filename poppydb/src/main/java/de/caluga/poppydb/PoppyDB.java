@@ -126,6 +126,27 @@ public class PoppyDB {
      * store.
      */
     private volatile boolean localDataClearedForSync = false;
+    /**
+     * True from process start until this node has established that its data is authoritative
+     * (#371): a completed sync against a primary, or becoming primary itself. Set only on a node
+     * that will replicate - an election-mode member with peers, or a static-mode secondary - so a
+     * standalone node or a single-member set is never caught, the same exception the candidacy
+     * guard makes for a peer-less node.
+     *
+     * <p>Closes the window between "listening" and "sync started" in which the node reported
+     * SECONDARY and answered reads successfully with nothing in them: both wire guards key on
+     * {@code ReplicationManager.isSyncing()}, and there was no manager yet. A node that restored a
+     * dump is deliberately NOT exempt - it holds data of unknown age that no primary has confirmed,
+     * and a plausible stale answer with no signal is the failure shape this closes. The price is
+     * paid by a member restarted into a set that has no primary: it stays unavailable until one
+     * exists. MongoDB would serve secondary reads there from its verified oplog; PoppyDB has no
+     * oplog and cannot verify a dump, so it refuses.
+     *
+     * <p>Distinct from {@link #localDataComplete}: that one gates candidacy and starts true; this
+     * one gates the data plane and starts true only on a replicating node. A fresh cluster must be
+     * able to elect a leader while every member is in this state.
+     */
+    private volatile boolean awaitingFirstSync = false;
     private ElectionNetworkClient electionNetworkClient = null;
 
     // SSL configuration
@@ -440,6 +461,10 @@ public class PoppyDB {
                     }
                 });
 
+        // #371: from the bind onwards the node answers connections, and nothing has confirmed its
+        // data yet. Decided before the bind so no read can slip in ahead of it.
+        enterAwaitingFirstSyncIfReplicating();
+
         // Bind and start
         ChannelFuture future = bootstrap.bind(host, port).sync();
         serverChannel = future.channel();
@@ -568,13 +593,13 @@ public class PoppyDB {
                             Thread.currentThread().interrupt();
                         }
                     }
-                } else if (dumpWouldCaptureAnIncompleteCopy()) {
+                } else if (dumpRefusalReason() != null) {
                     // The most likely way to hit this: a rolling restart that stops a node while
                     // it is re-syncing (#352/#356). Its store is emptied, and writing that out is
                     // the one moment where an empty dump is guaranteed to outlive the process -
                     // the last good dump is worth more, and the node re-syncs on restart anyway.
-                    log.warn("Skipping the final dump: this node is re-syncing and its local data "
-                             + "is incomplete - the last good dump is worth more than an empty one");
+                    log.warn("Skipping the final dump: {} - the last good dump is worth more than "
+                             + "an empty one", dumpRefusalReason());
                 } else {
                     log.info("Performing final dump before shutdown...");
                     int count = writeDumpFiles();
@@ -992,6 +1017,10 @@ public class PoppyDB {
 
         if (isLeader) {
             // Becoming leader
+            // #371: a primary's data is authoritative by definition - whatever it holds is what
+            // the set replicates. Cleared here, not only in the completion hook, so a fresh
+            // cluster (nobody has synced anything yet) serves as soon as it has a leader.
+            awaitingFirstSync = false;
             primaryHost = host + ":" + port;
 
             // Initialize replication coordinator (only if not already present)
@@ -1722,10 +1751,11 @@ public class PoppyDB {
         dumpScheduler.scheduleAtFixedRate(() -> {
             // Skipped, never queued (#317): if a manual dumpNow (or a still-running earlier
             // tick) holds the guard, this tick does nothing - the next one is due anyway.
-            if (dumpWouldCaptureAnIncompleteCopy()) {
-                log.warn("Skipping periodic dump: this node is re-syncing and its local data is "
-                         + "incomplete - writing it out would replace the last good dump with an "
-                         + "empty one (#352)");
+            String refusal = dumpRefusalReason();
+
+            if (refusal != null) {
+                log.warn("Skipping periodic dump: {} - writing it out would replace the last good "
+                         + "dump with an empty one (#352)", refusal);
                 return;
             }
 
@@ -1907,16 +1937,56 @@ public class PoppyDB {
     }
 
     /**
-     * True when this node is a secondary that is currently (re-)running its initial sync and may
-     * therefore hold a half-cleared local database. Resolved live per command by the command
-     * handler so it can reject data-plane traffic (RECOVERING) while syncing. A primary has no
-     * replication manager, so this is false there.
+     * The startup half of {@link #awaitingFirstSync}: a node that will replicate from someone
+     * starts unavailable. Reads the configuration as it stands at {@code start()}, so
+     * {@code configureReplicaSet} must have run before it (it does in PoppyDBCLI and in every
+     * test); a set configured after {@code start()} is not covered. Package-private so
+     * PreSyncWindowTest can drive the decision without binding a port.
+     */
+    void enterAwaitingFirstSyncIfReplicating() {
+        boolean electionMemberWithPeers = electionEnabled && hosts.size() > 1;
+        boolean staticSecondary = !electionEnabled && !primary
+                && primaryHost != null && !primaryHost.isEmpty();
+        awaitingFirstSync = electionMemberWithPeers || staticSecondary;
+
+        if (awaitingFirstSync) {
+            log.info("Data-plane commands are refused (13436, RECOVERING) until the first sync "
+                    + "completes or this node becomes primary");
+        }
+    }
+
+    /**
+     * True when this node must not serve data-plane traffic because it cannot vouch for its data:
+     * a secondary that is (re-)running its initial sync and may hold a half-cleared store, or a
+     * node that has not yet established that its data is authoritative at all (#371 - from
+     * startup until its first sync completes or it becomes primary). Resolved live per command by
+     * the command handler (13436), by hello ({@code secondary:false}) and by replSetGetStatus
+     * (RECOVERING). A primary never is: its data is the set's data.
      */
     // Package-private rather than private so a test can stand in for "this node is mid-resync"
     // without building a live replica set around it (see DumpDuringResyncTest).
     boolean isSecondarySyncing() {
+        if (primary) {
+            return false;
+        }
+
         ReplicationManager rm = replicationManager;
-        return rm != null && rm.isSyncing();
+
+        if (rm != null) {
+            if (rm.isSyncing()) {
+                return true;
+            }
+
+            if (rm.isInitialSyncComplete()) {
+                // Gate open: the backlog may still be applying, but a lagging secondary is a
+                // secondary. Serving from here is the behaviour clients have always had.
+                return false;
+            }
+            // A manager that exists but has not opened its gate - not started yet, or stopped
+            // before it ever completed - says nothing about the data. Fall through.
+        }
+
+        return awaitingFirstSync;
     }
 
     /**
@@ -1928,18 +1998,26 @@ public class PoppyDB {
      * holding a dump that looks perfectly valid. Same reasoning the shutdown gate in
      * {@link #dumpNow()} already spells out, one window further back.
      */
-    private boolean dumpWouldCaptureAnIncompleteCopy() {
+    // Returns the reason a dump must not be written right now, or null when it may. The reason
+    // is what the four dump sites log, so an operator reads what is actually the case: a node
+    // waiting for its first sync (#371) is not "re-syncing", and the chaos harness counts the
+    // re-syncing refusals by that wording.
+    private String dumpRefusalReason() {
         // Set when a sync emptied the store, cleared when one completes. Checked first because it
         // is the only one of the three that survives the manager being stopped and nulled - which
         // is exactly what happens on the shutdown path.
         if (localDataClearedForSync) {
-            return true;
+            return "this node is re-syncing and its local data is incomplete";
         }
 
         // A resync deliberately empties the store between clearLocalDatabases() and the copy.
-        // Persisting that is the failure mode this guards.
+        // Persisting that is the failure mode this guards. The same supplier also covers the
+        // pre-sync state (#371): nothing authoritative to persist there either, but say so.
         if (isSecondarySyncing()) {
-            return true;
+            ReplicationManager rm = replicationManager;
+            return rm != null && rm.isSyncing()
+                    ? "this node is re-syncing and its local data is incomplete"
+                    : "this node has not completed its first sync";
         }
 
         // A node whose data is not authoritative should not persist it either - but only while
@@ -1949,7 +2027,11 @@ public class PoppyDB {
         // has no manager and will never get that, so refusing there would disable its persistence
         // for the life of the process - every write after a failed restore would exist only in
         // memory and die with it. That is worse than the empty dump this guard prevents.
-        return !localDataComplete && hasReplicationManager();
+        if (!localDataComplete && hasReplicationManager()) {
+            return "this node's local data is not authoritative yet";
+        }
+
+        return null;
     }
 
     // Package-private for the same reason as isSecondarySyncing(): a test has to be able to say
@@ -2067,9 +2149,11 @@ public class PoppyDB {
             return -1;
         }
 
-        if (dumpWouldCaptureAnIncompleteCopy()) {
-            log.warn("Not dumping: this node is re-syncing and its local data is incomplete - "
-                     + "writing it out would replace the last good dump with an empty one (#352)");
+        String refusal = dumpRefusalReason();
+
+        if (refusal != null) {
+            log.warn("Not dumping: {} - writing it out would replace the last good dump with an "
+                     + "empty one (#352)", refusal);
             return -1;
         }
 
@@ -2110,9 +2194,11 @@ public class PoppyDB {
         // Same guard as the in-process dumpNow() and the periodic tick (#352). This is the path
         // the admin command is wired to, so leaving it out meant an operator could do by hand
         // exactly what the scheduler was stopped from doing.
-        if (dumpWouldCaptureAnIncompleteCopy()) {
-            log.warn("dumpNow: this node is re-syncing and its local data is incomplete - writing "
-                     + "it out would replace the last good dump with an empty one (#352)");
+        String refusal = dumpRefusalReason();
+
+        if (refusal != null) {
+            log.warn("dumpNow: {} - writing it out would replace the last good dump with an empty "
+                     + "one (#352)", refusal);
             return false;
         }
 
@@ -2246,6 +2332,9 @@ public class PoppyDB {
             log.debug("Ignoring initial-sync completion from a superseded ReplicationManager");
             return;
         }
+
+        // #371: a completed sync is the confirmation the pre-sync state waits for.
+        awaitingFirstSync = false;
 
         // Cleared unconditionally: the store has been refilled, which is the only way out of
         // this state. A completed sync is the sole event that makes an emptied store whole again.
