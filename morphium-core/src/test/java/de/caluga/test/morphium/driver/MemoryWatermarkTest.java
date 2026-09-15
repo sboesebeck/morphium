@@ -173,6 +173,8 @@ public class MemoryWatermarkTest {
         assertEquals(95, ((Number) wm.get("rejectPercent")).intValue());
         assertTrue(((Number) wm.get("heapUsedPercent")).doubleValue() > 0);
         assertTrue(((Number) wm.get("heapUsedAfterGcPercent")).doubleValue() >= 0,
-            "serverStatus must expose the live-set gauge: " + wm);
+            "serverStatus must expose the after-GC gauge: " + wm);
+        assertTrue(wm.containsKey("heapUsedAfterGcAgeMs"),
+            "serverStatus must say how old the after-GC reading is (#368): " + wm);
     }
 }

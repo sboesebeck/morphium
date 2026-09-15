@@ -92,37 +92,37 @@ Still open in #356: a working `shutdown` command, and `getLog`.
 #### Memory watermarks no longer decide on an incoherent heap reading (#368)
 `heapUsedAfterGcPercent` summed `MemoryPoolMXBean.getCollectionUsage()` across the heap pools. A
 pool's value is refreshed only when a collection touches that pool, and under G1 a young collection
-never touches the old generation - so the sum blended a reading from milliseconds ago with one that
-could be minutes old. It was not so much stale as incoherent: it described no moment in time.
-Measured on a 12GB heap holding 7.2GB of live data, it reported 92.1% or 70.2% for the *identical*
-dataset depending only on whether a full collection had just run, and sat at 71.8% right after a TTL
-sweep had freed nine tenths of the heap. At the default `memory-reject` of 90, the first of those
-refuses writes with `ExceededMemoryLimit` on a heap that is 30% free.
+does not touch the old generation - so the sum blended a reading from milliseconds ago with one that
+could be minutes old and described no moment in time. Measured on a 12GB heap holding 7.2GB of live
+data, it reported 92.1% or 70.2% for the *identical* dataset depending only on whether a full
+collection had just run. At the default `memory-reject` of 90 the first of those refuses writes with
+`ExceededMemoryLimit` on a heap that is 30% free.
 
 The reading now comes from a GC notification's `GcInfo`, which reports every pool as of the end of
-one collection - a number belonging to a single known instant. The estimate is the **lowest
-occupancy observed in the last 60 seconds**, not the reading from the last "major" collection: G1
-reports its concurrent-cycle end as "end of major GC" before much of anything is freed, while the
-mixed collections that actually reclaim old-generation garbage report as "end of minor GC", so
-preferring "major" picks the reading that has *not* seen the garbage. The live set is a floor every
-collection approaches from above, and the lowest recent reading is the closest thing to it available
-without forcing a full GC. Readings age out, so a low one from a quiet period cannot pin the number
-down while the heap fills up. `serverStatus.memoryWatermark` gained `heapUsedAfterGcAgeMs` and
-`heapReadingIsFresh`, because a number that may be 20 points off is useless without them.
+one collection - a number that belongs to a single, known instant - and only the **most recent**
+collection's reading is kept. Every such reading is an upper bound on the live set (a collection
+leaves behind the live data plus whatever garbage it did not look at, never less), and the newest
+one is the tightest bound available without a marking cycle. A document-creating write is refused
+only when this reading **and** the raw `used/max` gauge are both over the watermark; below the raw
+gauge the reading is not consulted at all, so the hot write path costs three native calls and two
+volatile reads. `serverStatus.memoryWatermark` gained `heapUsedAfterGcAgeMs`, the age of the reading
+the decision is based on.
 
-And the reject stage no longer refuses a write on a stale reading: if the estimate is older than 10
-seconds it asks for a collection (at most every 30s) and looks again. The trigger is the **most
-recent** reading rather than the estimate, because the estimate is a minimum and a *growing* live
-set keeps it at the old low value for as long as the window lasts - which is exactly the period the
-watermark exists to catch. Deciding the trigger on it would mean no rejection and no collection
-while the heap fills, trading an error in the safe direction for one that ends in an OOM. It waits, briefly, for that
-collection's notification to arrive - the notification is delivered asynchronously, so re-reading
-immediately would see the old number and refuse anyway, with the collection's benefit arriving
-milliseconds too late. A heap that is genuinely full is still refused, without the extra collection.
-
-On a JVM without `com.sun.management` GC notifications, everything falls back to the raw gauge as
-before, with one warning.
-
+Two seemingly better readings were tried and rejected. Preferring the last "major" collection picks
+the reading that has *not* seen the garbage: under G1 the mixed collections that reclaim
+old-generation garbage report as minor. Taking the lowest reading in a window is not a bound on
+anything now: while the live set grows every later reading is higher and the minimum keeps reporting
+the old low value for the whole window, so a heap can run from below the watermark into an
+OutOfMemoryError without the minimum moving - the one failure the watermark exists to prevent. The
+watermark therefore errs toward refusing: a refusal can be wrong when the last collection left
+old-generation garbage behind (after a TTL sweep or bulk delete), and that is recoverable - the
+client gets a retryable error and the collector's next cycle, which G1 starts at the next young
+pause once occupancy is this high, corrects the reading. It does not ask the JVM for a full
+collection to settle the question: seconds of stop-the-world on every thread, issued from the write
+path at peak pressure, is a worse outcome than a retryable error, and in a replica set it can be
+read as a node failure. Deployments that want the reading corrected faster can let the JVM do it on
+its own schedule (`-XX:G1PeriodicGCInterval`) or bound old-generation garbage with a lower
+`-XX:InitiatingHeapOccupancyPercent`.
 #### The restore reads a dump incrementally, so its size no longer has a ceiling (#366)
 `restoreInternal` used to call `readAllBytes()` and decode the result into a single `String` before
 parsing. That put two hard limits on a database: a `byte[]` tops out near 2GB, and a `String` at

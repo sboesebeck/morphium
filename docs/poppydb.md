@@ -534,15 +534,23 @@ a replica set stop accepting new data at the same watermark instead of failing t
 
 Clients receive the rejection as a write error and should treat it as retryable
 backpressure. The current state is visible in `db.serverStatus().memoryWatermark`
-(`heapUsedPercent`, `heapUsedAfterGcPercent`, thresholds, warn state).
+(`heapUsedPercent`, `heapUsedAfterGcPercent`, `heapUsedAfterGcAgeMs`, thresholds, warn state).
 
-Both stages decide on the **post-GC live set** (`heapUsedAfterGcPercent`, from the JVM's
-per-pool collection usage), not on raw heap occupancy: with `-Xms` == `-Xmx` the JVM only
-collects when the heap is nearly full, so the raw `used/max` gauge routinely reads above
-90% under allocation-heavy load even when the next GC would free most of it. Deciding on
-the raw gauge would reject writes on a heap that is one GC away from half empty. The raw
-gauge remains as a cheap precheck (the live set can never exceed it) and is what
-`heapUsedPercent` reports in `serverStatus`.
+Both stages look at two numbers and refuse only when **both** are over the line: raw heap
+occupancy (`heapUsedPercent`), and the occupancy at the end of the most recent garbage
+collection (`heapUsedAfterGcPercent`, from that collection's own `GcInfo`). Each is an
+upper bound on the live data - the raw gauge counts every byte of collectable garbage,
+and with `-Xms` == `-Xmx` routinely reads above 90% under allocation-heavy load; the
+after-GC reading counts only the garbage the last collection did not look at. Neither can
+be below the live set, so the watermark errs toward refusing, never toward an OOM. The
+residual cost is that after a TTL sweep or bulk delete inserts can be refused until the
+collector has run a cycle over the freed data - seconds under write load.
+`heapUsedAfterGcAgeMs` in `serverStatus` says how old the reading is. PoppyDB deliberately
+does not force a full collection to shorten that: on a large heap that is seconds of
+stop-the-world on every thread, including the ones the replica set uses to decide whether
+this node is alive. If the delay matters, `-XX:G1PeriodicGCInterval` lets the JVM run a
+concurrent cycle on a schedule, and a lower `-XX:InitiatingHeapOccupancyPercent` bounds
+how much garbage the old generation can hold before G1 marks it.
 
 ```bash
 # defaults: warn at 75%, reject at 90%
