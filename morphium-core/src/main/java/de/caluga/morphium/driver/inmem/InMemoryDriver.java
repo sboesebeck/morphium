@@ -2548,27 +2548,67 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * short-lived: a heap that is actually near full triggers a GC on its own.
      */
     public double heapUsedAfterGcPercent() {
-        long used = 0;
-        boolean haveData = false;
+        HeapAfterGc.install();
+        HeapAfterGc.Reading r = HeapAfterGc.lastMajor();
 
-        for (java.lang.management.MemoryPoolMXBean pool : java.lang.management.ManagementFactory.getMemoryPoolMXBeans()) {
-            if (pool.getType() != java.lang.management.MemoryType.HEAP) {
-                continue;
-            }
-
-            java.lang.management.MemoryUsage afterGc = pool.getCollectionUsage();
-
-            if (afterGc != null) {
-                used += afterGc.getUsed();
-                haveData = haveData || afterGc.getUsed() > 0;
-            }
+        if (r == null) {
+            r = HeapAfterGc.lastAny();
         }
 
-        if (!haveData) {
+        if (r == null) {
             return heapUsedPercent();
         }
 
-        return 100.0 * used / Runtime.getRuntime().maxMemory();
+        return 100.0 * r.usedBytes / Runtime.getRuntime().maxMemory();
+    }
+
+    /**
+     * How old the reading behind {@link #heapUsedAfterGcPercent()} is, in milliseconds, or -1 when
+     * it is the raw gauge because no collection has been observed yet (#368). Exposed through
+     * {@code serverStatus.memoryWatermark} so an operator can tell a fresh number from one taken
+     * before whatever they are currently looking at.
+     */
+    public long heapUsedAfterGcAgeMs() {
+        HeapAfterGc.install();
+        HeapAfterGc.Reading r = HeapAfterGc.lastMajor();
+
+        if (r == null) {
+            r = HeapAfterGc.lastAny();
+        }
+
+        return r == null ? -1 : r.ageMs(System.currentTimeMillis());
+    }
+
+    /** Whether the current reading comes from a collection that reclaimed the old generation. */
+    public boolean heapReadingSeesOldGeneration() {
+        HeapAfterGc.install();
+        return HeapAfterGc.lastMajor() != null
+            && HeapAfterGc.lastMajor().ageMs(System.currentTimeMillis()) <= FRESH_HEAP_READING_MS;
+    }
+
+    /** How recent a major-collection reading has to be to decide a rejection on it. */
+    private static final long FRESH_HEAP_READING_MS = 10_000;
+    private final AtomicLong lastGcRequestMs = new AtomicLong(0);
+    /** Never ask for more than one collection per this interval - a full GC is not cheap. */
+    private static final long GC_REQUEST_INTERVAL_MS = 30_000;
+
+    /**
+     * Asks the JVM for a collection that reclaims the old generation, at most once per
+     * {@link #GC_REQUEST_INTERVAL_MS}. Overridable so a test can observe the request without
+     * paying for a real full GC.
+     *
+     * @return true if a collection was actually requested
+     */
+    protected boolean requestFullGc() {
+        long now = System.currentTimeMillis();
+        long last = lastGcRequestMs.get();
+
+        if (now - last < GC_REQUEST_INTERVAL_MS || !lastGcRequestMs.compareAndSet(last, now)) {
+            return false;
+        }
+
+        System.gc();
+        return true;
     }
 
     /**
@@ -2643,6 +2683,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         if (used >= memoryRejectPercent && memoryRejectPercent < 100) {
             if (live < 0) {
+                live = heapUsedAfterGcPercent();
+            }
+
+            // Refusing writes is the most disruptive thing this driver does, so it must not be
+            // decided on a number that cannot see the garbage (#368). After a young-only collection
+            // the reading still counts every dead object in the old generation - on a 12GB heap that
+            // was the difference between a reported 92% and an actual 70%. If no collection has
+            // reclaimed the old generation recently, ask for one and look again; only a reading that
+            // has seen the whole heap may turn a write away.
+            if (live >= memoryRejectPercent && !heapReadingSeesOldGeneration() && requestFullGc()) {
                 live = heapUsedAfterGcPercent();
             }
 
@@ -3685,10 +3735,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                     "totalCreated", totalCreated));
         m.put("mem", Doc.of("bits", 64, "resident", (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024),
                             "virtual", rt.totalMemory() / (1024 * 1024), "supported", true));
-        m.put("memoryWatermark", Doc.of("heapUsedPercent", Math.round(heapUsedPercent() * 10) / 10.0,
-                                        "heapUsedAfterGcPercent", Math.round(heapUsedAfterGcPercent() * 10) / 10.0,
-                                        "warnPercent", memoryWarnPercent, "rejectPercent", memoryRejectPercent,
-                                        "warnActive", memoryWarnActive.get()));
+        Doc watermark = Doc.of("heapUsedPercent", Math.round(heapUsedPercent() * 10) / 10.0,
+                               "heapUsedAfterGcPercent", Math.round(heapUsedAfterGcPercent() * 10) / 10.0,
+                               "warnPercent", memoryWarnPercent, "rejectPercent", memoryRejectPercent,
+                               "warnActive", memoryWarnActive.get());
+        // #368: the reading's age and whether it saw the old generation - without those two, a
+        // number that is 20 points off is indistinguishable from one that is right.
+        watermark.put("heapUsedAfterGcAgeMs", heapUsedAfterGcAgeMs());
+        watermark.put("heapReadingSeesOldGeneration", heapReadingSeesOldGeneration());
+        m.put("memoryWatermark", watermark);
         // Replay-buffer state. Primary operational metric is the retained resume window in
         // seconds - the analogue of mongod's oplog "log length start to end"
         // (rs.printReplicationInfo()): how much consumer/secondary downtime is still resumable

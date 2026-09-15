@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### Memory watermarks no longer decide on an incoherent heap reading (#368)
+`heapUsedAfterGcPercent` summed `MemoryPoolMXBean.getCollectionUsage()` across the heap pools. A
+pool's value is refreshed only when a collection touches that pool, and under G1 a young collection
+never touches the old generation - so the sum blended a reading from milliseconds ago with one that
+could be minutes old. It was not so much stale as incoherent: it described no moment in time.
+Measured on a 12GB heap holding 7.2GB of live data, it reported 92.1% or 70.2% for the *identical*
+dataset depending only on whether a full collection had just run, and sat at 71.8% right after a TTL
+sweep had freed nine tenths of the heap. At the default `memory-reject` of 90, the first of those
+refuses writes with `ExceededMemoryLimit` on a heap that is 30% free.
+
+The reading now comes from a GC notification's `GcInfo`, which reports every pool as of the end of
+one collection - a number that belongs to a single known instant. Two are kept: the last collection
+of any kind, and the last one that reclaimed the old generation, since only the latter has seen the
+garbage. `serverStatus.memoryWatermark` gained `heapUsedAfterGcAgeMs` and
+`heapReadingSeesOldGeneration`, because a number that may be 20 points off is useless without them.
+
+And the reject stage no longer refuses a write on a reading that cannot see the garbage: if no
+collection has reclaimed the old generation in the last 10 seconds, it asks for one (at most every
+30s) and looks again. A heap that is genuinely full is still refused, without the extra collection.
+
+On a JVM without `com.sun.management` GC notifications, everything falls back to the raw gauge as
+before, with one warning.
+
 #### The restore reads a dump incrementally, so its size no longer has a ceiling (#366)
 `restoreInternal` used to call `readAllBytes()` and decode the result into a single `String` before
 parsing. That put two hard limits on a database: a `byte[]` tops out near 2GB, and a `String` at
