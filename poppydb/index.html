@@ -4176,14 +4176,22 @@ secondary refusing to apply what the primary accepted would silently diverge. Al
 a replica set stop accepting new data at the same watermark instead of failing together.</p>
 <p>Clients receive the rejection as a write error and should treat it as retryable
 backpressure. The current state is visible in <code>db.serverStatus().memoryWatermark</code>
-(<code>heapUsedPercent</code>, <code>heapUsedAfterGcPercent</code>, thresholds, warn state).</p>
-<p>Both stages decide on the <strong>post-GC live set</strong> (<code>heapUsedAfterGcPercent</code>, from the JVM's
-per-pool collection usage), not on raw heap occupancy: with <code>-Xms</code> == <code>-Xmx</code> the JVM only
-collects when the heap is nearly full, so the raw <code>used/max</code> gauge routinely reads above
-90% under allocation-heavy load even when the next GC would free most of it. Deciding on
-the raw gauge would reject writes on a heap that is one GC away from half empty. The raw
-gauge remains as a cheap precheck (the live set can never exceed it) and is what
-<code>heapUsedPercent</code> reports in <code>serverStatus</code>.</p>
+(<code>heapUsedPercent</code>, <code>heapUsedAfterGcPercent</code>, <code>heapUsedAfterGcAgeMs</code>, thresholds, warn state).</p>
+<p>Both stages look at two numbers and refuse only when <strong>both</strong> are over the line: raw heap
+occupancy (<code>heapUsedPercent</code>), and the occupancy at the end of the most recent garbage
+collection (<code>heapUsedAfterGcPercent</code>, from that collection's own <code>GcInfo</code>). Each is an
+upper bound on the live data - the raw gauge counts every byte of collectable garbage,
+and with <code>-Xms</code> == <code>-Xmx</code> routinely reads above 90% under allocation-heavy load; the
+after-GC reading counts only the garbage the last collection did not look at. Neither can
+be below the live set, so the watermark errs toward refusing, never toward an OOM. The
+residual cost is that after a TTL sweep or bulk delete inserts can be refused until the
+collector has run a cycle over the freed data - seconds under write load.
+<code>heapUsedAfterGcAgeMs</code> in <code>serverStatus</code> says how old the reading is. PoppyDB deliberately
+does not force a full collection to shorten that: on a large heap that is seconds of
+stop-the-world on every thread, including the ones the replica set uses to decide whether
+this node is alive. If the delay matters, <code>-XX:G1PeriodicGCInterval</code> lets the JVM run a
+concurrent cycle on a schedule, and a lower <code>-XX:InitiatingHeapOccupancyPercent</code> bounds
+how much garbage the old generation can hold before G1 marks it.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># defaults: warn at 75%, reject at 90%</span>
 </span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>java<span class="w"> </span>-jar<span class="w"> </span>poppydb-cli.jar<span class="w"> </span>--port<span class="w"> </span><span class="m">27017</span>
 </span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
