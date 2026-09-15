@@ -155,22 +155,22 @@ public class SupersededApplierTest {
     }
 
     @Test
-    public void thePreSyncAdminDropsAreCoveredToo() throws Exception {
+    public void thePreSyncClearIsRefusedBeforeItTouchesAnything() throws Exception {
         drv = new InMemoryDriver();
         drv.connect();
         new InsertMongoCommand(drv).setDb("admin").setColl("system.users")
                 .setDocuments(List.of(Doc.of("_id", "root"))).execute();
 
-        // The case the review named: a node whose listDatabases() yields only admin/local/config
-        // makes NO guarded call in clearLocalDatabases()'s loop, so the two admin drops below it
-        // are the first thing that touches data. A fresh driver carries an empty `test`, and
-        // leaving it there is how the first version of this test fooled itself - the loop threw on
-        // `test` and the test called that a pass, while the drops were never reached at all.
+        // The case the second review named: a node whose listDatabases() yields only
+        // admin/local/config makes NO guarded call in clearLocalDatabases()'s loop, so the two
+        // admin drops below it were the first thing that touched data. A fresh driver carries an
+        // empty `test`, and leaving it there is how the first version of this test fooled itself -
+        // the loop threw on `test` and the test called that a pass, while the drops were never
+        // reached at all.
         drv.drop("test", null);
         assertTrue(drv.listDatabases().stream().noneMatch(d ->
                         !"admin".equals(d) && !"local".equals(d) && !"config".equals(d)),
-                "precondition: no user database may remain, or the loop throws before the drops: "
-                + drv.listDatabases());
+                "precondition: no user database may remain: " + drv.listDatabases());
 
         ReplicationManager superseded = managerFor(drv);
         superseded.setStillCurrentApplier(() -> false);
@@ -178,12 +178,16 @@ public class SupersededApplierTest {
         Throwable t = invokeAndCatch(superseded, "clearLocalDatabases", new Class<?>[] {}, new Object[] {});
 
         assertTrue(t instanceof MorphiumDriverException,
-                "the pre-sync drops must be refused, got: " + t);
-        assertTrue(t.getMessage().contains("admin.system.users"),
-                "the refusal must come from the admin drop itself, not from the loop above it: "
-                + t.getMessage());
+                "the clear must be refused, got: " + t);
         assertEquals(1, drv.find("admin", "system.users", Doc.of(), null, null, 0, 0).size(),
                 "the successor's user collection must survive - losing it locks the cluster out");
+
+        // The refusal now comes from the check at the top of clearLocalDatabases (fourth review,
+        // H1: without it a superseded manager marked the node's store as emptied although it drops
+        // nothing). The per-drop checks below it stay as defence in depth, for a manager that is
+        // superseded partway through a clear it was entitled to start.
+        assertTrue(t.getMessage().contains("pre-sync"),
+                "the refusal must name a pre-sync operation: " + t.getMessage());
     }
 
     /**
@@ -210,6 +214,48 @@ public class SupersededApplierTest {
         assertTrue(t instanceof MorphiumDriverException,
                 "the index sync must be refused, got: " + t);
         assertTrue(t.getMessage().contains("index sync"), t.getMessage());
+    }
+
+    /**
+     * H1 from the fourth review, and a bug I introduced while fixing a different one. Moving the
+     * cleared-store notice to the start of {@code clearLocalDatabases()} was right for an IO
+     * failure mid-loop - part of the store really is gone by then - and wrong for a superseded
+     * manager, which throws at the first guarded call having dropped nothing. Since only a
+     * completed sync lifts the mark, that locked a node holding perfectly good data out of both
+     * dumping and candidacy for the life of the process. My own comment named "a superseded
+     * manager" as the reason to move it forward.
+     */
+    @Test
+    public void aSupersededManagerMustNotMarkTheStoreAsCleared() throws Exception {
+        drv = new InMemoryDriver();
+        drv.connect();
+
+        ReplicationManager superseded = managerFor(drv);
+        superseded.setStillCurrentApplier(() -> false);
+        java.util.concurrent.atomic.AtomicInteger marked = new java.util.concurrent.atomic.AtomicInteger();
+        superseded.setOnLocalDataCleared(marked::incrementAndGet);
+
+        Throwable t = invokeAndCatch(superseded, "clearLocalDatabases", new Class<?>[] {}, new Object[] {});
+
+        assertTrue(t instanceof MorphiumDriverException, "the clear must be refused, got: " + t);
+        assertEquals(0, marked.get(),
+                "a manager that drops nothing must not tell the node its store was emptied");
+    }
+
+    @Test
+    public void aCurrentManagerDoesMarkTheStoreAsCleared() throws Exception {
+        drv = new InMemoryDriver();
+        drv.connect();
+
+        ReplicationManager current = managerFor(drv);
+        current.setStillCurrentApplier(() -> true);
+        java.util.concurrent.atomic.AtomicInteger marked = new java.util.concurrent.atomic.AtomicInteger();
+        current.setOnLocalDataCleared(marked::incrementAndGet);
+
+        invokeAndCatch(current, "clearLocalDatabases", new Class<?>[] {}, new Object[] {});
+
+        assertEquals(1, marked.get(),
+                "negative control: the notice must still fire for the manager actually doing the work");
     }
 
     @Test

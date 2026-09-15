@@ -117,7 +117,12 @@ OutOfMemoryError without the minimum moving - the one failure the watermark exis
 watermark therefore errs toward refusing: a refusal can be wrong when the last collection left
 old-generation garbage behind (after a TTL sweep or bulk delete), and that is recoverable - the
 client gets a retryable error and the collector's next cycle, which G1 starts at the next young
-pause once occupancy is this high, corrects the reading. It does not ask the JVM for a full
+pause once occupancy is this high, corrects the reading. On an idle node that wait can be long,
+since the pauses that correct the reading are driven by the allocation the refusals suppress;
+`-XX:G1PeriodicGCInterval` bounds it. Nor is any of this a guarantee against an OutOfMemoryError:
+a burst of genuinely retained data allocated between the last collection and the check appears in
+neither number, and no pre-check can see it - the write that overflows the heap has already been
+parsed. That gap is bounded by eden, which G1 shrinks as free space vanishes. It does not ask the JVM for a full
 collection to settle the question: seconds of stop-the-world on every thread, issued from the write
 path at peak pressure, is a worse outcome than a retryable error, and in a replica set it can be
 read as a node failure. Deployments that want the reading corrected faster can let the JVM do it on

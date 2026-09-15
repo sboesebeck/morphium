@@ -2218,10 +2218,15 @@ public class ReplicationManager {
 
     private void clearLocalDatabases() throws Exception {
         clearLocalDatabasesInvocations.incrementAndGet();
-        // Announced BEFORE the first drop, not after the last (#352). A clear that throws part way
-        // through - a superseded manager, an IO failure - has still emptied some of the store, and
-        // the flag being set when nothing was dropped costs one skipped dump, while the flag being
-        // unset after a partial drop costs the last good dump. The asymmetry decides the placement.
+        // Ownership first, THEN announce (#352/#323). The order matters in both directions and an
+        // earlier version got it wrong in each: announcing after the last drop meant a clear that
+        // failed half way through left the node believing its store was whole, while announcing
+        // before this check meant a SUPERSEDED manager marked the node even though every drop
+        // below is refused and nothing is emptied - and since only a completed sync clears the
+        // mark, that locked a node holding perfectly good data out of dumping and out of
+        // candidacy for the life of the process. Between the check and the last drop, the mark is
+        // pessimistic on purpose: an IO failure mid-loop has emptied part of the store.
+        assertStillCurrentApplier("pre-sync clear of the local databases");
         onLocalDataCleared.run();
         for (String dbName : localDriver.listDatabases()) {
             // admin/local/config are never dropped wholesale: they hold node-local state beyond

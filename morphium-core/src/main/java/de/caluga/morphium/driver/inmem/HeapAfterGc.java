@@ -129,6 +129,10 @@ final class HeapAfterGc {
                 return;
             }
 
+            if (ignoreRealNotifications) {
+                return;
+            }
+
             try {
                 var info = com.sun.management.GarbageCollectionNotificationInfo
                            .from((javax.management.openmbean.CompositeData) notification.getUserData());
@@ -168,6 +172,22 @@ final class HeapAfterGc {
      */
     static Reading latest() {
         return latest;
+    }
+
+    /**
+     * Test seam: while set, real GC notifications are dropped (#368).
+     *
+     * <p>Without it a seeded reading is a race. The listener stays registered for the life of the
+     * JVM, the reading is a single field, and a surefire JVM allocates constantly - so a young
+     * collection landing between a test's seed and its assertion overwrites the very value the
+     * test is about, turning a real failure into a pass or a pass into a flake. The earlier
+     * window-based design was accidentally immune to this because seeded values survived in the
+     * window; a single latest-reading field is not.
+     */
+    private static volatile boolean ignoreRealNotifications;
+
+    static void ignoreRealNotificationsForTest(boolean ignore) {
+        ignoreRealNotifications = ignore;
     }
 
     /** Test seam: feed a reading without provoking a real collection. */

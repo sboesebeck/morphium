@@ -5666,6 +5666,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
             initialized.set(true);
             running = true;
+            // Installed here, not lazily on the first guarded write (#368). A node restoring a
+            // dump runs dozens of collections before any client write arrives, and that path does
+            // not go through the memory guard - so a lazy install would miss every one of them and
+            // leave the first client write deciding on the raw gauge alone, which with -Xms==-Xmx
+            // and the parse garbage still uncollected reads near the reject line.
+            HeapAfterGc.install();
             serverStartedAt = System.currentTimeMillis();
         }
 

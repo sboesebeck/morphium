@@ -1183,7 +1183,7 @@ public class PoppyDB {
         // actually decides it. A manager superseded by a later leader change is then refused at
         // the point of writing, not merely asked to stop.
         newReplicationManager.setStillCurrentApplier(() -> replicationManager == newReplicationManager);
-        newReplicationManager.setOnLocalDataCleared(this::onLocalDataClearedForSync);
+        newReplicationManager.setOnLocalDataCleared(() -> onLocalDataClearedForSync(newReplicationManager));
         // Assigned BEFORE start() (#306 review round 2): the sync-complete notification is
         // one-shot (maybeFireSyncCompleteNotify CASes the flag), and on a fast sync (e.g. the
         // consistency shortcut against loopback) the batch tick can fire it before a
@@ -1863,7 +1863,7 @@ public class PoppyDB {
             // #323 part 3, same binding as the election path: a manager that has been replaced is
             // refused at the point of writing, not merely asked to stop.
             staticModeManager.setStillCurrentApplier(() -> replicationManager == staticModeManager);
-            staticModeManager.setOnLocalDataCleared(this::onLocalDataClearedForSync);
+            staticModeManager.setOnLocalDataCleared(() -> onLocalDataClearedForSync(staticModeManager));
             replicationManager.start();
 
             // Wait for initial sync (up to 30 seconds)
@@ -2258,7 +2258,17 @@ public class PoppyDB {
      * <p>Both are released by the same event, a completed sync, in
      * {@link #releaseDataCompleteAfterSync}.
      */
-    private void onLocalDataClearedForSync() {
+    private void onLocalDataClearedForSync(ReplicationManager source) {
+        // Instance-bound, the same way releaseDataCompleteAfterSync is: a manager that has been
+        // replaced must not be able to mark this node. Its own clear is refused anyway, but the
+        // consequences here outlive the manager - only a completed sync lifts them - so a stale
+        // caller getting through would bar a node with intact data from dumping and from elections
+        // for the rest of the process.
+        if (source != replicationManager) {
+            log.debug("Ignoring cleared-store notice from a superseded ReplicationManager");
+            return;
+        }
+
         localDataClearedForSync = true;
         setLocalDataComplete(false);
     }

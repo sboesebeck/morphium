@@ -39,6 +39,7 @@ public class HeapReadingFreshnessTest {
     @AfterEach
     public void tearDown() {
         HeapAfterGc.resetForTest();
+        HeapAfterGc.ignoreRealNotificationsForTest(false);
 
         if (drv != null) {
             drv.close();
@@ -49,8 +50,17 @@ public class HeapReadingFreshnessTest {
         return (long) (Runtime.getRuntime().maxMemory() * percent / 100.0);
     }
 
-    /** A driver whose raw gauge is pinned; the after-GC reading is whatever HeapAfterGc holds. */
+    /**
+     * A driver whose raw gauge is pinned; the after-GC reading is whatever HeapAfterGc holds.
+     *
+     * <p>Real GC notifications are suspended for the duration. The listener stays registered for
+     * the life of the JVM and the reading is a single field, so without this a young collection
+     * landing between a test's seed and its assertion overwrites the value the test is about -
+     * silently turning a genuine failure into a pass. Every seeded test in this class depends on
+     * that suspension; the one test that wants the real listener turns it back on explicitly.
+     */
     private InMemoryDriver driverWithRawGauge(double rawPercent) throws MorphiumDriverException {
+        HeapAfterGc.ignoreRealNotificationsForTest(true);
         HeapAfterGc.resetForTest();
         InMemoryDriver d = new InMemoryDriver() {
             @Override
@@ -166,12 +176,14 @@ public class HeapReadingFreshnessTest {
      */
     @Test
     public void aRealCollectionPopulatesTheReadingThroughJmx() throws Exception {
+        // This is the one test that wants the real listener, so it must undo the suspension the
+        // seeded tests rely on - they run in the same JVM and the flag is static.
+        HeapAfterGc.ignoreRealNotificationsForTest(false);
         HeapAfterGc.resetForTest();
         drv = new InMemoryDriver();
+        // connect() installs the listener, so the collections of a startup restore are seen too
+        // (#368, fourth review M2) - not only those after the first guarded write.
         drv.connect();
-
-        // the listener installs on the first write through the guard, not before
-        insertOne(drv, "jmx");
         assertTrue(awaitReading(System.currentTimeMillis() - 1, 10_000),
                    "a System.gc() must produce a reading through the GC notification listener - "
                    + "without it every watermark decision falls back to the raw gauge");

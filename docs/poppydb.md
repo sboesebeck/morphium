@@ -542,9 +542,17 @@ collection (`heapUsedAfterGcPercent`, from that collection's own `GcInfo`). Each
 upper bound on the live data - the raw gauge counts every byte of collectable garbage,
 and with `-Xms` == `-Xmx` routinely reads above 90% under allocation-heavy load; the
 after-GC reading counts only the garbage the last collection did not look at. Neither can
-be below the live set, so the watermark errs toward refusing, never toward an OOM. The
-residual cost is that after a TTL sweep or bulk delete inserts can be refused until the
-collector has run a cycle over the freed data - seconds under write load.
+be below the live set at the instant it was taken, so the watermark errs toward refusing.
+It is not a guarantee against an OOM: a burst of genuinely retained data allocated between
+the last young pause and the check is not in either number, and no pre-check can see it -
+the write that overflows the heap has already been parsed. That gap is bounded by the size
+of eden, which G1 shrinks as free space vanishes.
+
+The residual cost in the other direction is that after a TTL sweep or bulk delete, inserts
+can be refused until the collector has run a cycle over the freed data. Under write load
+that is a marking cycle plus a few young pauses; on an idle node it can be considerably
+longer, because the pauses that would correct the reading are driven by the allocation the
+refusals are suppressing. `-XX:G1PeriodicGCInterval` bounds that wait.
 `heapUsedAfterGcAgeMs` in `serverStatus` says how old the reading is. PoppyDB deliberately
 does not force a full collection to shorten that: on a large heap that is seconds of
 stop-the-world on every thread, including the ones the replica set uses to decide whether
