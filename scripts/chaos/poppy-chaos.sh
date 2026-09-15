@@ -214,6 +214,14 @@ stop_cluster() {
 #
 # Writers go through the replica-set URI so failover is exercised on the client path too. Each
 # writer records what it believes it wrote; the count is compared against the cluster afterwards.
+#
+# w:majority, not the default w:1. The assertion at the end is "every acknowledged write is
+# present"; with w:1 the primary acknowledges BEFORE replicating, so a hard SIGKILL of the
+# primary legitimately loses an acknowledged-but-unreplicated write - the documented w:1
+# trade-off, which real MongoDB shares, not a PoppyDB bug. That made the check report a phantom
+# "lost write" on every hard-kill run. With w:majority an acknowledgement means the write reached
+# a majority and survives one node's death, so a missing acked write is then a genuine failure
+# worth flagging (#372).
 # ---------------------------------------------------------------------------------------------
 
 start_writers() {
@@ -234,12 +242,19 @@ start_writers() {
                   docs.push({_id: 'w$w-' + i + '-' + k, w: $w, pad: pad, at: new Date()});
                 }
                 try {
-                  const res = db.getSiblingDB('$DB').getCollection(coll).insertMany(docs, {ordered: false});
-                  // Only what the cluster ACKNOWLEDGED counts. An acknowledged write that cannot be
-                  // found afterwards is a lost write, and that is the assertion worth making.
-                  acked += (res.insertedCount !== undefined ? res.insertedCount : docs.length);
+                  const res = db.getSiblingDB('$DB').getCollection(coll).insertMany(
+                    docs, {ordered: false, writeConcern: {w: 'majority', wtimeout: 5000}});
+                  // Only what the cluster ACKNOWLEDGED counts. mongosh's insertMany result carries
+                  // insertedIds, NOT insertedCount, so the old `?? docs.length` counted a whole
+                  // batch as acked even when a failover retry made one document collide and land
+                  // 49 of 50 - a phantom 'lost write' in the summary that is really a miscount.
+                  acked += (res.insertedCount !== undefined ? res.insertedCount
+                                                            : Object.keys(res.insertedIds || {}).length);
                 } catch (e) {
-                  failed += docs.length;
+                  // ordered:false partial: whatever landed is acknowledged, the rest failed.
+                  const ok = (e.result && e.result.insertedCount) || e.insertedCount || 0;
+                  acked += ok;
+                  failed += (docs.length - ok);
                 }
                 i++;
                 // Written every iteration, because the writer is killed rather than allowed to
@@ -547,10 +562,51 @@ scenario_rolling_restart() {
 # Verification
 # ---------------------------------------------------------------------------------------------
 
+# All three nodes' per-collection dbHash as one line, or empty if any node cannot answer yet.
+# dbHash is control-plane (it exists to compare RS members), so a syncing node answers it - but
+# its store is mid-rebuild, so the hashes only converge once every node has finished. That makes
+# hash equality the honest "has the cluster settled?" signal, in place of a fixed sleep.
+cluster_hashes() {
+    local out=""
+    for p in "${PORTS[@]}"; do
+        local h
+        h=$(node_eval "$p" "
+          const r = db.getSiblingDB('$DB').runCommand({dbHash: 1});
+          if (!r.ok) { print('ERR'); } else {
+            const c = r.collections || {};
+            print(Object.keys(c).sort().map(k => k + '=' + c[k]).join(' '));
+          }" | tail -1)
+        [ -z "$h" ] || [ "$h" = "ERR" ] && { echo ""; return; }
+        out="$out|$h"
+    done
+    echo "$out"
+}
+
 quiesce() {
     say "quiescing: stopping the load and letting replication settle"
     stop_background
-    sleep 15
+
+    # Poll for convergence instead of sleeping a fixed amount: under the heavy profile a node
+    # that resynced has ~70s of buffered backlog to drain, and a fixed 15s ran the checks while
+    # the cluster was still catching up - producing dbHash "disagreements" and "did not dump"
+    # failures that resolved themselves seconds later (#372). Wait for the actual signal.
+    local deadline=$((SECONDS + 180)) prev="" cur=""
+    while [ $SECONDS -lt $deadline ]; do
+        cur=$(cluster_hashes)
+        if [ -n "$cur" ] && [ "$cur" = "$prev" ]; then
+            # Two identical reads a second apart across all three nodes: settled and equal, or
+            # settled and diverged - either way stable enough to judge. The judging is
+            # verify_convergence's job; this only waits for the churn to stop.
+            local -a parts; IFS='|' read -r -a parts <<<"${cur#|}"
+            if [ "${parts[0]}" = "${parts[1]}" ] && [ "${parts[1]}" = "${parts[2]}" ]; then
+                ok "cluster converged after $((SECONDS - (deadline - 180)))s"
+                return
+            fi
+        fi
+        prev="$cur"
+        sleep 1
+    done
+    warn "cluster did not reach a stable, equal state within 180s - running the checks anyway"
 }
 
 verify_convergence() {
