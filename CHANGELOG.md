@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### The sync-completion release is reached under load: a high-water mark instead of "queue empty right now" (#370)
+`localDataComplete` returns to true in exactly one place, the initial-sync completion hook, and
+that hook fired only when the batch processor found the event queue empty at a tick. Under
+sustained write load the queue is rarely empty at any given tick, so a node whose sync had in
+fact completed and whose data was authoritative could stay unreleased indefinitely. That was
+tolerable while the flag only gated dumps; since `21324b243` (#352) it also gates candidacy, so
+three nodes under load whose secondaries both resynced could all hold complete data and still
+have no candidate when the primary died.
+
+"The queue is empty" samples a level where the guard wants a rate. The manager now records the
+highest sequence the watch had delivered when the snapshot finished (or the primary's sequence at
+watch registration, whichever is higher) and releases once the applied sequence has passed it -
+"everything that existed when I finished copying has been applied", which is reached under load
+rather than in spite of it. The mark is reset whenever a session is discarded (resync, dead
+watch), so a discarded backlog cannot leave an unreachable mark behind. The empty-queue rule
+stays as a fallback: a sync with no sequence information, or a quiet stream whose trailing event
+failed to apply, can only be released that way.
+
+The `source != replicationManager` branch that discards a superseded manager's completion is
+unchanged; the replacement's own completion is the release, and a test now pins that. A
+replication start that fails while the node is barred logs a WARN saying so.
+
 #### A superseded ReplicationManager is refused at the write, not merely asked to stop (#323)
 `stop()` joins the sync thread with a 5s bound while the sync connection reads with a 60s timeout,
 so the join loses routinely and an abandoned thread can resurface with a completed collection read

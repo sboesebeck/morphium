@@ -441,6 +441,22 @@ public class ReplicationManager {
     // Package-visible for tests.
     final AtomicBoolean syncCompleteNotifyPending = new AtomicBoolean(false);
 
+    // Highest change-stream sequence the watch reader has put into eventQueue in the current
+    // session (this primary's sequence space). Together with lastKnownPrimarySequence it gives
+    // the initial sync a high-water mark to release against (#370): "everything that existed on
+    // the primary when the snapshot finished" is, seen from this side, everything the watch had
+    // delivered by then. Reset wherever a session is discarded (triggerResync,
+    // discardDeadWatchSession): a discarded session's events are not applied, so they must not
+    // raise the mark - and a primary whose counter regressed would otherwise leave an old,
+    // unreachable mark behind.
+    private final AtomicLong highestReceivedSequence = new AtomicLong(0);
+
+    // The high-water mark captured when the most recent initial sync declared success (#370).
+    // maybeFireSyncCompleteNotify releases once lastAppliedSequence has reached it. 0 means "no
+    // sequence information" and leaves the empty-queue rule alone to decide. Package-visible
+    // for tests.
+    final AtomicLong syncCompleteWatermark = new AtomicLong(0);
+
     // RS-internal connection security, set once via setInternalConnectionSecurity() before
     // start() - see docs/superpowers/specs/2026-08-05-poppydb-rs-internal-auth-tls-design.md.
     // Defaults (auth off, no SSL context) reproduce today's plaintext/unauthenticated behavior.
@@ -725,6 +741,9 @@ public class ReplicationManager {
                     // accounts events that actually made it into the queue; any drain racing us
                     // subtracts this event's exact size, so the counter converges.
                     eventQueueBytes.addAndGet(size);
+                    // Under the same lock the mark is captured under (#370), so an event that is
+                    // in the queue is always in the mark.
+                    noteReceivedSequence(data);
                     return;
                 }
             }
@@ -841,9 +860,11 @@ public class ReplicationManager {
         // - running: a stopped (superseded) manager's late sync thread can still ARM the flag,
         //   but its sync ran against a primary that may no longer lead - nothing may fire it;
         // - initialSyncComplete: a resync in between closed the gate again - wait for it;
-        // - empty queue: the backlog buffered during the snapshot must actually be APPLIED,
-        //   or the "authoritative copy" the receiver acts on is still measurably behind.
-        if (!running.get() || !initialSyncComplete.get() || !eventQueue.isEmpty()) {
+        // - backlog applied: the events buffered during the snapshot must actually be APPLIED,
+        //   or the "authoritative copy" the receiver acts on is still measurably behind. Decided
+        //   against the snapshot's high-water mark, not against an instantaneous queue depth
+        //   (#370) - see backlogApplied().
+        if (!running.get() || !initialSyncComplete.get() || !backlogApplied()) {
             return;
         }
 
@@ -862,12 +883,76 @@ public class ReplicationManager {
         }
     }
 
+    /** Advances the "newest sequence the watch delivered" reading (#370). Only ever goes up. */
+    private void noteReceivedSequence(Map<String, Object> event) {
+        long seq = extractSequenceFromEvent(event);
+
+        if (seq > 0) {
+            highestReceivedSequence.updateAndGet(current -> Math.max(current, seq));
+        }
+    }
+
+    /**
+     * Records the high-water mark the armed completion notification is released against (#370):
+     * the highest sequence this side had seen from the primary when the snapshot finished - the
+     * primary's own sequence at watch registration, or the newest event the watch had delivered
+     * since, whichever is higher. Every event buffered during the snapshot has a sequence at or
+     * below this, so "the applied sequence has passed the mark" is "the backlog that existed when
+     * I finished copying has been applied". Taken under the queue lock so an event the reader has
+     * already offered is always in the mark. Called from the sync thread at the moment of
+     * success, before the notification is armed; it only touches this manager's own fields.
+     * Package-visible for tests.
+     */
+    void captureSyncCompleteWatermark() {
+        long mark;
+
+        synchronized (eventQueueByteLock) {
+            mark = Math.max(lastKnownPrimarySequence.get(), highestReceivedSequence.get());
+        }
+
+        syncCompleteWatermark.set(mark);
+        log.debug("Initial sync high-water mark: {}", mark);
+    }
+
+    /**
+     * Whether the backlog buffered during the snapshot has been applied (#370). Two ways to say
+     * yes. The queue is empty right now - true, but starved under sustained load, where a batch
+     * tick rarely finds it empty, so a node that has caught up may never be released (and since
+     * #352 that keeps it out of elections, not just out of dumping). Or the applied sequence has
+     * passed the high-water mark captured when the snapshot finished - which is what "caught up"
+     * means, and is reached under load rather than in spite of it.
+     *
+     * <p>"Passed the mark" carries the poison-skip trade-off documented in
+     * {@code applyBulkInserts}: a buffered event that failed to apply is skipped once a later
+     * event advances the sequence past it, and the release then fires with that one event
+     * unapplied - the same forward-progress choice the apply path already makes. The empty-queue
+     * rule stays as the fallback for a sync with no sequence information (mark 0) and for a quiet
+     * stream whose trailing event failed, where nothing later ever pushes the sequence over the
+     * mark. Accepted gap: a primary that does not stamp {@code _id._data} leaves the buffered
+     * events unsequenced, so a non-zero mark equal to the reseeded applied sequence releases over
+     * them - not reachable with a PoppyDB primary, whose driver always stamps the token.
+     */
+    private boolean backlogApplied() {
+        if (eventQueue.isEmpty()) {
+            return true;
+        }
+
+        long mark = syncCompleteWatermark.get();
+        return mark > 0 && lastAppliedSequence.get() >= mark;
+    }
+
+    /** Test seam: what applying an event up to {@code seq} does to the applied position. */
+    void advanceLastAppliedSequenceForTest(long seq) {
+        lastAppliedSequence.updateAndGet(current -> Math.max(current, seq));
+    }
+
     /**
      * Test seam: puts an event into the apply queue exactly like the watch callback does,
      * without a live change stream.
      */
     void enqueueEventForTest(Map<String, Object> event) throws InterruptedException {
         eventQueue.put(new QueuedEvent(event, 0));
+        noteReceivedSequence(event);
     }
 
     /** Test seam: drops all buffered events, as if the batch processor had applied them. */
@@ -1663,6 +1748,11 @@ public class ReplicationManager {
                         // live) event is applied - nothing regresses, nothing is skipped.
                         lastAppliedSequence.set(lastKnownPrimarySequence.get());
 
+                        // #370: the mark the completion notification is released against. Taken
+                        // now, with the snapshot done and the gate still closed, so it covers
+                        // exactly the backlog that accumulated behind the gate.
+                        captureSyncCompleteWatermark();
+
                         // Success: open the gate. The batch processor now drains the events
                         // buffered during the snapshot (idempotent replay) and all subsequent live
                         // events, in order.
@@ -1847,6 +1937,8 @@ public class ReplicationManager {
             List<QueuedEvent> discarded = new ArrayList<>();
             eventQueue.drainTo(discarded);
             releaseEventQueueBytes(discarded);
+            // The discarded events are not applied, so they must not raise the next mark (#370).
+            highestReceivedSequence.set(0);
             eventQueueByteLock.notifyAll(); // wake byte-waiters even when nothing was buffered
         }
 
@@ -2704,6 +2796,8 @@ public class ReplicationManager {
             List<QueuedEvent> discarded = new ArrayList<>();
             eventQueue.drainTo(discarded);
             releaseEventQueueBytes(discarded);
+            // The discarded events are not applied, so they must not raise the next mark (#370).
+            highestReceivedSequence.set(0);
             eventQueueByteLock.notifyAll();
         }
     }
@@ -3086,6 +3180,8 @@ public class ReplicationManager {
         stats.put("lastAppliedSequence", lastAppliedSequence.get());
         stats.put("lastReportedSequence", lastReportedSequence.get());
         stats.put("lastKnownPrimarySequence", lastKnownPrimarySequence.get());
+        stats.put("syncCompleteWatermark", syncCompleteWatermark.get());
+        stats.put("highestReceivedSequence", highestReceivedSequence.get());
         stats.put("resyncCount", resyncCount.get());
         // D2 (2026-08-14 empty-node-wipe fix): true while this node is deliberately refusing a
         // destructive full re-sync because the primary's sequence regressed below our local data's
