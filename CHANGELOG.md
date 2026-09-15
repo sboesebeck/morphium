@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### A dump too large to restore now says so while it is written (#366)
+The restore decodes a whole dump into a single `String`, so a database stops being restorable once
+its serialized JSON crosses the JVM's UTF16 String limit - `restoreInternal` then dies with
+`OutOfMemoryError: UTF16 String size is ..., should be less than 1073741823` no matter how much
+heap the process has. The write side streams, so it produced such files without a word: on PoppyDB
+6.3.8 a 1.07M document database dumped to 72MB gz / 1.94GB of JSON every hour for days, and the
+node came back dead on the first restart.
+
+Both dump paths now measure the JSON as they write it and log a WARN naming the database, its size
+and the limit. The dump is still written - refusing it would turn a restore problem into immediate
+data loss at shutdown, and a reader that can handle it may exist later. Removing the size wall
+itself, rather than reporting it, is #367.
+
 #### `dropDatabase` no longer leaves TTL and capped rules behind (#369)
 Dropping a whole database cleared its documents and index definitions but kept the per-collection
 registries hanging off it. A collection recreated under the same name then inherited rules that

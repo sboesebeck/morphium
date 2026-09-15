@@ -1221,7 +1221,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         d.setIndexes(snapshotIndexes(db));
         Map<String, Object> ser = mapper.serialize(d);
         OutputStreamWriter wr = new OutputStreamWriter(gzip, StandardCharsets.UTF_8);
-        writeDumpJson(ser, wr);
+        writeDumpMeasured(db, ser, wr);
         wr.flush();
         gzip.finish();
         gzip.flush();
@@ -1265,7 +1265,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 // so a dump without indexes keeps exactly the legacy shape.
                 d.setIndexes(snapshotIndexes(db));
                 Map<String, Object> ser = mapper.serialize(d);
-                writeDumpJson(ser, wr);
+                writeDumpMeasured(db, ser, wr);
                 wr.flush();
                 gzip.finish();
             }
@@ -1520,6 +1520,97 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 return new ObjectId(((Map <?, ? >) d).get("value").toString());
             }
         };
+    }
+
+    /**
+     * The largest dump {@link #restoreInternal(InputStream)} can read back, in characters (#366).
+     * The restore decodes the whole file into one {@code String}, so the JVM's UTF16 String limit
+     * applies - a dump past it fails with {@code OutOfMemoryError: UTF16 String size is ...,
+     * should be less than 1073741823}, no matter how much heap the process has.
+     *
+     * <p>Conservative on purpose: a String of Latin-1-only content can hold roughly twice as many
+     * characters, but a single character outside Latin-1 anywhere in the dump drops the ceiling to
+     * this value, and the {@code readAllBytes()} one line above the decode caps things again at
+     * ~2GB. A dump that stays below this is restorable whatever it contains.
+     *
+     * <p>Package-private and non-final so a test can lower it instead of serializing an actual
+     * gigabyte - same threshold seam as {@link #setSlowQueryThresholdMillis(long)}.
+     */
+    /* package-private */ volatile long dumpRestoreLimitChars = Integer.MAX_VALUE >> 1;
+
+    /**
+     * Writes one dump's JSON and measures it on the way out, so an unrestorable dump reports
+     * itself (#366). Both dump paths go through here - counting while writing costs nothing and
+     * avoids serializing the database a second time just to learn its size.
+     */
+    private void writeDumpMeasured(String db, Map<String, Object> ser, Writer wr) throws IOException {
+        CountingWriter counting = new CountingWriter(wr);
+        writeDumpJson(ser, counting);
+        warnIfDumpExceedsRestoreLimit(db, counting.chars());
+    }
+
+    /**
+     * Warns when a dump just written is too large to ever be restored (#366). The file is kept:
+     * refusing to write it would turn a restore problem into immediate data loss at shutdown, and
+     * a reader that can handle it may well exist later. What must not happen is silence - the
+     * write side streams, so without this nothing reports the problem until the next restart finds
+     * the dump unreadable.
+     */
+    private void warnIfDumpExceedsRestoreLimit(String db, long chars) {
+        if (chars <= dumpRestoreLimitChars) {
+            return;
+        }
+
+        log.warn("Dump of database '{}' is {} characters and cannot be restored: the limit is {} "
+                 + "(the restore decodes a dump into a single String). The file was written, but "
+                 + "this database has no working persistence until it shrinks - check TTL/retention "
+                 + "on its largest collections.", db, chars, dumpRestoreLimitChars);
+    }
+
+    /**
+     * Counts the characters handed to the underlying writer, so a dump can be measured against
+     * {@link #dumpRestoreLimitChars} while it is written rather than serialized twice. All other
+     * {@code Writer} methods funnel into these three.
+     */
+    private static final class CountingWriter extends Writer {
+        private final Writer delegate;
+        private long chars;
+
+        CountingWriter(Writer delegate) {
+            this.delegate = delegate;
+        }
+
+        long chars() {
+            return chars;
+        }
+
+        @Override
+        public void write(int c) throws IOException {
+            delegate.write(c);
+            chars++;
+        }
+
+        @Override
+        public void write(char[] cbuf, int off, int len) throws IOException {
+            delegate.write(cbuf, off, len);
+            chars += len;
+        }
+
+        @Override
+        public void write(String str, int off, int len) throws IOException {
+            delegate.write(str, off, len);
+            chars += len;
+        }
+
+        @Override
+        public void flush() throws IOException {
+            delegate.flush();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
     }
 
     /**
