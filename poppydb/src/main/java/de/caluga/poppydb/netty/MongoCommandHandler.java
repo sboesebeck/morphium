@@ -1097,8 +1097,36 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
             String errorMsg = getDeepestCauseMessage(e);
             log.error("Error executing command {}: {}", cmd, errorMsg, e);
-            sendResponse(ctx, requestId, Doc.of("ok", 0.0, "errmsg", errorMsg != null ? errorMsg : "Command failed: " + cmd));
+            Doc response = Doc.of("ok", 0.0, "errmsg", errorMsg != null ? errorMsg : "Command failed: " + cmd);
+            // Preserve the MongoDB error code when the failure carries one (#373), so a client can
+            // act on it - retry it, classify it, surface it. The fast paths keep the code
+            // (processInsertDirect's writeErrors, the typed rejections above); this generic
+            // catch-all used to drop it, handing the client an ok:0 with only a message and a null
+            // mongoCode after checkForError.
+            Object mongoCode = deepestMongoCode(e);
+            if (mongoCode != null) {
+                response.put("code", mongoCode);
+            }
+            sendResponse(ctx, requestId, response);
         }
+    }
+
+    /**
+     * The deepest {@link MorphiumDriverException#getMongoCode()} in a cause chain, or {@code null}
+     * when none carries one (#373). Walks to the deepest coded exception, mirroring
+     * {@link #getDeepestCauseMessage} taking the deepest meaningful message, so the code and the
+     * message describe the same origin. Package-private for a direct unit test.
+     */
+    static Object deepestMongoCode(Throwable e) {
+        Object code = null;
+
+        for (Throwable current = e; current != null; current = current.getCause()) {
+            if (current instanceof MorphiumDriverException mde && mde.getMongoCode() != null) {
+                code = mde.getMongoCode();
+            }
+        }
+
+        return code;
     }
 
     /**

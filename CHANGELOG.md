@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### PoppyDB preserves the MongoDB error code on the generic command-error path (#373)
+The generic dispatch catch-all in `MongoCommandHandler` built its `ok:0` failure response from the
+message alone and dropped any `MorphiumDriverException.getMongoCode()` the failure carried, so a
+client received `ok:0` with a null mongo code and could not act on it - retry it, classify it,
+surface it. The fast paths keep the code (`processInsertDirect`'s `writeErrors`, the typed
+rejections for 13436/10107/286/...); only this catch-all erased it. It now carries the deepest
+code from the cause chain, mirroring how the message is taken so code and message describe the
+same origin. Found while adding the client-side retry for `ExceededMemoryLimit` (146): inserts
+take the fast path so 146 itself was not reachable here, but the dropped code is a general trap
+for any other command whose driver error carries one.
+
 #### Writes refused by the heap watermark (ExceededMemoryLimit 146) are retried instead of failing hard (#293)
 `InMemoryDriver.checkMemoryWatermark` refuses document-creating writes with code 146 once heap
 occupancy crosses the reject watermark. That reading is an upper bound - it can still count
