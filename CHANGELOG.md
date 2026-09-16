@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### Writes refused by the heap watermark (ExceededMemoryLimit 146) are retried instead of failing hard (#293)
+`InMemoryDriver.checkMemoryWatermark` refuses document-creating writes with code 146 once heap
+occupancy crosses the reject watermark. That reading is an upper bound - it can still count
+garbage the last collection did not look at - so the server deliberately designs the refuse as a
+*retryable* error: the collector's next cycle corrects it. The client never honored that side of
+the contract. `WriteMongoCommand` retried 112, 251, step-downs and network errors, but a 146 fell
+through to the final `throw`, so one transient false-reject failed the write for good. On the
+testrunner this surfaced as a flaky `BasicJMSTests` in the `poppydb_rs` phase: `Producer.send`
+wrapped the refused insert as "message ... was not acknowledged" and took four test methods down
+with a single 146.
+
+Retrying is safe here, and for a reason worth stating: `checkMemoryWatermark()` is the first
+statement of `insert()` and `store()`, before the collection lock and before any document is
+created, so a 146 refuses the whole command atomically - no partial batch, no partial state.
+That is the opposite of the lost-reply case (#359), where the first attempt may have committed
+and a retry needs the E11000 reconciliation; a refused write left nothing behind, so re-sending
+it cannot double-insert. Unlike WriteConflict (112) the refuse also does not abort a server-side
+transaction, so it is retried inside one as well.
+
+The refuse reaches the client in three shapes, and all three are covered: thrown from
+`readSingleAnswer` (an `ok:0 / code:146` command failure), thrown from `sendCommand` (the
+in-memory driver runs the command synchronously there), and - the shape the wire actually
+carries - PoppyDB's direct insert dispatch answering `ok:1` with a single `writeErrors` entry of
+code 146. Only an answer whose writeErrors *all* carry 146 is treated as a refuse; anything mixed
+describes documents that did land and is returned untouched. Retries back off by
+`sleepBetweenErrorRetries` on the same connection (the primary is fine, we are waiting for a GC
+cycle) and give up after the usual `retriesOnNetworkError + 5` attempts, so a heap that really is
+full still surfaces to the caller.
+
 #### The sync-completion release is reached under load: a high-water mark instead of "queue empty right now" (#370)
 `localDataComplete` returns to true in exactly one place, the initial-sync completion hook, and
 that hook fired only when the batch processor found the event queue empty at a tick. Under

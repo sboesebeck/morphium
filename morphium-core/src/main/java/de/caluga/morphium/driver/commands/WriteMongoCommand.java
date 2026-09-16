@@ -145,7 +145,21 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
             //noinspection unchecked
             setMetaData("server", con.getConnectedTo());
             long start = System.currentTimeMillis();
-            int msg = con.sendCommand(this);
+            int msg;
+
+            try {
+                msg = con.sendCommand(this);
+            } catch (MorphiumDriverException e) {
+                // With InMemoryDriver as the client's driver the command runs synchronously
+                // inside sendCommand, so its heap-watermark refuse surfaces here rather than
+                // from readSingleAnswer. Same contract as below; nothing else from sendCommand
+                // is retried here - that would change what the branches below see.
+                if (isHeapWatermarkReject(e) && attempts++ < maxAttempts
+                    && backoffForHeapWatermarkReject(drv, log, attempts, maxAttempts)) {
+                    continue;
+                }
+                throw e;
+            }
 
             try {
                 var crs = con.readSingleAnswer(msg);
@@ -171,6 +185,19 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
                         Thread.sleep(Math.max(50, drv.getSleepBetweenErrorRetries()));
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
+                        return crs;
+                    }
+                    continue;
+                }
+
+                // PoppyDB's direct insert dispatch (MongoCommandHandler.processInsertDirect)
+                // reports the heap-watermark refuse as ok:1 with a single writeErrors entry
+                // carrying code 146 rather than as a command failure - same contract as the
+                // thrown shape handled in the catch below, see there for why re-sending is safe.
+                // Once the retries are used up the answer is returned as sent, so the
+                // command-level writeErrors handling surfaces the full heap to the caller.
+                if (isHeapWatermarkRejectResult(crs) && attempts++ < maxAttempts) {
+                    if (!backoffForHeapWatermarkReject(drv, log, attempts, maxAttempts)) {
                         return crs;
                     }
                     continue;
@@ -250,6 +277,29 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
                         continue;
                     }
                     throw e;
+                } else if (isHeapWatermarkReject(e)) {
+                    // Error 146 (ExceededMemoryLimit): InMemoryDriver/PoppyDB refused a
+                    // document-creating write because heap occupancy crossed the reject
+                    // watermark. That reading is an upper bound - it can still include garbage
+                    // the last collection did not look at - which is why the server designs the
+                    // refuse as a retryable error: the collector's next cycle corrects it.
+                    //
+                    // Re-sending the whole command is safe: checkMemoryWatermark() is the first
+                    // statement of insert() and store(), before the collection lock and before
+                    // any document is created, so a 146 refuses the entire command atomically -
+                    // no partial batch, no partial state. This is the opposite of the lost-reply
+                    // case (#359), where the first attempt may have committed and the retry needs
+                    // the E11000 reconciliation; here nothing happened, so nothing can double.
+                    //
+                    // Unlike WriteConflict (112) the refuse does not abort a server-side
+                    // transaction - the write simply did not take place - so it is retried inside
+                    // a transaction as well. No connection re-resolution: the primary is fine, we
+                    // are only waiting for a GC cycle. A heap that stays full surfaces after
+                    // maxAttempts, never a retry-forever.
+                    if (attempts++ < maxAttempts && backoffForHeapWatermarkReject(drv, log, attempts, maxAttempts)) {
+                        continue;
+                    }
+                    throw e;
                 } else if (e instanceof MorphiumDriverNetworkException && attempts++ < maxAttempts) {
                     // Connection to the primary died mid-write (e.g. primary crash / broken pipe).
                     // Retrying on the re-resolved primary gives at-least-once semantics, matching
@@ -291,6 +341,48 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
             }
         }
         return lowerCaseMsg.contains("not primary") || lowerCaseMsg.contains("not master");
+    }
+
+    /** ExceededMemoryLimit - InMemoryDriver.checkMemoryWatermark refuses document-creating writes with it. */
+    private static final int EXCEEDED_MEMORY_LIMIT = 146;
+
+    private static boolean isHeapWatermarkReject(MorphiumDriverException e) {
+        return e.getMongoCode() instanceof Number mc && mc.intValue() == EXCEEDED_MEMORY_LIMIT;
+    }
+
+    /**
+     * True for an answer whose writeErrors are non-empty and ALL carry code 146. Only that
+     * shape is a watermark refuse: the check runs before any document is created, so it can
+     * never sit next to a per-document error. A mixed answer describes documents that did
+     * land and must not be re-sent.
+     */
+    private static boolean isHeapWatermarkRejectResult(Map<String, Object> crs) {
+        if (crs == null || !(crs.get("writeErrors") instanceof List<?> writeErrors) || writeErrors.isEmpty()) {
+            return false;
+        }
+
+        for (Object o : writeErrors) {
+            if (!(o instanceof Map<?, ?> err) || !(err.get("code") instanceof Number code)
+                || code.intValue() != EXCEEDED_MEMORY_LIMIT) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Sleeps sleepBetweenErrorRetries (at least 50ms) before a 146 retry. Returns false when
+     * interrupted - the caller then gives up on the retry and surfaces what it has.
+     */
+    private static boolean backoffForHeapWatermarkReject(MorphiumDriver drv, Logger log, int attempt, int maxAttempts) {
+        log.warn("Heap watermark reject (code 146) - retrying after backoff (attempt {}/{})", attempt, maxAttempts);
+        try {
+            Thread.sleep(Math.max(50, drv.getSleepBetweenErrorRetries()));
+            return true;
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
     }
 
     @SuppressWarnings("unchecked")

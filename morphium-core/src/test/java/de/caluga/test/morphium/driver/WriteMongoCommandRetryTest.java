@@ -10,6 +10,7 @@ import de.caluga.test.DriverMock;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -93,6 +94,98 @@ class WriteMongoCommandRetryTest {
         @Override
         public MorphiumDriver getDriver() {
             return driver;
+        }
+
+        int getReadCallCount() {
+            return readCallCount.get();
+        }
+    }
+
+    // --------------------------------------------------------------------- //
+    //  Connection stub for ExceededMemoryLimit (146) in its three shapes     //
+    // --------------------------------------------------------------------- //
+
+    /** How the heap-watermark refuse reaches the client. */
+    enum Shape146 {
+        /** ok:0 / code:146 command failure, thrown by checkForError from readSingleAnswer. */
+        THROWN_ON_READ,
+        /** InMemoryDriver as client: runCommand executes synchronously inside sendCommand. */
+        THROWN_ON_SEND,
+        /** PoppyDB fast path (processInsertDirect): ok:1, n:0, writeErrors:[{code:146}]. */
+        WRITE_ERROR_RESULT
+    }
+
+    /**
+     * A {@link ConnectionMock} that reports the memory-watermark refuse (mongo code 146)
+     * in the given shape for the first {@code failTimes} attempts, then succeeds.
+     * Attempts are counted on sendCommand, since the THROWN_ON_SEND shape never reaches
+     * readSingleAnswer.
+     */
+    static class Error146Connection extends ConnectionMock {
+
+        private final int failTimes;
+        private final Shape146 shape;
+        private final AtomicInteger sendCallCount = new AtomicInteger(0);
+        private final AtomicInteger readCallCount = new AtomicInteger(0);
+        private final MorphiumDriver driver;
+
+        Error146Connection(int failTimes, Shape146 shape, MorphiumDriver driver) {
+            this.failTimes = failTimes;
+            this.shape = shape;
+            this.driver = driver;
+        }
+
+        private static MorphiumDriverException refuse() {
+            MorphiumDriverException ex = new MorphiumDriverException(
+                "heap occupancy after the last collection 93% is above the memory watermark (90%) - refusing to create new documents");
+            ex.setMongoCode(146);
+            return ex;
+        }
+
+        @Override
+        public boolean isConnected() {
+            return true;
+        }
+
+        @Override
+        public String getConnectedTo() {
+            return "localhost:27017";
+        }
+
+        @Override
+        public int sendCommand(de.caluga.morphium.driver.commands.MongoCommand cmd)
+                throws MorphiumDriverException {
+            int call = sendCallCount.incrementAndGet();
+            if (shape == Shape146.THROWN_ON_SEND && call <= failTimes) {
+                throw refuse();
+            }
+            return call;
+        }
+
+        @Override
+        public Map<String, Object> readSingleAnswer(int id) throws MorphiumDriverException {
+            readCallCount.incrementAndGet();
+            if (id <= failTimes) {
+                switch (shape) {
+                    case THROWN_ON_READ:
+                        throw refuse();
+                    case WRITE_ERROR_RESULT:
+                        return Doc.of("ok", 1.0, "n", 0, "writeErrors",
+                            List.of(Doc.of("index", 0, "code", 146, "errmsg", refuse().getMessage())));
+                    default:
+                        break;
+                }
+            }
+            return Doc.of("ok", 1.0, "n", 1);
+        }
+
+        @Override
+        public MorphiumDriver getDriver() {
+            return driver;
+        }
+
+        int getSendCallCount() {
+            return sendCallCount.get();
         }
 
         int getReadCallCount() {
@@ -290,5 +383,167 @@ class WriteMongoCommandRetryTest {
         MorphiumDriverException thrown = assertThrows(MorphiumDriverException.class, cmd::execute);
         assertEquals(11000, ((Number) thrown.getMongoCode()).intValue(),
                 "Non-112 errors must be rethrown as-is");
+    }
+
+    // ===================================================================== //
+    //  ExceededMemoryLimit (146) - the heap watermark refuse is retryable    //
+    // ===================================================================== //
+
+    private static TestWriteCommand command146(Error146Connection con) {
+        return new TestWriteCommand(con).setDb("test_db").setColl("test_coll");
+    }
+
+    /**
+     * ok:0 / code:146 thrown from readSingleAnswer twice, then success: the write must
+     * succeed on the third attempt. The refuse happens before any document is created,
+     * so re-sending the whole command cannot double-insert.
+     */
+    @Test
+    void error146_thrownOnRead_retriesAndSucceeds() throws MorphiumDriverException {
+        FastDriverMock drv = new FastDriverMock(0, null);
+        Error146Connection con = new Error146Connection(2, Shape146.THROWN_ON_READ, drv);
+
+        Map<String, Object> result = command146(con).execute();
+
+        assertEquals(1.0, result.get("ok"));
+        assertNull(result.get("writeErrors"));
+        assertEquals(3, con.getReadCallCount(), "2 refusals + 1 success");
+    }
+
+    /**
+     * A heap that stays full must surface: after maxAttempts (= retriesOnNetworkError + 5)
+     * retries the exception is rethrown with its mongo code intact, never retried forever.
+     */
+    @Test
+    void error146_thrownOnRead_exceedsMaxAttempts_throwsWithCode146() {
+        int failTimes = 6; // maxAttempts = 5 -> 5 retries + the final refusal
+        FastDriverMock drv = new FastDriverMock(0, null);
+        Error146Connection con = new Error146Connection(failTimes, Shape146.THROWN_ON_READ, drv);
+
+        MorphiumDriverException thrown = assertThrows(MorphiumDriverException.class, command146(con)::execute);
+
+        assertEquals(146, ((Number) thrown.getMongoCode()).intValue());
+        assertEquals(failTimes, con.getReadCallCount());
+    }
+
+    /**
+     * PoppyDB answers a refused insert on its direct-dispatch path with ok:1 and a
+     * writeErrors entry carrying code 146 (MongoCommandHandler.processInsertDirect) - this
+     * is the shape the poppydb_rs test phase sees, so it must be retried as well.
+     */
+    @Test
+    void error146_asWriteErrorResult_retriesAndSucceeds() throws MorphiumDriverException {
+        FastDriverMock drv = new FastDriverMock(0, null);
+        Error146Connection con = new Error146Connection(2, Shape146.WRITE_ERROR_RESULT, drv);
+
+        Map<String, Object> result = command146(con).execute();
+
+        assertEquals(1.0, result.get("ok"));
+        assertNull(result.get("writeErrors"), "the successful retry's answer must be returned");
+        assertEquals(1, result.get("n"));
+        assertEquals(3, con.getReadCallCount(), "2 refusals + 1 success");
+    }
+
+    /**
+     * writeErrors-shaped refuse beyond maxAttempts: the last answer is returned as the
+     * server sent it, so the command-level writeErrors handling (InsertMongoCommand)
+     * surfaces the full heap to the caller.
+     */
+    @Test
+    void error146_asWriteErrorResult_exceedsMaxAttempts_returnsRefusal() throws MorphiumDriverException {
+        int failTimes = 6;
+        FastDriverMock drv = new FastDriverMock(0, null);
+        Error146Connection con = new Error146Connection(failTimes, Shape146.WRITE_ERROR_RESULT, drv);
+
+        Map<String, Object> result = command146(con).execute();
+
+        List<?> writeErrors = (List<?>) result.get("writeErrors");
+        assertNotNull(writeErrors);
+        assertEquals(146, ((Number) ((Map<?, ?>) writeErrors.get(0)).get("code")).intValue());
+        assertEquals(failTimes, con.getReadCallCount(), "5 retries + the final refusal, then give up");
+    }
+
+    /**
+     * InMemoryDriver as the client's driver runs the command synchronously inside
+     * sendCommand, so the refuse is thrown there rather than from readSingleAnswer.
+     */
+    @Test
+    void error146_thrownOnSend_retriesAndSucceeds() throws MorphiumDriverException {
+        FastDriverMock drv = new FastDriverMock(0, null);
+        Error146Connection con = new Error146Connection(2, Shape146.THROWN_ON_SEND, drv);
+
+        Map<String, Object> result = command146(con).execute();
+
+        assertEquals(1.0, result.get("ok"));
+        assertEquals(3, con.getSendCallCount(), "2 refusals on send + 1 success");
+        assertEquals(1, con.getReadCallCount(), "only the successful send is read");
+    }
+
+    @Test
+    void error146_thrownOnSend_exceedsMaxAttempts_throwsWithCode146() {
+        int failTimes = 6;
+        FastDriverMock drv = new FastDriverMock(0, null);
+        Error146Connection con = new Error146Connection(failTimes, Shape146.THROWN_ON_SEND, drv);
+
+        MorphiumDriverException thrown = assertThrows(MorphiumDriverException.class, command146(con)::execute);
+
+        assertEquals(146, ((Number) thrown.getMongoCode()).intValue());
+        assertEquals(failTimes, con.getSendCallCount());
+        assertEquals(0, con.getReadCallCount());
+    }
+
+    /**
+     * Unlike WriteConflict (112), a watermark refuse does not abort the server-side
+     * transaction - the write simply did not happen - so it is retried inside one too.
+     */
+    @Test
+    void error146_insideTransaction_isRetried() throws MorphiumDriverException {
+        TransactionActiveDriverMock drv = new TransactionActiveDriverMock(0, null);
+        Error146Connection con = new Error146Connection(1, Shape146.THROWN_ON_READ, drv);
+
+        Map<String, Object> result = command146(con).execute();
+
+        assertEquals(1.0, result.get("ok"));
+        assertEquals(2, con.getReadCallCount(), "146 inside a transaction must still be retried");
+    }
+
+    /**
+     * Only an answer whose writeErrors ALL carry code 146 is a watermark refuse - that is
+     * the only shape the atomic pre-write check can produce. Any other writeErrors answer
+     * (here a duplicate key next to a 146) may describe documents that did land and must
+     * be returned untouched, not re-sent.
+     */
+    @Test
+    void writeErrors_notAllCode146_areNotRetried() throws MorphiumDriverException {
+        AtomicInteger reads = new AtomicInteger();
+        ConnectionMock con = new ConnectionMock() {
+            private final MorphiumDriver drv = new FastDriverMock(0, this);
+
+            @Override
+            public boolean isConnected() { return true; }
+
+            @Override
+            public String getConnectedTo() { return "localhost:27017"; }
+
+            @Override
+            public MorphiumDriver getDriver() { return drv; }
+
+            @Override
+            public int sendCommand(de.caluga.morphium.driver.commands.MongoCommand cmd)
+                    throws MorphiumDriverException { return 1; }
+
+            @Override
+            public Map<String, Object> readSingleAnswer(int id) {
+                reads.incrementAndGet();
+                return Doc.of("ok", 1.0, "n", 1, "writeErrors", List.of(
+                    Doc.of("index", 0, "code", 11000, "errmsg", "E11000 duplicate key"),
+                    Doc.of("index", 1, "code", 146, "errmsg", "above the memory watermark")));
+            }
+        };
+
+        Map<String, Object> result = new TestWriteCommand(con).setDb("test_db").setColl("test_coll").execute();
+
+        assertEquals(2, ((List<?>) result.get("writeErrors")).size(), "answer must be returned as sent");
+        assertEquals(1, reads.get(), "a mixed writeErrors answer must not be retried");
     }
 }
