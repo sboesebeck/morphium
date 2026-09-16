@@ -2535,6 +2535,19 @@ public class PoppyDB {
         return electionEnabled;
     }
 
+    /**
+     * The node's own in-memory store, read in-process and therefore PAST the availability guard
+     * the wire enforces (#352). A client talking to this node over the wire is refused with
+     * NotPrimaryOrSecondary (13436) while the node cannot vouch for its data - during a resync,
+     * which empties the store before it copies the primary's snapshot, and from startup until the
+     * first sync completes. Nothing stands between a direct driver read and that emptied store: a
+     * {@code count} here answers 0 with no signal while the copy is running, and a read of a
+     * collection the snapshot has not reached yet answers the same. Embedders that read here
+     * should check {@link #isLocalDataComplete()} first (false from the moment a sync has emptied
+     * the store until a sync completes), or read over the wire like any other client and let the
+     * node say RECOVERING. Tests that deliberately want the node's LOCAL view (e.g. to prove a
+     * data-bearing node was not wiped) are the intended in-process readers.
+     */
     public InMemoryDriver getDriver() {
         return driver;
     }
