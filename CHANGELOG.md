@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [6.3.9] - 2026-09-16
+
 ### Added
 
 #### PoppyDB: `shutdown` over the wire actually stops the node (#356)
