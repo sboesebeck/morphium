@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+#### InMemoryDriver: `$group` accumulators evaluate expression operands (#376)
+`{$sum: {$cond: [...]}}` silently produced 0 next to a correct `{$sum: 1}` - an application
+counting states that way had every per-state counter at 0 in the database while the total was
+right, with no error anywhere. The accumulators in `InMemAggregator` only recognised a literal
+and a `"$field"` reference as operand; a raw operator Map (as it arrives over the wire) or an
+`Expr` built via the Java API fell through every branch. `$avg`, `$min`, `$max`, `$first`,
+`$last`, `$push` and `$addToSet` had the same gap (missing field, null, or the raw spec pushed).
+All eight now resolve the operand through the same evaluator `$project` uses for computed
+fields; non-numeric results are ignored by `$sum`/`$avg` and null never wins `$min`/`$max`,
+as in mongod. The `{$cond: {if, then, else}}` spelling was not parseable by `Expr.parse` at all
+(only the positional form was) and is accepted now.
+
 
 ## [6.3.9] - 2026-09-16
 

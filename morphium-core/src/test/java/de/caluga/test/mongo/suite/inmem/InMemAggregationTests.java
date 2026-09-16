@@ -857,4 +857,47 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         assertEquals(5.0, ((Number) result.get("count")).doubleValue(), 0.01, "COUNT of OPEN should be 5");
     }
 
+
+    @Test
+    public void inMemGroupAccumulatorsEvaluateExprOperands() throws Exception {
+        // #376, Java-API flavour: Group.sum(name, Expr) stores the Expr OBJECT in the stage, so
+        // the accumulator gets an Expr instance rather than a raw Map - both must be evaluated
+        // per document. {$sum: {$cond: ...}} used to yield 0 while the neighbouring {$sum: 1}
+        // was correct.
+        morphium.store(new UncachedObject("OK", 1));
+        morphium.store(new UncachedObject("OK", 2));
+        morphium.store(new UncachedObject("FAIL", 3));
+        morphium.store(new UncachedObject("FAIL", 4));
+
+        Expr isOk = Expr.eq(Expr.field("str_value"), Expr.string("OK"));
+        Expr doubled = Expr.multiply(Expr.field("counter"), Expr.intExpr(2));
+
+        Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
+        agg.sort("counter");
+        agg.group("all")
+            .sum("total", 1)
+            .sum("okCount", Expr.cond(isOk, Expr.intExpr(1), Expr.intExpr(0)))
+            .avg("avgDoubled", doubled)
+            .min("minDoubled", doubled)
+            .max("maxDoubled", doubled)
+            .first("firstDoubled", doubled)
+            .last("lastDoubled", doubled)
+            .push("pushed", doubled)
+            .addToSet("okSet", isOk)
+            .end();
+
+        List<Map<String, Object>> lst = agg.aggregateMap();
+        assertEquals(1, lst.size());
+        Map<String, Object> r = lst.get(0);
+        assertEquals(4, ((Number) r.get("total")).intValue());
+        assertEquals(2, ((Number) r.get("okCount")).intValue(), "#376: $sum over Expr.cond");
+        assertEquals(5.0, ((Number) r.get("avgDoubled")).doubleValue(), 0.0001, "#376: $avg over Expr");
+        assertEquals(2, ((Number) r.get("minDoubled")).intValue(), "#376: $min over Expr");
+        assertEquals(8, ((Number) r.get("maxDoubled")).intValue(), "#376: $max over Expr");
+        assertEquals(2, ((Number) r.get("firstDoubled")).intValue(), "#376: $first over Expr");
+        assertEquals(8, ((Number) r.get("lastDoubled")).intValue(), "#376: $last over Expr");
+        assertEquals(4, ((List) r.get("pushed")).size(), "#376: $push over Expr");
+        assertEquals(List.of(true, false), r.get("okSet"), "#376: $addToSet over Expr");
+    }
+
 }

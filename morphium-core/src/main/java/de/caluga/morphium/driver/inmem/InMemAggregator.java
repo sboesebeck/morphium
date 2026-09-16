@@ -1336,8 +1336,13 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                 case "$push":
                                     Object toPush = ((Map <?, ? >) opValue).get(op);
                                     Object setValue = null;
+                                    // A Map operand is a document literal only if its first key is not an
+                                    // operator - {$cond: [...]} is an expression to evaluate (#376).
+                                    boolean docLiteral = toPush instanceof Map
+                                        && (((Map <?, ? >) toPush).isEmpty()
+                                            || !((Map <?, ? >) toPush).keySet().iterator().next().toString().startsWith("$"));
 
-                                    if (toPush instanceof Map) {
+                                    if (docLiteral) {
                                         //pushing an ObjectMapperImpl
                                         setValue = new HashMap();
 
@@ -1357,13 +1362,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                             }
                                         }
                                     } else {
-                                        String v = (String) toPush;
-
-                                        if (v.startsWith("$")) {
-                                            setValue = o.get(v.substring(1));
-                                        } else {
-                                            setValue = toPush;
-                                        }
+                                        setValue = accumulatorOperand(toPush, o);
                                     }
 
                                     res.get(id).putIfAbsent(fld, new ArrayList<>());
@@ -1387,36 +1386,37 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                     res.get(id).putIfAbsent("$_calc_" + fld, UtilsMap.of("sum", 0, "count", 0));
 
                                     //res.get(id).putIfAbsent(fld, UtilsMap.of("sum", 0, "count", 0, "avg", 0));
-                                    if (((Map <?, ? >) opValue).get(op).toString().startsWith("$")) {
-                                        //field reference
+                                    Object avgVal = accumulatorOperand(((Map <?, ? >) opValue).get(op), o);
+
+                                    // like mongod: non-numeric results neither count nor add up
+                                    if (avgVal instanceof Number) {
                                         Number count = (Number)((Map) res.get(id).get("$_calc_" + fld)).get("count");
                                         count = count.intValue() + 1;
                                         //noinspection unchecked
                                         ((Map) res.get(id).get("$_calc_" + fld)).put("count", count);
                                         Number current = (Number)((Map) res.get(id).get("$_calc_" + fld)).get("sum");
-                                        Number v = (Number) o.get(((Map <?, ? >) opValue).get(op).toString().substring(1));
-                                        Number sum = current.doubleValue() + v.doubleValue();
+                                        Number sum = current.doubleValue() + ((Number) avgVal).doubleValue();
                                         //noinspection unchecked
                                         ((Map) res.get(id).get("$_calc_" + fld)).put("sum", sum);
                                         //noinspection unchecked
                                         res.get(id).put(fld, sum.doubleValue() / count.doubleValue());
-                                    } else {
-                                        log.error("Average with no $-reference?");
                                     }
 
                                     break;
 
                                 case "$first":
-                                    res.get(id).putIfAbsent(fld, o.get(((Map <?, ? >) opValue).get(op).toString().substring(1)));
+                                    res.get(id).putIfAbsent(fld, accumulatorOperand(((Map <?, ? >) opValue).get(op), o));
                                     break;
 
                                 case "$last":
-                                    res.get(id).put(fld, o.get(((Map <?, ? >) opValue).get(op).toString().substring(1)));
+                                    res.get(id).put(fld, accumulatorOperand(((Map <?, ? >) opValue).get(op), o));
                                     break;
 
-                                case "$max":
-                                    if (((Map <?, ? >) opValue).get(op).toString().startsWith("$")) {
-                                        Object oVal = o.get(((Map <?, ? >) opValue).get(op).toString().substring(1));
+                                case "$max": {
+                                    Object oVal = accumulatorOperand(((Map <?, ? >) opValue).get(op), o);
+
+                                    // like mongod: null / missing never competes
+                                    if (oVal != null) {
                                         res.get(id).putIfAbsent(fld, oVal);
 
                                         //noinspection unchecked
@@ -1426,10 +1426,13 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                     }
 
                                     break;
+                                }
 
-                                case "$min":
-                                    if (((Map <?, ? >) opValue).get(op).toString().startsWith("$")) {
-                                        Object oVal = o.get(((Map <?, ? >) opValue).get(op).toString().substring(1));
+                                case "$min": {
+                                    Object oVal = accumulatorOperand(((Map <?, ? >) opValue).get(op), o);
+
+                                    // like mongod: null / missing never competes
+                                    if (oVal != null) {
                                         res.get(id).putIfAbsent(fld, oVal);
 
                                         //noinspection unchecked
@@ -1439,6 +1442,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                     }
 
                                     break;
+                                }
 
                                 case "$sum":
                                     // Bind the group's result map and the operand once per document:
@@ -1449,7 +1453,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                     // instanceof Number BEFORE the "$"-prefix test is
                                     // semantics-preserving because a Number's toString() can never
                                     // start with "$"; the relative order of the field-reference and
-                                    // Expr branches is unchanged.
+                                    // expression branches is unchanged.
                                     Map<String, Object> sumGroupDoc = res.get(id);
                                     sumGroupDoc.putIfAbsent(fld, 0);
                                     Number current = (Number) sumGroupDoc.get(fld);
@@ -1457,13 +1461,17 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
                                     if (sumSpec instanceof Number) {
                                         sumGroupDoc.put(fld, current.doubleValue() + ((Number) sumSpec).doubleValue());
-                                    } else if (sumSpec.toString().startsWith("$")) {
+                                    } else if (sumSpec instanceof String && ((String) sumSpec).startsWith("$")) {
                                         //field reference
-                                        Number v = (Number) o.get(sumSpec.toString().substring(1));
+                                        Number v = (Number) o.get(((String) sumSpec).substring(1));
                                         sumGroupDoc.put(fld, current.doubleValue() + v.doubleValue());
-                                    } else if (sumSpec instanceof Expr) {
-                                        Number v = (Number)(o.get(((Expr) sumSpec).evaluate(o)));
-                                        sumGroupDoc.put(fld, current.doubleValue() + v.doubleValue());
+                                    } else {
+                                        // expression operand (#376); like mongod, non-numeric results do not add up
+                                        Object v = accumulatorOperand(sumSpec, o);
+
+                                        if (v instanceof Number) {
+                                            sumGroupDoc.put(fld, current.doubleValue() + ((Number) v).doubleValue());
+                                        }
                                     }
 
                                     break;
@@ -2694,6 +2702,19 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
             return Expr.parse(value).evaluate(o);
         }
         return value;
+    }
+
+    /**
+     * Resolves a {@code $group} accumulator operand for one document. An accumulator operand is a
+     * full aggregation expression - a literal, a {@code "$field"} reference, a raw operator Map as
+     * it arrives over the wire ({@code {$cond: [...]}}) or an {@link Expr} built via the Java API -
+     * and mongod evaluates it per document. The accumulators used to special-case only the literal
+     * and {@code "$field"} shapes and dropped everything else on the floor, so
+     * {@code {$sum: {$cond: ...}}} silently produced 0 next to a correct {@code {$sum: 1}} (#376).
+     * Same resolution {@code $project} uses for its computed fields.
+     */
+    private Object accumulatorOperand(Object spec, Map<String, Object> o) {
+        return projectComputedValue(spec, o);
     }
 
     // ---- $merge whenMatched pipeline (#241) ----------------------------------------------

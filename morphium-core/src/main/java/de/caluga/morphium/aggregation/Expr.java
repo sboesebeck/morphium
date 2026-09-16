@@ -72,6 +72,14 @@ public abstract class Expr {
                 return map((Map) parseMap((Map)((Map) o).get("$map")));
             }
 
+            if (k.equals("cond") && ((Map) o).get("$cond") instanceof Map) {
+                // mongod's second spelling {$cond: {if, then, else}}: the reflective lookup only
+                // knows the positional cond(condition, then, else) and failed with
+                // "could not parse operation cond" for this form (#376).
+                Map<?, ?> c = (Map<?, ?>) ((Map) o).get("$cond");
+                return cond(parse(c.get("if")), parse(c.get("then")), parse(c.get("else")));
+            }
+
             for (Method m : Expr.class.getDeclaredMethods()) {
                 if (Modifier.isStatic(m.getModifiers())) {
                     if (k.equals("toString")) {
