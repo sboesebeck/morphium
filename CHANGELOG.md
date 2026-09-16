@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### atlas-url accepts standard mongodb:// connection strings, not only mongodb+srv:// (#357)
+`resolveAtlasUrlIfNeeded()` handled only `mongodb+srv://` and discarded any `mongodb://` URI with
+a warning, so the host seed stayed empty and startup failed with the misleading "no server address
+specified". That bites anyone on a managed MongoDB-compatible service without SRV records - Azure
+Cosmos DB for MongoDB, DocumentDB, a plain replica set reached by host list. A `mongodb://` URI is
+now parsed: its comma-separated host list is taken literally (no SRV lookup), and the userinfo
+credentials, `tls`/`ssl`, `replicaSet` and `authSource` options are applied as defaults so explicit
+config always wins. The path database is deliberately left out (the config defaults it to "test",
+so an unset value cannot be told from an explicit one) and honoring a connection string on every
+config path, plus the SRV URI's own options, remains #358.
+
 #### PoppyDB preserves the MongoDB error code on the generic command-error path (#373)
 The generic dispatch catch-all in `MongoCommandHandler` built its `ok:0` failure response from the
 message alone and dropped any `MorphiumDriverException.getMongoCode()` the failure carried, so a

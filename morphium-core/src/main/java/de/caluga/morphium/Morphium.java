@@ -55,6 +55,7 @@ import java.lang.reflect.Modifier;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
@@ -684,8 +685,14 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         if (!getConfig().clusterSettings().getHostSeed().isEmpty()) {
             return; // already resolved or manually configured
         }
+        if (atlasUrl.startsWith("mongodb://")) {
+            // A standard connection string carries its hosts literally - no SRV lookup (#357).
+            applyStandardConnectionUri(getConfig(), atlasUrl);
+            return;
+        }
+
         if (!atlasUrl.startsWith("mongodb+srv://")) {
-            log.warn("atlasUrl '{}' is not a mongodb+srv:// URI – ignoring", atlasUrl);
+            log.warn("atlasUrl '{}' is neither a mongodb:// nor a mongodb+srv:// URI - ignoring", atlasUrl);
             return;
         }
 
@@ -744,6 +751,116 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
      * when not already configured, so explicit user configuration always takes precedence.
      * Other spec-permitted options (e.g. {@code loadBalanced}) are not supported by Morphium and ignored.
      */
+    /**
+     * Populates the config from a standard {@code mongodb://} connection string (#357). The host
+     * list is literal - no SRV lookup - and the userinfo credentials, the URI options and the
+     * path database are applied as defaults so explicit config always wins. This bites anyone on
+     * a managed MongoDB-compatible service without SRV records (Azure Cosmos DB for MongoDB,
+     * DocumentDB, a plain replica set reached by host list): the URI used to be discarded with a
+     * warning and startup then failed with "no server address specified".
+     *
+     * <p>Shape: {@code mongodb://[user:pass@]host1[:port][,host2[:port]...][/db][?opt=val&...]}.
+     * The broader task of accepting a connection string on every config path, and honoring the
+     * SRV URI's own options too, is #358. Package-private so a unit test can exercise it without a
+     * live server.
+     */
+    static void applyStandardConnectionUri(MorphiumConfig cfg, String atlasUrl) {
+        String rest = atlasUrl.substring("mongodb://".length());
+
+        String query = null;
+        int q = rest.indexOf('?');
+        if (q >= 0) {
+            query = rest.substring(q + 1);
+            rest = rest.substring(0, q);
+        }
+
+        // The path database is deliberately not applied here: MorphiumConfig defaults the database
+        // to "test", so an unset value cannot be told from an explicit one, and the database is
+        // configured separately anyway. Full connection-string semantics are #358.
+        int slash = rest.indexOf('/');
+        if (slash >= 0) {
+            rest = rest.substring(0, slash);
+        }
+
+        // The @ separating userinfo from the host list is the last literal one - a password with
+        // an @ in it must be percent-encoded, so the host list itself never contains one.
+        String userInfo = null;
+        int at = rest.lastIndexOf('@');
+        if (at >= 0) {
+            userInfo = rest.substring(0, at);
+            rest = rest.substring(at + 1);
+        }
+
+        if (rest.isBlank()) {
+            throw new RuntimeException("Could not extract any host from atlasUrl '" + atlasUrl + "'");
+        }
+
+        for (String hostPort : rest.split(",")) {
+            String hp = hostPort.strip();
+            if (hp.isEmpty()) {
+                continue;
+            }
+            int colon = hp.lastIndexOf(':');
+            if (colon >= 0) {
+                try {
+                    cfg.clusterSettings().addHostToSeed(hp.substring(0, colon),
+                            Integer.parseInt(hp.substring(colon + 1)));
+                } catch (NumberFormatException e) {
+                    throw new RuntimeException("Invalid port in atlasUrl host '" + hp + "' (atlasUrl='"
+                            + atlasUrl + "')", e);
+                }
+            } else {
+                cfg.clusterSettings().addHostToSeed(hp, 27017);
+            }
+            log.info("  -> connection-string host {}", hp);
+        }
+
+        if (userInfo != null && !userInfo.isBlank()) {
+            int c = userInfo.indexOf(':');
+            String user = URLDecoder.decode(c >= 0 ? userInfo.substring(0, c) : userInfo, StandardCharsets.UTF_8);
+            String pass = c >= 0 ? URLDecoder.decode(userInfo.substring(c + 1), StandardCharsets.UTF_8) : null;
+
+            if (cfg.authSettings().getMongoLogin() == null && !user.isBlank()) {
+                cfg.authSettings().setMongoLogin(user);
+            }
+
+            if (cfg.authSettings().getMongoPassword() == null && pass != null) {
+                cfg.authSettings().setMongoPassword(pass);
+            }
+        }
+
+        Map<String, String> opts = parseUriOptions(query);
+        String tls = opts.getOrDefault("tls", opts.get("ssl"));
+
+        if ("true".equalsIgnoreCase(tls) && !cfg.connectionSettings().isUseSSL()) {
+            log.debug("Enabling TLS from the connection string");
+            cfg.connectionSettings().setUseSSL(true);
+        }
+
+        // authSource / replicaSet share the seedlist-defaults application (defaults only).
+        applyAtlasTxtDefaults(cfg, opts);
+    }
+
+    /** Parses a {@code k=v&k2=v2} URI query into lowercase-keyed, percent-decoded options. */
+    private static Map<String, String> parseUriOptions(String query) {
+        Map<String, String> opts = new LinkedHashMap<>();
+
+        if (query == null || query.isBlank()) {
+            return opts;
+        }
+
+        for (String pair : query.split("&")) {
+            int eq = pair.indexOf('=');
+            if (eq <= 0) {
+                continue;
+            }
+            opts.put(pair.substring(0, eq).strip().toLowerCase(),
+                    URLDecoder.decode(pair.substring(eq + 1).strip(), StandardCharsets.UTF_8));
+        }
+
+        return opts;
+    }
+
     static void applyAtlasTxtDefaults(MorphiumConfig cfg, Map<String, String> txtOptions) {
         if (txtOptions == null || txtOptions.isEmpty()) {
             return;
