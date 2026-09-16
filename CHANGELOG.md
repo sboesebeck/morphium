@@ -7,7 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+#### PoppyDB: `shutdown` over the wire actually stops the node (#356)
+`{shutdown: 1}` was advertised by `listCommands` and could not work: it fell through the command
+handler's `default:` into the embedded driver, which answered `ok:0, "shutdown in memory not
+supported"` while the server kept running. The only way to stop a node was SIGTERM, so every
+rolling restart needed shell access on every host, and the failover tests could only kill a
+primary over ssh. `MongoCommandHandler` now owns the command, wired to `PoppyDB.shutdown()` the
+same way `dumpNow` is wired: the reply goes out first, then the shutdown runs on a plain thread -
+never on the Netty event loop, which `PoppyDB.shutdown()` awaits and would deadlock against. A
+primary steps down first unless `force: true`, so a scripted rolling restart hands leadership over
+instead of black-holing writes for a full election timeout. The step-down is immediate and refuses
+re-election for 60s, so the node cannot win the election it just triggered while it is still
+stopping; there is no secondary catch-up wait (that is an unimplemented TODO in
+`ElectionManager.stepDown`), so writes not yet replicated at that moment can still be lost by a
+rolling restart. `timeoutSecs` is accepted for wire compatibility and currently has no effect.
+The command is control plane (a RECOVERING secondary is exactly the node you want to
+stop) but deliberately not pre-auth: under `--auth` only an authenticated connection can stop the
+node, and since auth is binary here, that means any authenticated user. `PoppyDB.shutdown()` is
+now guarded by a compare-and-set so the CLI's SIGTERM hook, an embedding application and the wire
+command cannot run it twice. The embedded driver keeps its `ok:0` - a Morphium instance on an
+in-memory driver has no business shutting anything down over a wire command - and `listCommands`
+lists `shutdown` only where an action is wired.
+
+#### PoppyDB: `getLog` answers from an in-memory ring buffer, `setParameter logLevel` at runtime (#356)
+`getLog` returned an empty list for `startupWarnings` and `"unknown log"` for everything else -
+`db.adminCommand({getLog: "global"})`, the first thing you type when you can reach the database but
+not the host, gave nothing. `LogRingBuffer` is a bounded Logback appender on the root logger (1024
+lines, mongod's RamLog size; one per JVM, installed once on `PoppyDB.start()`), answered in
+mongod's shape: `totalLinesWritten` keeps counting past the window so a reader can tell "1024
+lines" from "1024 of 3 million", `"*"` lists the names, `startupWarnings` carries the real ones (no
+`--auth`, no `--dump-dir`, memory watermarks off), and an unknown name is refused like mongod does
+(`no RamLog named: ...`). Its companion: `setParameter: {logLevel: N}` (0-5, mongod's verbosity)
+moves the root logger at runtime (0 = INFO, 1-2 = DEBUG, 3+ = TRACE), so a node can be raised to
+DEBUG without a restart. Logback has fewer levels than mongod has verbosities, so the effective
+value is quantized to 0, 1 or 3: `getParameter` (and setParameter's `was`) read back 1 after
+setting 2, and 3 after setting 4 or 5. Both the appender and the level change are JVM-wide (root
+logger) and are not undone by `shutdown()` - embedders sharing the JVM should know. `getParameter`
+now answers `featureCompatibilityVersion` in mongod's nested shape and `"*"` lists everything it
+knows.
+
 ### Fixed
+
+#### PoppyDB: maintenance commands survive RECOVERING, unsupported mongod commands are refused honestly (#356)
+`dumpNow` and `dumpStatus` were not in the control-plane set, so a re-syncing secondary rejected
+them with 13436 - the node you most want to dump or inspect mid-incident was the one that refused.
+Both are control plane now, as is `setParameter`. `logRotate`, `fsync`, `compact`, `profile`,
+`connPoolStats`, `replSetReconfig` and `top` used to fall into the generic path and answer whatever
+it made of them (`CommandNotFound`, which for a command every mongod has is misleading); they now get
+an explicit `CommandNotSupported` (115) with the reason, before the data-plane middleware, and are
+left out of `listCommands`. `replSetGetStatus` with real numbers (`date`, health, heartbeats,
+replication progress, RECOVERING for a syncing node) landed earlier in this cycle and is verified
+here rather than redone.
 
 #### atlas-url accepts standard mongodb:// connection strings, not only mongodb+srv:// (#357)
 `resolveAtlasUrlIfNeeded()` handled only `mongodb+srv://` and discarded any `mongodb://` URI with

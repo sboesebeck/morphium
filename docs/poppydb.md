@@ -1283,9 +1283,10 @@ PoppyDB implements the following MongoDB admin commands:
 | `listDatabases` | List all databases with sizes |
 | `buildInfo` | Server version information |
 | `getCmdLineOpts` | Command line options |
-| `getParameter` | Server parameters |
-| `getLog` | Server logs |
-| `listCommands` | Names of every command this server answers |
+| `getParameter` / `setParameter` | `featureCompatibilityVersion` and `logLevel`; `setParameter: {logLevel: N}` (0-5, mongod verbosity) moves the root logger at runtime (0 = INFO, 1-2 = DEBUG, 3+ = TRACE) - raise a node to DEBUG without a restart. Logback has fewer levels, so the effective value is quantized to 0, 1 or 3 and that is what `getParameter` reads back (2 -> 1, 4/5 -> 3) |
+| `getLog` | `"global"` answers the last 1024 log lines from an in-memory ring buffer (`totalLinesWritten`, `log`), `"startupWarnings"` the real ones (no `--auth`, no `--dump-dir`, memory watermarks off), `"*"` lists the names |
+| `shutdown` | Stops this node: a primary steps down first unless `force: true` (immediately, refusing re-election for 60s - there is no secondary catch-up wait, so writes not yet replicated at that moment can be lost; `timeoutSecs` is accepted but has no effect), the reply goes out, then `PoppyDB.shutdown()` runs (final dump included) on its own thread. Works on a RECOVERING node. Requires an authenticated connection under `--auth` - auth is binary here, so **any** authenticated user can stop the node |
+| `listCommands` | Names of every command this server answers - and only those; `shutdown` is listed only where it works, explicitly refused commands are not listed |
 | `currentOp` / `$currentOp` stage | Live operations from the server's op registry — `db.currentOp()` works, including `$match` filters |
 | `killOp` | Marks an op kill-pending; best-effort thread interrupt (never a Netty event loop — cooperative like mongod) |
 | `serverStatus` | Includes real client connection gauges (`connections.current`/`totalCreated` from the Netty channel group) |
@@ -1299,6 +1300,17 @@ PoppyDB implements the following MongoDB admin commands:
 | `replSetStepDown` | Step down from primary (for replica sets) |
 | `startSession` / `endSessions` / `refreshSessions` | Session management |
 | `getMore` | Cursor iteration for both regular queries and change streams |
+| `dumpNow` / `dumpStatus` | On-demand dump and persistence info (see [Persistence](#persistence)); both work on a RECOVERING node |
+
+Commands every mongod has and PoppyDB deliberately does not - `logRotate` (rotation is Logback's or
+logrotate's job), `fsync`, `compact`, `profile`, `connPoolStats`, `replSetReconfig`, `top` - are
+refused explicitly with `CommandNotSupported` (115) and the reason, instead of falling into the
+generic path and answering whatever it happens to make of them.
+
+**Embedders, note:** the `getLog` ring buffer is a Logback appender attached to the **root logger
+of the whole JVM** (once, shared by every PoppyDB instance in it), and `setParameter: {logLevel: N}`
+changes the root logger's level for the whole process - every library logging through SLF4J in
+that JVM is affected. Neither is undone by `PoppyDB.shutdown()`.
 
 ### Standalone Server Behavior
 

@@ -188,8 +188,15 @@ public class PoppyDB {
     // Set at the start of shutdown(): no new dump may be started from here on, however it is
     // triggered - the driver is about to be reset.
     private volatile boolean shuttingDown = false;
+    // Exactly one shutdown runs, whoever asks: the CLI's SIGTERM hook, an embedding application
+    // and the wire-level shutdown command (#356) may all call shutdown() and may race each other.
+    private final java.util.concurrent.atomic.AtomicBoolean shutdownStarted =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
     /** How long shutdown waits for a running dump before giving up on the final dump. */
     long finalDumpWaitMs = 10_000;
+
+    // The JVM-wide log tail behind getLog:"global" (#356); attached to the root logger on start.
+    private LogRingBuffer logBuffer;
 
     // Replication
     // volatile: mutated under synchronized on the election/leadership paths but read unsynchronized
@@ -394,6 +401,9 @@ public class PoppyDB {
         }
         final io.netty.handler.ssl.SslContext finalSslContext = nettySslContext;
 
+        // Shared across all instances in the JVM - install() attaches it to the root logger once
+        logBuffer = LogRingBuffer.install();
+
         // Configure driver
         driver.setHostSeed(host + ":" + port);
         driver.setReplicaSet(rsName != null && !rsName.isEmpty());
@@ -452,7 +462,13 @@ public class PoppyDB {
                          .setConnectionCounters(allChannels::size, connectionsCreated::get)
                          .setRsPriorities(hostPriorities)
                          .setDumpNowAction(dumpDirectory == null ? null : PoppyDB.this::triggerDumpNow)
-                         .setDumpStatusSupplier(PoppyDB.this::getDumpStatus));
+                         .setDumpStatusSupplier(PoppyDB.this::getDumpStatus)
+                         // #356: the DevOps surface - a shutdown that stops the node (run by the
+                         // handler on its own thread, never on this event loop), the log tail
+                         // behind getLog:"global" and the real startup warnings
+                         .setShutdownAction(PoppyDB.this::shutdown)
+                         .setLogBuffer(logBuffer)
+                         .setStartupWarningsSupplier(PoppyDB.this::startupWarnings));
 
                         // Track the channel
                         allChannels.add(ch);
@@ -468,6 +484,7 @@ public class PoppyDB {
         // Bind and start
         ChannelFuture future = bootstrap.bind(host, port).sync();
         serverChannel = future.channel();
+        shutdownStarted.set(false);
         running = true;
 
         log.info("PoppyDB started on {}:{} (workers: {})", host, port, workerThreads);
@@ -542,7 +559,7 @@ public class PoppyDB {
      * Stop the server gracefully.
      */
     public void shutdown() {
-        if (!running) {
+        if (!running || !shutdownStarted.compareAndSet(false, true)) {
             return;
         }
 
@@ -646,6 +663,37 @@ public class PoppyDB {
         driver.forceShutdown();
 
         log.info("PoppyDB shutdown complete");
+    }
+
+    /**
+     * The warnings {@code getLog: "startupWarnings"} answers (#356): the configuration choices an
+     * operator should know about when they can reach the database but not the host. Computed on
+     * request so they reflect the effective configuration, not the constructor defaults.
+     */
+    List<String> startupWarnings() {
+        List<String> warnings = new ArrayList<>();
+
+        if (!authRequired) {
+            warnings.add("Access control is not enabled for the database. Read and write access to data "
+                    + "and configuration is unrestricted (start with --auth to require authentication)");
+        }
+
+        if (dumpDirectory == null) {
+            warnings.add("No dump directory configured (--dump-dir). All data is held in memory only "
+                    + "and is lost when this node stops");
+        }
+
+        if (driver.getMemoryRejectPercent() >= 100) {
+            warnings.add("The memory reject watermark is off (--memory-reject 100). Document-creating writes "
+                    + "are never refused, so the node can be written into an OutOfMemoryError");
+        }
+
+        if (driver.getMemoryWarnPercent() >= 100) {
+            warnings.add("The memory warn watermark is off (--memory-warn 100). Heap pressure will not be logged "
+                    + "before writes start being refused");
+        }
+
+        return warnings;
     }
 
     @SuppressWarnings("deprecation") // SelfSignedCertificate is deprecated by Netty but is
