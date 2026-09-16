@@ -72,7 +72,8 @@ public class InMemoryDriverSlowQueryTest {
             // the count.
             return appender.list.stream()
                     .filter(ev -> ev.getLevel() == Level.WARN)
-                    .filter(ev -> ev.getFormattedMessage().startsWith("Slow query on"))
+                    .filter(ev -> ev.getFormattedMessage().startsWith("Slow query on")
+                                  || ev.getFormattedMessage().startsWith("Slow aggregation on"))
                     .collect(Collectors.toList());
         } finally {
             logger.detachAppender(appender);
@@ -200,6 +201,43 @@ public class InMemoryDriverSlowQueryTest {
         assertTrue(warns.stream().anyMatch(w -> w.getFormattedMessage().contains("IXSCAN")),
                 "a leading $match on an indexed field must be reported as IXSCAN");
         assertEquals(slowBefore + warns.size(), drv.slowQueries);
+    }
+
+    /**
+     * A slow aggregation must be identifiable as one. It shares the counters with find/count, but
+     * not the wording: its stage/docsExamined come from the IndexPlanner and describe a plan that
+     * execution does NOT run - the pipeline scans the whole collection either way (#375). Logged
+     * as "Slow query on ... stage=IXSCAN", the line sends the reader looking for a missing index
+     * that cannot help.
+     */
+    @Test
+    void slowAggregateIsIdentifiableAndMarksItsPlanAsDiagnostic() throws Exception {
+        InMemoryDriver drv = freshDriverWithIndexedCollection(20);
+        drv.setSlowQueryThresholdMillis(0);
+
+        List<ILoggingEvent> warns = runAndCaptureWarns(() -> {
+            try {
+                new AggregateMongoCommand(drv).setDb(db).setColl(coll)
+                        .setPipeline(List.of(Doc.of("$match", Doc.of("counter", 5))))
+                        .execute();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        List<ILoggingEvent> aggregateLines = warns.stream()
+                .filter(w -> w.getFormattedMessage().startsWith("Slow aggregation on"))
+                .collect(Collectors.toList());
+
+        assertFalse(aggregateLines.isEmpty(),
+                "a slow aggregation must say so instead of masquerading as a slow query: "
+                + warns.stream().map(ILoggingEvent::getFormattedMessage).collect(Collectors.joining(" | ")));
+
+        String line = aggregateLines.get(0).getFormattedMessage();
+        assertTrue(line.contains("plannedStage="),
+                "the stage is the planner's, not what ran - the field name must say so: " + line);
+        assertTrue(line.contains("#375"),
+                "point the reader at why an index does not fix this: " + line);
     }
 
     @Test

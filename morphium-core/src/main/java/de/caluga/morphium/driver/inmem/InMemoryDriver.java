@@ -283,18 +283,24 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * line carrying the namespace, the query's sanitized shape (see {@link #sanitizeQueryShape}, no
      * values), the winning plan's stage ({@code COLLSCAN}/{@code IXSCAN}), and {@code docsExamined}.
      */
+    /** Shared by the find/count and the aggregate variant - both feed the same counters. */
+    private void countSlowQuery(String stage) {
+        slowQueries++;
+
+        if ("IXSCAN".equals(stage)) {
+            slowQueriesIxscan++;
+        } else {
+            slowQueriesCollScan++;
+        }
+    }
+
     private void recordSlowQueryIfNeeded(String db, String collection, Map<String, Object> query,
             String stage, long docsExamined, long elapsedMillis) {
         if (elapsedMillis < slowQueryThresholdMillis) {
             return;
         }
 
-        slowQueries++;
-        if ("IXSCAN".equals(stage)) {
-            slowQueriesIxscan++;
-        } else {
-            slowQueriesCollScan++;
-        }
+        countSlowQuery(stage);
 
         if (log.isWarnEnabled()) {
             log.warn("Slow query on {}.{}: tookMs={}, stage={}, docsExamined={}, filterShape={}",
@@ -347,7 +353,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
             }
 
-            recordSlowQueryIfNeeded(db, collection, matchFilter, stage, docsExamined, elapsedMillis);
+            // Deliberately NOT recordSlowQueryIfNeeded: that wording would claim this was a
+            // find/count, and its stage/docsExamined would be read as what ran. Neither holds -
+            // the pipeline scans the whole collection regardless of the plan computed above
+            // (#375). Naming the fields "planned*" and pointing at the issue keeps the next
+            // reader from adding an index that cannot help; the counters stay shared.
+            countSlowQuery(stage);
+
+            if (log.isWarnEnabled()) {
+                log.warn("Slow aggregation on {}.{}: tookMs={}, plannedStage={}, "
+                         + "plannedDocsExamined={}, leadingMatch={} - the plan is diagnostic only, "
+                         + "execution scans the collection (#375)",
+                        db, collection, elapsedMillis, stage, docsExamined,
+                        Utils.toJsonString(sanitizeQueryShape(matchFilter == null ? Doc.of() : matchFilter)));
+            }
         } catch (Exception e) {
             log.debug("Failed to record slow-aggregate diagnostics for {}.{}", db, collection, e);
         }
