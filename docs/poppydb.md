@@ -256,7 +256,7 @@ Example:
 java -jar poppydb/target/poppydb-<version>-cli.jar -p 27018 -b 0.0.0.0 --rs-name my-rs --rs-seed host1:27017,host2:27018
 ```
 
-### Replica Set Behavior (experimental)
+### Replica Set Behavior
 
 PoppyDB now performs a lightweight initial sync whenever you start an additional member with the same `--rs-name` / `--rs-seed`:
 
@@ -824,7 +824,7 @@ replicated meta document, so a node elected primary while still mid-resync — a
 landed — sees no meta document and re-applies its own file regardless of version. This is
 possible when such a node wins the election in the first place. Since 6.3.2 that is much
 harder: log-recency voting, PreVote and candidacy restraint (see [Replica Set
-Behavior](#replica-set-behavior-experimental) above) keep a mid-resync node with an empty local
+Behavior](#replica-set-behavior) above) keep a mid-resync node with an empty local
 log out of elections rather than treating it as equally electable. The window is not provably
 gone in every interleaving, so the caveat stays documented - but it is no longer the wide-open
 door it was when the log check had no effect at all.

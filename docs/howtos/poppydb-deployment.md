@@ -62,7 +62,7 @@ java -jar poppydb-cli.jar --cfg /etc/poppydb/config
 ```
 
 Repeat on the other two nodes with the same config file (`rs-name`/`rs-seed` must be identical
-everywhere). See [PoppyDB § Replica Set Behavior](../poppydb.md#replica-set-behavior-experimental)
+everywhere). See [PoppyDB § Replica Set Behavior](../poppydb.md#replica-set-behavior)
 for how initial sync and elections work.
 
 **Do not skip `auth`/`ssl` in production** — without them, anyone who can reach the port has full
