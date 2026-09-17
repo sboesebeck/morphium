@@ -326,6 +326,18 @@ public class MessagingMetricsCollector {
 }
 ```
 
+### Morpheus — Ready-Made Live Monitoring and Load Testing
+
+Building custom instrumentation like the collector above is one option;
+[Morpheus](https://github.com/sboesebeck/morpheus) gets you the same visibility without
+writing any code. It's a terminal UI (and scriptable CLI) built specifically for Morphium
+messaging: live views for in-flight messages, per-topic aggregates, sender→answerer node
+pairs, a *top*-style per-node health monitor (heap, cache hit ratio, driver connections,
+threads), and an animated message-flow graph. The same `latency` view doubles as a load
+test (`morpheus latency --headless` for scripted JSON/CSV/Graphite reports), and
+`morpheus ping` exports one-shot health checks to Graphite — useful for feeding the
+dashboards above without touching application code.
+
 ## Health Checks and Diagnostics
 
 ### Comprehensive Health Check

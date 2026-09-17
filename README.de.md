@@ -206,6 +206,7 @@ try (Morphium morphium = new Morphium(cfg)) {          // cfg zeigt auf localhos
 - Performance-Guide: `docs/performance-scalability-guide.md`
 - Production-Deployment: `docs/production-deployment-guide.md`
 - Monitoring & Troubleshooting: `docs/monitoring-metrics-guide.md`
+- Live-Monitoring & Lasttests: [Morpheus](https://github.com/sboesebeck/morpheus) — Terminal-UI/CLI, mit dem man Nachrichten, Topics und Node-Health live beobachten kann, ohne eigenen Code
 
 ## 🚀 Neu in Version 6.3
 

@@ -72,6 +72,7 @@ Morphium includes a complete in-memory MongoDB-compatible implementation for tes
 
 ## Operations & Monitoring  
 - **[Monitoring & Metrics Guide](./monitoring-metrics-guide.md)** - Comprehensive monitoring with DriverStats and performance metrics
+- **[Morpheus](https://github.com/sboesebeck/morpheus)** - Terminal UI and CLI for live message/node monitoring and load testing against a running Morphium messaging setup, no code required
 - **[Troubleshooting Guide](./troubleshooting-guide.md)** - Common issues, diagnosis, and solutions
 - **[Architecture Overview](./architecture-overview.md)** - Internal architecture and component relationships
 

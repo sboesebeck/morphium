@@ -205,6 +205,7 @@ try (Morphium morphium = new Morphium(cfg)) {          // cfg points at localhos
 - Performance guide: `docs/performance-scalability-guide.md`
 - Production deployment: `docs/production-deployment-guide.md`
 - Monitoring & troubleshooting: `docs/monitoring-metrics-guide.md`
+- Live monitoring & load testing: [Morpheus](https://github.com/sboesebeck/morpheus) — terminal UI/CLI for watching messages, topics and node health in real time, no code required
 
 ## 🚀 What’s New in v6.3
 
