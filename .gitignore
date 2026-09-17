@@ -54,3 +54,8 @@ site/
 # not part of this repo - it lives on the runner and is meant to move into its own repo.
 # Ignored so the runner's own checkout cannot commit it back in by accident.
 ci/
+
+# Internal AI-agent planning artifacts (superpowers plans/specs). Working notes, not
+# published documentation - excluded from the mkdocs site (mkdocs.yml exclude_docs) and
+# from the wiki sync; kept out of the repo entirely rather than just hidden downstream.
+docs/superpowers/
