@@ -2759,8 +2759,12 @@ more than a test fixture.</p>
 <td><strong>Official Driver</strong> — Morphium's own wire-protocol driver covers a subset, see <a href="../ssl-tls/">SSL/TLS guide</a> and driver docs for what's supported</td>
 </tr>
 <tr>
-<td>Team only knows Spring Data</td>
-<td><strong>Spring Data MongoDB</strong> (lower learning curve)</td>
+<td>Team wants Spring Data MongoDB's own repository conventions/<code>MongoTemplate</code> specifically</td>
+<td><strong>Spring Data MongoDB</strong> (lower learning curve for that ecosystem)</td>
+</tr>
+<tr>
+<td>Team wants Spring Boot itself (auto-config, Actuator, DI) but Morphium's messaging/caching</td>
+<td><strong><a href="../spring-boot/"><code>spring-boot-morphium</code></a></strong> — Spring Boot auto-configuration and Jakarta Data <code>@Repository</code> interfaces on top of Morphium, not a Spring Data MongoDB replacement</td>
 </tr>
 <tr>
 <td>No messaging needed, simple CRUD</td>
