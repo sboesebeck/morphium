@@ -2803,6 +2803,14 @@ more than a test fixture.</p>
 <td>ODM saves boilerplate</td>
 </tr>
 <tr>
+<td>Stringly-typed field names cause runtime typos</td>
+<td>Compile-time checked <code>Fields</code> enum (<code>.f(User.Fields.username)</code>) instead of raw strings, wherever the query API takes one</td>
+</tr>
+<tr>
+<td>Renaming an entity class or a field breaks reading old documents</td>
+<td>A stable <code>@Entity(typeId = ...)</code> decouples storage from the Java class name, <code>@Aliases</code> accepts legacy field names when reading/querying, and <code>@AdditionalData</code> catches fields your current POJO no longer maps — see <a href="../developer-guide/#renames-and-schema-evolution">Renames and Schema Evolution</a></td>
+</tr>
+<tr>
 <td>Distributed locks</td>
 <td>Built-in</td>
 </tr>

@@ -3101,6 +3101,7 @@ Note: these test classes are intentionally technical and cover edge cases.</li>
 </span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="p">}</span>
 </span></code></pre></div></li>
 <li>Combine <code>typeId</code> with <code>@Aliases</code> and <code>@AdditionalData</code> for smoother migrations: keep deserialization working after refactors, accept legacy field names, and preserve unexpected fields.</li>
+<li><strong><code>@Aliases</code> is read/query-only.</strong> It only makes <code>getField()</code>/query-key resolution also accept the listed legacy names when reading or building a filter; it never changes what gets written. A <code>store()</code> on the new field always writes the canonical field name — a fleet running mixed old/new code will not see the new code's writes show up under the old name, and vice versa.</li>
 </ul>
 <h3 id="example-rename-class-and-fields-safely">Example: Rename Class and Fields Safely<a class="headerlink" href="#example-rename-class-and-fields-safely" title="Permanent link">&para;</a></h3>
 <h4 id="version-1-initial-best-practice">Version 1 (initial, best practice)<a class="headerlink" href="#version-1-initial-best-practice" title="Permanent link">&para;</a></h4>
