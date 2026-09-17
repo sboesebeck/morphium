@@ -1053,10 +1053,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#virtual-threads-jdk-21" class="md-nav__link">
+  <a href="#platform-threads" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Virtual Threads (JDK 21+)
+        Platform Threads
       
     </span>
   </a>
@@ -3076,10 +3076,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#virtual-threads-jdk-21" class="md-nav__link">
+  <a href="#platform-threads" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Virtual Threads (JDK 21+)
+        Platform Threads
       
     </span>
   </a>
@@ -3525,17 +3525,22 @@
 </span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="p">}</span>
 </span></code></pre></div>
 <h2 id="threading-model">Threading Model<a class="headerlink" href="#threading-model" title="Permanent link">&para;</a></h2>
-<h3 id="virtual-threads-jdk-21">Virtual Threads (JDK 21+)<a class="headerlink" href="#virtual-threads-jdk-21" title="Permanent link">&para;</a></h3>
-<p>Morphium leverages <strong>virtual threads</strong> for better concurrency:</p>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1">// Connection pool uses virtual thread factory</span>
+<h3 id="platform-threads">Platform Threads<a class="headerlink" href="#platform-threads" title="Permanent link">&para;</a></h3>
+<p>The connection pool and its heartbeat/scheduling infrastructure run on regular platform
+threads:</p>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1">// Connection pool executor</span>
 </span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">ScheduledThreadPoolExecutor</span><span class="w"> </span><span class="n">executor</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ScheduledThreadPoolExecutor</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">    </span><span class="n">Thread</span><span class="p">.</span><span class="na">ofVirtual</span><span class="p">().</span><span class="na">name</span><span class="p">(</span><span class="s">"MCon-"</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">).</span><span class="na">factory</span><span class="p">());</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">    </span><span class="n">Thread</span><span class="p">.</span><span class="na">ofPlatform</span><span class="p">().</span><span class="na">name</span><span class="p">(</span><span class="s">"MCon-"</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">).</span><span class="na">factory</span><span class="p">());</span>
 </span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>
-</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="c1">// Individual operations use virtual threads</span>
-</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="n">Thread</span><span class="p">.</span><span class="na">ofVirtual</span><span class="p">().</span><span class="na">name</span><span class="p">(</span><span class="s">"HeartbeatCheck-"</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">host</span><span class="p">).</span><span class="na">start</span><span class="p">(()</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="c1">// Individual heartbeat checks</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="n">Thread</span><span class="p">.</span><span class="na">ofPlatform</span><span class="p">().</span><span class="na">name</span><span class="p">(</span><span class="s">"HeartbeatCheck-"</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">host</span><span class="p">).</span><span class="na">start</span><span class="p">(()</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">    </span><span class="c1">// Heartbeat logic</span>
 </span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="p">});</span>
 </span></code></pre></div>
+<p>Virtual threads were tried here (and in the change-stream event dispatcher and messaging
+layer) but rolled back in 6.2.x: JDK 21's <code>synchronized</code> pinning caused deadlocks under
+load. They remain in use for one place only — the async-operation thread pool in
+<code>Morphium</code> — and a wider re-evaluation is planned once JEP 491 (JDK 24+) is the baseline.</p>
 <h3 id="concurrency-patterns">Concurrency Patterns<a class="headerlink" href="#concurrency-patterns" title="Permanent link">&para;</a></h3>
 <ol>
 <li><strong>Connection Pool Management</strong></li>

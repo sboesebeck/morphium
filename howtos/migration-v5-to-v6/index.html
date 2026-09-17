@@ -1539,10 +1539,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#1-virtual-threads-support" class="md-nav__link">
+  <a href="#1-java-21-threading" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. Virtual Threads Support
+        1. Java 21 Threading
       
     </span>
   </a>
@@ -2798,10 +2798,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#1-virtual-threads-support" class="md-nav__link">
+  <a href="#1-java-21-threading" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. Virtual Threads Support
+        1. Java 21 Threading
       
     </span>
   </a>
@@ -3133,11 +3133,11 @@
 <li>See <code>docs/howtos/inmemory-driver.md</code> for detailed feature coverage</li>
 </ul>
 <h2 id="new-features-in-v6">New Features in v6<a class="headerlink" href="#new-features-in-v6" title="Permanent link">&para;</a></h2>
-<h3 id="1-virtual-threads-support">1. Virtual Threads Support<a class="headerlink" href="#1-virtual-threads-support" title="Permanent link">&para;</a></h3>
-<p>Morphium 6 uses Java 21 virtual threads for:
-- Change stream event dispatching
-- Async operation handling
-- Lightweight concurrent processing</p>
+<h3 id="1-java-21-threading">1. Java 21 Threading<a class="headerlink" href="#1-java-21-threading" title="Permanent link">&para;</a></h3>
+<p>Morphium 6 targets Java 21+ throughout. Virtual threads were tried for change-stream event
+dispatching and messaging but rolled back in 6.2.x (JDK 21's <code>synchronized</code> pinning caused
+deadlocks under load); those paths run on platform threads today. Async operation handling
+(<code>Morphium</code>'s async API) still uses a virtual-thread pool.</p>
 <h3 id="2-enhanced-configuration">2. Enhanced Configuration<a class="headerlink" href="#2-enhanced-configuration" title="Permanent link">&para;</a></h3>
 <ul>
 <li>URI-based configuration: <code>MONGODB_URI</code> environment variable</li>

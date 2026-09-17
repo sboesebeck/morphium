@@ -1224,6 +1224,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#not-suitable-for-on-disk-format-tests-336" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Not suitable for on-disk format tests (#336)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#performance-considerations_1" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3061,6 +3072,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#not-suitable-for-on-disk-format-tests-336" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Not suitable for on-disk format tests (#336)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#performance-considerations_1" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3315,7 +3337,7 @@
 <ul>
 <li>✅ <strong>Basic Transactions</strong>: start, commit, abort (single-instance)</li>
 <li>❌ <strong>Multi-document ACID</strong>: Limited to single instance</li>
-<li>⚠️ <strong>Replica Sets</strong>: Experimental support in <code>PoppyDB</code> (v6.1); no replica set simulation within a single <code>InMemoryDriver</code> instance.</li>
+<li>✅ <strong>Replica Sets</strong>: Real leader election, initial sync and automatic failover in <code>PoppyDB</code> (see <a href="../poppydb/#replica-set-behavior">PoppyDB § Replica Set Behavior</a>); no replica set simulation within a single <code>InMemoryDriver</code> instance.</li>
 </ul>
 <h2 id="v61-improvements">V6.1 Improvements<a class="headerlink" href="#v61-improvements" title="Permanent link">&para;</a></h2>
 <p>Morphium 6.1 introduced the features that make PoppyDB a true <strong>drop-in replacement</strong> for MongoDB:</p>
@@ -3610,6 +3632,79 @@
 <li>✅ <strong>$lookup Joins</strong>: Supported via aggregation pipeline</li>
 <li>✅ <strong>Full Text Search</strong>: MongoDB-compatible <code>$text</code> queries supported (v6.1)</li>
 </ul>
+<h3 id="not-suitable-for-on-disk-format-tests-336">Not suitable for on-disk format tests (#336)<a class="headerlink" href="#not-suitable-for-on-disk-format-tests-336" title="Permanent link">&para;</a></h3>
+<p>A value that reaches a driver <strong>unmapped</strong> - a raw <code>LocalDate</code> handed to
+<code>InsertMongoCommand</code>, a <code>$set</code> operand built by hand - is normalised on the wire path
+and stored verbatim in memory. The wire drivers serialise every command through
+<code>BsonEncoder</code>, so what lands on disk is whatever <code>decode(encode(v))</code> produces;
+<code>InMemoryDriver</code> has no encoder in that path and keeps the Java object:</p>
+<table>
+<thead>
+<tr>
+<th>written value</th>
+<th>real mongod stores</th>
+<th><code>InMemoryDriver</code> stores</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LocalDate</code> / <code>LocalTime</code></td>
+<td><code>Long</code></td>
+<td><code>LocalDate</code> / <code>LocalTime</code></td>
+</tr>
+<tr>
+<td><code>LocalDateTime</code> / <code>Instant</code></td>
+<td>sub-document</td>
+<td><code>LocalDateTime</code> / <code>Instant</code></td>
+</tr>
+<tr>
+<td><code>Character</code></td>
+<td><code>Integer</code></td>
+<td><code>Character</code></td>
+</tr>
+<tr>
+<td>enum constant</td>
+<td><code>String</code></td>
+<td>enum object</td>
+</tr>
+<tr>
+<td><code>Short</code> / <code>Byte</code></td>
+<td><code>Integer</code></td>
+<td><code>Short</code> / <code>Byte</code></td>
+</tr>
+<tr>
+<td><code>Float</code></td>
+<td><code>Double</code></td>
+<td><code>Float</code></td>
+</tr>
+<tr>
+<td><code>int[]</code></td>
+<td><code>List</code></td>
+<td><code>int[]</code></td>
+</tr>
+<tr>
+<td><code>Calendar</code></td>
+<td><code>Date</code></td>
+<td><code>GregorianCalendar</code></td>
+</tr>
+<tr>
+<td><code>org.bson.types.ObjectId</code></td>
+<td><code>MorphiumId</code></td>
+<td><code>ObjectId</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>This does not show up in query results.</strong> The in-memory driver leaves the stored value
+<em>and</em> the filter unnormalised, so equality still matches on both sides. A format test that
+asserts on query outcomes therefore passes against <code>InMemoryDriver</code> for the wrong reason -
+which is worse than failing, because nothing points at the gap. Only the raw persisted
+shape reveals it.</p>
+<p>So: pin on-disk shapes against a real MongoDB (or PoppyDB, which decodes off the wire and
+is unaffected), not against <code>InMemoryDriver</code>. Everything written through the normal
+Morphium API is unaffected - the ObjectMapper maps those values before they reach any
+driver, and since #335 the update APIs (<code>set()</code>/<code>push()</code>/<code>addToSet()</code>) do too.</p>
+<p><code>InMemoryWireShapeParityTest</code> pins this; it is <code>@Disabled</code> until the normalisation lands
+in 6.4.0.</p>
 <h3 id="performance-considerations_1">Performance Considerations<a class="headerlink" href="#performance-considerations_1" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong>Memory Usage</strong>: All data stored in memory</li>

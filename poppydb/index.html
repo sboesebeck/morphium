@@ -1148,10 +1148,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#replica-set-behavior-experimental" class="md-nav__link">
+  <a href="#replica-set-behavior" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Replica Set Behavior (experimental)
+        Replica Set Behavior
       
     </span>
   </a>
@@ -2956,10 +2956,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#replica-set-behavior-experimental" class="md-nav__link">
+  <a href="#replica-set-behavior" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Replica Set Behavior (experimental)
+        Replica Set Behavior
       
     </span>
   </a>
@@ -3900,7 +3900,7 @@ case/separator-insensitive) — flags without one are CLI-only (there is nothing
 <p>Example:
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>java<span class="w"> </span>-jar<span class="w"> </span>poppydb/target/poppydb-&lt;version&gt;-cli.jar<span class="w"> </span>-p<span class="w"> </span><span class="m">27018</span><span class="w"> </span>-b<span class="w"> </span><span class="m">0</span>.0.0.0<span class="w"> </span>--rs-name<span class="w"> </span>my-rs<span class="w"> </span>--rs-seed<span class="w"> </span>host1:27017,host2:27018
 </span></code></pre></div></p>
-<h3 id="replica-set-behavior-experimental">Replica Set Behavior (experimental)<a class="headerlink" href="#replica-set-behavior-experimental" title="Permanent link">&para;</a></h3>
+<h3 id="replica-set-behavior">Replica Set Behavior<a class="headerlink" href="#replica-set-behavior" title="Permanent link">&para;</a></h3>
 <p>PoppyDB now performs a lightweight initial sync whenever you start an additional member with the same <code>--rs-name</code> / <code>--rs-seed</code>:</p>
 <ul>
 <li>The first node that starts without detecting peers becomes primary immediately.</li>
@@ -4427,7 +4427,7 @@ replicated meta document, so a node elected primary while still mid-resync — a
 <code>admin.system.version</code> has been cleared for the resync but before the primary's snapshot has
 landed — sees no meta document and re-applies its own file regardless of version. This is
 possible when such a node wins the election in the first place. Since 6.3.2 that is much
-harder: log-recency voting, PreVote and candidacy restraint (see <a href="#replica-set-behavior-experimental">Replica Set
+harder: log-recency voting, PreVote and candidacy restraint (see <a href="#replica-set-behavior">Replica Set
 Behavior</a> above) keep a mid-resync node with an empty local
 log out of elections rather than treating it as equally electable. The window is not provably
 gone in every interleaving, so the caveat stays documented - but it is no longer the wide-open

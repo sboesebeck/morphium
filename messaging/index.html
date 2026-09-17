@@ -1584,10 +1584,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#virtual-threads" class="md-nav__link">
+  <a href="#threading-model" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Virtual Threads
+        Threading Model
       
     </span>
   </a>
@@ -2413,10 +2413,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#virtual-threads" class="md-nav__link">
+  <a href="#threading-model" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Virtual Threads
+        Threading Model
       
     </span>
   </a>
@@ -2589,7 +2589,7 @@
 <ul>
 <li>Queue name: <code>setMessageQueueName(String)</code>: collection suffix used for the queue.</li>
 <li>Window size: <code>setMessagingWindowSize(int)</code>: number of messages processed per batch. Messaging marks up to this many messages and processes them as one window.</li>
-<li>Multithreading: <code>setMessagingMultithreadded(boolean)</code>: process multiple messages in parallel using (virtual) threads; <code>false</code> enforces single‑threaded, sequential handling.</li>
+<li>Multithreading: <code>setMessagingMultithreadded(boolean)</code>: process multiple messages in parallel using a platform-thread pool; <code>false</code> enforces single‑threaded, sequential handling.</li>
 <li>Change streams: <code>setUseChangeStream(boolean)</code>: use MongoDB Change Streams to get push‑style notifications for new messages; when <code>false</code>, messaging uses polling for both topic messages and direct messages (answers). Requires a replica set for Change Streams.</li>
 <li>Poll pause: <code>setMessagingPollPause(int)</code>: pause (in ms) between polling requests when not using Change Streams. Also used as a heartbeat to check for messages outside the current processing window (e.g., if new messages arrive and the queue holds more than <code>windowSize</code>, a poll is triggered once after this pause).</li>
 </ul>
@@ -2686,11 +2686,10 @@ without adding latency at low traffic. See
 </span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="c1">// Exclusive messages properly distributed</span>
 </span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="c1">// Broadcast messages delivered to all</span>
 </span></code></pre></div></p>
-<h3 id="virtual-threads">Virtual Threads<a class="headerlink" href="#virtual-threads" title="Permanent link">&para;</a></h3>
-<p>Java 21 virtual threads for lightweight concurrency:
-- Change stream callbacks run on virtual threads
-- Each change stream watcher has its own virtual thread executor
-- Minimal memory overhead for thousands of concurrent listeners</p>
+<h3 id="threading-model">Threading Model<a class="headerlink" href="#threading-model" title="Permanent link">&para;</a></h3>
+<p>Change stream callbacks and message dispatch run on platform threads. Virtual threads were
+tried here but rolled back in 6.2.x: JDK 21's <code>synchronized</code> pinning caused deadlocks under
+load. Re-evaluation is planned once JEP 491 (JDK 24+) is the baseline.</p>
 <h2 id="built-in-status-monitoring">Built-in Status Monitoring<a class="headerlink" href="#built-in-status-monitoring" title="Permanent link">&para;</a></h2>
 <p><strong>Every Morphium messaging instance automatically includes a status listener</strong> that responds to queries on the <code>morphium_status</code> topic. This provides comprehensive monitoring without any configuration.</p>
 <h3 id="status-query-levels">Status Query Levels<a class="headerlink" href="#status-query-levels" title="Permanent link">&para;</a></h3>

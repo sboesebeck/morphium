@@ -2504,7 +2504,7 @@ step in this playbook (systemd, monitoring, upgrades) assumes.</p>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>java<span class="w"> </span>-jar<span class="w"> </span>poppydb-cli.jar<span class="w"> </span>--cfg<span class="w"> </span>/etc/poppydb/config
 </span></code></pre></div>
 <p>Repeat on the other two nodes with the same config file (<code>rs-name</code>/<code>rs-seed</code> must be identical
-everywhere). See <a href="../../poppydb/#replica-set-behavior-experimental">PoppyDB § Replica Set Behavior</a>
+everywhere). See <a href="../../poppydb/#replica-set-behavior">PoppyDB § Replica Set Behavior</a>
 for how initial sync and elections work.</p>
 <p><strong>Do not skip <code>auth</code>/<code>ssl</code> in production</strong> — without them, anyone who can reach the port has full
 read/write/admin access in cleartext. Authorization is authentication-only right now (roles are
