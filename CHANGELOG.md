@@ -21,6 +21,13 @@ fields; non-numeric results are ignored by `$sum`/`$avg` and null never wins `$m
 as in mongod. The `{$cond: {if, then, else}}` spelling was not parseable by `Expr.parse` at all
 (only the positional form was) and is accepted now.
 
+#### InMemoryDriver: `$sum` over a `"$field"` reference no longer fails on missing or non-numeric values
+The field-reference fast path of `$sum` cast the document value to `Number` unchecked. One
+document without the field (or with a string in it) took the whole aggregation down with a
+`NullPointerException`, surfaced as `ok:0` to the caller. The expression path next to it
+already skipped such values. Both paths now behave like mongod: missing and non-numeric
+values simply do not add up.
+
 
 ## [6.3.9] - 2026-09-16
 

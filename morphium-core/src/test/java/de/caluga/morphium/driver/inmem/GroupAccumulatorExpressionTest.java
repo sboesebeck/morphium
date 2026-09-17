@@ -143,6 +143,27 @@ public class GroupAccumulatorExpressionTest {
     }
 
     /**
+     * The "$field" fast path of $sum cast the value to Number unchecked: a document without
+     * the field (or with a non-numeric value) killed the whole aggregation with an NPE /
+     * ClassCastException, while the expression path next to it already ignored such values.
+     * mongod ignores missing and non-numeric values in $sum, so the sum over the numeric
+     * documents is the expected result.
+     */
+    @Test
+    public void sumOverFieldReferenceIgnoresMissingAndNonNumericValues() throws Exception {
+        insert(List.of(
+                Doc.of("counter", 1, "amount", 10),
+                Doc.of("counter", 2),
+                Doc.of("counter", 3, "amount", "n/a"),
+                Doc.of("counter", 4, "amount", 5.5)));
+
+        Map<String, Object> r = groupAll(Doc.of("total", Doc.of("$sum", "$amount")));
+
+        assertEquals(15.5, ((Number) r.get("total")).doubleValue(), 0.0001,
+                "$sum over \"$field\" must skip missing and non-numeric values like mongod");
+    }
+
+    /**
      * The {if,then,else} spelling of $cond was not parseable at all (Expr.parse only knew the
      * positional form), so it must now work wherever the array form does - checked here on the
      * $project path (strict inclusion mode, which evaluates raw Map expressions).

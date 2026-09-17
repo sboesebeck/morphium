@@ -1462,9 +1462,12 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                     if (sumSpec instanceof Number) {
                                         sumGroupDoc.put(fld, current.doubleValue() + ((Number) sumSpec).doubleValue());
                                     } else if (sumSpec instanceof String && ((String) sumSpec).startsWith("$")) {
-                                        //field reference
-                                        Number v = (Number) o.get(((String) sumSpec).substring(1));
-                                        sumGroupDoc.put(fld, current.doubleValue() + v.doubleValue());
+                                        //field reference; like mongod, missing and non-numeric values do not add up
+                                        Object v = o.get(((String) sumSpec).substring(1));
+
+                                        if (v instanceof Number) {
+                                            sumGroupDoc.put(fld, current.doubleValue() + ((Number) v).doubleValue());
+                                        }
                                     } else {
                                         // expression operand (#376); like mongod, non-numeric results do not add up
                                         Object v = accumulatorOperand(sumSpec, o);
