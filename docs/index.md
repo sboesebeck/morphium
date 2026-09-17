@@ -1,8 +1,10 @@
 # Morphium v6 Documentation
 
 <p align="center">
-  <img class="logo-light" src="assets/brand/morphium-logo.svg" alt="Morphium" width="640">
-  <img class="logo-dark" src="assets/brand/morphium-logo-dark.svg" alt="Morphium" width="640">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/morphium-logo-dark.svg">
+    <img src="assets/brand/morphium-logo.svg" alt="Morphium" width="640">
+  </picture>
 </p>
 
 Morphium is a Java 21+ Object Document Mapper (ODM) and MongoDB‑backed messaging system. It includes a custom MongoDB wire‑protocol driver, distributed caching, and a topic‑based message queue.
@@ -10,7 +12,12 @@ Morphium is a Java 21+ Object Document Mapper (ODM) and MongoDB‑backed messagi
 ---
 
 <p align="center">
-  <a href="poppydb/"><img class="logo-light" src="assets/brand/poppydb-logo.svg" alt="PoppyDB" width="480"><img class="logo-dark" src="assets/brand/poppydb-logo-dark.svg" alt="PoppyDB" width="480"></a>
+  <a href="poppydb/">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="assets/brand/poppydb-logo-dark.svg">
+      <img src="assets/brand/poppydb-logo.svg" alt="PoppyDB" width="480">
+    </picture>
+  </a>
 </p>
 
 ## PoppyDB — MongoDB‑compatible Server
