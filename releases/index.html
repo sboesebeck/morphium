@@ -2153,10 +2153,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#documentation-structure" class="md-nav__link">
+  <a href="#current-process" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Documentation Structure
+        Current process
       
     </span>
   </a>
@@ -2164,10 +2164,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#why-this-structure" class="md-nav__link">
+  <a href="#releasesh" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why This Structure?
+        release.sh
       
     </span>
   </a>
@@ -2175,52 +2175,13 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#release-process" class="md-nav__link">
+  <a href="#whats-in-this-directory" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Release Process
+        What's in this directory
       
     </span>
   </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#for-future-releases" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        For Future Releases
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#available-releases" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Available Releases
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Available Releases">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#601-tbd" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6.0.1 - TBD
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -2245,22 +2206,19 @@
 
 
 <h1 id="release-documentation">Release Documentation<a class="headerlink" href="#release-documentation" title="Permanent link">&para;</a></h1>
-<p>This directory contains detailed release notes for each Morphium version.</p>
-<h2 id="documentation-structure">Documentation Structure<a class="headerlink" href="#documentation-structure" title="Permanent link">&para;</a></h2>
-<p><strong>Root Level:</strong>
-- <code>CHANGELOG.md</code> - Single changelog file with all releases (standard format, <a href="https://keepachangelog.com/">Keep a Changelog</a>)</p>
-<p><strong>This Directory (<code>docs/releases/</code>):</strong>
-- <code>CHANGELOG-X.Y.Z.md</code> - Comprehensive technical changelog with implementation details
-- <code>RELEASE-NOTES-X.Y.Z.md</code> - Quick summary and migration guide for users</p>
-<h2 id="why-this-structure">Why This Structure?<a class="headerlink" href="#why-this-structure" title="Permanent link">&para;</a></h2>
+<h2 id="current-process">Current process<a class="headerlink" href="#current-process" title="Permanent link">&para;</a></h2>
+<p>Every release lives in two places:</p>
 <ul>
-<li><strong>Single CHANGELOG.md</strong>: Industry standard, easy to browse all versions</li>
-<li><strong>Detailed docs</strong>: Technical teams need deep dive documentation</li>
-<li><strong>Quick notes</strong>: Users need fast migration info without technical details</li>
-<li><strong>No clutter</strong>: Root directory stays clean with just one changelog file</li>
+<li><strong><a href="../../CHANGELOG.md"><code>CHANGELOG.md</code></a></strong> at the repo root — the single source of truth,
+  <a href="https://keepachangelog.com/">Keep a Changelog</a> format. Entries are added under
+  <code>[Unreleased]</code> as changes land, not written retroactively at release time.</li>
+<li><strong><a href="https://github.com/sboesebeck/morphium/releases">GitHub Releases</a></strong> — <code>release.sh</code>
+  rolls the <code>[Unreleased]</code> section into the new version, then builds the release body from
+  that CHANGELOG section plus the test report.</li>
 </ul>
-<h2 id="release-process">Release Process<a class="headerlink" href="#release-process" title="Permanent link">&para;</a></h2>
-<p>Releases are managed via <code>release.sh</code> in the project root:</p>
+<p>There is no per-version file created in this directory for a release; see <code>release.sh</code>'s
+own comments (search <code>CHANGELOG helpers</code>) for exactly what it automates.</p>
+<h2 id="releasesh"><code>release.sh</code><a class="headerlink" href="#releasesh" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Patch release (default): 6.1.9 → 6.1.10</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>./release.sh
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
@@ -2280,27 +2238,15 @@
 </span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>./release.sh<span class="w"> </span>--reset
 </span></code></pre></div>
 <p>The script handles version calculation (from last git tag), Maven release:prepare,
-artifact signing, Sonatype upload, and git operations (tag, merge to master).</p>
-<p><strong>Multi-module:</strong> The release creates a single Sonatype bundle containing
+artifact signing, Sonatype upload, git operations (tag, merge to master), and rolling the
+CHANGELOG into the GitHub release as described above.</p>
+<p><strong>Multi-module:</strong> the release creates a single Sonatype bundle containing
 morphium-parent, morphium (core), and poppydb.</p>
-<h2 id="for-future-releases">For Future Releases<a class="headerlink" href="#for-future-releases" title="Permanent link">&para;</a></h2>
-<p>When creating a new release:</p>
-<ol>
-<li>Run <code>./release.sh --minor</code> (or <code>--patch</code>/<code>--major</code>)</li>
-<li>Add entry to root <code>CHANGELOG.md</code> (concise)</li>
-<li>Create <code>docs/releases/CHANGELOG-X.Y.Z.md</code> (detailed)</li>
-<li>Create <code>docs/releases/RELEASE-NOTES-X.Y.Z.md</code> (user-facing)</li>
-<li>Update this README with the new release</li>
-</ol>
-<h2 id="available-releases">Available Releases<a class="headerlink" href="#available-releases" title="Permanent link">&para;</a></h2>
-<h3 id="601-tbd"><a href="CHANGELOG-6.0.1/">6.0.1</a> - TBD<a class="headerlink" href="#601-tbd" title="Permanent link">&para;</a></h3>
-<p>Bugfix release with enhanced null handling and connection stability
-- <a href="CHANGELOG-6.0.1/">Detailed Changelog</a>
-- <a href="RELEASE-NOTES-6.0.1/">Quick Release Notes</a></p>
-<p><strong>Highlights:</strong>
-- Bidirectional @UseIfNull behavior (protection from null contamination)
-- Socket timeout retry logic
-- Annotation rename: @UseIfnull → @UseIfNull</p>
+<h2 id="whats-in-this-directory">What's in this directory<a class="headerlink" href="#whats-in-this-directory" title="Permanent link">&para;</a></h2>
+<p><code>CHANGELOG-6.0.1.md</code> and <code>RELEASE-NOTES-6.0.1.md</code> are a one-off from Morphium 6.0.1: a
+two-file format (a detailed technical changelog plus a short user-facing summary) that was
+tried once and not carried forward — every release since has used the single-CHANGELOG
+process above instead. Kept here for historical reference, not as a template to repeat.</p>
 
 
 
