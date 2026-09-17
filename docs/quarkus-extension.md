@@ -58,13 +58,12 @@ reflection, no dynamic proxies.
 <dependency>
   <groupId>de.caluga</groupId>
   <artifactId>quarkus-morphium</artifactId>
-  <version>${project.version}</version>
+  <version>6.3.9</version>
 </dependency>
 ```
 
-In the Morphium reactor, `${project.version}` resolves to whatever version the reactor is
-currently on (see the root `pom.xml`). This module follows Morphium's regular release
-versioning; there is no separate version line to track — building the reactor
+This module follows Morphium's regular release versioning and is released in lockstep
+with Morphium core; there is no separate version line to track. Building the reactor
 (`mvn -pl quarkus-morphium -am verify`) builds this extension against the exact Morphium
 core version in the same build.
 

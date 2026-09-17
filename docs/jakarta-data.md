@@ -57,13 +57,12 @@ Jakarta Data and no compile- or runtime dependency on this module.
 <dependency>
   <groupId>de.caluga</groupId>
   <artifactId>morphium-jakarta-data</artifactId>
-  <version>${project.version}</version>
+  <version>6.3.9</version>
 </dependency>
 ```
 
-In the Morphium reactor, `${project.version}` resolves to whatever version the reactor is
-currently on (see the root `pom.xml`). This module follows Morphium's regular release
-versioning; there is no separate version line to track.
+This module follows Morphium's regular release versioning and is released in lockstep
+with Morphium core; there is no separate version line to track.
 
 ## Repository Interfaces
 
