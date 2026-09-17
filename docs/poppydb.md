@@ -1308,7 +1308,7 @@ PoppyDB implements the following MongoDB admin commands:
 | `replSetStepDown` | Step down from primary (for replica sets) |
 | `startSession` / `endSessions` / `refreshSessions` | Session management |
 | `getMore` | Cursor iteration for both regular queries and change streams |
-| `dumpNow` / `dumpStatus` | On-demand dump and persistence info (see [Persistence](#persistence)); both work on a RECOVERING node |
+| `dumpNow` / `dumpStatus` | On-demand dump and persistence info (see [Persistence](#persistence-periodic-snapshots)); both work on a RECOVERING node |
 
 Commands every mongod has and PoppyDB deliberately does not - `logRotate` (rotation is Logback's or
 logrotate's job), `fsync`, `compact`, `profile`, `connPoolStats`, `replSetReconfig`, `top` - are

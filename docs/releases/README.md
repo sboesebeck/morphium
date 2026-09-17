@@ -4,7 +4,7 @@
 
 Every release lives in two places:
 
-- **[`CHANGELOG.md`](../../CHANGELOG.md)** at the repo root — the single source of truth,
+- **[`CHANGELOG.md`](https://github.com/sboesebeck/morphium/blob/develop/CHANGELOG.md)** at the repo root — the single source of truth,
   [Keep a Changelog](https://keepachangelog.com/) format. Entries are added under
   `[Unreleased]` as changes land, not written retroactively at release time.
 - **[GitHub Releases](https://github.com/sboesebeck/morphium/releases)** — `release.sh`
