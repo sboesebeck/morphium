@@ -141,6 +141,7 @@ public class User {
 }
 ```
 - Combine `typeId` with `@Aliases` and `@AdditionalData` for smoother migrations: keep deserialization working after refactors, accept legacy field names, and preserve unexpected fields.
+- **`@Aliases` is read/query-only.** It only makes `getField()`/query-key resolution also accept the listed legacy names when reading or building a filter; it never changes what gets written. A `store()` on the new field always writes the canonical field name — a fleet running mixed old/new code will not see the new code's writes show up under the old name, and vice versa.
 
 ### Example: Rename Class and Fields Safely
 

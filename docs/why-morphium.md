@@ -311,6 +311,8 @@ Let's be honest: Morphium isn't always the best choice.
 | Many tests, fast CI/CD | InMemory Driver saves minutes |
 | Cluster-wide caching | Built-in, no Redis |
 | Complex domain objects | ODM saves boilerplate |
+| Stringly-typed field names cause runtime typos | Compile-time checked `Fields` enum (`.f(User.Fields.username)`) instead of raw strings, wherever the query API takes one |
+| Renaming an entity class or a field breaks reading old documents | A stable `@Entity(typeId = ...)` decouples storage from the Java class name, `@Aliases` accepts legacy field names when reading/querying, and `@AdditionalData` catches fields your current POJO no longer maps — see [Renames and Schema Evolution](./developer-guide.md#renames-and-schema-evolution) |
 | Distributed locks | Built-in |
 | Team productivity > Raw performance | Less code = fewer bugs |
 
