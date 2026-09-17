@@ -2532,12 +2532,11 @@ you are building a Spring Boot application against MongoDB via Morphium.</p>
 <div class="language-xml highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">&lt;dependency&gt;</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">&lt;groupId&gt;</span>de.caluga<span class="nt">&lt;/groupId&gt;</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">&lt;artifactId&gt;</span>morphium-spring-boot-starter<span class="nt">&lt;/artifactId&gt;</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nt">&lt;version&gt;</span>${project.version}<span class="nt">&lt;/version&gt;</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nt">&lt;version&gt;</span>6.3.9<span class="nt">&lt;/version&gt;</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="nt">&lt;/dependency&gt;</span>
 </span></code></pre></div>
-<p>In the Morphium reactor, <code>${project.version}</code> currently resolves to <code>6.3.2-SNAPSHOT</code>.
-This module follows Morphium's regular release versioning — it is versioned and
-released in lockstep with Morphium; there is no separate version line to track.</p>
+<p>This module follows Morphium's regular release versioning — it is versioned and
+released in lockstep with Morphium core; there is no separate version line to track.</p>
 <h2 id="configuration-reference">Configuration Reference<a class="headerlink" href="#configuration-reference" title="Permanent link">&para;</a></h2>
 <p>All properties live under <code>morphium.*</code> (not <code>spring.morphium.*</code> — the <code>spring.*</code>
 namespace is reserved for Spring Boot's own configuration keys). Every entry below is
