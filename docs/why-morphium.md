@@ -296,7 +296,8 @@ Let's be honest: Morphium isn't always the best choice.
 | Scenario | Recommendation |
 |----------|----------------|
 | Need the official driver's full feature surface on day one (GridFS, every admin/aggregation operator) | **Official Driver** — Morphium's own wire-protocol driver covers a subset, see [SSL/TLS guide](./ssl-tls.md) and driver docs for what's supported |
-| Team only knows Spring Data | **Spring Data MongoDB** (lower learning curve) |
+| Team wants Spring Data MongoDB's own repository conventions/`MongoTemplate` specifically | **Spring Data MongoDB** (lower learning curve for that ecosystem) |
+| Team wants Spring Boot itself (auto-config, Actuator, DI) but Morphium's messaging/caching | **[`spring-boot-morphium`](./spring-boot.md)** — Spring Boot auto-configuration and Jakarta Data `@Repository` interfaces on top of Morphium, not a Spring Data MongoDB replacement |
 | No messaging needed, simple CRUD | **Official Driver** is sufficient |
 | Already have RabbitMQ/Kafka in stack | Messaging advantage disappears |
 
