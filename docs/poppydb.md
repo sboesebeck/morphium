@@ -523,9 +523,14 @@ boolean started = server.triggerDumpNow();
 - Files can be inspected with `zcat <file>.morphium.gz | jq .`
 
 **Limitations:**
-- Not a real-time persistence solution (no write-ahead log)
-- Data between dump intervals may be lost on crash
-- Suitable for development/testing, not production
+- Not a real-time persistence solution (no write-ahead log) — a single node loses data
+  written since its last dump if it crashes
+- On a replica set this is not the exposure it sounds like: a crashed node resyncs from a
+  surviving peer on restart, so a single-node crash costs no data at all. Only a
+  simultaneous outage of every node loses data since the last snapshot — see the loss model
+  under [Use Cases](#5-message-broker-for-short-lived-messages-production) and
+  [When NOT to Use](#when-not-to-use) for when that trade-off is and isn't acceptable in
+  production
 
 ### Memory Watermark
 
@@ -1378,9 +1383,11 @@ db.watch().on('change', console.log);
 
 ### Data Persistence
 - ✅ **Periodic Snapshots** - Dump/restore to disk (since v6.1.0)
-- ❌ **No Real-time Persistence** - No WAL or journaling
-- ❌ **Crash Risk** - Data between dumps may be lost on crash
-- 💡 **Tip** - Use short dump intervals for important data
+- ❌ **No Write-Ahead Log** - No per-write durability. A replica set (see Scalability
+  below) tolerates a single node's crash without data loss via failover and replication;
+  only a simultaneous outage of *every* node loses data written since the last snapshot.
+- 💡 **Tip** - For data that matters, run a replica set rather than a single node, and use
+  short dump intervals
 
 ### Scalability
 - ❌ **No Sharding** - Single instance only
