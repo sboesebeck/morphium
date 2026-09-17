@@ -38,12 +38,15 @@ jobs:
           find . -type d -empty ! -path './.git/*' -delete
 
           # Copy markdown files from docs/
-          # Wiki doesn't support nested directories well, so we'll flatten the structure
+          # Wiki doesn't support nested directories well, so we'll flatten the structure.
+          # Image paths use one or more "../" to reach docs/assets/ from a nested mkdocs
+          # page (use_directory_urls); the wiki is flat, so every "../" before "assets/"
+          # is stripped so the same source files render correctly in both places.
           cd ../docs
 
           # Create Home.md from index.md
           if [ -f "index.md" ]; then
-            cp index.md ../wiki-repo/Home.md
+            sed -E 's#(\.\./)+assets/#assets/#g' index.md > ../wiki-repo/Home.md
           fi
 
           # Copy top-level docs with their original names
@@ -51,7 +54,7 @@ jobs:
             if [ -f "$file" ] && [ "$file" != "index.md" ]; then
               # Capitalize first letter for wiki convention
               basename="${file%.md}"
-              cp "$file" "../wiki-repo/${basename}.md"
+              sed -E 's#(\.\./)+assets/#assets/#g' "$file" > "../wiki-repo/${basename}.md"
             fi
           done
 
@@ -60,7 +63,7 @@ jobs:
             for file in howtos/*.md; do
               if [ -f "$file" ]; then
                 basename=$(basename "$file" .md)
-                cp "$file" "../wiki-repo/HowTo-${basename}.md"
+                sed -E 's#(\.\./)+assets/#assets/#g' "$file" > "../wiki-repo/HowTo-${basename}.md"
               fi
             done
           fi
@@ -70,9 +73,15 @@ jobs:
             for file in releases/*.md; do
               if [ -f "$file" ]; then
                 basename=$(basename "$file" .md)
-                cp "$file" "../wiki-repo/Release-${basename}.md"
+                sed -E 's#(\.\./)+assets/#assets/#g' "$file" > "../wiki-repo/Release-${basename}.md"
               fi
             done
+          fi
+
+          # Copy image/logo assets so the paths rewritten above actually resolve
+          if [ -d "assets" ]; then
+            mkdir -p ../wiki-repo/assets
+            cp -r assets/. ../wiki-repo/assets/
           fi
 
           cd ../wiki-repo
