@@ -2766,7 +2766,7 @@
 PoppyDB's edge here is latency — with less than half the per-message round-trip time, the
 same workload completes 2.5x faster.</p>
 <blockquote>
-<p><strong>Re-measured 2026-08-07</strong> (Morpheus <code>latency --headless</code>, 100 msg/s fixed rate, 5 sender
+<p><strong>Re-measured 2026-08-07</strong> (<a href="https://github.com/sboesebeck/morpheus">Morpheus</a> <code>latency --headless</code>, 100 msg/s fixed rate, 5 sender
 threads, 30 s measured after 10 s warmup, Mac Studio M1 Ultra client; PoppyDB = local
 3-node replica set, MongoDB = the 3-node homelab replica set): median RTT <strong>2.4 ms</strong>
 against PoppyDB vs <strong>5.7 ms</strong> against MongoDB; averages 2.5 ms vs 7.9 ms — MongoDB's mean

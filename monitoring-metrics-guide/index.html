@@ -2290,6 +2290,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#morpheus-ready-made-live-monitoring-and-load-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Morpheus — Ready-Made Live Monitoring and Load Testing
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2723,6 +2734,17 @@
     <span class="md-ellipsis">
       
         Message Queue Metrics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#morpheus-ready-made-live-monitoring-and-load-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Morpheus — Ready-Made Live Monitoring and Load Testing
       
     </span>
   </a>
@@ -3201,6 +3223,16 @@
 </span><span id="__span-9-37"><a id="__codelineno-9-37" name="__codelineno-9-37" href="#__codelineno-9-37"></a><span class="w">    </span><span class="p">}</span>
 </span><span id="__span-9-38"><a id="__codelineno-9-38" name="__codelineno-9-38" href="#__codelineno-9-38"></a><span class="p">}</span>
 </span></code></pre></div>
+<h3 id="morpheus-ready-made-live-monitoring-and-load-testing">Morpheus — Ready-Made Live Monitoring and Load Testing<a class="headerlink" href="#morpheus-ready-made-live-monitoring-and-load-testing" title="Permanent link">&para;</a></h3>
+<p>Building custom instrumentation like the collector above is one option;
+<a href="https://github.com/sboesebeck/morpheus">Morpheus</a> gets you the same visibility without
+writing any code. It's a terminal UI (and scriptable CLI) built specifically for Morphium
+messaging: live views for in-flight messages, per-topic aggregates, sender→answerer node
+pairs, a <em>top</em>-style per-node health monitor (heap, cache hit ratio, driver connections,
+threads), and an animated message-flow graph. The same <code>latency</code> view doubles as a load
+test (<code>morpheus latency --headless</code> for scripted JSON/CSV/Graphite reports), and
+<code>morpheus ping</code> exports one-shot health checks to Graphite — useful for feeding the
+dashboards above without touching application code.</p>
 <h2 id="health-checks-and-diagnostics">Health Checks and Diagnostics<a class="headerlink" href="#health-checks-and-diagnostics" title="Permanent link">&para;</a></h2>
 <h3 id="comprehensive-health-check">Comprehensive Health Check<a class="headerlink" href="#comprehensive-health-check" title="Permanent link">&para;</a></h3>
 <div class="language-java highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nd">@Component</span>
