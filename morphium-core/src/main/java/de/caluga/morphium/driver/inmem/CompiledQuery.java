@@ -764,8 +764,9 @@ public final class CompiledQuery {
                     // #342: integral wrappers are lifted to Long on BOTH sides of the set
                     // lookup, or an Integer operand never matches a stored Long (and the
                     // compiled path silently diverges from the interpreted $nin, which goes
-                    // through compareValues).
-                    ninSet.add(QueryHelper.normalizeIntegral(QueryHelper.normalizeId(v)));
+                    // through compareValues). #344: exactly-integral Doubles are lifted too,
+                    // so [2] finds a stored 2.0 - a HashSet has no comparator to lean on.
+                    ninSet.add(QueryHelper.normalizeNumeric(QueryHelper.normalizeId(v)));
                 }
                 return doc -> {
                     Object checkValue = resolveCheckValue(key, path, doc);
@@ -789,13 +790,13 @@ public final class CompiledQuery {
                     } else if (checkValue instanceof List) {
                         found = false;
                         for (Object element : (List<Object>) checkValue) {
-                            if (ninSet.contains(QueryHelper.normalizeIntegral(QueryHelper.normalizeId(element)))) {
+                            if (ninSet.contains(QueryHelper.normalizeNumeric(QueryHelper.normalizeId(element)))) {
                                 found = true;
                                 break;
                             }
                         }
                     } else {
-                        found = ninSet.contains(QueryHelper.normalizeIntegral(QueryHelper.normalizeId(checkValue)));
+                        found = ninSet.contains(QueryHelper.normalizeNumeric(QueryHelper.normalizeId(checkValue)));
                     }
                     return !found;
                 };
@@ -805,8 +806,8 @@ public final class CompiledQuery {
                 List<?> inList = QueryHelper.asValueList(operand);
                 Set<Object> inSet = new HashSet<>(inList.size());
                 for (Object v : inList) {
-                    // #342: same integral normalization as $nin above.
-                    inSet.add(QueryHelper.normalizeIntegral(QueryHelper.normalizeId(v)));
+                    // #342/#344: same numeric normalization as $nin above.
+                    inSet.add(QueryHelper.normalizeNumeric(QueryHelper.normalizeId(v)));
                 }
                 return doc -> {
                     Object checkValue = resolveCheckValue(key, path, doc);
@@ -827,13 +828,13 @@ public final class CompiledQuery {
                     }
                     if (checkValue instanceof List) {
                         for (Object element : (List<Object>) checkValue) {
-                            if (inSet.contains(QueryHelper.normalizeIntegral(QueryHelper.normalizeId(element)))) {
+                            if (inSet.contains(QueryHelper.normalizeNumeric(QueryHelper.normalizeId(element)))) {
                                 return true;
                             }
                         }
                         return false;
                     }
-                    return inSet.contains(QueryHelper.normalizeIntegral(QueryHelper.normalizeId(checkValue)));
+                    return inSet.contains(QueryHelper.normalizeNumeric(QueryHelper.normalizeId(checkValue)));
                 };
             }
 
@@ -935,7 +936,12 @@ public final class CompiledQuery {
                         return false;
                     }
                     List<Object> checkList = (List<Object>) checkValue;
-                    Set<Object> checkSet = new HashSet<>(checkList);
+                    // #342/#344: same canonicalization as the $in/$nin sets above, so $all and $in
+                    // cannot disagree on a stored [2L] or [2.0] probed with the literal 2.
+                    Set<Object> checkSet = new HashSet<>(checkList.size());
+                    for (Object element : checkList) {
+                        checkSet.add(QueryHelper.normalizeNumeric(QueryHelper.normalizeId(element)));
+                    }
                     for (Object o : queryValues) {
                         // {$all: [{$elemMatch: {...}}]}: each entry is a sub-query evaluated against
                         // the array's elements, not a literal value looked up by equality (#251).
@@ -957,7 +963,7 @@ public final class CompiledQuery {
                             }
                             continue;
                         }
-                        if (!checkSet.contains(o)) {
+                        if (!checkSet.contains(QueryHelper.normalizeNumeric(QueryHelper.normalizeId(o)))) {
                             return false;
                         }
                     }
@@ -1127,10 +1133,10 @@ public final class CompiledQuery {
                     return true;
                 }
                 // #342: contains() is equals-based - integral wrappers compare numerically,
-                // mirroring the interpreted matcher's multikey branch.
-                if (QueryHelper.isIntegralWrapper(expected)) {
+                // mirroring the interpreted matcher's multikey branch. #344: Double too.
+                if (QueryHelper.isNumericWrapper(expected)) {
                     for (Object element : lst) {
-                        if (QueryHelper.integralEquals(element, expected)) {
+                        if (QueryHelper.numericEquals(element, expected)) {
                             return true;
                         }
                     }
@@ -1144,9 +1150,9 @@ public final class CompiledQuery {
                 }
             }
 
-            // #342: equals() alone misses cross-wrapper integral matches - mirroring the
+            // #342/#344: equals() alone misses cross-wrapper numeric matches - mirroring the
             // interpreted matcher's direct-equality path.
-            return docValue.equals(expected) || QueryHelper.integralEquals(docValue, expected);
+            return docValue.equals(expected) || QueryHelper.numericEquals(docValue, expected);
         };
     }
 }

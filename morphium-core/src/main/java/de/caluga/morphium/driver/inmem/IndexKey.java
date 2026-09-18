@@ -226,15 +226,21 @@ public final class IndexKey {
      * - an index built over restored (all-Long) values would never answer an integer probe, and
      * a {@code long} field's index would never answer its own integer query literal. The
      * ordered {@code TreeMap} side compares numerically anyway ({@link #comparator}), so
-     * canonicalizing here makes both structures agree. Floating-point values deliberately keep
-     * their type - see {@code QueryHelper.isIntegralWrapper} for the scope rationale.
+     * canonicalizing here makes both structures agree.
+     *
+     * <p>#344 adds the floating-point half: a {@code Double} that is exactly a long value is
+     * lifted to that {@code Long} as well, so an index built over doubles answers an integer
+     * probe and an index over longs answers a double probe - the matcher now says those are
+     * equal, and the index must not disagree. Only EXACT doubles are lifted (see {@code
+     * QueryHelper.isExactLong}): {@code 9007199254740992.0} and the long 2^53+1 keep separate
+     * buckets, exactly as they are unequal in the matcher.
      */
     private static Object normalizeKeyValue(Object v) {
         if (v instanceof MorphiumId || v instanceof ObjectId) {
             return v.toString();
         }
 
-        return QueryHelper.normalizeIntegral(v);
+        return QueryHelper.normalizeNumeric(v);
     }
 
     /**
