@@ -177,11 +177,12 @@ public class InMemoryDriverSlowQueryTest {
     }
 
     @Test
-    void slowAggregateWithLeadingMatchAlsoLogsAndIncrementsCounters() throws Exception {
+    void slowAggregateWithLeadingMatchLogsExactlyOneWarnAndIncrementsCounters() throws Exception {
         InMemoryDriver drv = freshDriverWithIndexedCollection(20);
         drv.setSlowQueryThresholdMillis(0);
 
         long slowBefore = drv.slowQueries;
+        long ixscanBefore = drv.slowQueriesIxscan;
 
         List<ILoggingEvent> warns = runAndCaptureWarns(() -> {
             try {
@@ -193,25 +194,26 @@ public class InMemoryDriverSlowQueryTest {
             }
         });
 
-        // InMemAggregator may itself issue an internal find() to materialize the collection before
-        // running the pipeline - that legitimately logs its own (COLLSCAN) slow-query WARN in
-        // addition to this method's own aggregate-level one, so assert "at least one, and one of
-        // them is the IXSCAN for the $match stage" rather than an exact count.
-        assertFalse(warns.isEmpty(), "an aggregate exceeding the threshold must also log a WARN");
-        assertTrue(warns.stream().anyMatch(w -> w.getFormattedMessage().contains("IXSCAN")),
+        // Before #375 the aggregator materialized the collection through a filterless find(),
+        // which logged its own "Slow query ... COLLSCAN" line next to the aggregate-level one.
+        // The pipeline input now comes from the aggregation's own candidate selection, so one
+        // aggregation is one line.
+        assertEquals(1, warns.size(), "exactly one WARN per slow aggregation: "
+                + warns.stream().map(ILoggingEvent::getFormattedMessage).collect(Collectors.joining(" | ")));
+        assertTrue(warns.get(0).getFormattedMessage().contains("IXSCAN"),
                 "a leading $match on an indexed field must be reported as IXSCAN");
-        assertEquals(slowBefore + warns.size(), drv.slowQueries);
+        assertEquals(slowBefore + 1, drv.slowQueries);
+        assertEquals(ixscanBefore + 1, drv.slowQueriesIxscan);
     }
 
     /**
-     * A slow aggregation must be identifiable as one. It shares the counters with find/count, but
-     * not the wording: its stage/docsExamined come from the IndexPlanner and describe a plan that
-     * execution does NOT run - the pipeline scans the whole collection either way (#375). Logged
-     * as "Slow query on ... stage=IXSCAN", the line sends the reader looking for a missing index
-     * that cannot help.
+     * A slow aggregation must be identifiable as one and report the plan that actually ran
+     * (#375): the leading $match now selects its candidates through the index, so stage and
+     * docsExamined describe execution - 1 document examined out of 20 - and no longer a
+     * planner estimate that has to be flagged as "diagnostic only".
      */
     @Test
-    void slowAggregateIsIdentifiableAndMarksItsPlanAsDiagnostic() throws Exception {
+    void slowAggregateIsIdentifiableAndReportsTheStageThatRan() throws Exception {
         InMemoryDriver drv = freshDriverWithIndexedCollection(20);
         drv.setSlowQueryThresholdMillis(0);
 
@@ -225,19 +227,42 @@ public class InMemoryDriverSlowQueryTest {
             }
         });
 
-        List<ILoggingEvent> aggregateLines = warns.stream()
-                .filter(w -> w.getFormattedMessage().startsWith("Slow aggregation on"))
-                .collect(Collectors.toList());
+        assertEquals(1, warns.size());
+        String line = warns.get(0).getFormattedMessage();
+        assertTrue(line.startsWith("Slow aggregation on " + db + "." + coll),
+                "a slow aggregation must say so instead of masquerading as a slow query: " + line);
+        assertTrue(line.contains("stage=IXSCAN"), "the stage that ran: " + line);
+        assertTrue(line.contains("docsExamined=1,"), "the index narrowed the input to one document: " + line);
+        assertTrue(line.contains("leadingMatch=") && line.contains("counter"),
+                "the leading $match's shape must be part of the line: " + line);
+        assertFalse(line.contains("plannedStage") || line.contains("diagnostic only"),
+                "the plan is no longer an estimate, the wording must not claim it is: " + line);
+        assertFalse(line.contains("\"counter\" : 5"), "WARN must NOT leak the filter's value: " + line);
+    }
 
-        assertFalse(aggregateLines.isEmpty(),
-                "a slow aggregation must say so instead of masquerading as a slow query: "
-                + warns.stream().map(ILoggingEvent::getFormattedMessage).collect(Collectors.joining(" | ")));
+    @Test
+    void slowAggregateWithoutLeadingMatchReportsCollscanOverTheWholeCollection() throws Exception {
+        InMemoryDriver drv = freshDriverWithIndexedCollection(20);
+        drv.setSlowQueryThresholdMillis(0);
 
-        String line = aggregateLines.get(0).getFormattedMessage();
-        assertTrue(line.contains("plannedStage="),
-                "the stage is the planner's, not what ran - the field name must say so: " + line);
-        assertTrue(line.contains("#375"),
-                "point the reader at why an index does not fix this: " + line);
+        long collScanBefore = drv.slowQueriesCollScan;
+
+        List<ILoggingEvent> warns = runAndCaptureWarns(() -> {
+            try {
+                new AggregateMongoCommand(drv).setDb(db).setColl(coll)
+                        .setPipeline(List.of(Doc.of("$group", Doc.of("_id", null, "n", Doc.of("$sum", 1)))))
+                        .execute();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        assertEquals(1, warns.size());
+        String line = warns.get(0).getFormattedMessage();
+        assertTrue(line.startsWith("Slow aggregation on"), line);
+        assertTrue(line.contains("stage=COLLSCAN"), line);
+        assertTrue(line.contains("docsExamined=20,"), "no $match -> the whole collection is the input: " + line);
+        assertEquals(collScanBefore + 1, drv.slowQueriesCollScan);
     }
 
     @Test

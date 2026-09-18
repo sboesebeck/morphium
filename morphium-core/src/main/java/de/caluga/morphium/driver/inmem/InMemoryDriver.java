@@ -310,63 +310,38 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     /**
-     * {@code aggregate}'s slow-query variant of {@link #recordSlowQueryIfNeeded}: aggregation
-     * pipelines have no single {@link IndexPlanner.IndexPlan} the way find/count do, so this makes
-     * a best-effort call using only the pipeline's leading {@code $match} stage (if any) - the one
-     * shape {@link IndexPlanner} can reason about. No leading {@code $match}, or a leading
-     * {@code $match} the planner can't use, is logged as {@code COLLSCAN} over the whole
-     * collection, same as an un-indexed find. Never lets a diagnostics failure fail the aggregate
-     * itself - any exception while building the stage/docsExamined estimate is swallowed (logged at
-     * debug) rather than propagated.
+     * {@code aggregate}'s slow-query variant of {@link #recordSlowQueryIfNeeded}. {@code stage} and
+     * {@code docsExamined} are what {@link #findAggregationInput} actually did for the pipeline's
+     * leading {@code $match} (or for the whole collection when there is none) - since #375 the
+     * index plan IS the execution, so the line no longer has to flag them as a planner estimate.
+     * Logged as "Slow aggregation" rather than "Slow query" so it cannot be mistaken for a slow
+     * find/count; the counters are shared. Never lets a diagnostics failure fail the aggregate
+     * itself - any exception while building the line is swallowed (logged at debug).
      */
     private void recordAggregateSlowQueryIfNeeded(String db, String collection, List<Map<String, Object>> pipeline,
-            long elapsedMillis) {
+            String stage, long docsExamined, long elapsedMillis) {
         if (elapsedMillis < slowQueryThresholdMillis) {
             return;
         }
 
+        countSlowQuery(stage);
+
+        if (!log.isWarnEnabled()) {
+            return;
+        }
+
         try {
-            String stage = "COLLSCAN";
-            Map<String, Object> matchFilter = null;
-            long docsExamined = getCollection(db, collection).size();
+            Map<String, Object> matchFilter = Doc.of();
 
-            if (pipeline != null && !pipeline.isEmpty()) {
-                Object firstMatch = pipeline.get(0).get("$match");
-                if (firstMatch instanceof Map<?, ?>) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> filter = (Map<String, Object>) firstMatch;
-                    matchFilter = filter;
-                    CollectionIndexStore store = getIndexStore(db, collection);
-                    // planningDefinitions(), not definitions(): a multikey index cannot answer a
-                    // lookup and would silently report zero candidates (#289).
-                    Collection<IndexDefinition> defs = store.planningDefinitions();
-                    if (!filter.isEmpty() && defs.size() > 1) {
-                        IndexPlanner.IndexPlan plan = IndexPlanner.plan(filter, defs);
-                        if (!(plan instanceof IndexPlanner.FullScan)) {
-                            stage = "IXSCAN";
-                            List<Map<String, Object>> candidates = executeIndexPlan(store, plan);
-                            if (candidates != null) {
-                                docsExamined = candidates.size();
-                            }
-                        }
-                    }
-                }
+            if (pipeline != null && !pipeline.isEmpty() && pipeline.get(0).get("$match") instanceof Map<?, ?> m) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> filter = (Map<String, Object>) m;
+                matchFilter = filter;
             }
 
-            // Deliberately NOT recordSlowQueryIfNeeded: that wording would claim this was a
-            // find/count, and its stage/docsExamined would be read as what ran. Neither holds -
-            // the pipeline scans the whole collection regardless of the plan computed above
-            // (#375). Naming the fields "planned*" and pointing at the issue keeps the next
-            // reader from adding an index that cannot help; the counters stay shared.
-            countSlowQuery(stage);
-
-            if (log.isWarnEnabled()) {
-                log.warn("Slow aggregation on {}.{}: tookMs={}, plannedStage={}, "
-                         + "plannedDocsExamined={}, leadingMatch={} - the plan is diagnostic only, "
-                         + "execution scans the collection (#375)",
-                        db, collection, elapsedMillis, stage, docsExamined,
-                        Utils.toJsonString(sanitizeQueryShape(matchFilter == null ? Doc.of() : matchFilter)));
-            }
+            log.warn("Slow aggregation on {}.{}: tookMs={}, stage={}, docsExamined={}, leadingMatch={}",
+                    db, collection, elapsedMillis, stage, docsExamined,
+                    Utils.toJsonString(sanitizeQueryShape(matchFilter)));
         } catch (Exception e) {
             log.debug("Failed to record slow-aggregate diagnostics for {}.{}", db, collection, e);
         }
@@ -5308,6 +5283,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             long __slowQueryStartNanos = System.nanoTime();
             List<Map<String, Object>> allResults = agg.aggregateMap();
             recordAggregateSlowQueryIfNeeded(cmd.getDb(), cmd.getColl(), cmd.getPipeline(),
+                    agg.getLastInputStage(), agg.getLastInputDocsExamined(),
                     (System.nanoTime() - __slowQueryStartNanos) / 1_000_000);
 
             int batchSize = 0;
@@ -6866,92 +6842,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // Validate query operators upfront to catch invalid queries even on empty collections
             QueryHelper.validateQuery(query);
 
-            // Handle root-level $text query - MongoDB-compatible text search
-            // Format: { $text: { $search: "search terms", $language: "...", $caseSensitive: false } }
-            if (query.containsKey("$text")) {
-                Object textQuery = query.get("$text");
-                if (textQuery instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> textOpts = (Map<String, Object>) textQuery;
-                    String searchString = null;
-                    if (textOpts.containsKey("$search")) {
-                        searchString = textOpts.get("$search").toString();
-                    }
-                    if (searchString != null && !searchString.isEmpty()) {
-                        // Get text index fields for this collection
-                        List<String> textFields = getTextIndexFields(db, collection);
-                        if (textFields.isEmpty()) {
-                            // No text index - MongoDB would throw an error, we'll search all string fields
-                            log.warn("$text query on collection without text index - searching all string fields");
-                        }
-                        // Store text search params in query for QueryHelper to process
-                        // Transform to internal format that QueryHelper can handle
-                        Map<String, Object> newQuery = new LinkedHashMap<>(query);
-                        newQuery.remove("$text");
-                        newQuery.put("$textSearch", Doc.of(
-                                                     "search", searchString,
-                                                     "fields", textFields,
-                                                     "caseSensitive", textOpts.getOrDefault("$caseSensitive", false),
-                                                     "diacriticSensitive", textOpts.getOrDefault("$diacriticSensitive", false)
-                                     ));
-                        query = newQuery;
-                    }
-                }
-            }
-
-            // NOTE: dotted query keys (e.g. "meta.source" or "stringMap.key1") are matched as-is
-            // against the stored documents. Query and stored field names are both produced by the
-            // Morphium mapper, so they already share the same casing. A previous camelCase->snake_case
-            // rewrite of the first path segment broke any field whose stored name is not snake_case
-            // (e.g. upper-case field names), turning the query key into a non-existent path.
-            if (query.containsKey("$and")) {
-                // and complex query handling ?!?!?
-                List<Map<String, Object>> m = (List<Map<String, Object>>) query.get("$and");
-
-                if (m != null && !m.isEmpty()) {
-                    for (Map<String, Object> subquery : m) {
-                        List<Map<String, Object>> dataFromIndex = getDataFromIndex(db, collection, subquery);
-
-                        // one and-query result is enough to find candidates!
-                        if (dataFromIndex != null) {
-                            partialHitData = dataFromIndex;
-                            break;
-                        }
-                    }
-                }
-            } else if (query.containsKey("$or")) {
-                List<Map<String, Object>> m = (List<Map<String, Object>>) query.get("$or");
-                if (m != null) {
-                    // For $or queries, using index candidates is only safe if ALL branches can be served
-                    // by an index, otherwise we would miss matches from non-indexable branches.
-                    boolean allIndexable = true;
-                    List<Map<String, Object>> collected = new ArrayList<>();
-                    // A document satisfying more than one $or branch is returned - as the same live
-                    // doc reference - by each branch's index lookup; dedup by identity so it ends up
-                    // in the result exactly once, same as IndexPlanner.InUnion does for repeated $in
-                    // values (see executeIndexPlan).
-                    Set<Map<String, Object>> seen = Collections.newSetFromMap(new IdentityHashMap<>());
-
-                    for (Map<String, Object> subquery : m) {
-                        List<Map<String, Object>> dataFromIndex = getDataFromIndex(db, collection, subquery);
-
-                        if (dataFromIndex == null) {
-                            allIndexable = false;
-                            break;
-                        }
-
-                        for (Map<String, Object> doc : dataFromIndex) {
-                            if (seen.add(doc)) {
-                                collected.add(doc);
-                            }
-                        }
-                    }
-
-                    partialHitData = allIndexable ? collected : null; // null = fall back to full scan for correctness
-                }
-            } else {
-                partialHitData = getDataFromIndex(db, collection, query);
-            }
+            query = rewriteTextSearch(db, collection, query);
+            partialHitData = selectIndexCandidates(db, collection, query);
             // Index-backed sort (Phase B1, Task 6): when `sort` is a prefix of some index (in
             // matching or exactly-reversed direction) AND the filter's own plan is either a
             // FullScan or targets that SAME index, the whole filter+sort+skip+limit dance below
@@ -7884,6 +7776,190 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             i++;
         }
         return relation != null && relation == -1;
+    }
+
+    /**
+     * Root-level {@code $text} rewrite shared by {@link #find} and {@link #findAggregationInput}:
+     * {@code { $text: { $search: "...", ... } }} becomes the internal {@code $textSearch} form
+     * {@link QueryHelper} evaluates (with the collection's text-index fields resolved). Any other
+     * query is returned as is.
+     */
+    private Map<String, Object> rewriteTextSearch(String db, String collection, Map<String, Object> query) {
+        // Format: { $text: { $search: "search terms", $language: "...", $caseSensitive: false } }
+        if (query.containsKey("$text")) {
+            Object textQuery = query.get("$text");
+            if (textQuery instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> textOpts = (Map<String, Object>) textQuery;
+                String searchString = null;
+                if (textOpts.containsKey("$search")) {
+                    searchString = textOpts.get("$search").toString();
+                }
+                if (searchString != null && !searchString.isEmpty()) {
+                    // Get text index fields for this collection
+                    List<String> textFields = getTextIndexFields(db, collection);
+                    if (textFields.isEmpty()) {
+                        // No text index - MongoDB would throw an error, we'll search all string fields
+                        log.warn("$text query on collection without text index - searching all string fields");
+                    }
+                    // Store text search params in query for QueryHelper to process
+                    // Transform to internal format that QueryHelper can handle
+                    Map<String, Object> newQuery = new LinkedHashMap<>(query);
+                    newQuery.remove("$text");
+                    newQuery.put("$textSearch", Doc.of(
+                                                 "search", searchString,
+                                                 "fields", textFields,
+                                                 "caseSensitive", textOpts.getOrDefault("$caseSensitive", false),
+                                                 "diacriticSensitive", textOpts.getOrDefault("$diacriticSensitive", false)
+                                 ));
+                    return newQuery;
+                }
+            }
+        }
+        return query;
+    }
+
+    /**
+     * Index-backed candidate selection for a whole filter, shared by {@link #find} and
+     * {@link #findAggregationInput}: a plain filter goes straight to {@link #getDataFromIndex};
+     * {@code $and} takes the first sub-query an index can answer (one indexable conjunct is enough
+     * to narrow the candidates); {@code $or} unions the per-branch lookups, but only if EVERY
+     * branch is indexable - otherwise a non-indexable branch's matches would be missed. Same
+     * null/empty contract as {@link #getDataFromIndex}: {@code null} means "no index consulted,
+     * scan the collection", a non-null (possibly empty) list is the complete candidate set.
+     */
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> selectIndexCandidates(String db, String collection, Map<String, Object> query)
+    throws MorphiumDriverException {
+        // NOTE: dotted query keys (e.g. "meta.source" or "stringMap.key1") are matched as-is
+        // against the stored documents. Query and stored field names are both produced by the
+        // Morphium mapper, so they already share the same casing. A previous camelCase->snake_case
+        // rewrite of the first path segment broke any field whose stored name is not snake_case
+        // (e.g. upper-case field names), turning the query key into a non-existent path.
+        if (query.containsKey("$and")) {
+            // and complex query handling ?!?!?
+            List<Map<String, Object>> m = (List<Map<String, Object>>) query.get("$and");
+
+            if (m != null && !m.isEmpty()) {
+                for (Map<String, Object> subquery : m) {
+                    List<Map<String, Object>> dataFromIndex = getDataFromIndex(db, collection, subquery);
+
+                    // one and-query result is enough to find candidates!
+                    if (dataFromIndex != null) {
+                        return dataFromIndex;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        if (query.containsKey("$or")) {
+            List<Map<String, Object>> m = (List<Map<String, Object>>) query.get("$or");
+            if (m == null) {
+                return null;
+            }
+
+            // For $or queries, using index candidates is only safe if ALL branches can be served
+            // by an index, otherwise we would miss matches from non-indexable branches.
+            List<Map<String, Object>> collected = new ArrayList<>();
+            // A document satisfying more than one $or branch is returned - as the same live
+            // doc reference - by each branch's index lookup; dedup by identity so it ends up
+            // in the result exactly once, same as IndexPlanner.InUnion does for repeated $in
+            // values (see executeIndexPlan).
+            Set<Map<String, Object>> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+
+            for (Map<String, Object> subquery : m) {
+                List<Map<String, Object>> dataFromIndex = getDataFromIndex(db, collection, subquery);
+
+                if (dataFromIndex == null) {
+                    return null; // fall back to full scan for correctness
+                }
+
+                for (Map<String, Object> doc : dataFromIndex) {
+                    if (seen.add(doc)) {
+                        collected.add(doc);
+                    }
+                }
+            }
+
+            return collected;
+        }
+
+        return getDataFromIndex(db, collection, query);
+    }
+
+    /**
+     * The input of an aggregation pipeline (#375): the documents its leading {@code $match} selects
+     * - or the whole collection when there is none - as deep copies the pipeline may mutate freely,
+     * plus how they were found. {@code stage} is {@code IXSCAN} when {@link #selectIndexCandidates}
+     * narrowed the candidates through an index and {@code COLLSCAN} otherwise; {@code docsExamined}
+     * is the number of stored documents the filter was evaluated against.
+     */
+    public record AggregationInput(List<Map<String, Object>> documents, String stage, long docsExamined) {}
+
+    /**
+     * Pipeline input for {@link InMemAggregator} (#375). {@code aggregate()} used to materialize
+     * the whole collection through a filterless {@code find()} and then run every stage, including
+     * a leading {@code $match}, over the copies - so an aggregation with an indexed {@code $match}
+     * cost the same as one without any, ~60x the equivalent {@code find}. A leading {@code $match}
+     * is the one stage that still sees the stored documents, so it is answered here the way
+     * {@code find}/{@code count} answer their filter: {@link #selectIndexCandidates} picks the
+     * candidates (index-planned, {@code null} = scan), {@link CompiledQuery} - the same matcher the
+     * aggregator's {@code $match} stage uses - filters them, and only the matches are deep-copied.
+     * Counts against {@code fullScans}/{@code indexHits} like a find does, but does not log its own
+     * slow-query line: the aggregate-level log
+     * ({@link #recordAggregateSlowQueryIfNeeded}) reports the returned stage/docsExamined instead.
+     *
+     * @param leadingMatch the leading {@code $match}'s filter, or {@code null}/empty for "everything"
+     * @param collation    the aggregation's collation in wire form, or {@code null}
+     */
+    public AggregationInput findAggregationInput(String db, String collection, Map<String, Object> leadingMatch,
+            Map<String, Object> collation) throws MorphiumDriverException {
+        java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, collection);
+        lock.readLock().lock();
+        try {
+            Map<String, Object> query = leadingMatch == null ? Doc.of() : leadingMatch;
+            QueryHelper.validateQuery(query);
+            query = rewriteTextSearch(db, collection, query);
+
+            List<Map<String, Object>> candidates = query.isEmpty() ? null : selectIndexCandidates(db, collection, query);
+            List<Map<String, Object>> source;
+            String stage;
+
+            if (candidates == null) {
+                source = getCollection(db, collection);
+                fullScans++;
+                stage = "COLLSCAN";
+            } else {
+                source = candidates;
+                indexHits++;
+                stage = "IXSCAN";
+            }
+
+            CompiledQuery compiledQuery = CompiledQuery.compile(query, collation);
+            List<Map<String, Object>> documents = new ArrayList<>();
+
+            for (Map<String, Object> o : source) {
+                if (!compiledQuery.matches(o)) {
+                    continue;
+                }
+
+                // Same hand-over as find() without a projection: the pipeline must never touch the
+                // stored documents, and _id is surfaced as MorphiumId.
+                Map<String, Object> copy = deepCopyDocWithRetry(o);
+
+                if (copy.get("_id") instanceof ObjectId) {
+                    copy.put("_id", new MorphiumId((ObjectId) copy.get("_id")));
+                }
+
+                documents.add(copy);
+            }
+
+            return new AggregationInput(documents, stage, source.size());
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 
     /**

@@ -19,6 +19,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -90,11 +91,12 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         }
 
         assertTrue((lst.size() == 1));
-        assertTrue((((Number) lst.get(0).get("summe")).doubleValue() == 1683));
-        assertTrue((((Number) lst.get(0).get("tst")).doubleValue() == 1683));
-        assertTrue((((Number) lst.get(0).get("cnt")).doubleValue() == 34));
+        // #378: a computed-only $project is an inclusion projection, like on mongod - the output
+        // is _id plus the computed field, the group/addFields fields do not pass through.
         assertTrue((((Number) lst.get(0).get("avg")).doubleValue() == 49.5));
         assertTrue((lst.get(0).get("_id").equals("mod0")));
+        assertEquals(Set.of("_id", "avg"), lst.get(0).keySet(),
+            "computed-only $project must return only _id + the computed field");
     }
 
 

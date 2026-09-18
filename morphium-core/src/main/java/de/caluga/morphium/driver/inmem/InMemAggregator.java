@@ -33,6 +33,8 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     private boolean useDisk = false;
     private boolean explain = false;
     private Collation collation;
+    private volatile String lastInputStage = "COLLSCAN";
+    private volatile long lastInputDocsExamined;
     private final UntranslatedRefWarner refWarner = new UntranslatedRefWarner();
     private final FieldNameTranslation fieldNames;
 
@@ -1107,18 +1109,12 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
             case "$project": {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> op = (((Map<String, Object>) step.get(stage)));
-                // #240: an explicit inclusion flag ({field:1}/true) on any non-_id field switches
-                // $project into strict inclusion mode - MongoDB then returns ONLY _id plus the listed
-                // and computed fields. Without any such flag we keep the historical lenient behaviour
-                // (clone the document, add computed fields, honour {field:0} exclusions), which
-                // existing computed-only projection pipelines depend on.
-                boolean strictInclusion = false;
-                for (Map.Entry<String, Object> e : op.entrySet()) {
-                    if (!e.getKey().equals("_id") && isProjectInclusionFlag(e.getValue())) {
-                        strictInclusion = true;
-                        break;
-                    }
-                }
+                // Two modes, decided like mongod does (see isProjectInclusionMode): an inclusion
+                // projection - any {field:1} flag OR any computed field (#240, #377, #378) - starts
+                // from an empty document and copies over _id plus the listed and computed fields;
+                // an exclusion projection (only {field:0} flags) clones the document and removes
+                // the listed fields.
+                boolean strictInclusion = isProjectInclusionMode(op);
 
                 for (Map<String, Object> o : data) {
                     Map<String, Object> obj;
@@ -1156,37 +1152,14 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                             }
                         }
                     } else {
+                        // Exclusion mode: every non-_id value is a {field:0} flag, so the document
+                        // is cloned and the listed fields removed. Computed fields never get here
+                        // any more - they make the spec an inclusion projection (#377, #378).
                         obj = new HashMap<>(o);
 
-                        for (String k : op.keySet()) {
-                            Object value = op.get(k);
-
-                            if (value instanceof String && ((String) value).startsWith("$")) {
-                                String path = ((String) value).substring(1);
-                                Object v = getByPath(obj, path);
-                                obj.put(k, v);
-                            } else if (value instanceof Expr.ValueExpr) {
-                                Object evaluate = ((Expr) value).evaluate(obj);
-
-                                if (Integer.valueOf(0).equals(evaluate)) {
-                                    obj.remove(k);
-                                }
-                            } else if (value instanceof Expr) {
-                                Object evaluate = ((Expr) value).evaluate(obj);
-                                obj.put(k, evaluate);
-                            } else if (value instanceof Integer) {
-                                if (((Integer) value) == 0) {
-                                    obj.remove(k);
-                                }
-                            } else if (value instanceof Map) {
-                                //noinspection unchecked
-                                for (String fld : ((Map<String, Object>) value).keySet()) {
-                                    if (obj.get(fld) instanceof Expr) {
-                                        obj.put(fld, ((Expr) obj.get(fld)).evaluate(obj));
-                                    } else {
-                                        log.error("InMemoryAggregation only works with Expr");
-                                    }
-                                }
+                        for (Map.Entry<String, Object> e : op.entrySet()) {
+                            if (isProjectExclusionFlag(e.getValue())) {
+                                obj.remove(e.getKey());
                             }
                         }
                     }
@@ -2541,15 +2514,63 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
             }
         }
 
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> result = (List<Map<String, Object>>) (List<?>) q.asMapList();
+        List<Map<String, Object>> pipeline = getPipeline();
+        List<Map<String, Object>> result;
+        int firstStage = 0;
 
-        for (Map<String, Object> step : getPipeline()) {
+        if (getMorphium().getDriver() instanceof InMemoryDriver drv) {
+            // #375: a leading $match is the one stage that still sees the stored documents, so
+            // it is answered by the driver's own candidate selection (index-planned, same path
+            // as find/count) instead of materializing the whole collection and filtering the
+            // copies. The stage is consumed here - the driver applies the very same matcher the
+            // $match stage would - and the pipeline continues with the next one.
+            Map<String, Object> leadingMatch = null;
+
+            if (!pipeline.isEmpty() && pipeline.get(0).size() == 1
+                    && pipeline.get(0).get("$match") instanceof Map<?, ?> m) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> match = (Map<String, Object>) m;
+                leadingMatch = match;
+                firstStage = 1;
+            }
+
+            try {
+                InMemoryDriver.AggregationInput input = drv.findAggregationInput(q.getDB(), q.getCollectionName(),
+                        leadingMatch, collation == null ? null : collation.toQueryObject());
+                result = input.documents();
+                lastInputStage = input.stage();
+                lastInputDocsExamined = input.docsExamined();
+            } catch (MorphiumDriverException e) {
+                throw new IllegalArgumentException(e.getMessage(), e);
+            }
+        } else {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> all = (List<Map<String, Object>>) (List<?>) q.asMapList();
+            result = all;
+            lastInputStage = "COLLSCAN";
+            lastInputDocsExamined = all.size();
+        }
+
+        for (int i = firstStage; i < pipeline.size(); i++) {
             //evaluate each step
-            result = execStep(step, result);
+            result = execStep(pipeline.get(i), result);
         }
 
         return result;
+    }
+
+    /**
+     * How the input of the most recent {@link #aggregateMap()} was selected: {@code IXSCAN} when a
+     * leading {@code $match} was served from an index, {@code COLLSCAN} otherwise (#375). Feeds the
+     * driver's slow-aggregation log, which must describe the plan that ran.
+     */
+    public String getLastInputStage() {
+        return lastInputStage;
+    }
+
+    /** Number of stored documents the most recent {@link #aggregateMap()} examined to build its input. */
+    public long getLastInputDocsExamined() {
+        return lastInputDocsExamined;
     }
 
     private Object normalizeGraphValue(Object value) {
@@ -2647,6 +2668,48 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         }
 
         return groupIdSpec;
+    }
+
+    /**
+     * Decides which of {@code $project}'s two modes a spec runs in, the way mongod does: a
+     * projection is an <em>exclusion</em> projection only if every field it names (other than
+     * {@code _id}) is a {@code {field:0}} flag. Anything else - an inclusion flag, a {@code "$field"}
+     * reference, an {@link Expr} or a raw operator Map - makes it an <em>inclusion</em> projection
+     * whose output is {@code _id} plus exactly the listed and computed fields. {@code _id} itself
+     * only tips the balance when it is computed ({@code {_id: "$x"}}) or the sole entry
+     * ({@code {_id: 1}} alone selects just {@code _id}); a plain {@code {_id: 0/1}} next to
+     * exclusions leaves the spec an exclusion projection (#240).
+     *
+     * <p>Computed-only specs used to be classified as lenient/exclusion mode, which kept the whole
+     * document and could not evaluate raw operator Maps at all (#377, #378). Mixing {@code {field:0}}
+     * with a computed field is rejected by mongod; here the exclusion is ignored and the computed
+     * field wins, exactly as {@code {a:1, b:0}} has always been handled - whether that should become
+     * an error is the open side question in #378.
+     */
+    private boolean isProjectInclusionMode(Map<String, Object> op) {
+        boolean sawExclusion = false;
+
+        for (Map.Entry<String, Object> e : op.entrySet()) {
+            Object value = e.getValue();
+
+            if (e.getKey().equals("_id")) {
+                if (!isProjectInclusionFlag(value) && !isProjectExclusionFlag(value)) {
+                    return true; // computed _id
+                }
+
+                continue;
+            }
+
+            if (!isProjectExclusionFlag(value)) {
+                return true; // inclusion flag, "$ref", Expr or raw operator Map
+            }
+
+            sawExclusion = true;
+        }
+
+        // Nothing but _id (or an empty spec): {_id:1} alone is an inclusion of _id only, while
+        // {_id:0} alone and {} stay in exclusion mode.
+        return !sawExclusion && op.containsKey("_id") && isProjectInclusionFlag(op.get("_id"));
     }
 
     /**
@@ -2970,14 +3033,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
      * regular $project stage but evaluating computed values with the pipeline variables. */
     private Map<String, Object> applyMergeProjection(Map<String, Object> op, Map<String, Object> current,
         Map<String, Object> vars) {
-        boolean strictInclusion = false;
-
-        for (Map.Entry<String, Object> e : op.entrySet()) {
-            if (!e.getKey().equals("_id") && isProjectInclusionFlag(e.getValue())) {
-                strictInclusion = true;
-                break;
-            }
-        }
+        boolean strictInclusion = isProjectInclusionMode(op);
 
         Map<String, Object> obj;
 
@@ -3017,19 +3073,13 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 }
             }
         } else {
+            // Exclusion mode - only {field:0} flags (plus a plain _id flag) get here, computed
+            // fields make the spec an inclusion projection (see isProjectInclusionMode).
             obj = new HashMap<>(current);
 
             for (Map.Entry<String, Object> e : op.entrySet()) {
                 if (isProjectExclusionFlag(e.getValue())) {
                     obj.remove(e.getKey());
-                } else {
-                    Object v = evaluateMergeExpression(e.getValue(), current, vars);
-
-                    if (v == MERGE_REMOVE_SENTINEL) {
-                        obj.remove(e.getKey());
-                    } else {
-                        obj.put(e.getKey(), v);
-                    }
                 }
             }
         }

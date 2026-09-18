@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -186,5 +187,72 @@ public class GroupAccumulatorExpressionTest {
         assertEquals(1, ((Number) res.get(0).get("arrayForm")).intValue());
         assertEquals(1, ((Number) res.get(0).get("objectForm")).intValue(), "object-form $cond in $project");
         assertEquals(0, ((Number) res.get(3).get("objectForm")).intValue(), "object-form $cond in $project");
+    }
+
+    /**
+     * #377/#378: for mongod a $project consisting only of computed fields IS an inclusion
+     * projection - the result carries _id plus the computed fields and nothing else. The
+     * in-memory driver classified such a spec as lenient/exclusion mode, kept the whole document
+     * and then, for a raw operator Map, iterated the spec's operator keys ($cond) as field names,
+     * logged "only works with Expr" and never wrote the computed field. Adding any {field: 1}
+     * next to it switched to strict mode and made the very same expression work.
+     */
+    @Test
+    public void computedOnlyProjectIsAnInclusionProjection() throws Exception {
+        insertFourDocs();
+        Map<String, Object> isOk = Doc.of("$eq", List.of("$result", "OK"));
+
+        List<Map<String, Object>> res = new AggregateMongoCommand(drv).setDb(DB).setColl(COLL)
+                .setPipeline(List.of(
+                        Doc.of("$sort", Doc.of("counter", 1)),
+                        Doc.of("$project", Doc.of(
+                                "arrayForm", Doc.of("$cond", List.of(isOk, 1, 0)),
+                                "objectForm", Doc.of("$cond", Doc.of("if", isOk, "then", 1, "else", 0)),
+                                "ref", "$counter"))))
+                .execute();
+
+        assertEquals(4, res.size());
+        Map<String, Object> first = res.get(0);
+        assertEquals(Set.of("_id", "arrayForm", "objectForm", "ref"), first.keySet(),
+                "#378: a computed-only $project must behave like inclusion mode (_id + computed fields)");
+        assertEquals(1, ((Number) first.get("arrayForm")).intValue(), "#377: raw array-form $cond without an inclusion flag");
+        assertEquals(1, ((Number) first.get("objectForm")).intValue(), "#377: raw object-form $cond without an inclusion flag");
+        assertEquals(1, ((Number) first.get("ref")).intValue(), "$field reference in a computed-only $project");
+        assertEquals(0, ((Number) res.get(3).get("arrayForm")).intValue());
+        assertEquals(0, ((Number) res.get(3).get("objectForm")).intValue());
+    }
+
+    /** {_id: 0} inside a computed-only $project drops _id like it does in strict inclusion mode. */
+    @Test
+    public void computedOnlyProjectHonoursIdExclusion() throws Exception {
+        insertFourDocs();
+        Map<String, Object> isOk = Doc.of("$eq", List.of("$result", "OK"));
+
+        List<Map<String, Object>> res = new AggregateMongoCommand(drv).setDb(DB).setColl(COLL)
+                .setPipeline(List.of(
+                        Doc.of("$sort", Doc.of("counter", 1)),
+                        Doc.of("$project", Doc.of("_id", 0, "flag", Doc.of("$cond", List.of(isOk, 1, 0))))))
+                .execute();
+
+        assertEquals(4, res.size());
+        assertEquals(Set.of("flag"), res.get(0).keySet(), "#378: {_id: 0} must be honoured in a computed-only $project");
+        assertEquals(1, ((Number) res.get(0).get("flag")).intValue());
+        assertEquals(0, ((Number) res.get(2).get("flag")).intValue());
+    }
+
+    /** A pure exclusion spec ({field: 0}) is still exclusion mode: everything else stays. */
+    @Test
+    public void exclusionOnlyProjectKeepsTheRemainingFields() throws Exception {
+        insertFourDocs();
+
+        List<Map<String, Object>> res = new AggregateMongoCommand(drv).setDb(DB).setColl(COLL)
+                .setPipeline(List.of(
+                        Doc.of("$sort", Doc.of("counter", 1)),
+                        Doc.of("$project", Doc.of("result", 0))))
+                .execute();
+
+        assertEquals(4, res.size());
+        assertEquals(Set.of("_id", "counter"), res.get(0).keySet(), "exclusion mode must keep the non-excluded fields");
+        assertEquals(1, ((Number) res.get(0).get("counter")).intValue());
     }
 }
