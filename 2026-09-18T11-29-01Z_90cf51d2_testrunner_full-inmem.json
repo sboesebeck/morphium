@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "commit": "90cf51d25019e0084cd5b8927078a75dd45f24ff",
+  "branch": "develop",
+  "timestamp": "2026-09-18T11:29:01Z",
+  "runner": "testrunner",
+  "scope": {
+    "complete": true,
+    "tags": null,
+    "testPattern": null
+  },
+  "phases": {
+    "inmem": {
+      "classes": 340,
+      "methods": 2312,
+      "passed": 2296,
+      "skipped": 16,
+      "broken": 0,
+      "duration_s": 4610,
+      "flaky": 0
+    }
+  }
+}
