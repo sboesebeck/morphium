@@ -171,9 +171,10 @@ public class FastResyncTest {
     }
 
     private void waitForPrimary(PoppyDB node) throws Exception {
-        // Generous: under full CI load the election churn after a parallel start can take a
-        // while to settle on the priority winner.
-        long deadline = System.currentTimeMillis() + 45_000;
+        // Generous: under full CI load the election churn after a parallel start (or after a
+        // forced failover) can take a while to settle on the priority winner. 45s was not
+        // enough twice in a row on the testrunner (5 phases + the poppydb module on 4 vCPUs).
+        long deadline = System.currentTimeMillis() + 90_000;
         while (!node.isPrimary() && System.currentTimeMillis() < deadline) {
             Thread.sleep(50);
         }

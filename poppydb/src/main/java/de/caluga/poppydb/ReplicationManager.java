@@ -1441,6 +1441,34 @@ public class ReplicationManager {
         }
     }
 
+    /**
+     * #364: true if {@code e} (or a cause of it) says the sync source is not the primary any
+     * more - NotPrimaryNoSecondaryOk (13435), NotWritablePrimary (10107) or PrimarySteppedDown
+     * (189), by code or by the "Error: CODE - not primary ..." message the driver formats. The
+     * reaction differs from every other error: the host is up and will keep answering exactly
+     * this until the leadership change re-targets replication, so reconnecting at full speed
+     * is a CPU-burning loop right when the election needs the CPU.
+     */
+    static boolean isSyncSourceSteppedDown(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            if (t instanceof MorphiumDriverException mde && mde.getMongoCode() instanceof Number code) {
+                int c = code.intValue();
+                if (c == 13435 || c == 10107 || c == 189) {
+                    return true;
+                }
+            }
+            String msg = t.getMessage();
+            if (msg != null) {
+                String lower = msg.toLowerCase(Locale.ROOT);
+                if (lower.contains("13435") || lower.contains("10107")
+                        || lower.contains("not primary") || lower.contains("not master")) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private void disconnectFromPrimary() {
         if (primaryMorphium != null) {
             try {
@@ -1454,6 +1482,9 @@ public class ReplicationManager {
     }
 
     private void replicationLoop() {
+        // #364: consecutive "sync source stepped down" errors back off exponentially (1s ->
+        // 10s cap) instead of the flat 5s-and-reconnect, and are logged once per streak.
+        long stepDownBackoffMs = 0;
         while (running.get()) {
             try {
                 // Test hook: simulate a partition — stay severed and do not reconnect until resumed.
@@ -1498,6 +1529,7 @@ public class ReplicationManager {
                     connected.set(false);
                     // Will reconnect on next iteration
                 }
+                stepDownBackoffMs = 0;
 
             } catch (InterruptedException e) {
                 log.debug("Replication loop interrupted");
@@ -1508,6 +1540,34 @@ public class ReplicationManager {
                 // A partition simulated by the test hook severs the connection on purpose; the watch
                 // throwing is expected, so don't log it as an error or sleep the 5s backoff.
                 if (pausedForTest.get()) {
+                    continue;
+                }
+                if (isSyncSourceSteppedDown(e)) {
+                    // #364: the host told us it is no longer the primary. Drop the connection
+                    // (which also parks the periodic index sync - it checks connected) and wait
+                    // with growing backoff for PoppyDB.startReplicationToLeader() to replace this
+                    // manager with one aimed at the new leader. NOT a permanent stop: the same
+                    // host can become primary again (priority takeover back to it), and the
+                    // leader-discovery callback does not re-fire for an unchanged leader address.
+                    disconnectFromPrimary();
+                    boolean first = stepDownBackoffMs == 0;
+                    stepDownBackoffMs = first ? 1000 : Math.min(stepDownBackoffMs * 2, 10_000);
+                    if (first) {
+                        log.warn("Sync source {}:{} is no longer the primary ({}) - waiting for the "
+                                + "leadership change to re-target replication, retrying with backoff "
+                                + "from {}ms (#364)", primaryHost, primaryPort, e.getMessage(), stepDownBackoffMs);
+                    } else {
+                        log.debug("Sync source {}:{} still not primary - next retry in {}ms",
+                                primaryHost, primaryPort, stepDownBackoffMs);
+                    }
+                    if (running.get()) {
+                        try {
+                            Thread.sleep(stepDownBackoffMs);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                    }
                     continue;
                 }
                 log.error("Error in replication loop: {}", e.getMessage(), e);
