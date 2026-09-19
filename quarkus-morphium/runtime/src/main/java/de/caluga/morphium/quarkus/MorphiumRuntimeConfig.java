@@ -171,6 +171,37 @@ public interface MorphiumRuntimeConfig {
     /** Nested LocalDateTime serialization configuration. */
     LocalDateTimeConfig localDateTime();
 
+    /**
+     * Whether {@code java.time} values are stored as native BSON Date ({@code ISODate}) instead of
+     * Morphium's own per-type formats. Covers all four types the object mapper maps specially:
+     * {@link java.time.Instant}, {@link java.time.LocalDate}, {@link java.time.LocalTime} and
+     * {@link java.time.LocalDateTime}.
+     *
+     * <p>Sets {@code ObjectMappingSettings#setUseBsonDateForJavaTime(boolean)}, so the effect is the
+     * one documented there: a scalar field becomes a bare BSON Date, which is bit-compatible with the
+     * official MongoDB Java driver's {@code jsr310} codecs and therefore usable with native date range
+     * queries, sorts and TTL indexes. Sub-millisecond precision is lost, the same trade-off the driver
+     * makes for these types.
+     *
+     * <p><b>Deliberately without a default.</b> Left unset, the extension keeps its previous behaviour:
+     * only {@link java.time.LocalDateTime} follows {@code quarkus.morphium.local-date-time.use-bson-date}
+     * (which defaults to {@code true}) and the other three types keep the legacy format. That
+     * per-type split cannot be expressed through {@code ObjectMappingSettings}, which is all-or-nothing
+     * for the four types -- so silently adopting a default here would change the on-disk format of
+     * {@code Instant}, {@code LocalDate} and {@code LocalTime} fields for every existing application on
+     * upgrade. Setting this property is the explicit opt-in; it then wins over the deprecated per-type
+     * property.
+     *
+     * <p><b>Setting this to {@code false} is not "keep things as they are".</b> The deprecated
+     * {@code local-date-time.use-bson-date} defaults to {@code true}, so today {@code LocalDateTime} is
+     * already stored as {@code ISODate}. Explicitly setting this property to {@code false} flips
+     * {@code LocalDateTime} to the legacy Map format -- the opposite of what someone who sets it to
+     * {@code false} expecting "no change" would want -- and starts writing a second on-disk shape into
+     * an existing collection. Leave the property unset if {@code LocalDateTime} should keep its current
+     * format.
+     */
+    Optional<Boolean> useBsonDateForJavaTime();
+
     /** Nested database migration configuration. */
     MorphiumMigrationConfig migration();
 
