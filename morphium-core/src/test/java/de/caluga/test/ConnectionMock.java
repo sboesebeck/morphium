@@ -7,6 +7,7 @@ import java.util.Map;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.commands.MongoCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.wire.HelloResult;
@@ -14,6 +15,19 @@ import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 
 public class ConnectionMock implements MongoConnection{
+
+    private ReadPreference effectiveReadPreference;
+
+    @Override
+    public ReadPreference getEffectiveReadPreference() {
+        return effectiveReadPreference;
+    }
+
+    @Override
+    public void setEffectiveReadPreference(ReadPreference readPreference) {
+        this.effectiveReadPreference = readPreference;
+    }
+
 
     @Override
     public OpMsg readNextMessage(int timeout) throws MorphiumDriverException {

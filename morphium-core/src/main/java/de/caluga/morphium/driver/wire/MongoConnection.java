@@ -8,11 +8,33 @@ import java.util.Map;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.commands.MongoCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 
 public interface MongoConnection extends Closeable {
+
+    /**
+     * The read preference this connection was handed out for (see
+     * {@code MorphiumDriver.getReadConnection(ReadPreference)}). Commands created on this
+     * connection are sent with it unless they carry an explicit read preference of their own -
+     * which is what makes read preferences effective behind a mongos.
+     *
+     * @return the read preference, {@code null} if unknown
+     */
+    default ReadPreference getEffectiveReadPreference() {
+        return null;
+    }
+
+    /**
+     * @param readPreference the read preference this connection was handed out for
+     * @see #getEffectiveReadPreference()
+     */
+    default void setEffectiveReadPreference(ReadPreference readPreference) {
+        // connections that do not track their read preference simply ignore it
+    }
+
     void setCredentials(String authDb, String userName, String password);
 
     HelloResult connect(MorphiumDriver drv, String host, int port) throws IOException, MorphiumDriverException;

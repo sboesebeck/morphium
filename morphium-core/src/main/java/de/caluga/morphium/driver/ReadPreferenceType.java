@@ -5,10 +5,22 @@ package de.caluga.morphium.driver;
  */
 @SuppressWarnings("DefaultFileTemplate")
 public enum ReadPreferenceType {
-    PRIMARY,
-    SECONDARY,
-    PRIMARY_PREFERRED,
-    SECONDARY_PREFERRED,
-    NEAREST,
+    PRIMARY("primary"),
+    SECONDARY("secondary"),
+    PRIMARY_PREFERRED("primaryPreferred"),
+    SECONDARY_PREFERRED("secondaryPreferred"),
+    NEAREST("nearest");
 
+    private final String mode;
+
+    ReadPreferenceType(String mode) {
+        this.mode = mode;
+    }
+
+    /**
+     * @return the name this read preference has in the wire protocol's {@code $readPreference.mode}
+     */
+    public String getMode() {
+        return mode;
+    }
 }
