@@ -33,6 +33,8 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     private boolean useDisk = false;
     private boolean explain = false;
     private Collation collation;
+    private volatile String lastInputStage = "COLLSCAN";
+    private volatile long lastInputDocsExamined;
     private final UntranslatedRefWarner refWarner = new UntranslatedRefWarner();
     private final FieldNameTranslation fieldNames;
 
@@ -1107,18 +1109,12 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
             case "$project": {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> op = (((Map<String, Object>) step.get(stage)));
-                // #240: an explicit inclusion flag ({field:1}/true) on any non-_id field switches
-                // $project into strict inclusion mode - MongoDB then returns ONLY _id plus the listed
-                // and computed fields. Without any such flag we keep the historical lenient behaviour
-                // (clone the document, add computed fields, honour {field:0} exclusions), which
-                // existing computed-only projection pipelines depend on.
-                boolean strictInclusion = false;
-                for (Map.Entry<String, Object> e : op.entrySet()) {
-                    if (!e.getKey().equals("_id") && isProjectInclusionFlag(e.getValue())) {
-                        strictInclusion = true;
-                        break;
-                    }
-                }
+                // Two modes, decided like mongod does (see isProjectInclusionMode): an inclusion
+                // projection - any {field:1} flag OR any computed field (#240, #377, #378) - starts
+                // from an empty document and copies over _id plus the listed and computed fields;
+                // an exclusion projection (only {field:0} flags) clones the document and removes
+                // the listed fields.
+                boolean strictInclusion = isProjectInclusionMode(op);
 
                 for (Map<String, Object> o : data) {
                     Map<String, Object> obj;
@@ -1156,37 +1152,14 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                             }
                         }
                     } else {
+                        // Exclusion mode: every non-_id value is a {field:0} flag, so the document
+                        // is cloned and the listed fields removed. Computed fields never get here
+                        // any more - they make the spec an inclusion projection (#377, #378).
                         obj = new HashMap<>(o);
 
-                        for (String k : op.keySet()) {
-                            Object value = op.get(k);
-
-                            if (value instanceof String && ((String) value).startsWith("$")) {
-                                String path = ((String) value).substring(1);
-                                Object v = getByPath(obj, path);
-                                obj.put(k, v);
-                            } else if (value instanceof Expr.ValueExpr) {
-                                Object evaluate = ((Expr) value).evaluate(obj);
-
-                                if (Integer.valueOf(0).equals(evaluate)) {
-                                    obj.remove(k);
-                                }
-                            } else if (value instanceof Expr) {
-                                Object evaluate = ((Expr) value).evaluate(obj);
-                                obj.put(k, evaluate);
-                            } else if (value instanceof Integer) {
-                                if (((Integer) value) == 0) {
-                                    obj.remove(k);
-                                }
-                            } else if (value instanceof Map) {
-                                //noinspection unchecked
-                                for (String fld : ((Map<String, Object>) value).keySet()) {
-                                    if (obj.get(fld) instanceof Expr) {
-                                        obj.put(fld, ((Expr) obj.get(fld)).evaluate(obj));
-                                    } else {
-                                        log.error("InMemoryAggregation only works with Expr");
-                                    }
-                                }
+                        for (Map.Entry<String, Object> e : op.entrySet()) {
+                            if (isProjectExclusionFlag(e.getValue())) {
+                                obj.remove(e.getKey());
                             }
                         }
                     }
@@ -1336,8 +1309,13 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                 case "$push":
                                     Object toPush = ((Map <?, ? >) opValue).get(op);
                                     Object setValue = null;
+                                    // A Map operand is a document literal only if its first key is not an
+                                    // operator - {$cond: [...]} is an expression to evaluate (#376).
+                                    boolean docLiteral = toPush instanceof Map
+                                        && (((Map <?, ? >) toPush).isEmpty()
+                                            || !((Map <?, ? >) toPush).keySet().iterator().next().toString().startsWith("$"));
 
-                                    if (toPush instanceof Map) {
+                                    if (docLiteral) {
                                         //pushing an ObjectMapperImpl
                                         setValue = new HashMap();
 
@@ -1357,13 +1335,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                             }
                                         }
                                     } else {
-                                        String v = (String) toPush;
-
-                                        if (v.startsWith("$")) {
-                                            setValue = o.get(v.substring(1));
-                                        } else {
-                                            setValue = toPush;
-                                        }
+                                        setValue = accumulatorOperand(toPush, o);
                                     }
 
                                     res.get(id).putIfAbsent(fld, new ArrayList<>());
@@ -1387,36 +1359,37 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                     res.get(id).putIfAbsent("$_calc_" + fld, UtilsMap.of("sum", 0, "count", 0));
 
                                     //res.get(id).putIfAbsent(fld, UtilsMap.of("sum", 0, "count", 0, "avg", 0));
-                                    if (((Map <?, ? >) opValue).get(op).toString().startsWith("$")) {
-                                        //field reference
+                                    Object avgVal = accumulatorOperand(((Map <?, ? >) opValue).get(op), o);
+
+                                    // like mongod: non-numeric results neither count nor add up
+                                    if (avgVal instanceof Number) {
                                         Number count = (Number)((Map) res.get(id).get("$_calc_" + fld)).get("count");
                                         count = count.intValue() + 1;
                                         //noinspection unchecked
                                         ((Map) res.get(id).get("$_calc_" + fld)).put("count", count);
                                         Number current = (Number)((Map) res.get(id).get("$_calc_" + fld)).get("sum");
-                                        Number v = (Number) o.get(((Map <?, ? >) opValue).get(op).toString().substring(1));
-                                        Number sum = current.doubleValue() + v.doubleValue();
+                                        Number sum = current.doubleValue() + ((Number) avgVal).doubleValue();
                                         //noinspection unchecked
                                         ((Map) res.get(id).get("$_calc_" + fld)).put("sum", sum);
                                         //noinspection unchecked
                                         res.get(id).put(fld, sum.doubleValue() / count.doubleValue());
-                                    } else {
-                                        log.error("Average with no $-reference?");
                                     }
 
                                     break;
 
                                 case "$first":
-                                    res.get(id).putIfAbsent(fld, o.get(((Map <?, ? >) opValue).get(op).toString().substring(1)));
+                                    res.get(id).putIfAbsent(fld, accumulatorOperand(((Map <?, ? >) opValue).get(op), o));
                                     break;
 
                                 case "$last":
-                                    res.get(id).put(fld, o.get(((Map <?, ? >) opValue).get(op).toString().substring(1)));
+                                    res.get(id).put(fld, accumulatorOperand(((Map <?, ? >) opValue).get(op), o));
                                     break;
 
-                                case "$max":
-                                    if (((Map <?, ? >) opValue).get(op).toString().startsWith("$")) {
-                                        Object oVal = o.get(((Map <?, ? >) opValue).get(op).toString().substring(1));
+                                case "$max": {
+                                    Object oVal = accumulatorOperand(((Map <?, ? >) opValue).get(op), o);
+
+                                    // like mongod: null / missing never competes
+                                    if (oVal != null) {
                                         res.get(id).putIfAbsent(fld, oVal);
 
                                         //noinspection unchecked
@@ -1426,10 +1399,13 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                     }
 
                                     break;
+                                }
 
-                                case "$min":
-                                    if (((Map <?, ? >) opValue).get(op).toString().startsWith("$")) {
-                                        Object oVal = o.get(((Map <?, ? >) opValue).get(op).toString().substring(1));
+                                case "$min": {
+                                    Object oVal = accumulatorOperand(((Map <?, ? >) opValue).get(op), o);
+
+                                    // like mongod: null / missing never competes
+                                    if (oVal != null) {
                                         res.get(id).putIfAbsent(fld, oVal);
 
                                         //noinspection unchecked
@@ -1439,6 +1415,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                     }
 
                                     break;
+                                }
 
                                 case "$sum":
                                     // Bind the group's result map and the operand once per document:
@@ -1449,7 +1426,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                     // instanceof Number BEFORE the "$"-prefix test is
                                     // semantics-preserving because a Number's toString() can never
                                     // start with "$"; the relative order of the field-reference and
-                                    // Expr branches is unchanged.
+                                    // expression branches is unchanged.
                                     Map<String, Object> sumGroupDoc = res.get(id);
                                     sumGroupDoc.putIfAbsent(fld, 0);
                                     Number current = (Number) sumGroupDoc.get(fld);
@@ -1457,13 +1434,20 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
                                     if (sumSpec instanceof Number) {
                                         sumGroupDoc.put(fld, current.doubleValue() + ((Number) sumSpec).doubleValue());
-                                    } else if (sumSpec.toString().startsWith("$")) {
-                                        //field reference
-                                        Number v = (Number) o.get(sumSpec.toString().substring(1));
-                                        sumGroupDoc.put(fld, current.doubleValue() + v.doubleValue());
-                                    } else if (sumSpec instanceof Expr) {
-                                        Number v = (Number)(o.get(((Expr) sumSpec).evaluate(o)));
-                                        sumGroupDoc.put(fld, current.doubleValue() + v.doubleValue());
+                                    } else if (sumSpec instanceof String && ((String) sumSpec).startsWith("$")) {
+                                        //field reference; like mongod, missing and non-numeric values do not add up
+                                        Object v = o.get(((String) sumSpec).substring(1));
+
+                                        if (v instanceof Number) {
+                                            sumGroupDoc.put(fld, current.doubleValue() + ((Number) v).doubleValue());
+                                        }
+                                    } else {
+                                        // expression operand (#376); like mongod, non-numeric results do not add up
+                                        Object v = accumulatorOperand(sumSpec, o);
+
+                                        if (v instanceof Number) {
+                                            sumGroupDoc.put(fld, current.doubleValue() + ((Number) v).doubleValue());
+                                        }
                                     }
 
                                     break;
@@ -2530,15 +2514,63 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
             }
         }
 
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> result = (List<Map<String, Object>>) (List<?>) q.asMapList();
+        List<Map<String, Object>> pipeline = getPipeline();
+        List<Map<String, Object>> result;
+        int firstStage = 0;
 
-        for (Map<String, Object> step : getPipeline()) {
+        if (getMorphium().getDriver() instanceof InMemoryDriver drv) {
+            // #375: a leading $match is the one stage that still sees the stored documents, so
+            // it is answered by the driver's own candidate selection (index-planned, same path
+            // as find/count) instead of materializing the whole collection and filtering the
+            // copies. The stage is consumed here - the driver applies the very same matcher the
+            // $match stage would - and the pipeline continues with the next one.
+            Map<String, Object> leadingMatch = null;
+
+            if (!pipeline.isEmpty() && pipeline.get(0).size() == 1
+                    && pipeline.get(0).get("$match") instanceof Map<?, ?> m) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> match = (Map<String, Object>) m;
+                leadingMatch = match;
+                firstStage = 1;
+            }
+
+            try {
+                InMemoryDriver.AggregationInput input = drv.findAggregationInput(q.getDB(), q.getCollectionName(),
+                        leadingMatch, collation == null ? null : collation.toQueryObject());
+                result = input.documents();
+                lastInputStage = input.stage();
+                lastInputDocsExamined = input.docsExamined();
+            } catch (MorphiumDriverException e) {
+                throw new IllegalArgumentException(e.getMessage(), e);
+            }
+        } else {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> all = (List<Map<String, Object>>) (List<?>) q.asMapList();
+            result = all;
+            lastInputStage = "COLLSCAN";
+            lastInputDocsExamined = all.size();
+        }
+
+        for (int i = firstStage; i < pipeline.size(); i++) {
             //evaluate each step
-            result = execStep(step, result);
+            result = execStep(pipeline.get(i), result);
         }
 
         return result;
+    }
+
+    /**
+     * How the input of the most recent {@link #aggregateMap()} was selected: {@code IXSCAN} when a
+     * leading {@code $match} was served from an index, {@code COLLSCAN} otherwise (#375). Feeds the
+     * driver's slow-aggregation log, which must describe the plan that ran.
+     */
+    public String getLastInputStage() {
+        return lastInputStage;
+    }
+
+    /** Number of stored documents the most recent {@link #aggregateMap()} examined to build its input. */
+    public long getLastInputDocsExamined() {
+        return lastInputDocsExamined;
     }
 
     private Object normalizeGraphValue(Object value) {
@@ -2639,6 +2671,48 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     }
 
     /**
+     * Decides which of {@code $project}'s two modes a spec runs in, the way mongod does: a
+     * projection is an <em>exclusion</em> projection only if every field it names (other than
+     * {@code _id}) is a {@code {field:0}} flag. Anything else - an inclusion flag, a {@code "$field"}
+     * reference, an {@link Expr} or a raw operator Map - makes it an <em>inclusion</em> projection
+     * whose output is {@code _id} plus exactly the listed and computed fields. {@code _id} itself
+     * only tips the balance when it is computed ({@code {_id: "$x"}}) or the sole entry
+     * ({@code {_id: 1}} alone selects just {@code _id}); a plain {@code {_id: 0/1}} next to
+     * exclusions leaves the spec an exclusion projection (#240).
+     *
+     * <p>Computed-only specs used to be classified as lenient/exclusion mode, which kept the whole
+     * document and could not evaluate raw operator Maps at all (#377, #378). Mixing {@code {field:0}}
+     * with a computed field is rejected by mongod; here the exclusion is ignored and the computed
+     * field wins, exactly as {@code {a:1, b:0}} has always been handled - whether that should become
+     * an error is the open side question in #378.
+     */
+    private boolean isProjectInclusionMode(Map<String, Object> op) {
+        boolean sawExclusion = false;
+
+        for (Map.Entry<String, Object> e : op.entrySet()) {
+            Object value = e.getValue();
+
+            if (e.getKey().equals("_id")) {
+                if (!isProjectInclusionFlag(value) && !isProjectExclusionFlag(value)) {
+                    return true; // computed _id
+                }
+
+                continue;
+            }
+
+            if (!isProjectExclusionFlag(value)) {
+                return true; // inclusion flag, "$ref", Expr or raw operator Map
+            }
+
+            sawExclusion = true;
+        }
+
+        // Nothing but _id (or an empty spec): {_id:1} alone is an inclusion of _id only, while
+        // {_id:0} alone and {} stay in exclusion mode.
+        return !sawExclusion && op.containsKey("_id") && isProjectInclusionFlag(op.get("_id"));
+    }
+
+    /**
      * True if a $project spec value is an inclusion flag (1 / true / a ValueExpr evaluating to 1) -
      * i.e. "keep this field", as opposed to an exclusion (0) or a computed expression. See #240.
      */
@@ -2694,6 +2768,19 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
             return Expr.parse(value).evaluate(o);
         }
         return value;
+    }
+
+    /**
+     * Resolves a {@code $group} accumulator operand for one document. An accumulator operand is a
+     * full aggregation expression - a literal, a {@code "$field"} reference, a raw operator Map as
+     * it arrives over the wire ({@code {$cond: [...]}}) or an {@link Expr} built via the Java API -
+     * and mongod evaluates it per document. The accumulators used to special-case only the literal
+     * and {@code "$field"} shapes and dropped everything else on the floor, so
+     * {@code {$sum: {$cond: ...}}} silently produced 0 next to a correct {@code {$sum: 1}} (#376).
+     * Same resolution {@code $project} uses for its computed fields.
+     */
+    private Object accumulatorOperand(Object spec, Map<String, Object> o) {
+        return projectComputedValue(spec, o);
     }
 
     // ---- $merge whenMatched pipeline (#241) ----------------------------------------------
@@ -2946,14 +3033,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
      * regular $project stage but evaluating computed values with the pipeline variables. */
     private Map<String, Object> applyMergeProjection(Map<String, Object> op, Map<String, Object> current,
         Map<String, Object> vars) {
-        boolean strictInclusion = false;
-
-        for (Map.Entry<String, Object> e : op.entrySet()) {
-            if (!e.getKey().equals("_id") && isProjectInclusionFlag(e.getValue())) {
-                strictInclusion = true;
-                break;
-            }
-        }
+        boolean strictInclusion = isProjectInclusionMode(op);
 
         Map<String, Object> obj;
 
@@ -2993,19 +3073,13 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 }
             }
         } else {
+            // Exclusion mode - only {field:0} flags (plus a plain _id flag) get here, computed
+            // fields make the spec an inclusion projection (see isProjectInclusionMode).
             obj = new HashMap<>(current);
 
             for (Map.Entry<String, Object> e : op.entrySet()) {
                 if (isProjectExclusionFlag(e.getValue())) {
                     obj.remove(e.getKey());
-                } else {
-                    Object v = evaluateMergeExpression(e.getValue(), current, vars);
-
-                    if (v == MERGE_REMOVE_SENTINEL) {
-                        obj.remove(e.getKey());
-                    } else {
-                        obj.put(e.getKey(), v);
-                    }
                 }
             }
         }

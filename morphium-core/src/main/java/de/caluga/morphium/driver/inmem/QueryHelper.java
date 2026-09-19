@@ -1277,8 +1277,14 @@ public class QueryHelper {
                                     return false;
                                 }
 
-                                // Optimize: use HashSet for O(1) lookups instead of O(n) List.contains()
-                                Set<Object> checkSet = new HashSet<>(toCheckValList);
+                                // Optimize: use HashSet for O(1) lookups instead of O(n) List.contains().
+                                // #342/#344: both sides are canonicalized exactly like the $in/$nin sets
+                                // (integral wrappers and exactly-integral Doubles lifted to Long), or
+                                // {$all: [2]} misses a stored [2L] / [2.0] while $in hits it.
+                                Set<Object> checkSet = new HashSet<>(toCheckValList.size());
+                                for (Object element : toCheckValList) {
+                                    checkSet.add(normalizeNumeric(normalizeId(element)));
+                                }
 
                                 for (Object o : queryValues) {
                                     // {$all: [{$elemMatch: {...}}, ...]}: each entry is a sub-query to be
@@ -1308,7 +1314,7 @@ public class QueryHelper {
                                         continue;
                                     }
 
-                                    if (!checkSet.contains(o)) {
+                                    if (!checkSet.contains(normalizeNumeric(normalizeId(o)))) {
                                         return false;
                                     }
                                 }
@@ -1528,10 +1534,11 @@ public class QueryHelper {
                                 return true;
                             }
                             // #342: contains() is equals-based - a Long element never equals an
-                            // Integer probe. Integral wrappers compare numerically.
-                            if (isIntegralWrapper(qv)) {
+                            // Integer probe. Integral wrappers compare numerically; #344 adds
+                            // Double, exactly (see numericEquals).
+                            if (isNumericWrapper(qv)) {
                                 for (Object element : lst) {
-                                    if (integralEquals(element, qv)) {
+                                    if (numericEquals(element, qv)) {
                                         return true;
                                     }
                                 }
@@ -1548,9 +1555,11 @@ public class QueryHelper {
                         // #342: equals() alone misses cross-wrapper integral matches - a long
                         // field never matched its own integer query literal, and after a
                         // dump/restore (every number a Long) even int fields stopped matching.
+                        // #344: the same for a stored 2.0 against the literal 2 - the $eq
+                        // operator path already said yes, this direct path said no.
                         Object docVal = toCheck.get(keyQuery);
                         Object queryVal = query.get(keyQuery);
-                        return docVal != null && (docVal.equals(queryVal) || integralEquals(docVal, queryVal));
+                        return docVal != null && (docVal.equals(queryVal) || numericEquals(docVal, queryVal));
                     }
     }
 
@@ -2714,6 +2723,69 @@ public class QueryHelper {
         }
 
         return v;
+    }
+
+    /**
+     * True for the number wrappers that take part in cross-type EQUALITY (#342, #344): the
+     * integral wrappers plus {@code Double}. {@code Float} needs no entry - {@code BsonEncoder}
+     * writes it as a BSON double, so it never survives a write as {@code Float}. BigDecimal
+     * stays out: that is the decimal128 side, #343.
+     */
+    static boolean isNumericWrapper(Object o) {
+        return isIntegralWrapper(o) || o instanceof Double;
+    }
+
+    /**
+     * True iff {@code d} is an integer value with an exact {@code long} counterpart (#344). The
+     * range guard matters: {@code (long) 2^63} saturates to {@code Long.MAX_VALUE}, whose own
+     * double form is 2^63 again, so without it {@code Long.MAX_VALUE} would "equal" a double
+     * it is not. NaN and the infinities fail the comparisons and stay out.
+     */
+    static boolean isExactLong(double d) {
+        return d >= -0x1p63 && d < 0x1p63 && d == (long) d;
+    }
+
+    /**
+     * Exact cross-type numeric equality (#344, extending {@link #integralEquals} from #342):
+     * an integral wrapper equals a {@code Double} only when the double is an integer value and
+     * converts back to the very same long. Never via {@code doubleValue()} on the long side -
+     * {@code 9007199254740993L} (2^53+1) has no exact double form and would collapse onto
+     * {@code 9007199254740992.0}, turning a missed match into a wrong match. Double vs Double
+     * is left to the caller's plain {@code equals} (unchanged by #344). False whenever either
+     * side is not a numeric wrapper, so callers can OR this behind {@code equals}.
+     */
+    static boolean numericEquals(Object a, Object b) {
+        if (integralEquals(a, b)) {
+            return true;
+        }
+        if (a instanceof Double && isIntegralWrapper(b)) {
+            return doubleEqualsLong((Double) a, ((Number) b).longValue());
+        }
+        if (b instanceof Double && isIntegralWrapper(a)) {
+            return doubleEqualsLong((Double) b, ((Number) a).longValue());
+        }
+        return false;
+    }
+
+    private static boolean doubleEqualsLong(double d, long l) {
+        return isExactLong(d) && (long) d == l;
+    }
+
+    /**
+     * Canonical form for hash-based lookups across ALL numeric wrappers (#344, extending
+     * {@link #normalizeIntegral}): a {@code Double} that is exactly a long value becomes that
+     * {@code Long}, so {@code 2}, {@code 2L} and {@code 2.0} land on one key. Doubles that are
+     * not exact longs ({@code 2.5}, NaN, 1e19, ...) pass through unchanged - they cannot equal
+     * any integral wrapper under {@link #numericEquals}, so keeping them apart is correct, and
+     * it keeps the 2^53 collapse out of the index the same way it is kept out of the matcher.
+     */
+    static Object normalizeNumeric(Object v) {
+        if (v instanceof Double) {
+            double d = (Double) v;
+            return isExactLong(d) ? Long.valueOf((long) d) : v;
+        }
+
+        return normalizeIntegral(v);
     }
 
     static boolean compareValues(Object left, Object right, Collator coll) {

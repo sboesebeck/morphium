@@ -414,6 +414,45 @@ public class DevOpsCommandsTest {
         assertThat(((Number) doc.get("lastDumpMs")).longValue()).isEqualTo(12345L);
     }
 
+    /** #356: maintenance has to survive RECOVERING. A re-syncing secondary rejects data-plane
+     * traffic with 13436 - dumpNow/dumpStatus are control plane and must not be caught by it. */
+    @Test
+    public void dumpCommandsWorkOnARecoveringSecondary() {
+        EmbeddedChannel syncing = new EmbeddedChannel(new MongoCommandHandler(drv, null, null, null,
+                new AtomicInteger(1), "0.0.0.0", 27018, "my-rs", List.of("localhost:27017", "localhost:27018"),
+                false, "localhost:27017", 0, () -> null, null, () -> true)
+                .setDumpStatusSupplier(() -> Doc.of("enabled", (Object) true))
+                .setDumpNowAction(() -> true));
+
+        Map<String, Object> status = send(syncing, Doc.of("dumpStatus", 1, "$db", "admin"));
+        assertThat(status.get("ok")).as("reply: " + status).isEqualTo(1.0);
+        assertThat(status.get("enabled")).isEqualTo(true);
+
+        Map<String, Object> dump = send(syncing, Doc.of("dumpNow", 1, "$db", "admin"));
+        assertThat(dump.get("ok")).as("reply: " + dump).isEqualTo(1.0);
+    }
+
+    // ---- commands mongod has and PoppyDB deliberately does not -----------------------------
+
+    /** #356: these fell into the generic path and answered whatever it made of them. One branch
+     * with a proper CommandNotSupported beats an accidental answer. */
+    @Test
+    public void knownlyUnsupportedMongodCommandsAnswerCommandNotSupported() {
+        for (String cmd : List.of("fsync", "compact", "profile", "connPoolStats", "replSetReconfig", "logRotate", "top")) {
+            Map<String, Object> reply = send(Doc.of(cmd, 1, "$db", "admin"));
+
+            assertThat(reply.get("ok")).as(cmd + ": " + reply).isEqualTo(0.0);
+            assertThat(((Number) reply.get("code")).intValue()).as(cmd + ": " + reply).isEqualTo(115);
+            assertThat(reply.get("errmsg").toString()).as(cmd).contains(cmd);
+        }
+
+        Map<String, Object> listed = send(Doc.of("listCommands", 1, "$db", "admin"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> commands = (Map<String, Object>) listed.get("commands");
+        assertThat(commands).as("refused commands must not be advertised")
+                .doesNotContainKeys("fsync", "compact", "profile", "connPoolStats", "replSetReconfig", "logRotate", "top");
+    }
+
     // ---- replSetGetConfig ----------------------------------------------------------------
 
     @Test

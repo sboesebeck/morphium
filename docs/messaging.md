@@ -51,7 +51,7 @@ Configuration (via `MessagingSettings`)
 
 - Queue name: `setMessageQueueName(String)`: collection suffix used for the queue.
 - Window size: `setMessagingWindowSize(int)`: number of messages processed per batch. Messaging marks up to this many messages and processes them as one window.
-- Multithreading: `setMessagingMultithreadded(boolean)`: process multiple messages in parallel using (virtual) threads; `false` enforces single‑threaded, sequential handling.
+- Multithreading: `setMessagingMultithreadded(boolean)`: process multiple messages in parallel using a platform-thread pool; `false` enforces single‑threaded, sequential handling.
 - Change streams: `setUseChangeStream(boolean)`: use MongoDB Change Streams to get push‑style notifications for new messages; when `false`, messaging uses polling for both topic messages and direct messages (answers). Requires a replica set for Change Streams.
 - Poll pause: `setMessagingPollPause(int)`: pause (in ms) between polling requests when not using Change Streams. Also used as a heartbeat to check for messages outside the current processing window (e.g., if new messages arrive and the queue holds more than `windowSize`, a poll is triggered once after this pause).
 
@@ -164,11 +164,10 @@ MorphiumMessaging msg2 = m2.createMessaging();
 // Broadcast messages delivered to all
 ```
 
-### Virtual Threads
-Java 21 virtual threads for lightweight concurrency:
-- Change stream callbacks run on virtual threads
-- Each change stream watcher has its own virtual thread executor
-- Minimal memory overhead for thousands of concurrent listeners
+### Threading Model
+Change stream callbacks and message dispatch run on platform threads. Virtual threads were
+tried here but rolled back in 6.2.x: JDK 21's `synchronized` pinning caused deadlocks under
+load. Re-evaluation is planned once JEP 491 (JDK 24+) is the baseline.
 
 ## Built-in Status Monitoring
 

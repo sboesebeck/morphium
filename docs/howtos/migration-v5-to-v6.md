@@ -311,11 +311,11 @@ MorphiumMessaging msg2 = morphium2.createMessaging();
 
 ## New Features in v6
 
-### 1. Virtual Threads Support
-Morphium 6 uses Java 21 virtual threads for:
-- Change stream event dispatching
-- Async operation handling
-- Lightweight concurrent processing
+### 1. Java 21 Threading
+Morphium 6 targets Java 21+ throughout. Virtual threads were tried for change-stream event
+dispatching and messaging but rolled back in 6.2.x (JDK 21's `synchronized` pinning caused
+deadlocks under load); those paths run on platform threads today. Async operation handling
+(`Morphium`'s async API) still uses a virtual-thread pool.
 
 ### 2. Enhanced Configuration
 - URI-based configuration: `MONGODB_URI` environment variable

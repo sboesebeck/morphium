@@ -455,6 +455,18 @@ public class SingleMongoConnection implements MongoConnection {
 
             try {
                 var incoming = WireProtocolMessage.parseFromStream(in);
+
+                if (incoming == null) {
+                    // EOF: the peer closed the socket (its idle timeout, a restart). Nothing
+                    // will ever arrive on this stream again, so it must not stay marked
+                    // connected - a driver that believed it was would hand the same dead socket
+                    // to its next caller, and that caller's request vanished without a trace
+                    // (PoppyDB election: one vote request lost per stale peer connection).
+                    log.debug("peer closed the connection - closing");
+                    close();
+                    return null;
+                }
+
                 OpMsg msg = null;
 
                 if (incoming instanceof OpCompressed) {

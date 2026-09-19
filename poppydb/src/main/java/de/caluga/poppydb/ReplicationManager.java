@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -222,6 +223,63 @@ public class ReplicationManager {
     // #323: the sync connection currently blocked (or about to block) in a collection read.
     // stop() closes it so a socket read on a slow primary aborts instead of running out its
     // 60s read timeout - interrupts cannot unblock a socket read.
+    /**
+     * Whether this manager is still the one its node applies replication through (#323, part 3).
+     *
+     * <p>Cooperative cancellation and closing the in-flight read (parts 1 and 2) narrow the window
+     * in which a superseded sync thread can still write, but they cannot close it: every check is a
+     * check, and the thread can be descheduled between passing one and reaching the write. This is
+     * the check that sits AT the write, where there is no window left. Defaults to "yes" so a
+     * manager used without a node around it - the way most tests build one - behaves as before.
+     */
+    private volatile BooleanSupplier stillCurrentApplier = () -> true;
+
+    /**
+     * Lets the owning node say which manager is current. Wired by {@code PoppyDB} to its own
+     * {@code replicationManager} field, the authority that already decides who is in charge.
+     */
+    public void setStillCurrentApplier(BooleanSupplier stillCurrent) {
+        this.stillCurrentApplier = stillCurrent == null ? () -> true : stillCurrent;
+    }
+
+    /**
+     * Told when this manager has emptied the local store for a snapshot (#352). The node needs to
+     * know, because "the store was cleared and not yet refilled" outlives the manager that cleared
+     * it: {@code stopReplication()} nulls the manager, and anything that asked the manager
+     * afterwards would be told everything is fine.
+     */
+    private volatile Runnable onLocalDataCleared = () -> { };
+
+    public void setOnLocalDataCleared(Runnable hook) {
+        this.onLocalDataCleared = hook == null ? () -> { } : hook;
+    }
+
+    /**
+     * Refuses a local write from a manager that has been replaced (#323, part 3).
+     *
+     * <p>A sync thread abandoned mid-copy can resurface with a completed collection read in hand
+     * long after {@code stop()} gave up on it, and by then the local data belongs to this
+     * manager's successor. Parts 1 and 2 (cooperative cancellation, closing the in-flight
+     * connection) make that unlikely; this makes it harmless.
+     *
+     * <p>It does not eliminate the window - this test and the write it guards are two statements,
+     * and a thread can be descheduled between them. What it does is shrink the window to a few
+     * instructions with no I/O in it, from one that spanned a whole network read. Closing it
+     * outright would need the ownership change and the write to be serialised against each other.
+     *
+     * <p>Must be called from EVERY path that writes to the local driver, not just
+     * {@link #runLocalApplyCommand}: the change-stream bulk insert and the admin-collection drops
+     * in {@link #clearLocalDatabases()} reach the driver directly, and the bulk insert is the most
+     * frequent write this manager makes.
+     */
+    private void assertStillCurrentApplier(String opDescription) throws MorphiumDriverException {
+        if (!stillCurrentApplier.getAsBoolean()) {
+            throw new MorphiumDriverException("replication apply refused: this ReplicationManager has "
+                + "been superseded, and " + opDescription + " would write into data that now belongs "
+                + "to its successor (#323)");
+        }
+    }
+
     private volatile MongoConnection inFlightSyncConnection;
 
     MongoConnection getInFlightSyncConnectionForTest() {
@@ -382,6 +440,22 @@ public class ReplicationManager {
     // nothing will ever fire it, which is exactly right for a superseded manager).
     // Package-visible for tests.
     final AtomicBoolean syncCompleteNotifyPending = new AtomicBoolean(false);
+
+    // Highest change-stream sequence the watch reader has put into eventQueue in the current
+    // session (this primary's sequence space). Together with lastKnownPrimarySequence it gives
+    // the initial sync a high-water mark to release against (#370): "everything that existed on
+    // the primary when the snapshot finished" is, seen from this side, everything the watch had
+    // delivered by then. Reset wherever a session is discarded (triggerResync,
+    // discardDeadWatchSession): a discarded session's events are not applied, so they must not
+    // raise the mark - and a primary whose counter regressed would otherwise leave an old,
+    // unreachable mark behind.
+    private final AtomicLong highestReceivedSequence = new AtomicLong(0);
+
+    // The high-water mark captured when the most recent initial sync declared success (#370).
+    // maybeFireSyncCompleteNotify releases once lastAppliedSequence has reached it. 0 means "no
+    // sequence information" and leaves the empty-queue rule alone to decide. Package-visible
+    // for tests.
+    final AtomicLong syncCompleteWatermark = new AtomicLong(0);
 
     // RS-internal connection security, set once via setInternalConnectionSecurity() before
     // start() - see docs/superpowers/specs/2026-08-05-poppydb-rs-internal-auth-tls-design.md.
@@ -667,6 +741,9 @@ public class ReplicationManager {
                     // accounts events that actually made it into the queue; any drain racing us
                     // subtracts this event's exact size, so the counter converges.
                     eventQueueBytes.addAndGet(size);
+                    // Under the same lock the mark is captured under (#370), so an event that is
+                    // in the queue is always in the mark.
+                    noteReceivedSequence(data);
                     return;
                 }
             }
@@ -783,9 +860,11 @@ public class ReplicationManager {
         // - running: a stopped (superseded) manager's late sync thread can still ARM the flag,
         //   but its sync ran against a primary that may no longer lead - nothing may fire it;
         // - initialSyncComplete: a resync in between closed the gate again - wait for it;
-        // - empty queue: the backlog buffered during the snapshot must actually be APPLIED,
-        //   or the "authoritative copy" the receiver acts on is still measurably behind.
-        if (!running.get() || !initialSyncComplete.get() || !eventQueue.isEmpty()) {
+        // - backlog applied: the events buffered during the snapshot must actually be APPLIED,
+        //   or the "authoritative copy" the receiver acts on is still measurably behind. Decided
+        //   against the snapshot's high-water mark, not against an instantaneous queue depth
+        //   (#370) - see backlogApplied().
+        if (!running.get() || !initialSyncComplete.get() || !backlogApplied()) {
             return;
         }
 
@@ -804,12 +883,76 @@ public class ReplicationManager {
         }
     }
 
+    /** Advances the "newest sequence the watch delivered" reading (#370). Only ever goes up. */
+    private void noteReceivedSequence(Map<String, Object> event) {
+        long seq = extractSequenceFromEvent(event);
+
+        if (seq > 0) {
+            highestReceivedSequence.updateAndGet(current -> Math.max(current, seq));
+        }
+    }
+
+    /**
+     * Records the high-water mark the armed completion notification is released against (#370):
+     * the highest sequence this side had seen from the primary when the snapshot finished - the
+     * primary's own sequence at watch registration, or the newest event the watch had delivered
+     * since, whichever is higher. Every event buffered during the snapshot has a sequence at or
+     * below this, so "the applied sequence has passed the mark" is "the backlog that existed when
+     * I finished copying has been applied". Taken under the queue lock so an event the reader has
+     * already offered is always in the mark. Called from the sync thread at the moment of
+     * success, before the notification is armed; it only touches this manager's own fields.
+     * Package-visible for tests.
+     */
+    void captureSyncCompleteWatermark() {
+        long mark;
+
+        synchronized (eventQueueByteLock) {
+            mark = Math.max(lastKnownPrimarySequence.get(), highestReceivedSequence.get());
+        }
+
+        syncCompleteWatermark.set(mark);
+        log.debug("Initial sync high-water mark: {}", mark);
+    }
+
+    /**
+     * Whether the backlog buffered during the snapshot has been applied (#370). Two ways to say
+     * yes. The queue is empty right now - true, but starved under sustained load, where a batch
+     * tick rarely finds it empty, so a node that has caught up may never be released (and since
+     * #352 that keeps it out of elections, not just out of dumping). Or the applied sequence has
+     * passed the high-water mark captured when the snapshot finished - which is what "caught up"
+     * means, and is reached under load rather than in spite of it.
+     *
+     * <p>"Passed the mark" carries the poison-skip trade-off documented in
+     * {@code applyBulkInserts}: a buffered event that failed to apply is skipped once a later
+     * event advances the sequence past it, and the release then fires with that one event
+     * unapplied - the same forward-progress choice the apply path already makes. The empty-queue
+     * rule stays as the fallback for a sync with no sequence information (mark 0) and for a quiet
+     * stream whose trailing event failed, where nothing later ever pushes the sequence over the
+     * mark. Accepted gap: a primary that does not stamp {@code _id._data} leaves the buffered
+     * events unsequenced, so a non-zero mark equal to the reseeded applied sequence releases over
+     * them - not reachable with a PoppyDB primary, whose driver always stamps the token.
+     */
+    private boolean backlogApplied() {
+        if (eventQueue.isEmpty()) {
+            return true;
+        }
+
+        long mark = syncCompleteWatermark.get();
+        return mark > 0 && lastAppliedSequence.get() >= mark;
+    }
+
+    /** Test seam: what applying an event up to {@code seq} does to the applied position. */
+    void advanceLastAppliedSequenceForTest(long seq) {
+        lastAppliedSequence.updateAndGet(current -> Math.max(current, seq));
+    }
+
     /**
      * Test seam: puts an event into the apply queue exactly like the watch callback does,
      * without a live change stream.
      */
     void enqueueEventForTest(Map<String, Object> event) throws InterruptedException {
         eventQueue.put(new QueuedEvent(event, 0));
+        noteReceivedSequence(event);
     }
 
     /** Test seam: drops all buffered events, as if the batch processor had applied them. */
@@ -930,6 +1073,23 @@ public class ReplicationManager {
     @SuppressWarnings("unchecked")
     private void applyBulkInserts(String collKey, List<Map<String, Object>> events) {
         if (events.isEmpty()) return;
+
+        // #323: the most frequent write this manager makes, and it reaches the driver directly
+        // rather than through runLocalApplyCommand. Checked HERE rather than next to the insert
+        // on purpose: the insert sits inside a try whose catch treats any failure as "the bulk
+        // failed" and replays the run event by event. A refusal raised in there would be
+        // swallowed into that fallback instead of stopping the apply, which is the opposite of
+        // what it is for.
+        try {
+            assertStillCurrentApplier("bulk insert into " + collKey);
+        } catch (MorphiumDriverException e) {
+            // This escapes into processBatch(), which runs on a scheduleAtFixedRate tick - an
+            // exception there cancels the periodic task SILENTLY. For a superseded manager that is
+            // the desired outcome, but it should not happen without a word in the log, or the next
+            // person to wonder why a manager stopped applying has nothing to go on.
+            log.warn("Superseded ReplicationManager stops applying: {}", e.getMessage());
+            throw e;
+        }
 
         String[] parts = collKey.split("\\.", 2);
         String db = parts[0];
@@ -1281,6 +1441,34 @@ public class ReplicationManager {
         }
     }
 
+    /**
+     * #364: true if {@code e} (or a cause of it) says the sync source is not the primary any
+     * more - NotPrimaryNoSecondaryOk (13435), NotWritablePrimary (10107) or PrimarySteppedDown
+     * (189), by code or by the "Error: CODE - not primary ..." message the driver formats. The
+     * reaction differs from every other error: the host is up and will keep answering exactly
+     * this until the leadership change re-targets replication, so reconnecting at full speed
+     * is a CPU-burning loop right when the election needs the CPU.
+     */
+    static boolean isSyncSourceSteppedDown(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            if (t instanceof MorphiumDriverException mde && mde.getMongoCode() instanceof Number code) {
+                int c = code.intValue();
+                if (c == 13435 || c == 10107 || c == 189) {
+                    return true;
+                }
+            }
+            String msg = t.getMessage();
+            if (msg != null) {
+                String lower = msg.toLowerCase(Locale.ROOT);
+                if (lower.contains("13435") || lower.contains("10107")
+                        || lower.contains("not primary") || lower.contains("not master")) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private void disconnectFromPrimary() {
         if (primaryMorphium != null) {
             try {
@@ -1294,6 +1482,9 @@ public class ReplicationManager {
     }
 
     private void replicationLoop() {
+        // #364: consecutive "sync source stepped down" errors back off exponentially (1s ->
+        // 10s cap) instead of the flat 5s-and-reconnect, and are logged once per streak.
+        long stepDownBackoffMs = 0;
         while (running.get()) {
             try {
                 // Test hook: simulate a partition — stay severed and do not reconnect until resumed.
@@ -1338,6 +1529,7 @@ public class ReplicationManager {
                     connected.set(false);
                     // Will reconnect on next iteration
                 }
+                stepDownBackoffMs = 0;
 
             } catch (InterruptedException e) {
                 log.debug("Replication loop interrupted");
@@ -1348,6 +1540,34 @@ public class ReplicationManager {
                 // A partition simulated by the test hook severs the connection on purpose; the watch
                 // throwing is expected, so don't log it as an error or sleep the 5s backoff.
                 if (pausedForTest.get()) {
+                    continue;
+                }
+                if (isSyncSourceSteppedDown(e)) {
+                    // #364: the host told us it is no longer the primary. Drop the connection
+                    // (which also parks the periodic index sync - it checks connected) and wait
+                    // with growing backoff for PoppyDB.startReplicationToLeader() to replace this
+                    // manager with one aimed at the new leader. NOT a permanent stop: the same
+                    // host can become primary again (priority takeover back to it), and the
+                    // leader-discovery callback does not re-fire for an unchanged leader address.
+                    disconnectFromPrimary();
+                    boolean first = stepDownBackoffMs == 0;
+                    stepDownBackoffMs = first ? 1000 : Math.min(stepDownBackoffMs * 2, 10_000);
+                    if (first) {
+                        log.warn("Sync source {}:{} is no longer the primary ({}) - waiting for the "
+                                + "leadership change to re-target replication, retrying with backoff "
+                                + "from {}ms (#364)", primaryHost, primaryPort, e.getMessage(), stepDownBackoffMs);
+                    } else {
+                        log.debug("Sync source {}:{} still not primary - next retry in {}ms",
+                                primaryHost, primaryPort, stepDownBackoffMs);
+                    }
+                    if (running.get()) {
+                        try {
+                            Thread.sleep(stepDownBackoffMs);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                    }
                     continue;
                 }
                 log.error("Error in replication loop: {}", e.getMessage(), e);
@@ -1588,6 +1808,11 @@ public class ReplicationManager {
                         // live) event is applied - nothing regresses, nothing is skipped.
                         lastAppliedSequence.set(lastKnownPrimarySequence.get());
 
+                        // #370: the mark the completion notification is released against. Taken
+                        // now, with the snapshot done and the gate still closed, so it covers
+                        // exactly the backlog that accumulated behind the gate.
+                        captureSyncCompleteWatermark();
+
                         // Success: open the gate. The batch processor now drains the events
                         // buffered during the snapshot (idempotent replay) and all subsequent live
                         // events, in order.
@@ -1772,6 +1997,8 @@ public class ReplicationManager {
             List<QueuedEvent> discarded = new ArrayList<>();
             eventQueue.drainTo(discarded);
             releaseEventQueueBytes(discarded);
+            // The discarded events are not applied, so they must not raise the next mark (#370).
+            highestReceivedSequence.set(0);
             eventQueueByteLock.notifyAll(); // wake byte-waiters even when nothing was buffered
         }
 
@@ -2049,6 +2276,13 @@ public class ReplicationManager {
      * anyway (IndexOptionsConflict), so a name match means the spec matches.
      */
     void applyIndexDiff(String db, String coll, List<IndexDescription> primaryIndexes) throws Exception {
+        // #323: index DDL is a local write too, and it reaches the driver through a connection
+        // rather than a localDriver.<mutator> call - which is how the first sweep missed it. A
+        // superseded manager here would put the OLD primary's indexes on its successor's data, or
+        // drop the successor's: a stray TTL index would then expire documents that are not its to
+        // expire, which outlives the manager that created it.
+        assertStillCurrentApplier("index sync for " + db + "." + coll);
+
         List<IndexDescription> localIndexes = listIndexesOf(localDriver, db, coll);
         Set<String> localNames = new HashSet<>();
         Set<String> primaryNames = new HashSet<>();
@@ -2136,6 +2370,16 @@ public class ReplicationManager {
 
     private void clearLocalDatabases() throws Exception {
         clearLocalDatabasesInvocations.incrementAndGet();
+        // Ownership first, THEN announce (#352/#323). The order matters in both directions and an
+        // earlier version got it wrong in each: announcing after the last drop meant a clear that
+        // failed half way through left the node believing its store was whole, while announcing
+        // before this check meant a SUPERSEDED manager marked the node even though every drop
+        // below is refused and nothing is emptied - and since only a completed sync clears the
+        // mark, that locked a node holding perfectly good data out of dumping and out of
+        // candidacy for the life of the process. Between the check and the last drop, the mark is
+        // pessimistic on purpose: an IO failure mid-loop has emptied part of the store.
+        assertStillCurrentApplier("pre-sync clear of the local databases");
+        onLocalDataCleared.run();
         for (String dbName : localDriver.listDatabases()) {
             // admin/local/config are never dropped wholesale: they hold node-local state beyond
             // the replicated admin system collections (admin.system.users and
@@ -2160,6 +2404,11 @@ public class ReplicationManager {
         // configured), a delete's internal find() would phantom-create an empty system.users
         // on every resyncing secondary but not on the primary, asymmetrically diverging the
         // namespace set the consistency shortcut compares.
+        // #323: a direct driver call, so the ownership check does not come for free here. A
+        // superseded manager dropping the successor's user collection is worse than a stray
+        // insert - on a node whose only databases are admin/local/config the loop above makes no
+        // guarded call at all, so without this nothing would have stopped it.
+        assertStillCurrentApplier("pre-sync drop of admin.system.users");
         localDriver.drop("admin", "system.users", null);
 
         // admin.system.version DOES replicate too (the users-file version-gate meta doc), and is
@@ -2185,6 +2434,7 @@ public class ReplicationManager {
         // a full sync instead of taking the shortcut. drop() is the safe idempotent primitive:
         // it removes the map entry outright (a no-op if the collection was never created) and
         // never conjures one into existence.
+        assertStillCurrentApplier("pre-sync drop of admin.system.version");
         localDriver.drop("admin", "system.version", null);
     }
 
@@ -2606,6 +2856,8 @@ public class ReplicationManager {
             List<QueuedEvent> discarded = new ArrayList<>();
             eventQueue.drainTo(discarded);
             releaseEventQueueBytes(discarded);
+            // The discarded events are not applied, so they must not raise the next mark (#370).
+            highestReceivedSequence.set(0);
             eventQueueByteLock.notifyAll();
         }
     }
@@ -2884,6 +3136,7 @@ public class ReplicationManager {
      */
     private Map<String, Object> runLocalApplyCommand(GenericCommand cmd, String opDescription)
             throws MorphiumDriverException {
+        assertStillCurrentApplier(opDescription);
         int msgId = localDriver.runCommand(cmd);
         Map<String, Object> result = localDriver.readSingleAnswer(msgId);
 
@@ -2987,6 +3240,8 @@ public class ReplicationManager {
         stats.put("lastAppliedSequence", lastAppliedSequence.get());
         stats.put("lastReportedSequence", lastReportedSequence.get());
         stats.put("lastKnownPrimarySequence", lastKnownPrimarySequence.get());
+        stats.put("syncCompleteWatermark", syncCompleteWatermark.get());
+        stats.put("highestReceivedSequence", highestReceivedSequence.get());
         stats.put("resyncCount", resyncCount.get());
         // D2 (2026-08-14 empty-node-wipe fix): true while this node is deliberately refusing a
         // destructive full re-sync because the primary's sequence regressed below our local data's

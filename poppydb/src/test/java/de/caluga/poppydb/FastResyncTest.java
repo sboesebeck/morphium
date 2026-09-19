@@ -11,9 +11,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
-import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
@@ -171,9 +171,10 @@ public class FastResyncTest {
     }
 
     private void waitForPrimary(PoppyDB node) throws Exception {
-        // Generous: under full CI load the election churn after a parallel start can take a
-        // while to settle on the priority winner.
-        long deadline = System.currentTimeMillis() + 45_000;
+        // Generous: under full CI load the election churn after a parallel start (or after a
+        // forced failover) can take a while to settle on the priority winner. 45s was not
+        // enough twice in a row on the testrunner (5 phases + the poppydb module on 4 vCPUs).
+        long deadline = System.currentTimeMillis() + 90_000;
         while (!node.isPrimary() && System.currentTimeMillis() < deadline) {
             Thread.sleep(50);
         }
@@ -450,14 +451,20 @@ public class FastResyncTest {
 
         // The crux: identical data in a replay-reordered representation must converge via the
         // shortcut - and node3 must never have wiped its local databases on the way.
+        // Hold on to the instance the poll saw (#365): a leadership change landing between the
+        // poll and a second fetch would hand the assertion a brand-new RM whose counters say
+        // nothing about the sync that just completed.
+        AtomicReference<ReplicationManager> synced = new AtomicReference<>();
         assertTrue(poll(30_000, () -> {
             ReplicationManager rm = c.node3().getReplicationManagerForTest();
-            return rm != null && rm != rmBefore && rm.isInitialSyncComplete()
-                    && rm.wasLastSyncShortcut();
+            if (rm != null && rm != rmBefore && rm.isInitialSyncComplete() && rm.wasLastSyncShortcut()) {
+                synced.set(rm);
+                return true;
+            }
+            return false;
         }), "a follower with identical-but-reordered documents must sync via the shortcut");
 
-        ReplicationManager rm = c.node3().getReplicationManagerForTest();
-        assertEquals(0, Objects.requireNonNull(rm).getClearLocalDatabasesInvocationsForTest(),
+        assertEquals(0, synced.get().getClearLocalDatabasesInvocationsForTest(),
                 "identical-but-reordered data must never trigger a destructive clear + snapshot");
         assertEquals(DOCS, c.node3().getDriver().count(DB, COLL, Doc.of(), null, null),
                 "all documents must still be present after the shortcut sync");
@@ -486,9 +493,17 @@ public class FastResyncTest {
         waitForPrimary(c.node2());
 
         // The fresh RM must detect the mismatch and run today's full clear + snapshot.
+        // Hold on to the instance the poll saw (#365): a leadership change landing between the
+        // poll and a second fetch would hand the assertion a brand-new RM whose counter is
+        // still 0 and fail - although the full sync did run on the instance the poll saw.
+        AtomicReference<ReplicationManager> synced = new AtomicReference<>();
         assertTrue(poll(30_000, () -> {
             ReplicationManager rm = c.node3().getReplicationManagerForTest();
-            return rm != null && rm != rmBefore && rm.isInitialSyncComplete();
+            if (rm != null && rm != rmBefore && rm.isInitialSyncComplete()) {
+                synced.set(rm);
+                return true;
+            }
+            return false;
         }), "re-targeted follower must complete a sync after the failover");
 
         // NOT wasLastSyncShortcut(): that flag reports the LATEST completed cycle, and a
@@ -496,8 +511,7 @@ public class FastResyncTest {
         // the full sync already converged this node - at which point the shortcut correctly
         // matches and overwrites the flag. The monotone clear-counter proves the divergence
         // was resolved by a destructive full sync at least once on this post-failover manager.
-        ReplicationManager rm = c.node3().getReplicationManagerForTest();
-        assertTrue(Objects.requireNonNull(rm).getClearLocalDatabasesInvocationsForTest() > 0,
+        assertTrue(synced.get().getClearLocalDatabasesInvocationsForTest() > 0,
                 "a diverged follower must have gone through a full clear + snapshot, "
                         + "never a consistency shortcut that masks the divergence");
 
@@ -537,16 +551,21 @@ public class FastResyncTest {
 
         // The fresh RM must detect the mismatch (confined to system.version - data and
         // system.users are still identical) and run today's full clear + snapshot.
+        // Same #365 shape as fallbackOnDivergence: assert on the instance the poll saw.
+        AtomicReference<ReplicationManager> synced = new AtomicReference<>();
         assertTrue(poll(30_000, () -> {
             ReplicationManager rm = c.node3().getReplicationManagerForTest();
-            return rm != null && rm != rmBefore && rm.isInitialSyncComplete();
+            if (rm != null && rm != rmBefore && rm.isInitialSyncComplete()) {
+                synced.set(rm);
+                return true;
+            }
+            return false;
         }), "re-targeted follower must complete a sync after the failover");
 
         // Same reasoning as in fallbackOnDivergence: the last-sync flag can be overwritten by a
         // later, legitimately-matching shortcut cycle once the full sync has converged this node,
         // so assert on the monotone clear-counter instead.
-        ReplicationManager rm = c.node3().getReplicationManagerForTest();
-        assertTrue(Objects.requireNonNull(rm).getClearLocalDatabasesInvocationsForTest() > 0,
+        assertTrue(synced.get().getClearLocalDatabasesInvocationsForTest() > 0,
                 "a follower diverged only in system.version must have gone through a full "
                         + "clear + snapshot, never a consistency shortcut that masks the divergence");
 

@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 
@@ -33,12 +34,20 @@ public class ElectionNetworkClient {
     // that cannot reach a follower says so instead of failing silently.
     private final ConcurrentHashMap<String, AtomicLong> heartbeatFailures = new ConcurrentHashMap<>();
 
-    // Connection timeout
+    // Connection timeout. The reply timeout is election-derived - see
+    // ElectionManager#getRpcTimeoutMs for why it is no longer a fixed 500ms.
     private static final int CONNECT_TIMEOUT_MS = 1000;
-    private static final int COMMAND_TIMEOUT_MS = 500;
 
-    // Heartbeats run every few hundred ms - only every Nth failure is logged.
+    // Heartbeats run every few hundred ms - the first WARN waits for a few consecutive
+    // failures (one is routine: a peer's idle-closed socket, a reply that lost a scheduling
+    // race under load), then only every Nth failure is logged.
+    private static final int HEARTBEAT_FAILURE_WARN_AFTER = 3;
     private static final int HEARTBEAT_FAILURE_LOG_INTERVAL = 20;
+
+    // One heartbeat in flight per peer: the reply wait may now exceed the heartbeat interval,
+    // and a peer that is slow (or down, with its connect timeout) must not accumulate a
+    // backlog of tasks all queueing for the same single connection.
+    private final ConcurrentHashMap<String, AtomicBoolean> heartbeatInFlight = new ConcurrentHashMap<>();
 
     // Effectively disables the driver's own heartbeat for peer connections (#311). We cannot
     // pass "off", so this is a period nothing in a process lifetime reaches.
@@ -130,7 +139,7 @@ public class ElectionNetworkClient {
             try {
                 Map<String, Object> requestMap = request.toMap();
                 log.debug("Sending vote request to {}", peer);
-                Map<String, Object> response = sendCommand(peer, requestMap);
+                Map<String, Object> response = exchange(peer, requestMap);
                 if (response != null) {
                     VoteResponse voteResponse = VoteResponse.fromMap(response);
                     voteResponse.setVoterId(peer);
@@ -139,7 +148,10 @@ public class ElectionNetworkClient {
                     // it actually answers - and discard it if that round is already over.
                     electionManager.handleVoteResponse(peer, request, voteResponse);
                 } else {
-                    log.debug("Null response from {} for vote request", peer);
+                    // Same as the exception path below: an unreachable peer is a denial, not
+                    // silence - the round's bookkeeping should say so.
+                    log.debug("No response from {} for vote request - treating as denied", peer);
+                    electionManager.handleVoteResponse(peer, request, new VoteResponse(0, false, peer));
                 }
             } catch (Exception e) {
                 log.debug("Failed to send vote request to {}: {}", peer, e.getMessage());
@@ -157,9 +169,27 @@ public class ElectionNetworkClient {
             return;
         }
 
-        executor.submit(() -> {
+        AtomicBoolean inFlight = heartbeatInFlight.computeIfAbsent(peer, p -> new AtomicBoolean());
+        if (!inFlight.compareAndSet(false, true)) {
+            // The previous heartbeat to this peer has not returned yet - skipping this tick
+            // costs nothing (the next one carries the same information), while queueing would
+            // pile up tasks behind one slow or dead peer.
+            log.trace("Heartbeat to {} still in flight - skipping this tick", peer);
+            return;
+        }
+
+        try {
+            executor.submit(() -> heartbeat(peer, request, inFlight));
+        } catch (RejectedExecutionException e) {
+            // stop() shut the executor down between the running check and here
+            inFlight.set(false);
+        }
+    }
+
+    private void heartbeat(String peer, AppendEntriesRequest request, AtomicBoolean inFlight) {
+        {
             try {
-                Map<String, Object> response = sendCommand(peer, request.toMap());
+                Map<String, Object> response = exchange(peer, request.toMap());
                 if (response != null) {
                     AppendEntriesResponse aeResponse = AppendEntriesResponse.fromMap(response);
                     aeResponse.setFollowerId(peer);
@@ -174,8 +204,43 @@ public class ElectionNetworkClient {
                 // forever without ever winning, and the only visible symptom used to be the
                 // election timeouts on the FOLLOWER, with nothing at all on the leader.
                 noteHeartbeatFailure(peer, String.valueOf(e.getMessage()));
+            } finally {
+                inFlight.set(false);
             }
-        });
+        }
+    }
+
+    /**
+     * One request/response exchange with a peer, tolerant of a stale cached connection.
+     *
+     * <p>A follower's peer connections idle whenever it is neither leader nor candidate, and
+     * the peer closes idle connections after its idle timeout. The driver cannot know that
+     * until it uses the socket, so the first request after a failover found a dead socket:
+     * EOF or reset, no answer. Losing that request costs a whole election round (the next
+     * election timeout), or a heartbeat tick - and it was exactly what the captured slow
+     * failovers showed ("Null response from localhost:NNN for vote request" for a peer that was
+     * up and answering everyone else). So: if the first attempt went over a CACHED connection
+     * and came back empty or broken, dial fresh and send once more. A fresh dial that failed is
+     * not retried - that peer is down, and the next tick will try again anyway.
+     */
+    Map<String, Object> exchange(String peer, Map<String, Object> command) throws Exception {
+        SingleMongoConnectDriver existing = peerConnections.get(peer);
+        boolean cached = existing != null && existing.isConnected();
+        Map<String, Object> response;
+        try {
+            response = sendCommand(peer, command);
+        } catch (Exception first) {
+            if (!cached || !running) {
+                throw first;
+            }
+            log.debug("Cached connection to {} failed ({}) - dialing again for one retry", peer, first.getMessage());
+            response = null;
+        }
+        if (response == null && cached && running) {
+            // sendCommand evicted the stale driver, so this dials fresh.
+            response = sendCommand(peer, command);
+        }
+        return response;
     }
 
     /**
@@ -205,6 +270,13 @@ public class ElectionNetworkClient {
             int msgId = conn.sendCommand(cmd);
             Map<String, Object> result = conn.readSingleAnswer(msgId);
             cmd.releaseConnection();
+
+            if (result == null) {
+                // No answer means the connection is gone - readNextMessage closes it on both an
+                // expired deadline and on EOF. Evict it now, or the next request would poll a
+                // driver that only learns about the closed socket by failing again.
+                removeConnection(peer, driver);
+            }
 
             return result;
         } catch (Exception e) {
@@ -249,7 +321,7 @@ public class ElectionNetworkClient {
             SingleMongoConnectDriver driver = new SingleMongoConnectDriver();
             driver.setHostSeed(peerHost + ":" + peerPort);
             driver.setConnectionTimeout(CONNECT_TIMEOUT_MS);
-            driver.setMaxWaitTime(COMMAND_TIMEOUT_MS);
+            driver.setMaxWaitTime(electionManager.getRpcTimeoutMs());
             // Use ANY connection type - during elections nodes may not yet be primary
             driver.setConnectionType(ConnectionType.ANY);
             if (authEnabled) {
@@ -310,14 +382,16 @@ public class ElectionNetworkClient {
     }
 
     /**
-     * Record a failed heartbeat to {@code peer}. Logged on the first failure and then once per
+     * Record a failed heartbeat to {@code peer}. Logged once the streak reaches
+     * {@link #HEARTBEAT_FAILURE_WARN_AFTER} and then once per
      * {@link #HEARTBEAT_FAILURE_LOG_INTERVAL} attempts - often enough to be noticed in an
-     * incident, rarely enough not to drown the log at heartbeat cadence.
+     * incident, rarely enough not to drown the log at heartbeat cadence, and never for a
+     * single miss that the next tick repairs.
      */
     private void noteHeartbeatFailure(String peer, String reason) {
         long failures = heartbeatFailures.computeIfAbsent(peer, p -> new AtomicLong()).incrementAndGet();
 
-        if (failures == 1 || failures % HEARTBEAT_FAILURE_LOG_INTERVAL == 0) {
+        if (failures == HEARTBEAT_FAILURE_WARN_AFTER || failures % HEARTBEAT_FAILURE_LOG_INTERVAL == 0) {
             log.warn("Cannot reach peer {} with heartbeats ({} consecutive failures): {} - "
                     + "that peer sees no leader and cannot rejoin until contact is restored",
                     peer, failures, reason);
@@ -330,7 +404,7 @@ public class ElectionNetworkClient {
     private void noteHeartbeatReachable(String peer) {
         AtomicLong failures = heartbeatFailures.get(peer);
 
-        if (failures != null && failures.getAndSet(0) > 0) {
+        if (failures != null && failures.getAndSet(0) >= HEARTBEAT_FAILURE_WARN_AFTER) {
             log.info("Peer {} is reachable again", peer);
         }
     }

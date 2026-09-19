@@ -49,13 +49,12 @@ pagination runtime.
 <dependency>
   <groupId>de.caluga</groupId>
   <artifactId>morphium-spring-boot-starter</artifactId>
-  <version>${project.version}</version>
+  <version>6.3.9</version>
 </dependency>
 ```
 
-In the Morphium reactor, `${project.version}` currently resolves to `6.3.2-SNAPSHOT`.
 This module follows Morphium's regular release versioning — it is versioned and
-released in lockstep with Morphium; there is no separate version line to track.
+released in lockstep with Morphium core; there is no separate version line to track.
 
 ## Configuration Reference
 

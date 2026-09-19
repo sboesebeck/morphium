@@ -639,7 +639,15 @@ public class PoppyDBCLI {
                             restored.getRestored(), restored.getTotal(), restored.getFailedFiles());
                     srv.setLocalDataComplete(false);
                 }
-            } catch (Exception e) {
+            } catch (Throwable e) {
+                // Throwable, not Exception (#366). A restore is an optimisation - it saves the node
+                // a full sync, nothing more - so any failure belongs in this guard: come up without
+                // the data, refuse candidacy, let an authoritative peer supply it. An Error skipped
+                // the guard entirely and walked out of main(), which catches only ConfigException:
+                // no log line, no guard, and the process left alive on its non-daemon threads with
+                // nothing listening, which an init system reads as a healthy service. Seen with an
+                // OutOfMemoryError on an oversized dump, and reachable the same way via
+                // StackOverflowError on a deeply nested one.
                 log.error("Failed to restore from dump - this node will NOT stand for election until "
                         + "an authoritative sync has completed", e);
                 srv.setLocalDataComplete(false);

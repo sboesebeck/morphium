@@ -1,26 +1,20 @@
 # Release Documentation
 
-This directory contains detailed release notes for each Morphium version.
+## Current process
 
-## Documentation Structure
+Every release lives in two places:
 
-**Root Level:**
-- `CHANGELOG.md` - Single changelog file with all releases (standard format, [Keep a Changelog](https://keepachangelog.com/))
+- **[`CHANGELOG.md`](https://github.com/sboesebeck/morphium/blob/develop/CHANGELOG.md)** at the repo root — the single source of truth,
+  [Keep a Changelog](https://keepachangelog.com/) format. Entries are added under
+  `[Unreleased]` as changes land, not written retroactively at release time.
+- **[GitHub Releases](https://github.com/sboesebeck/morphium/releases)** — `release.sh`
+  rolls the `[Unreleased]` section into the new version, then builds the release body from
+  that CHANGELOG section plus the test report.
 
-**This Directory (`docs/releases/`):**
-- `CHANGELOG-X.Y.Z.md` - Comprehensive technical changelog with implementation details
-- `RELEASE-NOTES-X.Y.Z.md` - Quick summary and migration guide for users
+There is no per-version file created in this directory for a release; see `release.sh`'s
+own comments (search `CHANGELOG helpers`) for exactly what it automates.
 
-## Why This Structure?
-
-- **Single CHANGELOG.md**: Industry standard, easy to browse all versions
-- **Detailed docs**: Technical teams need deep dive documentation
-- **Quick notes**: Users need fast migration info without technical details
-- **No clutter**: Root directory stays clean with just one changelog file
-
-## Release Process
-
-Releases are managed via `release.sh` in the project root:
+## `release.sh`
 
 ```bash
 # Patch release (default): 6.1.9 → 6.1.10
@@ -43,29 +37,15 @@ Releases are managed via `release.sh` in the project root:
 ```
 
 The script handles version calculation (from last git tag), Maven release:prepare,
-artifact signing, Sonatype upload, and git operations (tag, merge to master).
+artifact signing, Sonatype upload, git operations (tag, merge to master), and rolling the
+CHANGELOG into the GitHub release as described above.
 
-**Multi-module:** The release creates a single Sonatype bundle containing
+**Multi-module:** the release creates a single Sonatype bundle containing
 morphium-parent, morphium (core), and poppydb.
 
-## For Future Releases
+## What's in this directory
 
-When creating a new release:
-
-1. Run `./release.sh --minor` (or `--patch`/`--major`)
-2. Add entry to root `CHANGELOG.md` (concise)
-3. Create `docs/releases/CHANGELOG-X.Y.Z.md` (detailed)
-4. Create `docs/releases/RELEASE-NOTES-X.Y.Z.md` (user-facing)
-5. Update this README with the new release
-
-## Available Releases
-
-### [6.0.1](CHANGELOG-6.0.1.md) - TBD
-Bugfix release with enhanced null handling and connection stability
-- [Detailed Changelog](CHANGELOG-6.0.1.md)
-- [Quick Release Notes](RELEASE-NOTES-6.0.1.md)
-
-**Highlights:**
-- Bidirectional @UseIfNull behavior (protection from null contamination)
-- Socket timeout retry logic
-- Annotation rename: @UseIfnull → @UseIfNull
+`CHANGELOG-6.0.1.md` and `RELEASE-NOTES-6.0.1.md` are a one-off from Morphium 6.0.1: a
+two-file format (a detailed technical changelog plus a short user-facing summary) that was
+tried once and not carried forward — every release since has used the single-CHANGELOG
+process above instead. Kept here for historical reference, not as a template to repeat.

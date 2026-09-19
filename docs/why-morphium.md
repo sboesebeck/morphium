@@ -296,9 +296,10 @@ Let's be honest: Morphium isn't always the best choice.
 | Scenario | Recommendation |
 |----------|----------------|
 | Need the official driver's full feature surface on day one (GridFS, every admin/aggregation operator) | **Official Driver** — Morphium's own wire-protocol driver covers a subset, see [SSL/TLS guide](./ssl-tls.md) and driver docs for what's supported |
-| Team only knows Spring Data | **Spring Data MongoDB** (lower learning curve) |
-| No messaging needed, simple CRUD | **Official Driver** is sufficient |
-| Already have RabbitMQ/Kafka in stack | Messaging advantage disappears |
+| Team wants Spring Data MongoDB's own repository conventions/`MongoTemplate` specifically | **Spring Data MongoDB** (lower learning curve for that ecosystem) |
+| Team wants Spring Boot itself (auto-config, Actuator, DI) but Morphium's messaging/caching | **[`spring-boot-morphium`](./spring-boot.md)** — Spring Boot auto-configuration and Jakarta Data `@Repository` interfaces on top of Morphium, not a Spring Data MongoDB replacement |
+| One-off script or tiny tool — not worth any config/mapping setup at all | **Official Driver** — raw `Document` access, zero setup overhead |
+| Already have RabbitMQ/Kafka in stack | The messaging advantage disappears, but Morphium's object mapping still saves the same boilerplate on simple CRUD as it does anywhere else |
 
 ---
 
@@ -310,6 +311,8 @@ Let's be honest: Morphium isn't always the best choice.
 | Many tests, fast CI/CD | InMemory Driver saves minutes |
 | Cluster-wide caching | Built-in, no Redis |
 | Complex domain objects | ODM saves boilerplate |
+| Stringly-typed field names cause runtime typos | Compile-time checked `Fields` enum (`.f(User.Fields.username)`) instead of raw strings, wherever the query API takes one |
+| Renaming an entity class or a field breaks reading old documents | A stable `@Entity(typeId = ...)` decouples storage from the Java class name, `@Aliases` accepts legacy field names when reading/querying, and `@AdditionalData` catches fields your current POJO no longer maps — see [Renames and Schema Evolution](./developer-guide.md#renames-and-schema-evolution) |
 | Distributed locks | Built-in |
 | Team productivity > Raw performance | Less code = fewer bugs |
 

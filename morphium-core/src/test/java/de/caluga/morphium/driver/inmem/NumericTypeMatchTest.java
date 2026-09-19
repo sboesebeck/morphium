@@ -13,6 +13,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -22,14 +23,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * integer query literal, and after a dump/restore (where the JSON parser delivers every
  * number as {@code Long}) even {@code int} fields stopped answering integer queries.
  *
- * <p>The equivalence is deliberately INTEGRAL-ONLY: {@code Double}/{@code Float} and
- * {@code BigDecimal} stay out (precision questions - {@code 1.0} vs {@code 1} - and the
- * BigDecimal side is #334 symptom 2). {@link #doubleEquivalenceIsDeliberatelyNotIncluded}
- * pins that scope.
+ * <p>#344 extends the equivalence to {@code Double}: {@code {x: 2}} and {@code {x: {$eq: 2}}}
+ * used to disagree on a stored {@code 2.0}, because only the operator path compared
+ * numerically. The cross-type rule is EXACT, never a {@code doubleValue()} cast: a Long only
+ * equals a Double whose value is an integer that converts back to the very same Long, so
+ * {@code 9007199254740993L} (2^53+1, no exact double form) must NOT match
+ * {@code 9007199254740992.0}. {@code BigDecimal} stays out (#343, decimal128 there).
  *
  * <p>Covers every path that used to compare by wrapper type: the interpreted matcher
  * ({@code QueryHelper}), the compiled matcher ({@code CompiledQuery}, which {@code find} uses),
- * the compiled {@code $in}/{@code $nin} hash sets, the multikey list-contains branch, and -
+ * the compiled {@code $in}/{@code $nin} hash sets, the {@code $all} hash sets of both matchers,
+ * the multikey list-contains branch, and -
  * critically - the index equality path ({@code IndexKey} as a {@code HashMap} key), so the fix
  * cannot silently shift the problem from the scan path into the index path.
  */
@@ -185,27 +189,272 @@ public class NumericTypeMatchTest {
         }
     }
 
-    /**
-     * Scope pin (#342, deliberately narrow): the new equivalence covers INTEGRAL wrappers
-     * only. A stored Double 2.0 keeps NOT matching a direct integer equality query - exactly
-     * as before the fix. (The $eq/$in operator paths have compared all Numbers via
-     * doubleValue() since long before #342; that pre-existing behavior is untouched here.)
-     * Widening direct equality to floating point is a #334-adjacent decision, not a side
-     * effect this fix is allowed to smuggle in.
-     */
+    /** #344 headline case: stored Double 2.0, queried with the integer literal 2 - and back. */
     @Test
-    public void doubleEquivalenceIsDeliberatelyNotIncluded() throws Exception {
+    public void directEqualityMatchesAcrossIntegerAndDouble() throws Exception {
         InMemoryDriver drv = freshDriver();
         try {
             new InsertMongoCommand(drv).setDb(DB).setColl(COLL)
-                    .setDocuments(List.of(Doc.of("dbl", 2.0d))).execute();
+                    .setDocuments(List.of(Doc.of("dbl", 2.0d, "boxed", 3, "lng", 4L))).execute();
 
-            assertEquals(0, drv.find(DB, COLL, Doc.of("dbl", 2), null, null, 0, 0).size(),
-                    "direct integer equality against a stored Double stays unmatched - out of #342's scope");
-            assertFalse(QueryHelper.matchesQuery(Doc.of("dbl", 2), Doc.of("dbl", 2.0d), null),
-                    "interpreted matcher: same deliberate scope limit");
+            assertEquals(1, drv.find(DB, COLL, Doc.of("dbl", 2), null, null, 0, 0).size(),
+                    "#344: a stored Double must match its Integer query literal (compiled path)");
+            assertEquals(1, drv.find(DB, COLL, Doc.of("dbl", 2L), null, null, 0, 0).size(),
+                    "#344: a stored Double must match a Long query value (compiled path)");
+            assertEquals(1, drv.find(DB, COLL, Doc.of("boxed", 3.0d), null, null, 0, 0).size(),
+                    "#344: a stored Integer must match a Double query value (compiled path)");
+            assertEquals(1, drv.find(DB, COLL, Doc.of("lng", 4.0d), null, null, 0, 0).size(),
+                    "#344: a stored Long must match a Double query value (compiled path)");
+            assertEquals(0, drv.find(DB, COLL, Doc.of("dbl", 3), null, null, 0, 0).size(),
+                    "sanity: a different integer must still not match");
+
+            assertTrue(QueryHelper.matchesQuery(Doc.of("dbl", 2), Doc.of("dbl", 2.0d), null),
+                    "#344: the interpreted matcher must agree with the compiled one");
+            assertTrue(QueryHelper.matchesQuery(Doc.of("boxed", 3.0d), Doc.of("boxed", 3), null),
+                    "#344: interpreted matcher, Integer stored / Double queried");
+            assertTrue(QueryHelper.matchesQuery(Doc.of("lng", 4.0d), Doc.of("lng", 4L), null),
+                    "#344: interpreted matcher, Long stored / Double queried");
         } finally {
             drv.close();
         }
+    }
+
+    /** The issue's literal complaint: the two spellings of one query must return the same rows. */
+    @Test
+    public void directEqualityAndEqOperatorAgreeOnStoredDouble() throws Exception {
+        InMemoryDriver drv = freshDriver();
+        try {
+            new InsertMongoCommand(drv).setDb(DB).setColl(COLL)
+                    .setDocuments(List.of(Doc.of("dbl", 2.0d), Doc.of("dbl", 2.5d))).execute();
+
+            int viaOperator = drv.find(DB, COLL, Doc.of("dbl", Doc.of("$eq", 2)), null, null, 0, 0).size();
+            int viaDirect = drv.find(DB, COLL, Doc.of("dbl", 2), null, null, 0, 0).size();
+            assertEquals(1, viaOperator, "sanity: the operator path matched 2.0 numerically before #344");
+            assertEquals(viaOperator, viaDirect,
+                    "#344: {dbl: 2} and {dbl: {$eq: 2}} must return the same rows");
+        } finally {
+            drv.close();
+        }
+    }
+
+    /** Multikey branch: the document field is a list of doubles, probed with an integer. */
+    @Test
+    public void listContainsMatchesAcrossIntegerAndDouble() throws Exception {
+        InMemoryDriver drv = freshDriver();
+        try {
+            new InsertMongoCommand(drv).setDb(DB).setColl(COLL)
+                    .setDocuments(List.of(Doc.of("vals", List.of(1.0d, 2.0d)), Doc.of("ints", List.of(5, 6)))).execute();
+
+            assertEquals(1, drv.find(DB, COLL, Doc.of("vals", 2), null, null, 0, 0).size(),
+                    "#344: an Integer query value must match a Double list element (compiled path)");
+            assertEquals(1, drv.find(DB, COLL, Doc.of("ints", 6.0d), null, null, 0, 0).size(),
+                    "#344: a Double query value must match an Integer list element (compiled path)");
+            assertTrue(QueryHelper.matchesQuery(Doc.of("vals", 2), Doc.of("vals", List.of(1.0d, 2.0d)), null),
+                    "#344: interpreted matcher, Double list element / Integer query");
+            assertTrue(QueryHelper.matchesQuery(Doc.of("ints", 6.0d), Doc.of("ints", List.of(5, 6)), null),
+                    "#344: interpreted matcher, Integer list element / Double query");
+        } finally {
+            drv.close();
+        }
+    }
+
+    /** The compiled $in/$nin HashSets need canonical values - both directions. */
+    @Test
+    public void compiledInAndNinMatchAcrossIntegerAndDouble() throws Exception {
+        InMemoryDriver drv = freshDriver();
+        try {
+            new InsertMongoCommand(drv).setDb(DB).setColl(COLL)
+                    .setDocuments(List.of(Doc.of("dbl", 2.0d, "lng", 3L))).execute();
+
+            assertEquals(1, drv.find(DB, COLL, Doc.of("dbl", Doc.of("$in", List.of(1, 2))), null, null, 0, 0).size(),
+                    "#344: $in [Integer] must match a stored Double (compiled set path)");
+            assertEquals(0, drv.find(DB, COLL, Doc.of("dbl", Doc.of("$nin", List.of(2))), null, null, 0, 0).size(),
+                    "#344: $nin [Integer] must exclude a stored Double (compiled set path)");
+            assertEquals(1, drv.find(DB, COLL, Doc.of("lng", Doc.of("$in", List.of(3.0d))), null, null, 0, 0).size(),
+                    "#344: $in [Double] must match a stored Long (compiled set path)");
+            assertEquals(0, drv.find(DB, COLL, Doc.of("lng", Doc.of("$nin", List.of(3.0d))), null, null, 0, 0).size(),
+                    "#344: $nin [Double] must exclude a stored Long (compiled set path)");
+            assertEquals(0, drv.find(DB, COLL, Doc.of("dbl", Doc.of("$in", List.of(2.5d, 3))), null, null, 0, 0).size(),
+                    "sanity: $in without an equal member must still miss");
+        } finally {
+            drv.close();
+        }
+    }
+
+    /** Index path: an index built over doubles must answer an integer probe, and vice versa. */
+    @Test
+    public void indexedEqualityLookupMatchesAcrossIntegerAndDouble() throws Exception {
+        InMemoryDriver drv = freshDriver();
+        try {
+            new InsertMongoCommand(drv).setDb(DB).setColl(COLL)
+                    .setDocuments(List.of(
+                        Doc.of("dbl", 9.0d, "lng", 90L),
+                        Doc.of("dbl", 10.0d, "lng", 100L),
+                        Doc.of("dbl", 10.5d, "lng", 105L))).execute();
+            drv.createIndex(DB, COLL, Doc.of("dbl", 1), Doc.of("name", "dbl_idx"));
+            drv.createIndex(DB, COLL, Doc.of("lng", 1), Doc.of("name", "lng_idx"));
+
+            // warm both index stores with type-exact probes
+            assertEquals(1, drv.find(DB, COLL, Doc.of("dbl", 9.0d), null, null, 0, 0).size(),
+                    "sanity: the type-exact double probe must hit via the index");
+            assertEquals(1, drv.find(DB, COLL, Doc.of("lng", 90L), null, null, 0, 0).size(),
+                    "sanity: the type-exact long probe must hit via the index");
+
+            assertEquals(1, drv.find(DB, COLL, Doc.of("dbl", 9), null, null, 0, 0).size(),
+                    "#344: an index built over Double values must answer an Integer probe");
+            assertEquals(1, drv.find(DB, COLL, Doc.of("dbl", 10L), null, null, 0, 0).size(),
+                    "#344: an index built over Double values must answer a Long probe");
+            assertEquals(1, drv.find(DB, COLL, Doc.of("lng", 90.0d), null, null, 0, 0).size(),
+                    "#344: an index built over Long values must answer a Double probe");
+            assertEquals(1, drv.find(DB, COLL, Doc.of("dbl", Doc.of("$in", List.of(10, 11))), null, null, 0, 0).size(),
+                    "#344: indexed $in with integer members must find the 10.0 row only, not 10.5");
+        } finally {
+            drv.close();
+        }
+    }
+
+    /** Structural half: an exactly-integral Double and its Long must be equal AND hash-equal keys. */
+    @Test
+    public void indexKeysCanonicalizeExactDoubles() {
+        assertEquals(IndexKey.of(List.of(9)), IndexKey.of(List.of(9.0d)),
+                "#344: Integer and Double probes of one value must land in the same bucket");
+        assertEquals(IndexKey.of(List.of(9)).hashCode(), IndexKey.of(List.of(9.0d)).hashCode(),
+                "#344: hash codes must agree or the HashMap lookup misses the bucket");
+        assertEquals(IndexKey.of(List.of(9L)), IndexKey.of(List.of(9.0d)),
+                "#344: Long and Double keys of one value must be equal");
+        assertNotEquals(IndexKey.of(List.of(9)), IndexKey.of(List.of(9.5d)),
+                "a non-integral Double keeps its own bucket");
+        assertNotEquals(IndexKey.of(List.of(9007199254740993L)), IndexKey.of(List.of(9007199254740992.0d)),
+                "#344: 2^53+1 has no exact double form - the keys must NOT collapse");
+        assertNotEquals(IndexKey.of(List.of(Long.MAX_VALUE)), IndexKey.of(List.of(9.223372036854775807E18d)),
+                "#344: Long.MAX_VALUE rounds to 2^63 as a double - the keys must NOT collapse");
+    }
+
+    /**
+     * The exactness rule (#344): equality is decided on the exact mathematical value, never
+     * through a {@code doubleValue()} cast. 2^53+1 as a Long has no double representation; the
+     * nearest double is 2^53. Reporting those as equal would turn a missed match into a wrong
+     * match, which is worse than the bug being fixed.
+     */
+    @Test
+    public void longsBeyondDoublePrecisionDoNotMatchTheirNearestDouble() throws Exception {
+        long beyond = 9007199254740993L;          // 2^53 + 1
+        double nearest = 9007199254740992.0d;     // 2^53 - what (double) beyond yields
+        assertEquals(nearest, (double) beyond, "test premise: the cast really collapses");
+
+        InMemoryDriver drv = freshDriver();
+        try {
+            new InsertMongoCommand(drv).setDb(DB).setColl(COLL)
+                    .setDocuments(List.of(Doc.of("lng", beyond), Doc.of("dbl", nearest), Doc.of("max", Long.MAX_VALUE))).execute();
+
+            assertEquals(0, drv.find(DB, COLL, Doc.of("lng", nearest), null, null, 0, 0).size(),
+                    "#344: a stored 2^53+1 must NOT match the double 2^53 (compiled path)");
+            assertEquals(0, drv.find(DB, COLL, Doc.of("dbl", beyond), null, null, 0, 0).size(),
+                    "#344: a stored double 2^53 must NOT match the long 2^53+1 (compiled path)");
+            assertEquals(0, drv.find(DB, COLL, Doc.of("max", 9.223372036854775807E18d), null, null, 0, 0).size(),
+                    "#344: Long.MAX_VALUE must NOT match the double 2^63 it rounds to (compiled path)");
+            assertEquals(0, drv.find(DB, COLL, Doc.of("lng", Doc.of("$in", List.of(nearest))), null, null, 0, 0).size(),
+                    "#344: compiled $in must apply the same exactness rule");
+            assertEquals(1, drv.find(DB, COLL, Doc.of("lng", beyond), null, null, 0, 0).size(),
+                    "sanity: the exact Long probe still hits its own row");
+        } finally {
+            drv.close();
+        }
+
+        assertFalse(QueryHelper.matchesQuery(Doc.of("lng", nearest), Doc.of("lng", beyond), null),
+                "#344: interpreted matcher, stored 2^53+1 / queried 2^53 double");
+        assertFalse(QueryHelper.matchesQuery(Doc.of("dbl", beyond), Doc.of("dbl", nearest), null),
+                "#344: interpreted matcher, stored 2^53 double / queried 2^53+1 long");
+        assertFalse(QueryHelper.matchesQuery(Doc.of("max", 9.223372036854775807E18d), Doc.of("max", Long.MAX_VALUE), null),
+                "#344: interpreted matcher, Long.MAX_VALUE / double 2^63");
+        assertFalse(QueryHelper.matchesQuery(Doc.of("dbl", 2), Doc.of("dbl", 2.5d), null),
+                "sanity: a non-integral double never equals an integer");
+    }
+    /**
+     * {@code $all} in both matchers used a raw {@code HashSet} of the stored list and looked the
+     * operand members up by {@code equals()}, so neither #342 nor #344 reached it: {@code {$all:
+     * [2]}} missed a stored {@code [2L]} and a stored {@code [2.0]} while {@code $in} hit both.
+     * Both sides now go through the same canonicalization as the {@code $in}/{@code $nin} sets.
+     */
+    @Test
+    public void allMatchesAcrossNumericWrappers() throws Exception {
+        InMemoryDriver drv = freshDriver();
+        try {
+            new InsertMongoCommand(drv).setDb(DB).setColl(COLL)
+                    .setDocuments(List.of(Doc.of("lngs", List.of(2L, 3L), "dbls", List.of(2.0d, 3.0d), "ints", List.of(2, 3)))).execute();
+
+            assertEquals(1, drv.find(DB, COLL, Doc.of("lngs", Doc.of("$all", List.of(2))), null, null, 0, 0).size(),
+                    "#342-gap: $all [Integer] must match a stored Long list (compiled path)");
+            assertEquals(1, drv.find(DB, COLL, Doc.of("dbls", Doc.of("$all", List.of(2))), null, null, 0, 0).size(),
+                    "#344-gap: $all [Integer] must match a stored Double list (compiled path)");
+            assertEquals(1, drv.find(DB, COLL, Doc.of("ints", Doc.of("$all", List.of(2.0d, 3L))), null, null, 0, 0).size(),
+                    "$all [Double, Long] must match a stored Integer list (compiled path)");
+            assertEquals(1, drv.find(DB, COLL, Doc.of("lngs", Doc.of("$all", List.of(2.0d))), null, null, 0, 0).size(),
+                    "$all [Double] must match a stored Long list (compiled path)");
+            assertEquals(0, drv.find(DB, COLL, Doc.of("dbls", Doc.of("$all", List.of(2, 4))), null, null, 0, 0).size(),
+                    "sanity: $all still requires EVERY member to be present");
+            assertEquals(0, drv.find(DB, COLL, Doc.of("ints", Doc.of("$all", List.of(2.5d))), null, null, 0, 0).size(),
+                    "sanity: a non-integral double never equals an integer element");
+
+            assertTrue(QueryHelper.matchesQuery(Doc.of("lngs", Doc.of("$all", List.of(2))), Doc.of("lngs", List.of(2L, 3L)), null),
+                    "interpreted matcher: $all [Integer] / stored Long list");
+            assertTrue(QueryHelper.matchesQuery(Doc.of("dbls", Doc.of("$all", List.of(2))), Doc.of("dbls", List.of(2.0d, 3.0d)), null),
+                    "interpreted matcher: $all [Integer] / stored Double list");
+            assertTrue(QueryHelper.matchesQuery(Doc.of("ints", Doc.of("$all", List.of(2.0d, 3L))), Doc.of("ints", List.of(2, 3)), null),
+                    "interpreted matcher: $all [Double, Long] / stored Integer list");
+            assertFalse(QueryHelper.matchesQuery(Doc.of("ints", Doc.of("$all", List.of(2.5d))), Doc.of("ints", List.of(2, 3)), null),
+                    "interpreted matcher: non-integral double stays unequal");
+        } finally {
+            drv.close();
+        }
+    }
+
+    /** $all and $in must agree member by member on a mixed-type list, in both matchers. */
+    @Test
+    public void allAndInAgreeOnMixedTypeLists() throws Exception {
+        List<Object> stored = List.of(1, 2.0d, 3L);
+        List<Object> probes = List.of(1L, 1.0d, 2, 2L, 3, 3.0d, 4, 2.5d);
+        InMemoryDriver drv = freshDriver();
+        try {
+            new InsertMongoCommand(drv).setDb(DB).setColl(COLL)
+                    .setDocuments(List.of(Doc.of("mixed", stored))).execute();
+
+            for (Object probe : probes) {
+                int viaIn = drv.find(DB, COLL, Doc.of("mixed", Doc.of("$in", List.of(probe))), null, null, 0, 0).size();
+                int viaAll = drv.find(DB, COLL, Doc.of("mixed", Doc.of("$all", List.of(probe))), null, null, 0, 0).size();
+                assertEquals(viaIn, viaAll, "$all and $in must agree on probe " + probe + " (" + probe.getClass().getSimpleName() + ")");
+                boolean interpreted = QueryHelper.matchesQuery(Doc.of("mixed", Doc.of("$all", List.of(probe))), Doc.of("mixed", stored), null);
+                assertEquals(viaAll == 1, interpreted, "interpreted $all must agree with compiled $all on probe " + probe);
+            }
+            assertEquals(1, drv.find(DB, COLL, Doc.of("mixed", Doc.of("$all", List.of(1L, 2, 3.0d))), null, null, 0, 0).size(),
+                    "$all with every member spelled in a different wrapper than stored must hit");
+        } finally {
+            drv.close();
+        }
+    }
+
+    /** The exactness rule applies to $all as well: 2^53+1 as Long never equals the double 2^53. */
+    @Test
+    public void allKeepsLongsBeyondDoublePrecisionApart() throws Exception {
+        long beyond = 9007199254740993L;
+        double nearest = 9007199254740992.0d;
+        InMemoryDriver drv = freshDriver();
+        try {
+            new InsertMongoCommand(drv).setDb(DB).setColl(COLL)
+                    .setDocuments(List.of(Doc.of("lngs", List.of(beyond)), Doc.of("dbls", List.of(nearest)))).execute();
+
+            assertEquals(0, drv.find(DB, COLL, Doc.of("lngs", Doc.of("$all", List.of(nearest))), null, null, 0, 0).size(),
+                    "compiled $all: stored 2^53+1 must NOT match the double 2^53");
+            assertEquals(0, drv.find(DB, COLL, Doc.of("dbls", Doc.of("$all", List.of(beyond))), null, null, 0, 0).size(),
+                    "compiled $all: stored double 2^53 must NOT match the long 2^53+1");
+            assertEquals(1, drv.find(DB, COLL, Doc.of("lngs", Doc.of("$all", List.of(beyond))), null, null, 0, 0).size(),
+                    "sanity: the exact Long probe still hits");
+        } finally {
+            drv.close();
+        }
+        assertFalse(QueryHelper.matchesQuery(Doc.of("lngs", Doc.of("$all", List.of(nearest))), Doc.of("lngs", List.of(beyond)), null),
+                "interpreted $all: stored 2^53+1 / probe double 2^53");
+        assertFalse(QueryHelper.matchesQuery(Doc.of("dbls", Doc.of("$all", List.of(beyond))), Doc.of("dbls", List.of(nearest)), null),
+                "interpreted $all: stored double 2^53 / probe long 2^53+1");
     }
 }

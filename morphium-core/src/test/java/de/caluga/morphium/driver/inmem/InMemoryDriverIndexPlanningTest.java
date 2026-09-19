@@ -2,6 +2,7 @@ package de.caluga.morphium.driver.inmem;
 
 import de.caluga.morphium.IndexDescription;
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.commands.AggregateMongoCommand;
 import de.caluga.morphium.driver.commands.CreateIndexesCommand;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import org.junit.jupiter.api.Tag;
@@ -477,5 +478,151 @@ public class InMemoryDriverIndexPlanningTest {
 
         List<Map<String, Object>> newValue = drv.find(db, coll, Doc.of("counter", 70_000), null, null, 0, 0);
         assertEquals(1, newValue.size(), "updated document must be found under its new key");
+    }
+
+    // ---- aggregate with a leading $match (#375) -------------------------------------------
+    //
+    // aggregate() used to materialize the whole collection and run the pipeline over it; the
+    // leading $match was only fed to the planner for the slow-query log. A 30.000-document
+    // aggregation with an indexed $match cost the same ~475ms as one without any $match, while
+    // the equivalent find took 8ms. The candidate set for a leading $match now comes from the
+    // same index path find/count use, which the fullScans/indexHits counters make observable
+    // without timing assertions.
+
+    private List<Map<String, Object>> aggregate(InMemoryDriver drv, List<Map<String, Object>> pipeline) throws Exception {
+        return new AggregateMongoCommand(drv).setDb(db).setColl(coll).setPipeline(pipeline).execute();
+    }
+
+    private static Map<String, Object> countAndTotal() {
+        return Doc.of("$group", Doc.of("_id", null, "n", Doc.of("$sum", 1), "total", Doc.of("$sum", "$counter")));
+    }
+
+    @Test
+    void aggregateWithLeadingMatchOnIndexedFieldHitsIndexAndStaysCorrect() throws Exception {
+        InMemoryDriver drv = freshDriverWithIndexedCollection(10_000);
+
+        long fullScansBefore = drv.fullScans;
+        long indexHitsBefore = drv.indexHits;
+
+        // A single trailing range operator is what the planner turns into a RangeScan (a combined
+        // {$gte, $lt} map is deliberately not planned - see IndexPlanner's supported shapes).
+        List<Map<String, Object>> result = aggregate(drv, List.of(
+                Doc.of("$match", Doc.of("counter", Doc.of("$lt", 10))),
+                countAndTotal()));
+
+        assertEquals(1, result.size());
+        assertEquals(10, ((Number) result.get(0).get("n")).intValue(), "#375: $match must still filter exactly");
+        assertEquals(45, ((Number) result.get(0).get("total")).intValue(), "sum of 0..9");
+        assertEquals(indexHitsBefore + 1, drv.indexHits, "#375: a leading $match on an indexed field must use the index");
+        assertEquals(fullScansBefore, drv.fullScans, "#375: ...and must NOT scan the whole collection");
+    }
+
+    @Test
+    void aggregateWithLeadingEqualityMatchUsesIndexForFollowingStages() throws Exception {
+        InMemoryDriver drv = freshDriverWithIndexedCollection(10_000);
+
+        long fullScansBefore = drv.fullScans;
+        long indexHitsBefore = drv.indexHits;
+
+        List<Map<String, Object>> result = aggregate(drv, List.of(
+                Doc.of("$match", Doc.of("counter", 4711)),
+                Doc.of("$project", Doc.of("_id", 0, "doubled", Doc.of("$multiply", List.of("$counter", 2))))));
+
+        assertEquals(1, result.size());
+        assertEquals(9422, ((Number) result.get(0).get("doubled")).intValue());
+        assertEquals(indexHitsBefore + 1, drv.indexHits);
+        assertEquals(fullScansBefore, drv.fullScans);
+    }
+
+    @Test
+    void aggregateWithLeadingMatchAndNoIndexMatchReturnsEmptyWithoutFullScan() throws Exception {
+        InMemoryDriver drv = freshDriverWithIndexedCollection(50);
+
+        long fullScansBefore = drv.fullScans;
+        long indexHitsBefore = drv.indexHits;
+
+        List<Map<String, Object>> result = aggregate(drv, List.of(
+                Doc.of("$match", Doc.of("counter", 999_999)),
+                countAndTotal()));
+
+        assertTrue(result.isEmpty(), "no input documents -> $group yields nothing");
+        assertEquals(indexHitsBefore + 1, drv.indexHits);
+        assertEquals(fullScansBefore, drv.fullScans, "an empty index prefilter is the final answer, not a reason to scan");
+    }
+
+    @Test
+    void aggregateWithLeadingMatchOnUnplannableFilterFallsBackToFullScanAndStaysCorrect() throws Exception {
+        InMemoryDriver drv = freshDriverWithIndexedCollection(50);
+
+        long fullScansBefore = drv.fullScans;
+        long indexHitsBefore = drv.indexHits;
+
+        // $mod is nothing the planner can serve from an index -> COLLSCAN, but the result must
+        // be exactly what the filter says.
+        List<Map<String, Object>> result = aggregate(drv, List.of(
+                Doc.of("$match", Doc.of("counter", Doc.of("$mod", List.of(2, 0)))),
+                countAndTotal()));
+
+        assertEquals(1, result.size());
+        assertEquals(25, ((Number) result.get(0).get("n")).intValue());
+        assertEquals(600, ((Number) result.get(0).get("total")).intValue(), "sum of the even numbers 0..48");
+        assertEquals(fullScansBefore + 1, drv.fullScans);
+        assertEquals(indexHitsBefore, drv.indexHits);
+    }
+
+    @Test
+    void aggregateWithoutLeadingMatchScansTheWholeCollection() throws Exception {
+        InMemoryDriver drv = freshDriverWithIndexedCollection(50);
+
+        long fullScansBefore = drv.fullScans;
+        long indexHitsBefore = drv.indexHits;
+
+        List<Map<String, Object>> result = aggregate(drv, List.of(countAndTotal()));
+
+        assertEquals(1, result.size());
+        assertEquals(50, ((Number) result.get(0).get("n")).intValue());
+        assertEquals(fullScansBefore + 1, drv.fullScans, "no $match -> the pipeline input is the whole collection");
+        assertEquals(indexHitsBefore, drv.indexHits);
+    }
+
+    @Test
+    void aggregateWithMatchAfterAnotherStageDoesNotUseTheIndexButStaysCorrect() throws Exception {
+        InMemoryDriver drv = freshDriverWithIndexedCollection(50);
+
+        long fullScansBefore = drv.fullScans;
+        long indexHitsBefore = drv.indexHits;
+
+        // Only a LEADING $match sees the stored documents; after $sort the input is pipeline
+        // output, so the index is not applicable - the stage itself must still filter.
+        List<Map<String, Object>> result = aggregate(drv, List.of(
+                Doc.of("$sort", Doc.of("counter", -1)),
+                Doc.of("$match", Doc.of("counter", 3)),
+                countAndTotal()));
+
+        assertEquals(1, result.size());
+        assertEquals(1, ((Number) result.get(0).get("n")).intValue());
+        assertEquals(3, ((Number) result.get(0).get("total")).intValue());
+        assertEquals(fullScansBefore + 1, drv.fullScans);
+        assertEquals(indexHitsBefore, drv.indexHits);
+    }
+
+    /**
+     * The pipeline must never see the live stored documents: a leading $match served from the
+     * index hands out the same deep copies find() does, so a later stage mutating its input
+     * (here $set) leaves the collection untouched.
+     */
+    @Test
+    void aggregateWithLeadingMatchWorksOnCopiesOfTheStoredDocuments() throws Exception {
+        InMemoryDriver drv = freshDriverWithIndexedCollection(50);
+
+        List<Map<String, Object>> result = aggregate(drv, List.of(
+                Doc.of("$match", Doc.of("counter", 7)),
+                Doc.of("$set", Doc.of("counter", Doc.of("$add", List.of("$counter", 4704))))));
+
+        assertEquals(1, result.size());
+        assertEquals(4711, ((Number) result.get(0).get("counter")).intValue());
+        assertEquals(1, drv.find(db, coll, Doc.of("counter", 7), null, null, 0, 0).size(),
+                "the stored document must not have been modified through the pipeline");
+        assertTrue(drv.find(db, coll, Doc.of("counter", 4711), null, null, 0, 0).isEmpty());
     }
 }

@@ -75,7 +75,7 @@ mvn test -Dmorphium.driver=inmem
 ### Transactions
 - ✅ **Basic Transactions**: start, commit, abort (single-instance)
 - ❌ **Multi-document ACID**: Limited to single instance
-- ⚠️ **Replica Sets**: Experimental support in `PoppyDB` (v6.1); no replica set simulation within a single `InMemoryDriver` instance.
+- ✅ **Replica Sets**: Real leader election, initial sync and automatic failover in `PoppyDB` (see [PoppyDB § Replica Set Behavior](poppydb.md#replica-set-behavior)); no replica set simulation within a single `InMemoryDriver` instance.
 
 ## V6.1 Improvements
 
@@ -400,6 +400,40 @@ List<Article> results = query.asList();
 - ❌ **Authentication**: No user/role management
 - ✅ **$lookup Joins**: Supported via aggregation pipeline
 - ✅ **Full Text Search**: MongoDB-compatible `$text` queries supported (v6.1)
+
+### Not suitable for on-disk format tests (#336)
+
+A value that reaches a driver **unmapped** - a raw `LocalDate` handed to
+`InsertMongoCommand`, a `$set` operand built by hand - is normalised on the wire path
+and stored verbatim in memory. The wire drivers serialise every command through
+`BsonEncoder`, so what lands on disk is whatever `decode(encode(v))` produces;
+`InMemoryDriver` has no encoder in that path and keeps the Java object:
+
+| written value | real mongod stores | `InMemoryDriver` stores |
+|---|---|---|
+| `LocalDate` / `LocalTime` | `Long` | `LocalDate` / `LocalTime` |
+| `LocalDateTime` / `Instant` | sub-document | `LocalDateTime` / `Instant` |
+| `Character` | `Integer` | `Character` |
+| enum constant | `String` | enum object |
+| `Short` / `Byte` | `Integer` | `Short` / `Byte` |
+| `Float` | `Double` | `Float` |
+| `int[]` | `List` | `int[]` |
+| `Calendar` | `Date` | `GregorianCalendar` |
+| `org.bson.types.ObjectId` | `MorphiumId` | `ObjectId` |
+
+**This does not show up in query results.** The in-memory driver leaves the stored value
+*and* the filter unnormalised, so equality still matches on both sides. A format test that
+asserts on query outcomes therefore passes against `InMemoryDriver` for the wrong reason -
+which is worse than failing, because nothing points at the gap. Only the raw persisted
+shape reveals it.
+
+So: pin on-disk shapes against a real MongoDB (or PoppyDB, which decodes off the wire and
+is unaffected), not against `InMemoryDriver`. Everything written through the normal
+Morphium API is unaffected - the ObjectMapper maps those values before they reach any
+driver, and since #335 the update APIs (`set()`/`push()`/`addToSet()`) do too.
+
+`InMemoryWireShapeParityTest` pins this; it is `@Disabled` until the normalisation lands
+in 6.4.0.
 
 ### Performance Considerations
 - **Memory Usage**: All data stored in memory

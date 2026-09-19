@@ -101,7 +101,33 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             "replsetgetconfig", "serverstatus",
             // read-only diagnostics that MUST work on secondaries: dbHash exists to compare
             // replica-set members, validate checks local data<->index consistency
-            "dbhash", "validate"
+            "dbhash", "validate",
+            // Authentication is control plane: with --auth the election client has to SCRAM
+            // against its peers before any leader exists, and since #371 every member with peers
+            // starts out refusing data-plane commands (13436). Sending saslStart through that
+            // guard deadlocked the bootstrap - nobody could authenticate, so nobody could vote.
+            "saslstart", "saslcontinue", "logout",
+            // Maintenance has to survive RECOVERING (#356): a re-syncing secondary is exactly the
+            // node an operator wants to stop, dump or turn up to DEBUG.
+            "shutdown", "dumpnow", "dumpstatus", "setparameter"
+    );
+
+    // Commands mongod has and PoppyDB deliberately does not. Answered with CommandNotSupported
+    // (115) and the reason, before the data-plane middleware and before the generic path - the
+    // generic path would answer CommandNotFound, which for a command every mongod has is
+    // misleading, or, worse, whatever the embedded driver happens to make of it (#356).
+    private static final Map<String, String> UNSUPPORTED_COMMANDS = Map.of(
+            "logrotate", "logRotate is not supported - PoppyDB does not rotate its own log; rotation is Logback's "
+                    + "(or logrotate's) job, see the admin handbook",
+            "fsync", "fsync is not supported - PoppyDB has no journal to flush; use dumpNow to force a dump",
+            "compact", "compact is not supported - an in-memory store has no on-disk fragmentation to compact",
+            "profile", "profile is not supported - PoppyDB has no database profiler; use currentOp for live operations",
+            "connpoolstats", "connPoolStats is not supported - PoppyDB keeps no outbound connection pools of its own; "
+                    + "serverStatus.connections has the inbound gauges",
+            "replsetreconfig", "replSetReconfig is not supported - the replica set is configured at startup "
+                    + "(--rs-seed/--rs-priorities); replSetGetConfig shows the effective configuration",
+            "top", "top is not supported by PoppyDB - per-collection operation counters are not tracked; "
+                    + "currentOp shows live operations"
     );
 
     /**
@@ -161,6 +187,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     // coordinator created (or cleared) by a later election, not the value that existed when
     // the connection's pipeline was built.
     private final Supplier<ReplicationCoordinator> replicationCoordinatorSupplier;
+    /** When this handler's process started - feeds the per-member {@code uptime} (#356). */
+    private static final long startedAtMs = System.currentTimeMillis();
     private final ElectionManager electionManager;
     // Resolved live per command: true while this node is a secondary (re-)running its initial sync
     // and therefore possibly serving from a half-cleared local database. Such a node is RECOVERING
@@ -383,6 +411,33 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         return this;
     }
 
+    private Runnable shutdownAction;
+    private de.caluga.poppydb.LogRingBuffer logBuffer;
+    private java.util.function.Supplier<List<String>> startupWarningsSupplier;
+
+    /** What the {@code shutdown} command runs to stop this node - PoppyDB wires its
+     * {@code shutdown()} (#356). The handler answers the client first and then runs the action
+     * on a plain thread, never on the event loop: {@code PoppyDB.shutdown()} awaits the event
+     * loops and would deadlock against itself. Left unset, the command is refused (115) and not
+     * advertised by listCommands. */
+    public MongoCommandHandler setShutdownAction(Runnable shutdownAction) {
+        this.shutdownAction = shutdownAction;
+        return this;
+    }
+
+    /** The in-memory log tail answering {@code getLog: "global"} (#356). Unset means an empty log. */
+    public MongoCommandHandler setLogBuffer(de.caluga.poppydb.LogRingBuffer logBuffer) {
+        this.logBuffer = logBuffer;
+        return this;
+    }
+
+    /** The real startup warnings for {@code getLog: "startupWarnings"} - no auth, no dump
+     * directory, memory watermark off. Unset means none. */
+    public MongoCommandHandler setStartupWarningsSupplier(java.util.function.Supplier<List<String>> supplier) {
+        this.startupWarningsSupplier = supplier;
+        return this;
+    }
+
     /** Best effort: the n= value from the SASL client-first payload; null if unparsable. */
     private static String extractSaslUser(Object payload) {
         try {
@@ -451,6 +506,14 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             authenticatedUser = null;
             pendingAuthUser = null;
             sendResponse(ctx, requestId, Doc.of("ok", 1.0));
+            return;
+        }
+
+        String unsupportedReason = UNSUPPORTED_COMMANDS.get(cmd.toLowerCase());
+
+        if (unsupportedReason != null) {
+            sendResponse(ctx, requestId, Doc.of("ok", 0.0, "code", 115, "codeName", "CommandNotSupported",
+                    "errmsg", unsupportedReason));
             return;
         }
 
@@ -539,20 +602,20 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 break;
 
             case "getLog":
-                if ("startupWarnings".equals(doc.get(cmd))) {
-                    answer = Doc.of("totalLinesWritten", 0, "log", List.of(), "ok", 1.0);
-                } else {
-                    answer = Doc.of("ok", 0, "errmsg", "unknown log");
-                }
+                answer = processGetLog(doc);
                 break;
 
             case "getParameter":
-                if (Integer.valueOf(1).equals(doc.get("featureCompatibilityVersion"))) {
-                    answer = Doc.of("version", "5.0", "ok", 1.0);
-                } else {
-                    answer = Doc.of("ok", 0, "errmsg", "no such parameter");
-                }
+                answer = processGetParameter(doc);
                 break;
+
+            case "setParameter":
+                answer = processSetParameter(doc);
+                break;
+
+            case "shutdown":
+                processShutdown(ctx, doc, requestId);
+                return; // answered inside, the node stops afterwards
 
             case "replSetProgress":
                 answer = processReplSetProgress(doc);
@@ -883,11 +946,206 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         }
     }
 
+    /**
+     * {@code shutdown} (#356): stops this node through the wired action. Answers first, then
+     * runs the action on its own thread once the reply has left the channel - never on the event
+     * loop, which {@code PoppyDB.shutdown()} awaits and would therefore deadlock against.
+     *
+     * <p>On a primary the node steps down first unless {@code force} is set, so a scripted
+     * rolling restart hands leadership over instead of black-holing writes for a full election
+     * timeout. The step-down is immediate: it relinquishes leadership and refuses re-election for
+     * 60s, so this node cannot win the election it just triggered while its shutdown is still
+     * running. There is NO secondary catch-up wait - {@code ElectionManager.stepDown} has that as
+     * an unimplemented TODO - so the last writes not yet replicated can still be lost by a rolling
+     * restart. {@code timeoutSecs} (mongod default 15) is accepted for wire compatibility and
+     * handed to the step-down, where it currently has no effect. Static-config primaries (no
+     * election manager) have nothing to hand over to and stop right away.
+     *
+     * <p>Authentication: this is deliberately not a pre-auth command, so with {@code --auth} only
+     * an authenticated connection can stop the node. Auth is binary here - there is no role
+     * model - so any authenticated user can; documented as such.
+     */
+    private void processShutdown(ChannelHandlerContext ctx, Map<String, Object> doc, int requestId) {
+        if (shutdownAction == null) {
+            sendResponse(ctx, requestId, Doc.of("ok", 0.0, "code", 115, "codeName", "CommandNotSupported",
+                    "errmsg", "shutdown over the wire is not available on this server - no shutdown action "
+                    + "is wired; stop the process instead"));
+            return;
+        }
+
+        boolean force = isTruthy(doc.get("force"));
+        int timeoutSecs = doc.get("timeoutSecs") instanceof Number n ? n.intValue() : 15;
+        String client = String.valueOf(ctx.channel().remoteAddress());
+        log.info("shutdown requested over the wire by {} (force={}, timeoutSecs={})", client, force, timeoutSecs);
+
+        if (!force && electionManager != null && electionManager.isLeader()) {
+            // 60s no-election window like replSetStepDown's default: this node is going away,
+            // it must not win the election it just triggered while the shutdown is still running
+            boolean steppedDown;
+
+            try {
+                steppedDown = electionManager.stepDown(60, timeoutSecs, false);
+            } catch (Exception e) {
+                log.error("step-down before shutdown failed: {}", e.getMessage(), e);
+                steppedDown = false;
+            }
+
+            if (!steppedDown) {
+                sendResponse(ctx, requestId, Doc.of("ok", 0.0, "code", 262, "codeName", "ExceededTimeLimit",
+                        "errmsg", "shutdown failed: could not step down - retry with force:true to stop "
+                        + "without handing over"));
+                return;
+            }
+        }
+
+        // The listener fires once the reply is written (or the write failed - the client is gone
+        // either way and the node still stops). From there the action runs on a plain thread.
+        sendResponse(ctx, requestId, Doc.of("ok", 1.0)).addListener(written -> {
+            Thread t = new Thread(() -> {
+                try {
+                    shutdownAction.run();
+                } catch (Exception e) {
+                    log.error("shutdown requested by {} failed: {}", client, e.getMessage(), e);
+                }
+            }, "poppydb-shutdown");
+            t.setDaemon(false);
+            t.start();
+        });
+    }
+
+    private static boolean isTruthy(Object v) {
+        return Boolean.TRUE.equals(v) || (v instanceof Number n && n.intValue() != 0);
+    }
+
+    /** {@code getLog} (#356) in mongod's shape: {@code "*"} lists the names, {@code global} is the
+     * in-memory ring buffer, {@code startupWarnings} the real ones. */
+    private Map<String, Object> processGetLog(Map<String, Object> doc) {
+        if (!(doc.get("getLog") instanceof String name)) {
+            return Doc.of("ok", 0.0, "code", 14, "codeName", "TypeMismatch",
+                    "errmsg", "Argument to getLog must be of type String");
+        }
+
+        switch (name) {
+            case "*":
+                return Doc.of("names", List.of("global", "startupWarnings"), "ok", 1.0);
+
+            case "global": {
+                List<String> lines = logBuffer == null ? List.of() : logBuffer.lines();
+                long total = logBuffer == null ? 0L : logBuffer.totalLinesWritten();
+                return Doc.of("totalLinesWritten", total, "log", lines, "ok", 1.0);
+            }
+
+            case "startupWarnings": {
+                List<String> warnings = startupWarningsSupplier == null ? List.of() : startupWarningsSupplier.get();
+                return Doc.of("totalLinesWritten", (long) warnings.size(), "log", warnings, "ok", 1.0);
+            }
+
+            default:
+                return Doc.of("ok", 0.0, "code", 96, "codeName", "OperationFailed",
+                        "errmsg", "no RamLog named: " + name);
+        }
+    }
+
+    // Keys of a get/setParameter document that are not parameter names: the command itself, the
+    // wire-level $-fields and the generic command options every command may carry.
+    private static final Set<String> PARAMETER_COMMAND_KEYS = Set.of("getparameter", "setparameter",
+            "lsid", "comment", "maxtimems", "apiversion", "apistrict", "apideprecationerrors",
+            "allparameters", "showdetails");
+
+    private static final String FEATURE_COMPATIBILITY_VERSION = "5.0";
+
+    private static List<String> parameterNames(Map<String, Object> doc) {
+        List<String> names = new ArrayList<>();
+
+        for (String k : doc.keySet()) {
+            if (!k.startsWith("$") && !PARAMETER_COMMAND_KEYS.contains(k.toLowerCase())) {
+                names.add(k);
+            }
+        }
+
+        return names;
+    }
+
+    /** The parameters this server knows, with their current values. */
+    private Map<String, Object> knownParameters() {
+        Map<String, Object> known = new LinkedHashMap<>();
+        known.put("featureCompatibilityVersion", Doc.of("version", FEATURE_COMPATIBILITY_VERSION));
+        known.put("logLevel", de.caluga.poppydb.LogRingBuffer.currentVerbosity());
+        return known;
+    }
+
+    private Map<String, Object> processGetParameter(Map<String, Object> doc) {
+        Map<String, Object> known = knownParameters();
+        Map<String, Object> answer = new LinkedHashMap<>();
+
+        if ("*".equals(doc.get("getParameter")) || isTruthy(doc.get("allParameters"))) {
+            answer.putAll(known);
+        } else {
+            for (String name : parameterNames(doc)) {
+                if (!known.containsKey(name)) {
+                    return Doc.of("ok", 0.0, "code", 72, "codeName", "InvalidOptions",
+                            "errmsg", "no option found to get: " + name);
+                }
+
+                answer.put(name, known.get(name));
+            }
+
+            if (answer.isEmpty()) {
+                return Doc.of("ok", 0.0, "code", 72, "codeName", "InvalidOptions", "errmsg", "no option found to get");
+            }
+        }
+
+        answer.put("ok", 1.0);
+        return answer;
+    }
+
+    /** {@code setParameter} (#356): {@code logLevel} 0..5 as in mongod, mapped onto the Logback
+     * root logger (0 = INFO, 1-2 = DEBUG, 3+ = TRACE) - raising a node to DEBUG without a restart
+     * is the natural companion of the getLog buffer. Logback has fewer levels than mongod has
+     * verbosities, so the effective value is quantized: getParameter (and the {@code was} field)
+     * read back 0, 1 or 3, never 2, 4 or 5. Nothing else is settable at runtime. */
+    private Map<String, Object> processSetParameter(Map<String, Object> doc) {
+        List<String> names = parameterNames(doc);
+
+        if (names.isEmpty()) {
+            return Doc.of("ok", 0.0, "code", 72, "codeName", "InvalidOptions", "errmsg", "no parameter to set");
+        }
+
+        Map<String, Object> answer = new LinkedHashMap<>();
+
+        for (String name : names) {
+            if (!"logLevel".equals(name)) {
+                return Doc.of("ok", 0.0, "code", 72, "codeName", "InvalidOptions",
+                        "errmsg", "attempted to set unrecognized parameter [" + name + "], use help:true to see options");
+            }
+
+            Object v = doc.get(name);
+
+            if (!(v instanceof Number n) || n.intValue() < 0 || n.intValue() > 5 || n.intValue() != n.doubleValue()) {
+                return Doc.of("ok", 0.0, "code", 2, "codeName", "BadValue",
+                        "errmsg", "logLevel must be an integer between 0 and 5, got: " + v);
+            }
+
+            int was = de.caluga.poppydb.LogRingBuffer.currentVerbosity();
+
+            if (!de.caluga.poppydb.LogRingBuffer.setVerbosity(n.intValue())) {
+                return Doc.of("ok", 0.0, "code", 115, "codeName", "CommandNotSupported",
+                        "errmsg", "logLevel cannot be changed at runtime: SLF4J is not bound to Logback in this JVM");
+            }
+
+            log.info("logLevel set to {} over the wire (was {})", n.intValue(), was);
+            answer.put("was", was);
+        }
+
+        answer.put("ok", 1.0);
+        return answer;
+    }
+
     /** Every command name this server answers: wire-level handlers plus the driver's commands. */
     private Map<String, Object> processListCommands() {
         java.util.TreeSet<String> names = new java.util.TreeSet<>(driver.getSupportedCommandNames());
         names.addAll(List.of("hello", "isMaster", "ping", "buildInfo", "getCmdLineOpts",
-                "getFreeMonitoringStatus", "getLog", "getParameter", "listDatabases", "serverStatus",
+                "getFreeMonitoringStatus", "getLog", "getParameter", "setParameter", "listDatabases", "serverStatus",
                 "currentOp", "killOp", "listCommands", "hostInfo", "connectionStatus", "whatsmyuri",
                 "replSetGetStatus", "replSetGetConfig", "replSetStepDown", "replSetFreeze",
                 "saslStart", "saslContinue", "logout", "endSessions", "startSession", "refreshSessions",
@@ -895,6 +1153,21 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 "aggregate", "createIndexes", "bulkWrite", "abortTransaction", "commitTransaction",
                 "registerMessagingCollection", "unregisterMessagingSubscriber", "getMessagingStats",
                 "dbHash", "validate", "dumpNow", "dumpStatus"));
+
+        // The driver's reflection scan lists every MongoCommand class, shutdown included - but
+        // the embedded driver's answer to it is a refusal. Only advertise what this server can
+        // actually do (#356): a command that is guaranteed to fail must not appear here.
+        if (shutdownAction == null) {
+            names.remove("shutdown");
+        }
+
+        // Explicitly refused commands are not "supported" in any sense a caller cares about
+        for (String n : new ArrayList<>(names)) {
+            if (UNSUPPORTED_COMMANDS.containsKey(n.toLowerCase())) {
+                names.remove(n);
+            }
+        }
+
         Map<String, Object> commands = new LinkedHashMap<>();
 
         for (String n : names) {
@@ -1090,8 +1363,36 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
             String errorMsg = getDeepestCauseMessage(e);
             log.error("Error executing command {}: {}", cmd, errorMsg, e);
-            sendResponse(ctx, requestId, Doc.of("ok", 0.0, "errmsg", errorMsg != null ? errorMsg : "Command failed: " + cmd));
+            Doc response = Doc.of("ok", 0.0, "errmsg", errorMsg != null ? errorMsg : "Command failed: " + cmd);
+            // Preserve the MongoDB error code when the failure carries one (#373), so a client can
+            // act on it - retry it, classify it, surface it. The fast paths keep the code
+            // (processInsertDirect's writeErrors, the typed rejections above); this generic
+            // catch-all used to drop it, handing the client an ok:0 with only a message and a null
+            // mongoCode after checkForError.
+            Object mongoCode = deepestMongoCode(e);
+            if (mongoCode != null) {
+                response.put("code", mongoCode);
+            }
+            sendResponse(ctx, requestId, response);
         }
+    }
+
+    /**
+     * The deepest {@link MorphiumDriverException#getMongoCode()} in a cause chain, or {@code null}
+     * when none carries one (#373). Walks to the deepest coded exception, mirroring
+     * {@link #getDeepestCauseMessage} taking the deepest meaningful message, so the code and the
+     * message describe the same origin. Package-private for a direct unit test.
+     */
+    static Object deepestMongoCode(Throwable e) {
+        Object code = null;
+
+        for (Throwable current = e; current != null; current = current.getCause()) {
+            if (current instanceof MorphiumDriverException mde && mde.getMongoCode() != null) {
+                code = mde.getMongoCode();
+            }
+        }
+
+        return code;
     }
 
     /**
@@ -1786,7 +2087,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         return address;
     }
 
-    private void sendResponse(ChannelHandlerContext ctx, int requestId, Map<String, Object> answer) {
+    private io.netty.channel.ChannelFuture sendResponse(ChannelHandlerContext ctx, int requestId, Map<String, Object> answer) {
         // A BSON timestamp's high 32 bits are epoch SECONDS. The raw-value constructor with
         // currentTimeMillis() produced a "valid" timestamp claiming ~1970 (millis >> 32 is a
         // few hundred seconds) - right type, nonsense value. Seconds-based encoding is also
@@ -1803,7 +2104,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         reply.setFirstDoc(answer);
 
         log.debug("Sending response for request {}: {}", requestId, answer.keySet());
-        ctx.writeAndFlush(reply);
+        return ctx.writeAndFlush(reply);
     }
 
     private void sendError(ChannelHandlerContext ctx, int requestId, String message) {
@@ -1981,94 +2282,213 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     /**
      * Get replica set status including election state.
      */
+    /**
+     * Member state of this node for replSetGetStatus (#356).
+     *
+     * <p>A secondary re-running its initial sync rejects every data-plane command with 13436 and
+     * already advertises {@code secondary:false} in hello - but this command, the one an operator
+     * types to ask "is this node usable?", used to answer SECONDARY regardless. A rolling restart
+     * driven off that answer walks from node to node while each one holds nothing.
+     *
+     * <p>A syncing node reports RECOVERING (3), never STARTUP2 (5). An earlier version tried to
+     * make mongod's distinction between the two by asking whether the node currently holds data -
+     * which inverts during exactly the situation it describes: {@code clearLocalDatabases()}
+     * empties the store at the start of every sync, so a re-syncing node would have reported
+     * STARTUP2 while empty and flipped to RECOVERING as the copy arrived. Backwards. Telling a
+     * first sync from a re-sync needs a record of whether this node ever held authoritative data,
+     * which the store cannot supply once it has been cleared. Both states say the same thing to a
+     * client and to a deploy script - do not send me anything - so this reports the one that is
+     * true in every case instead of guessing between them.
+     */
+    private int myMemberState() {
+        boolean syncing = secondarySyncingSupplier.getAsBoolean();
+        ElectionState state = electionManager == null ? null : electionManager.getState();
+        boolean isPrimaryNow = electionManager == null ? primary : state == ElectionState.LEADER;
+
+        if (!isPrimaryNow && syncing) {
+            return 3; // RECOVERING
+        }
+
+        if (electionManager == null) {
+            return isPrimaryNow ? 1 : 2;
+        }
+
+        return switch (state) {
+            case LEADER -> 1;
+            case FOLLOWER -> 2;
+            case CANDIDATE -> 3;
+        };
+    }
+
+    private static String memberStateStr(int state) {
+        return switch (state) {
+            case 1 -> "PRIMARY";
+            case 2 -> "SECONDARY";
+            case 3 -> "RECOVERING";
+            case 5 -> "STARTUP2";
+            case 8 -> "DOWN";
+            default -> "UNKNOWN";
+        };
+    }
+
     private Map<String, Object> processReplSetGetStatus() {
         Map<String, Object> status = new LinkedHashMap<>();
         status.put("set", rsName);
+        // mongosh computes a member's lag as (date - optimeDate), so without `date` the whole
+        // rs.status() output is decoration (#356).
+        status.put("date", new java.util.Date());
         status.put("ok", 1.0);
 
+        ReplicationCoordinator coordinator = replicationCoordinator();
+        Map<String, Object> replStats = coordinator == null ? null : coordinator.getStats();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> secondaryStats = replStats == null ? Map.of()
+            : (Map<String, Object>) replStats.getOrDefault("secondaries", Map.of());
+        long now = System.currentTimeMillis();
+
         if (electionManager != null) {
-            // Include election manager stats
             Map<String, Object> electionStats = electionManager.getStats();
             status.put("term", electionStats.get("term"));
+            status.put("heartbeatIntervalMillis", (long) electionManager.getHeartbeatIntervalMs());
 
-            // Determine myState based on election state - reported in MongoDB member-state
-            // nomenclature, never the internal Raft enum names (clients parse stateStr)
-            ElectionState state = electionManager.getState();
-            int myState = switch (state) {
-                case LEADER -> 1;    // PRIMARY
-                case FOLLOWER -> 2;  // SECONDARY
-                case CANDIDATE -> 3; // RECOVERING (closest match)
-            };
-            String myStateStr = switch (state) {
-                case LEADER -> "PRIMARY";
-                case FOLLOWER -> "SECONDARY";
-                case CANDIDATE -> "RECOVERING";
-            };
+            int myState = myMemberState();
             status.put("myState", myState);
 
-            // Build members list
             List<Map<String, Object>> members = new ArrayList<>();
             String myAddress = electionManager.getMyAddress();
             String currentLeader = electionManager.getCurrentLeader();
+            int voters = 1 + electionManager.getPeerAddresses().size();
+            status.put("majorityVoteCount", voters / 2 + 1);
 
-            // Add self
             Map<String, Object> selfMember = new LinkedHashMap<>();
             selfMember.put("_id", 0);
             selfMember.put("name", myAddress);
+            selfMember.put("health", 1.0);
             selfMember.put("state", myState);
-            selfMember.put("stateStr", myStateStr);
+            selfMember.put("stateStr", memberStateStr(myState));
+            selfMember.put("uptime", (now - startedAtMs) / 1000);
             selfMember.put("self", true);
+
+            if (myState == 1 && electionManager.getLeaderSinceMs() > 0) {
+                selfMember.put("electionDate", new java.util.Date(electionManager.getLeaderSinceMs()));
+            } else if (currentLeader != null && !currentLeader.equals(myAddress)) {
+                selfMember.put("syncSourceHost", currentLeader);
+            }
+
             members.add(selfMember);
 
-            // Add peers
             int memberId = 1;
+
             for (String peer : electionManager.getPeerAddresses()) {
                 Map<String, Object> peerMember = new LinkedHashMap<>();
                 peerMember.put("_id", memberId++);
                 peerMember.put("name", peer);
+                boolean reachable = electionManager.isPeerReachable(peer);
+                int peerState;
 
-                // Determine peer state (we know leader, others are likely followers)
                 if (peer.equals(currentLeader)) {
-                    peerMember.put("state", 1);
-                    peerMember.put("stateStr", "PRIMARY");
-                } else if (!electionManager.isPeerReachable(peer)) {
+                    peerState = 1;
+                } else if (!reachable) {
                     // Matches real MongoDB's member state for this situation exactly
                     // (state=8, stateStr="DOWN") - was reachable, heartbeat ack has since
                     // gone stale. See ElectionManager#isPeerReachable for why a peer we've
                     // never yet heard from is NOT reported DOWN (avoids a startup race).
-                    peerMember.put("state", 8);
-                    peerMember.put("stateStr", "DOWN");
+                    peerState = 8;
                 } else {
-                    peerMember.put("state", 2);
-                    peerMember.put("stateStr", "SECONDARY");
+                    peerState = 2;
                 }
+
+                peerMember.put("health", reachable ? 1.0 : 0.0);
+                peerMember.put("state", peerState);
+                peerMember.put("stateStr", memberStateStr(peerState));
+                long lastContact = electionManager.getPeerLastContactMs(peer);
+
+                if (lastContact > 0) {
+                    peerMember.put("lastHeartbeat", new java.util.Date(lastContact));
+                }
+
+                addReplicationProgress(peerMember, secondaryStats, peer);
                 members.add(peerMember);
             }
 
             status.put("members", members);
         } else {
-            // No election manager - static configuration
-            status.put("myState", primary ? 1 : 2);
+            status.put("myState", myMemberState());
             status.put("term", 0);
 
             List<Map<String, Object>> members = new ArrayList<>();
             int memberId = 0;
             // compare against the seed-list identity, not the raw bind address (0.0.0.0)
             String myAddress = memberAddress();
+
             for (String h : hosts) {
                 Map<String, Object> member = new LinkedHashMap<>();
                 member.put("_id", memberId++);
                 member.put("name", h);
+                boolean isSelf = h.equals(myAddress);
                 boolean isPrimary = h.equals(primaryHost);
-                member.put("state", isPrimary ? 1 : 2);
-                member.put("stateStr", isPrimary ? "PRIMARY" : "SECONDARY");
-                member.put("self", h.equals(myAddress));
+                int state = isSelf ? myMemberState() : (isPrimary ? 1 : 2);
+                member.put("health", 1.0);
+                member.put("state", state);
+                member.put("stateStr", memberStateStr(state));
+                member.put("self", isSelf);
+
+                if (isSelf) {
+                    member.put("uptime", (now - startedAtMs) / 1000);
+                } else {
+                    addReplicationProgress(member, secondaryStats, h);
+                }
+
                 members.add(member);
             }
+
             status.put("members", members);
         }
 
+        // PoppyDB replicates by a write sequence, which has no oplog-shaped equivalent - it gets
+        // its own sub-document rather than being squeezed into optime fields that would then mean
+        // something different here than they do against mongod (#356).
+        if (replStats != null) {
+            Map<String, Object> repl = new LinkedHashMap<>();
+            repl.put("currentSequence", replStats.get("currentSequence"));
+            repl.put("activeSecondaries", replStats.get("activeSecondaries"));
+            repl.put("replicaSetSize", replStats.get("replicaSetSize"));
+            // Progress is pushed to the primary via replSetProgress, so only the primary holds
+            // first-hand numbers. A secondary answering this sees its own view and nothing else -
+            // same caveat as rs.status() against a mongod secondary.
+            repl.put("lagAccurate", isCurrentPrimary());
+            status.put("poppyReplication", repl);
+        }
+
         return status;
+    }
+
+    /** Copies one peer's replication progress into its member document, when the primary has it. */
+    private void addReplicationProgress(Map<String, Object> member, Map<String, Object> secondaryStats,
+                                        String peer) {
+        Object raw = secondaryStats.get(peer);
+
+        if (!(raw instanceof Map)) {
+            return;
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> sec = (Map<String, Object>) raw;
+        Object lastSeq = sec.get("lastSequence");
+        Object lag = sec.get("lagSequences");
+        Object heartbeat = sec.get("lastHeartbeat");
+
+        if (lastSeq != null) {
+            member.put("lastSequence", lastSeq);
+        }
+
+        if (lag != null) {
+            member.put("lagSequences", lag);
+        }
+
+        if (heartbeat instanceof Number && ((Number) heartbeat).longValue() > 0) {
+            member.put("lastProgressReceived", new java.util.Date(((Number) heartbeat).longValue()));
+        }
     }
 
     /**

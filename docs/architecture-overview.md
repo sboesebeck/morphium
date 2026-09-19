@@ -232,19 +232,25 @@ public class LogEntry {
 
 ## Threading Model
 
-### Virtual Threads (JDK 21+)
-Morphium leverages **virtual threads** for better concurrency:
+### Platform Threads
+The connection pool and its heartbeat/scheduling infrastructure run on regular platform
+threads:
 
 ```java
-// Connection pool uses virtual thread factory
+// Connection pool executor
 ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5,
-    Thread.ofVirtual().name("MCon-", 0).factory());
+    Thread.ofPlatform().name("MCon-", 0).factory());
 
-// Individual operations use virtual threads
-Thread.ofVirtual().name("HeartbeatCheck-" + host).start(() -> {
+// Individual heartbeat checks
+Thread.ofPlatform().name("HeartbeatCheck-" + host).start(() -> {
     // Heartbeat logic
 });
 ```
+
+Virtual threads were tried here (and in the change-stream event dispatcher and messaging
+layer) but rolled back in 6.2.x: JDK 21's `synchronized` pinning caused deadlocks under
+load. They remain in use for one place only — the async-operation thread pool in
+`Morphium` — and a wider re-evaluation is planned once JEP 491 (JDK 24+) is the baseline.
 
 ### Concurrency Patterns
 

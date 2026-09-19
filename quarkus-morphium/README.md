@@ -200,13 +200,15 @@ aggregation pipelines, bulk updates, and anything beyond standard CRUD.
 <!-- MAINTAINERS: these version numbers are duplicated by hand (Markdown has no
      shared-attribute mechanism like docs/modules/ROOT/pages/includes/attributes.adoc
      does for the AsciiDoc guide pages) -- update both this table AND the <version> in
-     the snippet below whenever the reactor version in the root pom.xml changes. -->
+     the snippet below to the latest RELEASED version (not the root pom.xml's dev
+     SNAPSHOT) after every release, since a SNAPSHOT coordinate here would not
+     resolve for a reader without a snapshot repository configured. -->
 
 | Dependency | Minimum version |
 |---|---|
 | Java | 21 |
 | Quarkus | 3.32.3 |
-| Morphium | 6.3.9-SNAPSHOT (built in lockstep as part of the [sboesebeck/morphium](https://github.com/sboesebeck/morphium) reactor) |
+| Morphium | released in lockstep with the [sboesebeck/morphium](https://github.com/sboesebeck/morphium) reactor |
 
 ## Installation
 
@@ -217,7 +219,7 @@ This extension is a module of the Morphium reactor. Add it to your application's
 <dependency>
     <groupId>de.caluga</groupId>
     <artifactId>quarkus-morphium</artifactId>
-    <version>6.3.9-SNAPSHOT</version> <!-- MAINTAINERS: keep in sync with the table above and the root pom.xml -->
+    <version>6.3.9</version> <!-- MAINTAINERS: keep in sync with the table above; use the latest release, not a SNAPSHOT -->
 </dependency>
 ```
 
@@ -333,7 +335,8 @@ public List<Map<String, Object>> salesByCategory() {
 | `quarkus.morphium.driver-name` | `PooledDriver` | `PooledDriver` (production) or `InMemDriver` (tests) |
 | `quarkus.morphium.cache.read-cache-enabled` | `true` | Enable query result cache |
 | `quarkus.morphium.cache.global-valid-time` | `60000` | Cache TTL in milliseconds |
-| `quarkus.morphium.local-date-time.use-bson-date` | `true` | Store `LocalDateTime` as BSON `ISODate` |
+| `quarkus.morphium.use-bson-date-for-java-time` | -- | Store `Instant`, `LocalDate`, `LocalTime` and `LocalDateTime` as BSON `ISODate`. Unset leaves the previous per-type behaviour untouched. Setting it to `false` is not "keep things as they are" — `LocalDateTime` is `ISODate` by default today, so `false` flips it to the legacy format; see the [configuration guide](docs/modules/ROOT/pages/configuration.adoc) |
+| `quarkus.morphium.local-date-time.use-bson-date` | `true` | **Deprecated** (removal: 7.0), use `use-bson-date-for-java-time`: reaches `LocalDateTime` only |
 | `quarkus.morphium.ssl.enabled` | `false` | Enable TLS |
 | `quarkus.morphium.ssl.auth-mechanism` | -- | `MONGODB-X509` for client-cert auth |
 | `quarkus.morphium.ssl.keystore-path` | -- | Keystore path (JKS/PKCS12) |

@@ -58,13 +58,12 @@ reflection, no dynamic proxies.
 <dependency>
   <groupId>de.caluga</groupId>
   <artifactId>quarkus-morphium</artifactId>
-  <version>${project.version}</version>
+  <version>6.3.9</version>
 </dependency>
 ```
 
-In the Morphium reactor, `${project.version}` resolves to whatever version the reactor is
-currently on (see the root `pom.xml`). This module follows Morphium's regular release
-versioning; there is no separate version line to track — building the reactor
+This module follows Morphium's regular release versioning and is released in lockstep
+with Morphium core; there is no separate version line to track. Building the reactor
 (`mvn -pl quarkus-morphium -am verify`) builds this extension against the exact Morphium
 core version in the same build.
 
@@ -92,7 +91,8 @@ property — but covers the most commonly used ones, each verified directly agai
 | `quarkus.morphium.connect-retries` | `5` | Connection attempts before giving up | `MorphiumRuntimeConfig.java:162` |
 | `quarkus.morphium.cache.read-cache-enabled` | `true` | Enable query result cache | `CacheConfig.java:31` |
 | `quarkus.morphium.cache.global-valid-time` | `60000` | Cache TTL in milliseconds | `CacheConfig.java:27` |
-| `quarkus.morphium.local-date-time.use-bson-date` | -- | Store `LocalDateTime` as BSON `ISODate` | `LocalDateTimeConfig.java` |
+| `quarkus.morphium.use-bson-date-for-java-time` | -- | Store `Instant`, `LocalDate`, `LocalTime` and `LocalDateTime` as BSON `ISODate`. Unset leaves the previous per-type behaviour untouched | `MorphiumRuntimeConfig.java` |
+| `quarkus.morphium.local-date-time.use-bson-date` | `true` | *Deprecated* (removal: 7.0), use `use-bson-date-for-java-time`; reaches `LocalDateTime` only | `LocalDateTimeConfig.java` |
 | `quarkus.morphium.ssl.enabled` | `false` | Enable TLS | `SslConfig.java:48` |
 | `quarkus.morphium.ssl.auth-mechanism` | -- | `MONGODB-X509` for client-certificate auth | `SslConfig.java:59` |
 | `quarkus.morphium.ssl.keystore-path` / `.keystore-password` | -- | Keystore for client-cert auth / mutual TLS | `SslConfig.java:65,68` |

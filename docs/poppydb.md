@@ -1,7 +1,10 @@
 # PoppyDB: Standalone MongoDB-Compatible Server
 
 <p align="center">
-  <img class="logo-light" src="../assets/brand/poppydb-logo.svg" alt="PoppyDB" width="480"><img class="logo-dark" src="../assets/brand/poppydb-logo-dark.svg" alt="PoppyDB" width="480"></a>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../assets/brand/poppydb-logo-dark.svg">
+    <img src="../assets/brand/poppydb-logo.svg" alt="PoppyDB" width="480">
+  </picture>
 </p>
 
 PoppyDB is a standalone MongoDB wire protocol-compatible server built on the InMemoryDriver. Introduced in its mature form with **Morphium 6.1**, it allows any MongoDB client (Java, Python, Node.js, Go, etc.) to connect and interact with an in-memory database as a true **drop-in replacement** for MongoDB during development and testing.
@@ -256,13 +259,23 @@ Example:
 java -jar poppydb/target/poppydb-<version>-cli.jar -p 27018 -b 0.0.0.0 --rs-name my-rs --rs-seed host1:27017,host2:27018
 ```
 
-### Replica Set Behavior (experimental)
+### Replica Set Behavior
 
 PoppyDB now performs a lightweight initial sync whenever you start an additional member with the same `--rs-name` / `--rs-seed`:
 
 - The first node that starts without detecting peers becomes primary immediately.
 - Any later node that can reach an existing peer demotes itself to secondary, runs an initial sync from the detected primary (or highest-priority reachable host), and only participates in elections after the sync finishes.
 - Elections and automatic failover continue to respect the configured host priorities, but a node will not promote itself until it completed the initial copy of data.
+- Until that first sync has completed - or the node has become primary itself - a member with
+  peers refuses data-plane commands with `NotPrimaryOrSecondary` (13436), advertises
+  `secondary: false` in `hello`, and reports `RECOVERING` in `replSetGetStatus`. This holds from
+  the moment the node starts listening, not only once a sync is under way; a node that restored a
+  dump is not exempt, because it holds data of unknown age that no primary has confirmed yet. The
+  consequence to plan for: a member restarted into a set that currently has no primary (quorum
+  lost) stays unavailable until one exists. MongoDB would serve secondary reads there from its
+  verified oplog; PoppyDB has no oplog and cannot verify a dump, so it prefers an error over a
+  plausible stale answer. A standalone node, or a set configured with a single member, never
+  enters this state.
 
 Practical tips:
 
@@ -510,9 +523,14 @@ boolean started = server.triggerDumpNow();
 - Files can be inspected with `zcat <file>.morphium.gz | jq .`
 
 **Limitations:**
-- Not a real-time persistence solution (no write-ahead log)
-- Data between dump intervals may be lost on crash
-- Suitable for development/testing, not production
+- Not a real-time persistence solution (no write-ahead log) — a single node loses data
+  written since its last dump if it crashes
+- On a replica set this is not the exposure it sounds like: a crashed node resyncs from a
+  surviving peer on restart, so a single-node crash costs no data at all. Only a
+  simultaneous outage of every node loses data since the last snapshot — see the loss model
+  under [Use Cases](#5-message-broker-for-short-lived-messages-production) and
+  [When NOT to Use](#when-not-to-use) for when that trade-off is and isn't acceptable in
+  production
 
 ### Memory Watermark
 
@@ -534,15 +552,31 @@ a replica set stop accepting new data at the same watermark instead of failing t
 
 Clients receive the rejection as a write error and should treat it as retryable
 backpressure. The current state is visible in `db.serverStatus().memoryWatermark`
-(`heapUsedPercent`, `heapUsedAfterGcPercent`, thresholds, warn state).
+(`heapUsedPercent`, `heapUsedAfterGcPercent`, `heapUsedAfterGcAgeMs`, thresholds, warn state).
 
-Both stages decide on the **post-GC live set** (`heapUsedAfterGcPercent`, from the JVM's
-per-pool collection usage), not on raw heap occupancy: with `-Xms` == `-Xmx` the JVM only
-collects when the heap is nearly full, so the raw `used/max` gauge routinely reads above
-90% under allocation-heavy load even when the next GC would free most of it. Deciding on
-the raw gauge would reject writes on a heap that is one GC away from half empty. The raw
-gauge remains as a cheap precheck (the live set can never exceed it) and is what
-`heapUsedPercent` reports in `serverStatus`.
+Both stages look at two numbers and refuse only when **both** are over the line: raw heap
+occupancy (`heapUsedPercent`), and the occupancy at the end of the most recent garbage
+collection (`heapUsedAfterGcPercent`, from that collection's own `GcInfo`). Each is an
+upper bound on the live data - the raw gauge counts every byte of collectable garbage,
+and with `-Xms` == `-Xmx` routinely reads above 90% under allocation-heavy load; the
+after-GC reading counts only the garbage the last collection did not look at. Neither can
+be below the live set at the instant it was taken, so the watermark errs toward refusing.
+It is not a guarantee against an OOM: a burst of genuinely retained data allocated between
+the last young pause and the check is not in either number, and no pre-check can see it -
+the write that overflows the heap has already been parsed. That gap is bounded by the size
+of eden, which G1 shrinks as free space vanishes.
+
+The residual cost in the other direction is that after a TTL sweep or bulk delete, inserts
+can be refused until the collector has run a cycle over the freed data. Under write load
+that is a marking cycle plus a few young pauses; on an idle node it can be considerably
+longer, because the pauses that would correct the reading are driven by the allocation the
+refusals are suppressing. `-XX:G1PeriodicGCInterval` bounds that wait.
+`heapUsedAfterGcAgeMs` in `serverStatus` says how old the reading is. PoppyDB deliberately
+does not force a full collection to shorten that: on a large heap that is seconds of
+stop-the-world on every thread, including the ones the replica set uses to decide whether
+this node is alive. If the delay matters, `-XX:G1PeriodicGCInterval` lets the JVM run a
+concurrent cycle on a schedule, and a lower `-XX:InitiatingHeapOccupancyPercent` bounds
+how much garbage the old generation can hold before G1 marks it.
 
 ```bash
 # defaults: warn at 75%, reject at 90%
@@ -798,7 +832,7 @@ replicated meta document, so a node elected primary while still mid-resync — a
 landed — sees no meta document and re-applies its own file regardless of version. This is
 possible when such a node wins the election in the first place. Since 6.3.2 that is much
 harder: log-recency voting, PreVote and candidacy restraint (see [Replica Set
-Behavior](#replica-set-behavior-experimental) above) keep a mid-resync node with an empty local
+Behavior](#replica-set-behavior) above) keep a mid-resync node with an empty local
 log out of elections rather than treating it as equally electable. The window is not provably
 gone in every interleaving, so the caveat stays documented - but it is no longer the wide-open
 door it was when the log check had no effect at all.
@@ -1257,9 +1291,10 @@ PoppyDB implements the following MongoDB admin commands:
 | `listDatabases` | List all databases with sizes |
 | `buildInfo` | Server version information |
 | `getCmdLineOpts` | Command line options |
-| `getParameter` | Server parameters |
-| `getLog` | Server logs |
-| `listCommands` | Names of every command this server answers |
+| `getParameter` / `setParameter` | `featureCompatibilityVersion` and `logLevel`; `setParameter: {logLevel: N}` (0-5, mongod verbosity) moves the root logger at runtime (0 = INFO, 1-2 = DEBUG, 3+ = TRACE) - raise a node to DEBUG without a restart. Logback has fewer levels, so the effective value is quantized to 0, 1 or 3 and that is what `getParameter` reads back (2 -> 1, 4/5 -> 3) |
+| `getLog` | `"global"` answers the last 1024 log lines from an in-memory ring buffer (`totalLinesWritten`, `log`), `"startupWarnings"` the real ones (no `--auth`, no `--dump-dir`, memory watermarks off), `"*"` lists the names |
+| `shutdown` | Stops this node: a primary steps down first unless `force: true` (immediately, refusing re-election for 60s - there is no secondary catch-up wait, so writes not yet replicated at that moment can be lost; `timeoutSecs` is accepted but has no effect), the reply goes out, then `PoppyDB.shutdown()` runs (final dump included) on its own thread. Works on a RECOVERING node. Requires an authenticated connection under `--auth` - auth is binary here, so **any** authenticated user can stop the node |
+| `listCommands` | Names of every command this server answers - and only those; `shutdown` is listed only where it works, explicitly refused commands are not listed |
 | `currentOp` / `$currentOp` stage | Live operations from the server's op registry — `db.currentOp()` works, including `$match` filters |
 | `killOp` | Marks an op kill-pending; best-effort thread interrupt (never a Netty event loop — cooperative like mongod) |
 | `serverStatus` | Includes real client connection gauges (`connections.current`/`totalCreated` from the Netty channel group) |
@@ -1273,6 +1308,17 @@ PoppyDB implements the following MongoDB admin commands:
 | `replSetStepDown` | Step down from primary (for replica sets) |
 | `startSession` / `endSessions` / `refreshSessions` | Session management |
 | `getMore` | Cursor iteration for both regular queries and change streams |
+| `dumpNow` / `dumpStatus` | On-demand dump and persistence info (see [Persistence](#persistence-periodic-snapshots)); both work on a RECOVERING node |
+
+Commands every mongod has and PoppyDB deliberately does not - `logRotate` (rotation is Logback's or
+logrotate's job), `fsync`, `compact`, `profile`, `connPoolStats`, `replSetReconfig`, `top` - are
+refused explicitly with `CommandNotSupported` (115) and the reason, instead of falling into the
+generic path and answering whatever it happens to make of them.
+
+**Embedders, note:** the `getLog` ring buffer is a Logback appender attached to the **root logger
+of the whole JVM** (once, shared by every PoppyDB instance in it), and `setParameter: {logLevel: N}`
+changes the root logger's level for the whole process - every library logging through SLF4J in
+that JVM is affected. Neither is undone by `PoppyDB.shutdown()`.
 
 ### Standalone Server Behavior
 
@@ -1337,9 +1383,11 @@ db.watch().on('change', console.log);
 
 ### Data Persistence
 - ✅ **Periodic Snapshots** - Dump/restore to disk (since v6.1.0)
-- ❌ **No Real-time Persistence** - No WAL or journaling
-- ❌ **Crash Risk** - Data between dumps may be lost on crash
-- 💡 **Tip** - Use short dump intervals for important data
+- ❌ **No Write-Ahead Log** - No per-write durability. A replica set (see Scalability
+  below) tolerates a single node's crash without data loss via failover and replication;
+  only a simultaneous outage of *every* node loses data written since the last snapshot.
+- 💡 **Tip** - For data that matters, run a replica set rather than a single node, and use
+  short dump intervals
 
 ### Scalability
 - ❌ **No Sharding** - Single instance only

@@ -153,6 +153,18 @@ public class ElectionManager {
     // Step down state - prevents re-election after stepping down
     private volatile long noElectionUntil = 0;  // System.currentTimeMillis() when we can seek election again
 
+    // Whether the current noElectionUntil window came from a priority-takeover YIELD (as
+    // opposed to an operator's replSetStepDown). A yield's window only exists to give the
+    // higher-priority successor time to win the election the yield triggers - once that
+    // successor is heard heartbeating, the window has done its job and is released (see
+    // handleAppendEntries). Without the release, a successor that died right after taking over
+    // left the yielded node - still the best candidate - sitting out the rest of the window
+    // while it went on denying the remaining lower-priority peer on priority: FastResyncTest's
+    // 13-18s failovers on the loaded testrunner (and ~1 in 5 runs locally), node1 shut down
+    // seconds after node2 had yielded to it. An operator's stepdown keeps its full window,
+    // exactly like mongod's replSetStepDown.
+    private volatile boolean noElectionWindowIsTakeoverYield = false;
+
     // Running state
     private volatile boolean running = false;
 
@@ -784,8 +796,9 @@ public class ElectionManager {
             // the lowest priority stays leaderless forever.
             boolean priorityOk = true;
             if (canVote && logOk && votedFor == null) {
-                // We haven't voted yet - consider priority
-                if (config.canBecomeLeaderByPriority() && myPriority > candidatePriority) {
+                // We haven't voted yet - consider priority (only if we could actually run
+                // ourselves right now - see canDefendPriority)
+                if (canDefendPriority() && myPriority > candidatePriority) {
                     if (priorityHoldExpired()) {
                         // Operator-visible at INFO: this line marks the #312 escape hatch
                         // firing - the preference had its chance, electing SOMEONE now beats
@@ -900,7 +913,7 @@ public class ElectionManager {
         // would then deny only produces doomed candidacies): once the priority hold window
         // has expired, priority alone no longer pre-denies. priorityHoldExpired() is a pure
         // read - this handler stays strictly read-only.
-        if (config.canBecomeLeaderByPriority() && myPriority > candidatePriority && !priorityHoldExpired()) {
+        if (canDefendPriority() && myPriority > candidatePriority && !priorityHoldExpired()) {
             log.debug("{} (priority {}) denying PreVote to lower priority candidate {} (priority {})",
                     myAddress, myPriority, request.getCandidateId(), candidatePriority);
             return new VoteResponse(myTerm, false, myAddress);
@@ -944,6 +957,34 @@ public class ElectionManager {
         long base = Math.max(lastHeartbeatTime, priorityHoldBase);
         long holdMs = (long) config.getElectionTimeoutMaxMs() * PRIORITY_HOLD_MAX_TIMEOUTS;
         return base > 0 && (System.currentTimeMillis() - base) > holdMs;
+    }
+
+    /**
+     * Whether this voter may deny a lower-priority candidate on priority alone: only if it
+     * could campaign itself right now. The preference exists to "give ourselves a chance
+     * first" - a node that is frozen or inside a stepdown window has no such chance, and its
+     * denial can only prolong a leaderless state (the #312 hold bounds that to a few election
+     * timeouts, but every one of them is a failover second lost - see
+     * noElectionWindowIsTakeoverYield for the case that made it visible). Pure reads of the
+     * freeze/stepdown deadlines, so it is safe from the strictly read-only
+     * {@link #handlePreVoteRequest}; the same predicate serves the real vote so the two
+     * answers stay consistent.
+     */
+    private boolean canDefendPriority() {
+        if (!config.canBecomeLeaderByPriority()) {
+            return false;
+        }
+        long now = System.currentTimeMillis();
+        boolean frozenNow = frozen && now <= frozenUntil;
+        boolean blockedNow = noElectionUntil != 0 && now <= noElectionUntil;
+        // The candidacy restraints of isEligibleForCandidacy(), minus its timer side effects:
+        // a node that holds back because its data is incomplete (a primary that died mid
+        // initial sync - seen under load, where the sync is still running when the failover
+        // hits) or because it is empty next to a data-bearing peer still VOTES (the intact
+        // nodes need it for a majority) but has nothing to defend on priority either.
+        boolean dataHold = !dataComplete && !peerAddresses.isEmpty();
+        boolean emptyHold = lastLogIndex.get() == 0 && highestPeerLogIndexSeen.get() > 0;
+        return !frozenNow && !blockedNow && !dataHold && !emptyHold;
     }
 
     /**
@@ -1205,6 +1246,18 @@ public class ElectionManager {
             lastHeartbeatTime = System.currentTimeMillis();
             currentLeader = request.getLeaderId();
 
+            // A priority-takeover yield's no-election window is released by the first heartbeat
+            // of the leader it made room for (see noElectionWindowIsTakeoverYield): the
+            // successor has won, so if it dies from here on the yielded node must be free to
+            // campaign again immediately instead of sitting out the remaining seconds.
+            if (noElectionWindowIsTakeoverYield && noElectionUntil != 0
+                    && !myAddress.equals(request.getLeaderId())) {
+                log.info("{} priority-takeover yield complete: {} leads - lifting the no-election window early",
+                        myAddress, request.getLeaderId());
+                noElectionUntil = 0;
+                noElectionWindowIsTakeoverYield = false;
+            }
+
             // A live leader ends any PreVote round we had open - no point finishing it.
             preVoteInProgress = false;
             preVotesReceived.clear();
@@ -1419,8 +1472,13 @@ public class ElectionManager {
                 myAddress, myPriority, successor, successorPriority);
 
         // Refusing re-election for a while gives the successor time to win the election
-        // its own (shorter, priority-adjusted) election timeout triggers.
-        stepDown(config.getPriorityTakeoverStepDownSecs(), 0, true);
+        // its own (shorter, priority-adjusted) election timeout triggers. Marked as a yield so
+        // the window is released once the successor is actually heard leading (see
+        // noElectionWindowIsTakeoverYield) - stepDown() itself resets the mark, so the order
+        // here matters.
+        if (stepDown(config.getPriorityTakeoverStepDownSecs(), 0, true)) {
+            noElectionWindowIsTakeoverYield = true;
+        }
     }
 
     /**
@@ -1946,7 +2004,9 @@ public class ElectionManager {
                 // In future: wait for followers to acknowledge current sequence
             }
 
-            // Set the no-election period
+            // Set the no-election period. Not a takeover yield unless the caller says so
+            // afterwards (checkPriorityTakeover) - an operator's window is kept in full.
+            noElectionWindowIsTakeoverYield = false;
             if (stepDownSecs > 0) {
                 noElectionUntil = System.currentTimeMillis() + (stepDownSecs * 1000L);
                 log.info("{} will not seek election until {} ms", myAddress, noElectionUntil);
@@ -2040,6 +2100,37 @@ public class ElectionManager {
             stats.put("peerPriorities", new LinkedHashMap<>(peerPriorities));
         }
         return stats;
+    }
+
+    /** Heartbeat interval in ms - mongod reports this in rs.status() as heartbeatIntervalMillis. */
+    public int getHeartbeatIntervalMs() {
+        return config.getHeartbeatIntervalMs();
+    }
+
+    /**
+     * How long the network client waits for a peer's answer to a vote request or heartbeat.
+     * The minimum election timeout, or the configured vote-request timeout if that is longer:
+     * a reply slower than the minimum election timeout is worthless to the protocol anyway
+     * (any follower that quiet has started pre-voting), while anything shorter turns ordinary
+     * scheduling delay under load into lost rounds and torn-down connections - the old fixed
+     * 500ms equalled the heartbeat interval and fired on the loaded testrunner.
+     */
+    public int getRpcTimeoutMs() {
+        return Math.max(config.getVoteRequestTimeoutMs(), config.getElectionTimeoutMinMs());
+    }
+
+    /**
+     * When this node last heard from {@code peer}, in epoch millis, or 0 if never (#356). Feeds
+     * the per-member {@code lastHeartbeat} of replSetGetStatus.
+     */
+    public long getPeerLastContactMs(String peer) {
+        Long last = peerLastContact.get(peer);
+        return last == null ? 0 : last;
+    }
+
+    /** Epoch millis at which this node became leader, or 0 if it is not the leader (#356). */
+    public long getLeaderSinceMs() {
+        return state == ElectionState.LEADER ? leaderSince : 0;
     }
 
     /**

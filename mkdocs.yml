@@ -41,8 +41,8 @@ theme:
     - content.tabs.link
     - toc.follow
 
-extra_css:
-  - assets/extra.css
+extra_javascript:
+  - assets/logo-theme.js
 
 plugins:
   - search

@@ -11,6 +11,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.Reader;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
@@ -19,7 +20,6 @@ import java.io.Writer;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.lang.reflect.Method;
@@ -34,6 +35,7 @@ import java.lang.reflect.Modifier;
 import java.text.Collator;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -55,6 +57,7 @@ import java.util.zip.GZIPOutputStream;
 import javax.net.ssl.SSLContext;
 
 import org.bson.types.ObjectId;
+import org.json.simple.parser.ContainerFactory;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.openjdk.jol.vm.VM;
@@ -280,18 +283,24 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * line carrying the namespace, the query's sanitized shape (see {@link #sanitizeQueryShape}, no
      * values), the winning plan's stage ({@code COLLSCAN}/{@code IXSCAN}), and {@code docsExamined}.
      */
+    /** Shared by the find/count and the aggregate variant - both feed the same counters. */
+    private void countSlowQuery(String stage) {
+        slowQueries++;
+
+        if ("IXSCAN".equals(stage)) {
+            slowQueriesIxscan++;
+        } else {
+            slowQueriesCollScan++;
+        }
+    }
+
     private void recordSlowQueryIfNeeded(String db, String collection, Map<String, Object> query,
             String stage, long docsExamined, long elapsedMillis) {
         if (elapsedMillis < slowQueryThresholdMillis) {
             return;
         }
 
-        slowQueries++;
-        if ("IXSCAN".equals(stage)) {
-            slowQueriesIxscan++;
-        } else {
-            slowQueriesCollScan++;
-        }
+        countSlowQuery(stage);
 
         if (log.isWarnEnabled()) {
             log.warn("Slow query on {}.{}: tookMs={}, stage={}, docsExamined={}, filterShape={}",
@@ -301,50 +310,38 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     /**
-     * {@code aggregate}'s slow-query variant of {@link #recordSlowQueryIfNeeded}: aggregation
-     * pipelines have no single {@link IndexPlanner.IndexPlan} the way find/count do, so this makes
-     * a best-effort call using only the pipeline's leading {@code $match} stage (if any) - the one
-     * shape {@link IndexPlanner} can reason about. No leading {@code $match}, or a leading
-     * {@code $match} the planner can't use, is logged as {@code COLLSCAN} over the whole
-     * collection, same as an un-indexed find. Never lets a diagnostics failure fail the aggregate
-     * itself - any exception while building the stage/docsExamined estimate is swallowed (logged at
-     * debug) rather than propagated.
+     * {@code aggregate}'s slow-query variant of {@link #recordSlowQueryIfNeeded}. {@code stage} and
+     * {@code docsExamined} are what {@link #findAggregationInput} actually did for the pipeline's
+     * leading {@code $match} (or for the whole collection when there is none) - since #375 the
+     * index plan IS the execution, so the line no longer has to flag them as a planner estimate.
+     * Logged as "Slow aggregation" rather than "Slow query" so it cannot be mistaken for a slow
+     * find/count; the counters are shared. Never lets a diagnostics failure fail the aggregate
+     * itself - any exception while building the line is swallowed (logged at debug).
      */
     private void recordAggregateSlowQueryIfNeeded(String db, String collection, List<Map<String, Object>> pipeline,
-            long elapsedMillis) {
+            String stage, long docsExamined, long elapsedMillis) {
         if (elapsedMillis < slowQueryThresholdMillis) {
             return;
         }
 
-        try {
-            String stage = "COLLSCAN";
-            Map<String, Object> matchFilter = null;
-            long docsExamined = getCollection(db, collection).size();
+        countSlowQuery(stage);
 
-            if (pipeline != null && !pipeline.isEmpty()) {
-                Object firstMatch = pipeline.get(0).get("$match");
-                if (firstMatch instanceof Map<?, ?>) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> filter = (Map<String, Object>) firstMatch;
-                    matchFilter = filter;
-                    CollectionIndexStore store = getIndexStore(db, collection);
-                    // planningDefinitions(), not definitions(): a multikey index cannot answer a
-                    // lookup and would silently report zero candidates (#289).
-                    Collection<IndexDefinition> defs = store.planningDefinitions();
-                    if (!filter.isEmpty() && defs.size() > 1) {
-                        IndexPlanner.IndexPlan plan = IndexPlanner.plan(filter, defs);
-                        if (!(plan instanceof IndexPlanner.FullScan)) {
-                            stage = "IXSCAN";
-                            List<Map<String, Object>> candidates = executeIndexPlan(store, plan);
-                            if (candidates != null) {
-                                docsExamined = candidates.size();
-                            }
-                        }
-                    }
-                }
+        if (!log.isWarnEnabled()) {
+            return;
+        }
+
+        try {
+            Map<String, Object> matchFilter = Doc.of();
+
+            if (pipeline != null && !pipeline.isEmpty() && pipeline.get(0).get("$match") instanceof Map<?, ?> m) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> filter = (Map<String, Object>) m;
+                matchFilter = filter;
             }
 
-            recordSlowQueryIfNeeded(db, collection, matchFilter, stage, docsExamined, elapsedMillis);
+            log.warn("Slow aggregation on {}.{}: tookMs={}, stage={}, docsExamined={}, leadingMatch={}",
+                    db, collection, elapsedMillis, stage, docsExamined,
+                    Utils.toJsonString(sanitizeQueryShape(matchFilter)));
         } catch (Exception e) {
             log.debug("Failed to record slow-aggregate diagnostics for {}.{}", db, collection, e);
         }
@@ -891,6 +888,91 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     /**
+     * How many characters the restore pulls from the dump per read (#366). Only the granularity of
+     * the streaming reader - the parse is incremental either way, so this changes nothing about
+     * what can be restored. Package-private and non-final so a test can shrink it and prove the
+     * parse really does span many refills, instead of needing a dump big enough to matter.
+     */
+    /* package-private */ volatile int dumpRestoreChunkChars = 8192;
+
+    /**
+     * Parses one dump off its stream with the given decoder. The caller owns the retry policy:
+     * a {@link CharacterCodingException} from here means the bytes are not in that charset, and
+     * the stream has been partly consumed - it cannot be decoded again without reopening.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> parseDump(InputStream in, CharsetDecoder dec) throws IOException, ParseException {
+        try (GZIPInputStream gzin = new GZIPInputStream(in);
+            ChunkedTailReader rd = new ChunkedTailReader(new InputStreamReader(gzin, dec), dumpRestoreChunkChars)) {
+            try {
+                return (Map<String, Object>) new JSONParser().parse(rd, DUMP_CONTAINERS);
+            } catch (ParseException e) {
+                // No full-text context any more - the dump is never in memory as a whole, so this
+                // is the tail of what was READ, not of what was parsed. json-simple's lexer reads
+                // ahead by up to its own buffer (capped here by dumpRestoreChunkChars), so the tail
+                // can sit some way PAST the reported position. It is a neighbourhood, not a
+                // pinpoint; the position is the precise part.
+                String tail = rd.tail();
+                throw new RuntimeException("Dump restore failed: invalid JSON at position " + e.getPosition()
+                    + " (" + e + ")"
+                    + (tail.isEmpty() ? "" : " - context before the error: ..."
+                       + tail.replaceAll("[\\r\\n\\t]", " ")), e);
+            }
+        }
+    }
+
+    /**
+     * Hands the parser at most {@code chunk} characters per read and remembers the last few it
+     * delivered. The cap is what makes the streaming provable in a test; the tail is what is left
+     * of the old parse-error context once the dump is no longer held as one String.
+     *
+     * <p>The tail is what the READER handed over, which the lexer may not have consumed yet - it
+     * reads ahead. Close to the error, not at it.
+     */
+    private static final class ChunkedTailReader extends Reader {
+        private static final int TAIL_CHARS = 120;
+        private final Reader delegate;
+        private final int chunk;
+        private final char[] tail = new char[TAIL_CHARS];
+        private int tailLen;
+        private int tailPos;
+
+        ChunkedTailReader(Reader delegate, int chunk) {
+            this.delegate = delegate;
+            this.chunk = Math.max(1, chunk);
+        }
+
+        @Override
+        public int read(char[] cbuf, int off, int len) throws IOException {
+            int read = delegate.read(cbuf, off, Math.min(len, chunk));
+
+            for (int i = 0; i < read; i++) {
+                tail[tailPos] = cbuf[off + i];
+                tailPos = (tailPos + 1) % TAIL_CHARS;
+                tailLen = Math.min(tailLen + 1, TAIL_CHARS);
+            }
+
+            return read;
+        }
+
+        /** The last characters handed to the parser, oldest first. */
+        String tail() {
+            StringBuilder sb = new StringBuilder(tailLen);
+
+            for (int i = 0; i < tailLen; i++) {
+                sb.append(tail[(tailPos - tailLen + i + TAIL_CHARS) % TAIL_CHARS]);
+            }
+
+            return sb.toString();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
+    }
+
+    /**
      * The actual restore. Package private so {@link #restoreAllFromDirectoryResult(File)} can
      * surface index-recreation failures (#340) without changing the public {@link #restore}
      * signature.
@@ -901,33 +983,26 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      *         aborts the restore of the documents or of the remaining indexes.
      */
     List<String> restoreInternal(InputStream in) throws IOException, ParseException {
-        byte[] raw;
+        return restoreInternal(in, null);
+    }
 
-        try (GZIPInputStream gzin = new GZIPInputStream(in)) {
-            raw = gzin.readAllBytes();
-        }
-
-        // Dumps are written as UTF-8 (see dump()/dumpToFile()). Legacy dumps were written with
-        // the platform default charset (#306), so a dump that is not valid UTF-8 gets a
-        // tolerant second chance as ISO-8859-1 - that decodes every byte sequence and maps the
-        // typical legacy defaults (latin-1/latin-9/windows-1252) closely enough for umlauts.
-        // Decoding must REPORT malformed input instead of silently replacing characters with
-        // U+FFFD, or a legacy dump would be mojibake'd without anyone noticing.
-        // The content is decoded as a whole, NOT line by line: the previous readLine() loop
-        // silently deleted raw newlines that legacy dumps contain inside string values.
-        String json;
-
-        try {
-            json = StandardCharsets.UTF_8.newDecoder()
-                   .onMalformedInput(CodingErrorAction.REPORT)
-                   .onUnmappableCharacter(CodingErrorAction.REPORT)
-                   .decode(ByteBuffer.wrap(raw)).toString();
-        } catch (CharacterCodingException e) {
-            log.warn("Dump is not valid UTF-8 - assuming a legacy dump written with a platform "
-                     + "default charset, falling back to ISO-8859-1");
-            json = new String(raw, StandardCharsets.ISO_8859_1);
-        }
-
+    /**
+     * The actual restore, streaming (#366).
+     *
+     * <p>The dump is parsed straight off the gzip stream. It used to be read with
+     * {@code readAllBytes()} and decoded into one {@code String} first, which put two hard
+     * ceilings on a database: {@code byte[]} tops out near 2GB, and a {@code String} at 2^30
+     * characters - past that the restore died with {@code OutOfMemoryError: UTF16 String size is
+     * ...} no matter how much heap was available, on a dump the write side had produced without
+     * complaint. Reading through a {@link Reader} removes both; what remains is the ordinary
+     * requirement that the data fit in the heap.
+     *
+     * @param reopen reopens the same dump from the start, or {@code null} when the caller cannot.
+     *               Only needed for the legacy-charset retry below: a stream cannot be rewound
+     *               once the failed UTF-8 decode has consumed part of it.
+     */
+    private List<String> restoreInternal(InputStream in, Callable<InputStream> reopen)
+        throws IOException, ParseException {
         // The dump is parsed as PLAIN JSON and converted back at the dump boundary
         // (restoreDumpValue) - deliberately NOT through the entity-aware ObjectMapperImpl.
         // The store holds plain document maps; the previous restore resolved every document
@@ -937,14 +1012,35 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // document ("Parsing failed ... 'd' is null", #306 follow-up).
         Map<String, Object> root;
 
+        // Dumps are written as UTF-8 (see dump()/dumpToFile()). Legacy dumps were written with
+        // the platform default charset (#306), so a dump that is not valid UTF-8 gets a
+        // tolerant second chance as ISO-8859-1 - that decodes every byte sequence and maps the
+        // typical legacy defaults (latin-1/latin-9/windows-1252) closely enough for umlauts.
+        // Decoding must REPORT malformed input instead of silently replacing characters with
+        // U+FFFD, or a legacy dump would be mojibake'd without anyone noticing.
         try {
-            root = (Map<String, Object>) new JSONParser().parse(json);
-        } catch (ParseException e) {
-            int pos = e.getPosition();
-            int from = Math.max(0, pos - 40);
-            int to = Math.min(json.length(), pos + 40);
-            throw new RuntimeException("Dump restore failed: invalid JSON at position " + pos + " (" + e + ")"
-                + (from < to ? " - context: ..." + json.substring(from, to).replaceAll("[\\r\\n\\t]", " ") + "..." : ""), e);
+            root = parseDump(in, StandardCharsets.UTF_8.newDecoder()
+                             .onMalformedInput(CodingErrorAction.REPORT)
+                             .onUnmappableCharacter(CodingErrorAction.REPORT));
+        } catch (CharacterCodingException e) {
+            if (reopen == null) {
+                throw new RuntimeException("Dump restore failed: not valid UTF-8, and this restore was "
+                    + "handed a plain stream that cannot be read a second time for the legacy "
+                    + "ISO-8859-1 retry (#306). Restore a legacy dump via restoreFromFile() or "
+                    + "restoreAllFromDirectory().", e);
+            }
+
+            log.warn("Dump is not valid UTF-8 - assuming a legacy dump written with a platform "
+                     + "default charset, falling back to ISO-8859-1");
+
+            try {
+                root = parseDump(reopen.call(), StandardCharsets.ISO_8859_1.newDecoder());
+            } catch (IOException | ParseException | RuntimeException retry) {
+                throw retry;
+            } catch (Exception retry) {
+                throw new RuntimeException("Dump restore failed: could not reopen the dump for the "
+                    + "legacy ISO-8859-1 retry", retry);
+            }
         }
 
         String db = root.get("db") == null ? null : root.get("db").toString();
@@ -963,18 +1059,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     + (coll.getValue() == null ? "null" : coll.getValue().getClass().getName()));
             }
 
-            List<Map<String, Object>> docs = new ArrayList<>();
+            // The parsed list IS the collection (#366): restoreDumpValue converts the documents in
+            // place, so there is one copy of the database in memory, not two.
+            List<Map<String, Object>> docs = (List<Map<String, Object>>) coll.getValue();
             int i = 0;
 
-            for (Object o : (List<?>) coll.getValue()) {
-                Object doc = restoreDumpValue(o, coll.getKey() + "[" + i++ + "]");
+            for (ListIterator<Map<String, Object>> it = docs.listIterator(); it.hasNext(); i++) {
+                Object doc = restoreDumpValue(it.next(), coll.getKey() + "[" + i + "]");
 
                 if (!(doc instanceof Map)) {
-                    throw new RuntimeException("Dump restore failed: document " + coll.getKey() + "[" + (i - 1)
+                    throw new RuntimeException("Dump restore failed: document " + coll.getKey() + "[" + i
                         + "] is not a document but " + (doc == null ? "null" : doc.getClass().getName()));
                 }
 
-                docs.add((Map<String, Object>) doc);
+                it.set((Map<String, Object>) doc);
             }
 
             data.put(coll.getKey(), docs);
@@ -1172,31 +1270,55 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
             }
 
-            Map<String, Object> ret = new LinkedHashMap<>();
-
+            // Converted IN PLACE (#366): the parser already built this map, and rebuilding it into
+            // a fresh one meant holding the parsed copy of the database and the converted copy at
+            // the same time. On a 1.07M document dump that drove heap occupancy to 11.99GB of 12
+            // for 7.21GB of actual data - it survived on one lucky Full GC. setValue() on an entry
+            // is not a structural modification, so iterating while replacing is safe, and the
+            // parser is handed LinkedHashMap/ArrayList (see DUMP_CONTAINERS) so the types the store
+            // ends up holding are the same ones it held before.
             for (Map.Entry<String, Object> e : m.entrySet()) {
-                ret.put(e.getKey(), restoreDumpValue(e.getValue(), path + "." + e.getKey()));
+                e.setValue(restoreDumpValue(e.getValue(), path + "." + e.getKey()));
             }
 
-            return ret;
+            return m;
         }
 
         if (val instanceof List) {
-            List<Object> ret = new ArrayList<>(((List<?>) val).size());
+            ListIterator<Object> it = ((List<Object>) val).listIterator();
             int i = 0;
 
-            for (Object o : (List<?>) val) {
-                ret.add(restoreDumpValue(o, path + "[" + i++ + "]"));
+            while (it.hasNext()) {
+                it.set(restoreDumpValue(it.next(), path + "[" + i++ + "]"));
             }
 
-            return ret;
+            return val;
         }
 
         return val;
     }
 
+    /**
+     * Makes the JSON parser build the same container types the store uses (#366). json-simple's
+     * own JSONObject is a HashMap, which loses field order - and since a restored document is now
+     * the parsed map itself rather than a copy, that order would be the store's.
+     */
+    private static final ContainerFactory DUMP_CONTAINERS = new ContainerFactory() {
+        @Override
+        public Map createObjectContainer() {
+            return new LinkedHashMap<String, Object>();
+        }
+
+        @Override
+        public List creatArrayContainer() { // json-simple's own spelling
+            return new ArrayList<>();
+        }
+    };
+
     public void restoreFromFile(File f) throws IOException, ParseException {
-        restore(new FileInputStream(f));
+        // Pass the reopen alongside the stream: a legacy dump (#306) is only recognisable after a
+        // failed UTF-8 decode has already consumed part of it, and the retry needs the file again.
+        restoreInternal(new FileInputStream(f), () -> new FileInputStream(f));
     }
 
     public void dumpToFile(Morphium m, String db, File f) throws IOException {
@@ -1221,7 +1343,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         d.setIndexes(snapshotIndexes(db));
         Map<String, Object> ser = mapper.serialize(d);
         OutputStreamWriter wr = new OutputStreamWriter(gzip, StandardCharsets.UTF_8);
-        writeDumpJson(ser, wr);
+        writeDumpMeasured(db, ser, wr);
         wr.flush();
         gzip.finish();
         gzip.flush();
@@ -1265,7 +1387,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 // so a dump without indexes keeps exactly the legacy shape.
                 d.setIndexes(snapshotIndexes(db));
                 Map<String, Object> ser = mapper.serialize(d);
-                writeDumpJson(ser, wr);
+                writeDumpMeasured(db, ser, wr);
                 wr.flush();
                 gzip.finish();
             }
@@ -1467,7 +1589,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         for (File dumpFile : dumpFiles) {
             log.info("Restoring from {}", dumpFile.getAbsolutePath());
             try {
-                failedIndexes.addAll(restoreInternal(new FileInputStream(dumpFile)));
+                failedIndexes.addAll(restoreInternal(new FileInputStream(dumpFile),
+                                                    () -> new FileInputStream(dumpFile)));
                 restored++;
             } catch (Exception e) {
                 failed.add(dumpFile.getName());
@@ -1520,6 +1643,96 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 return new ObjectId(((Map <?, ? >) d).get("value").toString());
             }
         };
+    }
+
+    /**
+     * The ceiling a pre-streaming restore had, in characters (#366). Until the restore read dumps
+     * incrementally it decoded the whole file into one {@code String}, so anything past the JVM's
+     * UTF16 String limit died with {@code OutOfMemoryError: UTF16 String size is ...} regardless of
+     * heap. This version reads such a dump fine - but an older jar does not, and rolling a node
+     * back to one is a normal recovery step, so a dump that has grown past it is worth saying out
+     * loud.
+     *
+     * <p>Conservative on purpose: a String of Latin-1-only content held roughly twice as many
+     * characters, but a single character outside Latin-1 anywhere in the dump dropped the ceiling
+     * to this value.
+     *
+     * <p>Package-private and non-final so a test can lower it instead of serializing an actual
+     * gigabyte - same threshold seam as {@link #setSlowQueryThresholdMillis(long)}.
+     */
+    /* package-private */ volatile long dumpRollbackLimitChars = Integer.MAX_VALUE >> 1;
+
+    /**
+     * Writes one dump's JSON and measures it on the way out, so a dump that has outgrown older
+     * readers reports itself (#366). Both dump paths go through here - counting while writing costs
+     * nothing and avoids serializing the database a second time just to learn its size.
+     */
+    private void writeDumpMeasured(String db, Map<String, Object> ser, Writer wr) throws IOException {
+        CountingWriter counting = new CountingWriter(wr);
+        writeDumpJson(ser, counting);
+        warnIfDumpExceedsRestoreLimit(db, counting.chars());
+    }
+
+    /**
+     * Warns when a dump has outgrown what older readers can restore (#366). The dump itself is
+     * fine for this version; what is gone is the option to roll the process back to a jar from
+     * before the streaming restore and still load it.
+     */
+    private void warnIfDumpExceedsRestoreLimit(String db, long chars) {
+        if (chars <= dumpRollbackLimitChars) {
+            return;
+        }
+
+        log.warn("Dump of database '{}' is {} characters. This version restores it, but any morphium "
+                 + "or PoppyDB from before the streaming restore (#366) cannot - their limit is {}, "
+                 + "so rolling this process back to an older jar would leave the dump unreadable.",
+                 db, chars, dumpRollbackLimitChars);
+    }
+
+    /**
+     * Counts the characters handed to the underlying writer, so a dump can be measured against
+     * {@link #dumpRollbackLimitChars} while it is written rather than serialized twice. All other
+     * {@code Writer} methods funnel into these three.
+     */
+    private static final class CountingWriter extends Writer {
+        private final Writer delegate;
+        private long chars;
+
+        CountingWriter(Writer delegate) {
+            this.delegate = delegate;
+        }
+
+        long chars() {
+            return chars;
+        }
+
+        @Override
+        public void write(int c) throws IOException {
+            delegate.write(c);
+            chars++;
+        }
+
+        @Override
+        public void write(char[] cbuf, int off, int len) throws IOException {
+            delegate.write(cbuf, off, len);
+            chars += len;
+        }
+
+        @Override
+        public void write(String str, int off, int len) throws IOException {
+            delegate.write(str, off, len);
+            chars += len;
+        }
+
+        @Override
+        public void flush() throws IOException {
+            delegate.flush();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
     }
 
     /**
@@ -2280,12 +2493,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     // reject watermark, document-creating writes (insert/store) are refused with
     // ExceededMemoryLimit (146) while updates, deletes and TTL sweeps stay allowed - the
     // drain paths (messaging processed-marks, lock deletes, expiry) must keep working or
-    // the system could never get back under the watermark. Decisions are based on the
-    // post-GC live set (heapUsedAfterGcPercent): the raw used/max gauge counts collectable
-    // garbage and routinely reads >90% under allocation-heavy load with -Xms==-Xmx, which
-    // would reject writes a single GC away from a half-empty heap. The raw gauge only
-    // serves as a cheap precheck - between collections used memory never shrinks, so the
-    // live set cannot exceed it.
+    // the system could never get back under the watermark. A write is refused only when
+    // TWO numbers are over the line: the raw used/max gauge, and the heap occupancy at the
+    // end of the most recent collection (heapUsedAfterGcPercent). Each is an upper bound
+    // on the live set at its own instant - the raw gauge counts every byte of collectable
+    // garbage and routinely reads >90% under allocation-heavy load with -Xms==-Xmx; the
+    // after-GC reading counts only the garbage the last collection did not look at (#368).
+    // Neither can be BELOW the live set, which is why the decision may err toward refusing
+    // and cannot err toward an OOM by more than what was allocated since the last young
+    // pause. The raw gauge is checked first: three native calls, and being the larger of
+    // the two it lets the common case skip the rest.
 
     private volatile int memoryWarnPercent = 75;
     private volatile int memoryRejectPercent = 90;
@@ -2325,36 +2542,37 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     /**
-     * Heap occupancy at the end of the most recent garbage collection, in percent of the
-     * maximum heap - the live-set approximation the watermark decisions are based on. The
-     * raw gauge (heapUsedPercent) counts collectable garbage too: with -Xms==-Xmx the JVM
+     * Heap occupancy at the end of the most recent garbage collection, in percent of the maximum
+     * heap. An upper bound on the live set as of that collection: what a collection leaves behind
+     * is the live data plus the garbage it did not look at - after a young collection the whole
+     * old generation, after a full collection nothing. It is never below the live set, and it is
+     * the tightest bound there is without a marking cycle; see {@link HeapAfterGc} for why neither
+     * the last "major" collection nor the lowest recent reading is a better one.
+     *
+     * <p>The raw gauge ({@link #heapUsedPercent()}) is the other bound: with -Xms==-Xmx the JVM
      * only collects when the heap is nearly full, so raw occupancy sits above 90% under
-     * allocation-heavy load even when the next GC would free most of it. Falls back to the
-     * raw gauge while no collection has produced data yet (fresh JVM) - conservative, but
-     * short-lived: a heap that is actually near full triggers a GC on its own.
+     * allocation-heavy load even when the next GC would free most of it. Falls back to the raw
+     * gauge while no collection has been observed (fresh JVM, or a JVM without GC notifications) -
+     * conservative, and on HotSpot short-lived: a heap anywhere near the watermark collects on its
+     * own.
      */
     public double heapUsedAfterGcPercent() {
-        long used = 0;
-        boolean haveData = false;
+        HeapAfterGc.install();
+        HeapAfterGc.Reading r = HeapAfterGc.latest();
+        return r == null ? heapUsedPercent() : 100.0 * r.usedBytes / Runtime.getRuntime().maxMemory();
+    }
 
-        for (java.lang.management.MemoryPoolMXBean pool : java.lang.management.ManagementFactory.getMemoryPoolMXBeans()) {
-            if (pool.getType() != java.lang.management.MemoryType.HEAP) {
-                continue;
-            }
-
-            java.lang.management.MemoryUsage afterGc = pool.getCollectionUsage();
-
-            if (afterGc != null) {
-                used += afterGc.getUsed();
-                haveData = haveData || afterGc.getUsed() > 0;
-            }
-        }
-
-        if (!haveData) {
-            return heapUsedPercent();
-        }
-
-        return 100.0 * used / Runtime.getRuntime().maxMemory();
+    /**
+     * How old the reading behind {@link #heapUsedAfterGcPercent()} is, in milliseconds, or -1 when
+     * it is the raw gauge because no collection has been observed yet (#368). Exposed through
+     * {@code serverStatus.memoryWatermark} so an operator can tell a number taken a moment ago from
+     * one taken before the last bulk delete. It does not soften the decision: an old reading is
+     * still the newest bound there is, and the raw gauge covers what happened since.
+     */
+    public long heapUsedAfterGcAgeMs() {
+        HeapAfterGc.install();
+        HeapAfterGc.Reading r = HeapAfterGc.latest();
+        return r == null ? -1 : r.ageMs(System.currentTimeMillis());
     }
 
     /**
@@ -2410,18 +2628,23 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             return;
         }
 
+        // Two volatile reads once installed. Done here rather than on first use of the reading so
+        // the listener is in place before the first collection that matters - otherwise the first
+        // write over the line on a fresh JVM would be decided on the raw gauge.
+        HeapAfterGc.install();
         double used = heapUsedPercent();
 
         // fast path: the live set can never exceed the raw gauge, so below the thresholds
-        // the MXBean query can be skipped entirely on the hot write path
+        // the after-GC reading is not consulted at all on the hot write path
         double live = -1;
 
         if (used >= memoryWarnPercent && memoryWarnPercent < 100) {
             live = heapUsedAfterGcPercent();
 
             if (live >= memoryWarnPercent && memoryWarnActive.compareAndSet(false, true)) {
-                log.warn("Heap live set {}% crossed the warn watermark ({}%) - document-creating writes "
-                         + "will be rejected at {}%", Math.round(live), memoryWarnPercent, memoryRejectPercent);
+                log.warn("Heap occupancy after the last collection {}% crossed the warn watermark ({}%) - "
+                         + "document-creating writes will be rejected at {}%", Math.round(live),
+                         memoryWarnPercent, memoryRejectPercent);
             }
         } else if (used < memoryWarnPercent - 5 && memoryWarnActive.compareAndSet(true, false)) {
             log.info("Heap occupancy {}% dropped below the warn watermark ({}%)", Math.round(used), memoryWarnPercent);
@@ -2432,11 +2655,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 live = heapUsedAfterGcPercent();
             }
 
+            // Both bounds are over the line. The after-GC reading may still be counting garbage the
+            // last collection did not look at (#368), so refusing here can be wrong - in the
+            // direction the caller can recover from: a retryable error now, and the collector's next
+            // cycle corrects the reading. The reading cannot be wrong in the other direction, and an
+            // OOM is not recoverable. So this errs toward refusing, and does not ask the JVM for a
+            // full collection to settle the question - see HeapAfterGc for why that cure was worse
+            // than the disease.
             if (live >= memoryRejectPercent) {
                 MorphiumDriverException ex = new MorphiumDriverException(
-                    "heap live set " + Math.round(live) + "% is above the memory watermark ("
-                    + memoryRejectPercent + "%) - refusing to create new documents; delete data, "
-                    + "wait for TTL expiry or raise the heap");
+                    "heap occupancy after the last collection " + Math.round(live) + "% is above the memory "
+                    + "watermark (" + memoryRejectPercent + "%) - refusing to create new documents; delete "
+                    + "data, wait for TTL expiry or raise the heap");
                 ex.setMongoCode(146); // ExceededMemoryLimit
                 throw ex;
             }
@@ -3471,10 +3701,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                     "totalCreated", totalCreated));
         m.put("mem", Doc.of("bits", 64, "resident", (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024),
                             "virtual", rt.totalMemory() / (1024 * 1024), "supported", true));
-        m.put("memoryWatermark", Doc.of("heapUsedPercent", Math.round(heapUsedPercent() * 10) / 10.0,
-                                        "heapUsedAfterGcPercent", Math.round(heapUsedAfterGcPercent() * 10) / 10.0,
-                                        "warnPercent", memoryWarnPercent, "rejectPercent", memoryRejectPercent,
-                                        "warnActive", memoryWarnActive.get()));
+        Doc watermark = Doc.of("heapUsedPercent", Math.round(heapUsedPercent() * 10) / 10.0,
+                               "heapUsedAfterGcPercent", Math.round(heapUsedAfterGcPercent() * 10) / 10.0,
+                               "warnPercent", memoryWarnPercent, "rejectPercent", memoryRejectPercent,
+                               "warnActive", memoryWarnActive.get());
+        // #368: the reading's age - a number that may be 20 points high is worth more when you can
+        // tell whether it was taken before or after the last bulk delete.
+        watermark.put("heapUsedAfterGcAgeMs", heapUsedAfterGcAgeMs());
+        m.put("memoryWatermark", watermark);
         // Replay-buffer state. Primary operational metric is the retained resume window in
         // seconds - the analogue of mongod's oplog "log length start to end"
         // (rs.printReplicationInfo()): how much consumer/secondary downtime is still resumable
@@ -5049,6 +5283,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             long __slowQueryStartNanos = System.nanoTime();
             List<Map<String, Object>> allResults = agg.aggregateMap();
             recordAggregateSlowQueryIfNeeded(cmd.getDb(), cmd.getColl(), cmd.getPipeline(),
+                    agg.getLastInputStage(), agg.getLastInputDocsExamined(),
                     (System.nanoTime() - __slowQueryStartNanos) / 1_000_000);
 
             int batchSize = 0;
@@ -5430,6 +5665,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
             initialized.set(true);
             running = true;
+            // Installed here, not lazily on the first guarded write (#368). A node restoring a
+            // dump runs dozens of collections before any client write arrives, and that path does
+            // not go through the memory guard - so a lazy install would miss every one of them and
+            // leave the first client write deciding on the raw gauge alone, which with -Xms==-Xmx
+            // and the parse garbage still uncollected reads near the reject line.
+            HeapAfterGc.install();
             serverStartedAt = System.currentTimeMillis();
         }
 
@@ -6605,92 +6846,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // Validate query operators upfront to catch invalid queries even on empty collections
             QueryHelper.validateQuery(query);
 
-            // Handle root-level $text query - MongoDB-compatible text search
-            // Format: { $text: { $search: "search terms", $language: "...", $caseSensitive: false } }
-            if (query.containsKey("$text")) {
-                Object textQuery = query.get("$text");
-                if (textQuery instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> textOpts = (Map<String, Object>) textQuery;
-                    String searchString = null;
-                    if (textOpts.containsKey("$search")) {
-                        searchString = textOpts.get("$search").toString();
-                    }
-                    if (searchString != null && !searchString.isEmpty()) {
-                        // Get text index fields for this collection
-                        List<String> textFields = getTextIndexFields(db, collection);
-                        if (textFields.isEmpty()) {
-                            // No text index - MongoDB would throw an error, we'll search all string fields
-                            log.warn("$text query on collection without text index - searching all string fields");
-                        }
-                        // Store text search params in query for QueryHelper to process
-                        // Transform to internal format that QueryHelper can handle
-                        Map<String, Object> newQuery = new LinkedHashMap<>(query);
-                        newQuery.remove("$text");
-                        newQuery.put("$textSearch", Doc.of(
-                                                     "search", searchString,
-                                                     "fields", textFields,
-                                                     "caseSensitive", textOpts.getOrDefault("$caseSensitive", false),
-                                                     "diacriticSensitive", textOpts.getOrDefault("$diacriticSensitive", false)
-                                     ));
-                        query = newQuery;
-                    }
-                }
-            }
-
-            // NOTE: dotted query keys (e.g. "meta.source" or "stringMap.key1") are matched as-is
-            // against the stored documents. Query and stored field names are both produced by the
-            // Morphium mapper, so they already share the same casing. A previous camelCase->snake_case
-            // rewrite of the first path segment broke any field whose stored name is not snake_case
-            // (e.g. upper-case field names), turning the query key into a non-existent path.
-            if (query.containsKey("$and")) {
-                // and complex query handling ?!?!?
-                List<Map<String, Object>> m = (List<Map<String, Object>>) query.get("$and");
-
-                if (m != null && !m.isEmpty()) {
-                    for (Map<String, Object> subquery : m) {
-                        List<Map<String, Object>> dataFromIndex = getDataFromIndex(db, collection, subquery);
-
-                        // one and-query result is enough to find candidates!
-                        if (dataFromIndex != null) {
-                            partialHitData = dataFromIndex;
-                            break;
-                        }
-                    }
-                }
-            } else if (query.containsKey("$or")) {
-                List<Map<String, Object>> m = (List<Map<String, Object>>) query.get("$or");
-                if (m != null) {
-                    // For $or queries, using index candidates is only safe if ALL branches can be served
-                    // by an index, otherwise we would miss matches from non-indexable branches.
-                    boolean allIndexable = true;
-                    List<Map<String, Object>> collected = new ArrayList<>();
-                    // A document satisfying more than one $or branch is returned - as the same live
-                    // doc reference - by each branch's index lookup; dedup by identity so it ends up
-                    // in the result exactly once, same as IndexPlanner.InUnion does for repeated $in
-                    // values (see executeIndexPlan).
-                    Set<Map<String, Object>> seen = Collections.newSetFromMap(new IdentityHashMap<>());
-
-                    for (Map<String, Object> subquery : m) {
-                        List<Map<String, Object>> dataFromIndex = getDataFromIndex(db, collection, subquery);
-
-                        if (dataFromIndex == null) {
-                            allIndexable = false;
-                            break;
-                        }
-
-                        for (Map<String, Object> doc : dataFromIndex) {
-                            if (seen.add(doc)) {
-                                collected.add(doc);
-                            }
-                        }
-                    }
-
-                    partialHitData = allIndexable ? collected : null; // null = fall back to full scan for correctness
-                }
-            } else {
-                partialHitData = getDataFromIndex(db, collection, query);
-            }
+            query = rewriteTextSearch(db, collection, query);
+            partialHitData = selectIndexCandidates(db, collection, query);
             // Index-backed sort (Phase B1, Task 6): when `sort` is a prefix of some index (in
             // matching or exactly-reversed direction) AND the filter's own plan is either a
             // FullScan or targets that SAME index, the whole filter+sort+skip+limit dance below
@@ -7623,6 +7780,190 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             i++;
         }
         return relation != null && relation == -1;
+    }
+
+    /**
+     * Root-level {@code $text} rewrite shared by {@link #find} and {@link #findAggregationInput}:
+     * {@code { $text: { $search: "...", ... } }} becomes the internal {@code $textSearch} form
+     * {@link QueryHelper} evaluates (with the collection's text-index fields resolved). Any other
+     * query is returned as is.
+     */
+    private Map<String, Object> rewriteTextSearch(String db, String collection, Map<String, Object> query) {
+        // Format: { $text: { $search: "search terms", $language: "...", $caseSensitive: false } }
+        if (query.containsKey("$text")) {
+            Object textQuery = query.get("$text");
+            if (textQuery instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> textOpts = (Map<String, Object>) textQuery;
+                String searchString = null;
+                if (textOpts.containsKey("$search")) {
+                    searchString = textOpts.get("$search").toString();
+                }
+                if (searchString != null && !searchString.isEmpty()) {
+                    // Get text index fields for this collection
+                    List<String> textFields = getTextIndexFields(db, collection);
+                    if (textFields.isEmpty()) {
+                        // No text index - MongoDB would throw an error, we'll search all string fields
+                        log.warn("$text query on collection without text index - searching all string fields");
+                    }
+                    // Store text search params in query for QueryHelper to process
+                    // Transform to internal format that QueryHelper can handle
+                    Map<String, Object> newQuery = new LinkedHashMap<>(query);
+                    newQuery.remove("$text");
+                    newQuery.put("$textSearch", Doc.of(
+                                                 "search", searchString,
+                                                 "fields", textFields,
+                                                 "caseSensitive", textOpts.getOrDefault("$caseSensitive", false),
+                                                 "diacriticSensitive", textOpts.getOrDefault("$diacriticSensitive", false)
+                                 ));
+                    return newQuery;
+                }
+            }
+        }
+        return query;
+    }
+
+    /**
+     * Index-backed candidate selection for a whole filter, shared by {@link #find} and
+     * {@link #findAggregationInput}: a plain filter goes straight to {@link #getDataFromIndex};
+     * {@code $and} takes the first sub-query an index can answer (one indexable conjunct is enough
+     * to narrow the candidates); {@code $or} unions the per-branch lookups, but only if EVERY
+     * branch is indexable - otherwise a non-indexable branch's matches would be missed. Same
+     * null/empty contract as {@link #getDataFromIndex}: {@code null} means "no index consulted,
+     * scan the collection", a non-null (possibly empty) list is the complete candidate set.
+     */
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> selectIndexCandidates(String db, String collection, Map<String, Object> query)
+    throws MorphiumDriverException {
+        // NOTE: dotted query keys (e.g. "meta.source" or "stringMap.key1") are matched as-is
+        // against the stored documents. Query and stored field names are both produced by the
+        // Morphium mapper, so they already share the same casing. A previous camelCase->snake_case
+        // rewrite of the first path segment broke any field whose stored name is not snake_case
+        // (e.g. upper-case field names), turning the query key into a non-existent path.
+        if (query.containsKey("$and")) {
+            // and complex query handling ?!?!?
+            List<Map<String, Object>> m = (List<Map<String, Object>>) query.get("$and");
+
+            if (m != null && !m.isEmpty()) {
+                for (Map<String, Object> subquery : m) {
+                    List<Map<String, Object>> dataFromIndex = getDataFromIndex(db, collection, subquery);
+
+                    // one and-query result is enough to find candidates!
+                    if (dataFromIndex != null) {
+                        return dataFromIndex;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        if (query.containsKey("$or")) {
+            List<Map<String, Object>> m = (List<Map<String, Object>>) query.get("$or");
+            if (m == null) {
+                return null;
+            }
+
+            // For $or queries, using index candidates is only safe if ALL branches can be served
+            // by an index, otherwise we would miss matches from non-indexable branches.
+            List<Map<String, Object>> collected = new ArrayList<>();
+            // A document satisfying more than one $or branch is returned - as the same live
+            // doc reference - by each branch's index lookup; dedup by identity so it ends up
+            // in the result exactly once, same as IndexPlanner.InUnion does for repeated $in
+            // values (see executeIndexPlan).
+            Set<Map<String, Object>> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+
+            for (Map<String, Object> subquery : m) {
+                List<Map<String, Object>> dataFromIndex = getDataFromIndex(db, collection, subquery);
+
+                if (dataFromIndex == null) {
+                    return null; // fall back to full scan for correctness
+                }
+
+                for (Map<String, Object> doc : dataFromIndex) {
+                    if (seen.add(doc)) {
+                        collected.add(doc);
+                    }
+                }
+            }
+
+            return collected;
+        }
+
+        return getDataFromIndex(db, collection, query);
+    }
+
+    /**
+     * The input of an aggregation pipeline (#375): the documents its leading {@code $match} selects
+     * - or the whole collection when there is none - as deep copies the pipeline may mutate freely,
+     * plus how they were found. {@code stage} is {@code IXSCAN} when {@link #selectIndexCandidates}
+     * narrowed the candidates through an index and {@code COLLSCAN} otherwise; {@code docsExamined}
+     * is the number of stored documents the filter was evaluated against.
+     */
+    public record AggregationInput(List<Map<String, Object>> documents, String stage, long docsExamined) {}
+
+    /**
+     * Pipeline input for {@link InMemAggregator} (#375). {@code aggregate()} used to materialize
+     * the whole collection through a filterless {@code find()} and then run every stage, including
+     * a leading {@code $match}, over the copies - so an aggregation with an indexed {@code $match}
+     * cost the same as one without any, ~60x the equivalent {@code find}. A leading {@code $match}
+     * is the one stage that still sees the stored documents, so it is answered here the way
+     * {@code find}/{@code count} answer their filter: {@link #selectIndexCandidates} picks the
+     * candidates (index-planned, {@code null} = scan), {@link CompiledQuery} - the same matcher the
+     * aggregator's {@code $match} stage uses - filters them, and only the matches are deep-copied.
+     * Counts against {@code fullScans}/{@code indexHits} like a find does, but does not log its own
+     * slow-query line: the aggregate-level log
+     * ({@link #recordAggregateSlowQueryIfNeeded}) reports the returned stage/docsExamined instead.
+     *
+     * @param leadingMatch the leading {@code $match}'s filter, or {@code null}/empty for "everything"
+     * @param collation    the aggregation's collation in wire form, or {@code null}
+     */
+    public AggregationInput findAggregationInput(String db, String collection, Map<String, Object> leadingMatch,
+            Map<String, Object> collation) throws MorphiumDriverException {
+        java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, collection);
+        lock.readLock().lock();
+        try {
+            Map<String, Object> query = leadingMatch == null ? Doc.of() : leadingMatch;
+            QueryHelper.validateQuery(query);
+            query = rewriteTextSearch(db, collection, query);
+
+            List<Map<String, Object>> candidates = query.isEmpty() ? null : selectIndexCandidates(db, collection, query);
+            List<Map<String, Object>> source;
+            String stage;
+
+            if (candidates == null) {
+                source = getCollection(db, collection);
+                fullScans++;
+                stage = "COLLSCAN";
+            } else {
+                source = candidates;
+                indexHits++;
+                stage = "IXSCAN";
+            }
+
+            CompiledQuery compiledQuery = CompiledQuery.compile(query, collation);
+            List<Map<String, Object>> documents = new ArrayList<>();
+
+            for (Map<String, Object> o : source) {
+                if (!compiledQuery.matches(o)) {
+                    continue;
+                }
+
+                // Same hand-over as find() without a projection: the pipeline must never touch the
+                // stored documents, and _id is surfaced as MorphiumId.
+                Map<String, Object> copy = deepCopyDocWithRetry(o);
+
+                if (copy.get("_id") instanceof ObjectId) {
+                    copy.put("_id", new MorphiumId((ObjectId) copy.get("_id")));
+                }
+
+                documents.add(copy);
+            }
+
+            return new AggregationInput(documents, stage, source.size());
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 
     /**
@@ -11973,6 +12314,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         String dbPrefix = db + ".";
+        // The per-collection registries that hang off the dropped database go with it (#369).
+        // Without this, a collection recreated under the same name inherits rules that
+        // getIndexes() no longer reports: the TTL sweep iterates collectionsWithTtlIndex and
+        // would expire the new documents by the index that was dropped, and the capped
+        // bookkeeping would evict inserts against a cap nobody re-declared. Same cleanup that
+        // drop(db, collection, wc) does for a single collection and setDatabase() does for a
+        // replaced one - whole-DB drop was the only path that forgot.
+        collectionsWithTtlIndex.keySet().removeIf(key -> key.startsWith(dbPrefix));
+        ttlQueueByCollection.keySet().removeIf(key -> key.startsWith(dbPrefix));
+        cappedCollections.remove(db);
+        cappedDocSizesByCollection.keySet().removeIf(key -> key.startsWith(dbPrefix));
+        cappedCurrentBytesByCollection.keySet().removeIf(key -> key.startsWith(dbPrefix));
         // Bump BEFORE the removal - same publish-fencing contract as invalidateIndexStore's
         // bump-before-remove, but via the global drop epoch: a per-key bump could not cover
         // collections whose store is only being built right now (#290).
