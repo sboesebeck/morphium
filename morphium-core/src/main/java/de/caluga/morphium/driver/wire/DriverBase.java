@@ -682,6 +682,51 @@ public abstract class DriverBase implements MorphiumDriver {
         return readAfterWriteWindowMs;
     }
 
+    /**
+     * The read preference a read is actually performed with: the requested one (or the configured
+     * default), with PRIMARY forced where reading anywhere else would break read-your-own-write.
+     * The connection handed out for the read is stamped with this, so it is what goes over the wire
+     * as {@code $readPreference} - the field a mongos routes by. Shared by the drivers so that all of
+     * them apply the same rules; before, only the pooled one knew them.
+     *
+     * @param rp the requested read preference, may be {@code null} or without a type
+     * @return the effective read preference, never {@code null} and never without a type
+     */
+    protected ReadPreference effectiveReadPreference(ReadPreference rp) {
+        if (rp == null || rp.getType() == null) {
+            rp = getDefaultReadPreference();
+        }
+
+        if (rp == null || rp.getType() == null) {
+            // new ReadPreference() is public and DriverSettings tolerates a null type - the
+            // driver's documented default is primary, so that is what a typeless one becomes
+            rp = ReadPreference.primary();
+        }
+
+        if (isTransactionInProgress()) {
+            return ReadPreference.primary();
+        }
+
+        if (rp.getType() == ReadPreferenceType.PRIMARY) {
+            return rp;
+        }
+
+        // Force PRIMARY reads shortly after a transaction commit to ensure read-your-writes
+        // consistency. On replica sets, secondaries may not have replicated the committed data yet.
+        if (isInReadAfterWriteWindow()) {
+            return ReadPreference.primary();
+        }
+
+        // Force PRIMARY reads for the InMemory backend (PoppyDB) to ensure read-your-writes
+        // consistency: its replication is eventually consistent, so NEAREST/SECONDARY reads may
+        // return stale data.
+        if (isInMemoryBackend()) {
+            return ReadPreference.primary();
+        }
+
+        return rp;
+    }
+
     public void setReadAfterWriteWindowMs(long readAfterWriteWindowMs) {
         this.readAfterWriteWindowMs = readAfterWriteWindowMs;
     }

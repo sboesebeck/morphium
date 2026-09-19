@@ -41,10 +41,13 @@ public class DriverSettings extends Settings {
     // db.currentOp(), server logs and profiler output. MongoDB truncates values over 128 bytes.
     private String appName = "Morphium";
     @Transient
-    private ReadPreference defaultReadPreference = ReadPreference.nearest();
+    // primaryPreferred, like the reads morphium sent over the wire before the read preference
+    // became wire-effective (#362): on a mongos nothing changes, on a replica set an unconfigured
+    // setup reads from the primary, like the official drivers do
+    private ReadPreference defaultReadPreference = ReadPreference.primaryPreferred();
     // Kept in sync with defaultReadPreference and, unlike the ReadPreference object itself,
     // serializable - this is what carries the setting through a properties round trip.
-    private String defaultReadPreferenceType = ReadPreference.nearest().getType().name();
+    private String defaultReadPreferenceType = ReadPreference.primaryPreferred().getType().name();
 
     private int serverSelectionTimeout = 30000;
     private boolean inMemorySharedDatabases = false;

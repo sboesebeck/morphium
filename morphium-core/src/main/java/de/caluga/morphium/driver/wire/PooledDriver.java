@@ -1470,6 +1470,19 @@ public class PooledDriver extends DriverBase {
 
     @Override
     public MongoConnection getReadConnection(ReadPreference rp) {
+        ReadPreference effective = effectiveReadPreference(rp);
+        MongoConnection con = selectReadConnection(effective);
+
+        if (con != null) {
+            // a mongos routes reads by the $readPreference of the command, not by the node the
+            // driver picked - so the connection has to carry what it was handed out for
+            con.setEffectiveReadPreference(effective);
+        }
+
+        return con;
+    }
+
+    private MongoConnection selectReadConnection(ReadPreference rp) {
         try {
             if (!isReplicaSet()) {
                 // standalone — no ReadPreference / transaction routing needed
@@ -1480,28 +1493,7 @@ public class PooledDriver extends DriverBase {
                 return borrowConnection(primaryNode);
             }
 
-            if (rp == null) {
-                rp = getDefaultReadPreference();
-            }
-
-            var type = rp.getType();
-
-            if (isTransactionInProgress()) {
-                type = ReadPreferenceType.PRIMARY;
-            }
-
-            // Force PRIMARY reads shortly after a transaction commit to ensure
-            // read-your-writes consistency. On replica sets, secondaries may not
-            // have replicated the committed data yet.
-            if (type != ReadPreferenceType.PRIMARY && isInReadAfterWriteWindow()) {
-                type = ReadPreferenceType.PRIMARY;
-            }
-
-            // Force PRIMARY reads for InMemory backend (PoppyDB) to ensure read-your-writes consistency
-            // InMemory backend replication is eventually consistent, so NEAREST/SECONDARY reads may return stale data
-            if (inMemoryBackend && type != ReadPreferenceType.PRIMARY) {
-                type = ReadPreferenceType.PRIMARY;
-            }
+            ReadPreferenceType type = rp.getType();
 
             switch (type) {
                 case PRIMARY:
@@ -1687,6 +1679,16 @@ public class PooledDriver extends DriverBase {
 
     @Override
     public MongoConnection getPrimaryConnection(WriteConcern wc) throws MorphiumDriverException {
+        MongoConnection con = selectPrimaryConnection(wc);
+
+        if (con != null) {
+            con.setEffectiveReadPreference(ReadPreference.primary());
+        }
+
+        return con;
+    }
+
+    private MongoConnection selectPrimaryConnection(WriteConcern wc) throws MorphiumDriverException {
         if (primaryNode == null) {
             // Discovery must be able to resume from every state (#304): if the heartbeat is gone,
             // waiting for it below would wait forever - nothing else ever sets primaryNode.

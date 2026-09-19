@@ -1452,8 +1452,9 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         // $readPreference is a primary read too and must be rejected just like
         // mode:"primary" - previously it silently served possibly-stale secondary data.
         // Mirrors mongod's handling of a direct secondary connection without secondaryOk.
-        // Morphium's own wire commands always carry $readPreference (default
-        // primaryPreferred), so they are unaffected; getMore/control commands never
+        // Morphium's own wire commands always carry $readPreference - since #362 the one the
+        // caller asked for, so a morphium read that asks for the primary and lands on a
+        // secondary gets this error too, exactly as on mongod. getMore/control commands never
         // reach preDispatch (CONTROL_COMMANDS).
         if (!isPrimary && !isWriteCommand) {
             Map<String, Object> readPref = (Map<String, Object>) doc.get("$readPreference");

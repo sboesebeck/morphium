@@ -27,6 +27,7 @@ import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumDriverNetworkException;
 import de.caluga.morphium.driver.MorphiumTransactionContext;
 import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.driver.ReadPreferenceType;
 import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.driver.bulk.BulkRequest;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
@@ -564,12 +565,44 @@ public class SingleMongoConnectDriver extends DriverBase {
 
     @Override
     public MongoConnection getReadConnection(ReadPreference rp) {
-        return getConnection();
+        MongoConnection con = getConnection();
+
+        if (con != null) {
+            con.setEffectiveReadPreference(readPreferenceForDirectConnection(effectiveReadPreference(rp)));
+        }
+
+        return con;
     }
 
     @Override
     public MongoConnection getPrimaryConnection(WriteConcern wc) {
-        return getConnection();
+        MongoConnection con = getConnection();
+
+        if (con != null) {
+            con.setEffectiveReadPreference(readPreferenceForDirectConnection(ReadPreference.primary()));
+        }
+
+        return con;
+    }
+
+    /**
+     * The read preference a command on this driver's one connection is sent with. This is a direct
+     * connection: with {@link ConnectionType#SECONDARY} or {@link ConnectionType#ANY} it sits on a
+     * secondary on purpose, and a secondary answers a {@code mode: "primary"} read with 13435
+     * (NotPrimaryNoSecondaryOk) - mongod uses {@code $readPreference} for its secondaryOk decision,
+     * PoppyDB does the same. The server selection spec's rule for a direct connection applies: a
+     * primary read goes out as {@code primaryPreferred}. On a {@link ConnectionType#PRIMARY}
+     * connection the preference is sent unchanged.
+     *
+     * @param rp the effective read preference, see {@link #effectiveReadPreference(ReadPreference)}
+     * @return what the connection is stamped with
+     */
+    ReadPreference readPreferenceForDirectConnection(ReadPreference rp) {
+        if (connectionType != ConnectionType.PRIMARY && rp != null && rp.getType() == ReadPreferenceType.PRIMARY) {
+            return ReadPreference.primaryPreferred();
+        }
+
+        return rp;
     }
 
     /**
@@ -1060,6 +1093,18 @@ public class SingleMongoConnectDriver extends DriverBase {
         @Override
         public int getSourcePort() {
             return 0;
+        }
+
+        // the stamp lives on the wrapped connection - without these two the interface's no-op
+        // defaults swallowed it and every command went out as primaryPreferred (#362)
+        @Override
+        public ReadPreference getEffectiveReadPreference() {
+            return getDelegate().getEffectiveReadPreference();
+        }
+
+        @Override
+        public void setEffectiveReadPreference(ReadPreference readPreference) {
+            getDelegate().setEffectiveReadPreference(readPreference);
         }
 
         @Override
