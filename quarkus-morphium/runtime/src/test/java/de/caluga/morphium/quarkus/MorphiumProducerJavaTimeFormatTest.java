@@ -20,6 +20,7 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.objectmapping.LocalDateTimeMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -27,7 +28,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -48,6 +51,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @DisplayName("MorphiumProducer.applyJavaTimeFormat")
 class MorphiumProducerJavaTimeFormatTest {
+
+    private final List<Morphium> opened = new ArrayList<>();
+
+    @AfterEach
+    void closeOpenedInstances() {
+        opened.forEach(Morphium::close);
+        opened.clear();
+    }
 
     @Test
     @DisplayName("the property reaches ALL FOUR java.time types, not just LocalDateTime")
@@ -137,6 +148,7 @@ class MorphiumProducerJavaTimeFormatTest {
 
         var m = new Morphium();
         m.setConfig(cfg);
+        opened.add(m);
 
         var mapper = new ObjectMapperImpl();
         mapper.setMorphium(m);

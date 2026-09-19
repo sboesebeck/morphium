@@ -191,6 +191,14 @@ public interface MorphiumRuntimeConfig {
      * {@code Instant}, {@code LocalDate} and {@code LocalTime} fields for every existing application on
      * upgrade. Setting this property is the explicit opt-in; it then wins over the deprecated per-type
      * property.
+     *
+     * <p><b>Setting this to {@code false} is not "keep things as they are".</b> The deprecated
+     * {@code local-date-time.use-bson-date} defaults to {@code true}, so today {@code LocalDateTime} is
+     * already stored as {@code ISODate}. Explicitly setting this property to {@code false} flips
+     * {@code LocalDateTime} to the legacy Map format -- the opposite of what someone who sets it to
+     * {@code false} expecting "no change" would want -- and starts writing a second on-disk shape into
+     * an existing collection. Leave the property unset if {@code LocalDateTime} should keep its current
+     * format.
      */
     Optional<Boolean> useBsonDateForJavaTime();
 

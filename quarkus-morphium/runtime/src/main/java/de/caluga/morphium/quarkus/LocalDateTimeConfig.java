@@ -43,10 +43,11 @@ public interface LocalDateTimeConfig {
      *             reaches {@code LocalDateTime} only: it registers a single
      *             {@code LocalDateTimeMapper} and leaves the other three types on the legacy format,
      *             which is a per-type split no application asked for. It keeps working and still wins
-     *             when the new property is unset, so nothing breaks on upgrade; it will be removed in
-     *             6.4.0.
+     *             when the new property is unset, so nothing breaks on upgrade. Removal: 7.0, the
+     *             same wave as the other {@code @Deprecated(since = "6.3", forRemoval = true)}
+     *             members in the repo (#218).
      */
-    @Deprecated(since = "6.3.8", forRemoval = true)
+    @Deprecated(since = "6.4.0", forRemoval = true)
     @WithDefault("true")
     boolean useBsonDate();
 }

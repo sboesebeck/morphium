@@ -27,15 +27,26 @@ the other three legacy). Defaulting the new property would silently change the o
 existing `Instant`, `LocalDate` and `LocalTime` fields on upgrade. Left unset, the extension
 behaves exactly as before.
 
+**Setting it to `false` is not "keep things as they are".** The deprecated
+`local-date-time.use-bson-date` defaults to `true`, so `LocalDateTime` is already `ISODate` today.
+Explicitly setting the new property to `false` flips `LocalDateTime` to the legacy Map format too —
+leave it unset if `LocalDateTime` should keep its current format.
+
 While the new property IS set, the deprecated per-type override is no longer registered — it holds
 a fixed boolean and would pin `LocalDateTime` against the flag, recreating the very split the new
-property removes.
+property removes. A startup log line names which property won when the new one is set.
+
+**Enabling either property only changes newly written documents.** Existing documents keep their
+previous shape; every affected type's `unmarshall()` accepts both, so reads are unaffected. But a
+native range query, sort or TTL index only matches documents written after the change, until
+existing ones are rewritten.
 
 ### Deprecated
 
 #### `quarkus.morphium.local-date-time.use-bson-date`
 Superseded by `quarkus.morphium.use-bson-date-for-java-time`. It keeps working and still governs
-`LocalDateTime` while the new property is unset, so nothing breaks on upgrade. Removal in 6.4.0.
+`LocalDateTime` while the new property is unset, so nothing breaks on upgrade. Removal: 7.0, the
+same wave as the other `@Deprecated(since = "6.3", forRemoval = true)` members in the repo (#218).
 
 ### Changed
 

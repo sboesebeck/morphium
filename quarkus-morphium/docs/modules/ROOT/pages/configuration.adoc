@@ -83,15 +83,19 @@ All configuration properties live under the `quarkus.morphium.*` prefix in
 | Global cache TTL in milliseconds.
 |===
 
-== LocalDateTime Storage
+== java.time Storage
 
 [cols="3,1,4",options="header"]
 |===
 | Property | Default | Description
 
+| `quarkus.morphium.use-bson-date-for-java-time`
+| –
+| Store `Instant`, `LocalDate`, `LocalTime` and `LocalDateTime` as BSON `ISODate`. Left unset, the extension keeps its previous per-type behaviour. Setting it to `false` is not "keep things as they are": `LocalDateTime` defaults to `ISODate` today via the deprecated property below, so `false` here flips it to the legacy Map format.
+
 | `quarkus.morphium.local-date-time.use-bson-date`
 | `true`
-| Store `LocalDateTime` as BSON `ISODate`. Set to `false` only for backward compatibility with data written by Morphium {lt}= 6.1.
+| *Deprecated* (removal: 7.0), use `use-bson-date-for-java-time`. Reaches `LocalDateTime` only and is ignored once the new property is set. Set to `false` only for backward compatibility with data written by Morphium {lt}= 6.1.
 |===
 
 .Format comparison
@@ -115,6 +119,8 @@ All configuration properties live under the `quarkus.morphium.*` prefix in
 | yes
 | no
 |===
+
+NOTE: Enabling either property only changes the format of documents written *after* the change. Existing documents keep their previous shape; `unmarshall()` accepts both, so reads are unaffected, but a native range query, sort or TTL index only matches newly written documents until existing ones are rewritten.
 
 == SSL / TLS Properties
 

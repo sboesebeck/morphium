@@ -464,7 +464,16 @@ public class MorphiumProducer {
      * @param useBsonDateForJavaTime the configured value, empty when the property is absent
      */
     static void applyJavaTimeFormat(MorphiumConfig cfg, Optional<Boolean> useBsonDateForJavaTime) {
-        useBsonDateForJavaTime.ifPresent(cfg.objectMappingSettings()::setUseBsonDateForJavaTime);
+        useBsonDateForJavaTime.ifPresent(value -> {
+            cfg.objectMappingSettings().setUseBsonDateForJavaTime(value);
+            // local-date-time.use-bson-date carries @WithDefault("true"), so it always reports a
+            // value -- present because it was explicitly set, or present because of the default. That
+            // makes "both configured" undetectable from here; log unconditionally instead, so an
+            // application that DID set the deprecated property is told why it no longer has an effect.
+            log.info("quarkus.morphium.use-bson-date-for-java-time={} is set: LocalDateTime now follows "
+                    + "this flag like Instant, LocalDate and LocalTime. quarkus.morphium.local-date-time"
+                    + ".use-bson-date, if configured, is ignored.", value);
+        });
     }
 
     /**
