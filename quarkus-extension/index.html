@@ -2532,9 +2532,15 @@ property — but covers the most commonly used ones, each verified directly agai
 <td><code>CacheConfig.java:27</code></td>
 </tr>
 <tr>
-<td><code>quarkus.morphium.local-date-time.use-bson-date</code></td>
+<td><code>quarkus.morphium.use-bson-date-for-java-time</code></td>
 <td>--</td>
-<td>Store <code>LocalDateTime</code> as BSON <code>ISODate</code></td>
+<td>Store <code>Instant</code>, <code>LocalDate</code>, <code>LocalTime</code> and <code>LocalDateTime</code> as BSON <code>ISODate</code>. Unset leaves the previous per-type behaviour untouched</td>
+<td><code>MorphiumRuntimeConfig.java</code></td>
+</tr>
+<tr>
+<td><code>quarkus.morphium.local-date-time.use-bson-date</code></td>
+<td><code>true</code></td>
+<td><em>Deprecated</em> (removal: 7.0), use <code>use-bson-date-for-java-time</code>; reaches <code>LocalDateTime</code> only</td>
 <td><code>LocalDateTimeConfig.java</code></td>
 </tr>
 <tr>
