@@ -298,7 +298,7 @@
       <dependency>
         <groupId>net.bytebuddy</groupId>
         <artifactId>byte-buddy</artifactId>
-        <version>1.15.11</version>
+        <version>1.18.14</version>
         <scope>compile</scope>
       </dependency>
       <dependency>

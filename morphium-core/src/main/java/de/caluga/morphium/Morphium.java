@@ -40,6 +40,7 @@ import io.github.classgraph.ScanResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.ClassFileVersion;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.InvocationHandlerAdapter;
 import net.bytebuddy.matcher.ElementMatchers;
@@ -3129,7 +3130,10 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     public <T> T createLazyLoadedEntity(Class <? extends T > cls, Object id, String collectionName) {
         try {
             Class<?> proxyClass = proxyClassCache.computeIfAbsent(cls, c ->
-                    new ByteBuddy()
+                    // Byte Buddy refuses to run on a JVM newer than it knows (Java 25 on 1.15.x
+                    // threw for every proxy). With a fallback it emits Java 21 class files on an
+                    // unknown VM instead, which every newer JVM loads - morphium's baseline is 21.
+                    new ByteBuddy(ClassFileVersion.ofThisVm(ClassFileVersion.JAVA_V21))
                             .subclass(c)
                             .implement(Serializable.class, MorphiumProxyMarker.class)
                             .defineField(PROXY_HANDLER_FIELD, java.lang.reflect.InvocationHandler.class)
