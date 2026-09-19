@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [6.3.10] - 2026-09-19
+
 ### Changed
 
 #### Default read preference is `primaryPreferred`, no longer `nearest`
