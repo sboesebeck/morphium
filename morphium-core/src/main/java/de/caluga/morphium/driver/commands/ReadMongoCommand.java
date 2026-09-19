@@ -33,7 +33,16 @@ public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoComm
             // a previous attempt), acquire a fresh connection from the pool.
             MongoConnection activeCon = getConnection();
             if (activeCon == null || !activeCon.isConnected()) {
-                activeCon = driver.getReadConnection(driver.getDefaultReadPreference());
+                // re-borrow for what this read asked for, not for the driver default - behind a
+                // mongos the retry would otherwise be routed differently than the first attempt
+                ReadPreference rp = getReadPreference();
+                if (rp == null && activeCon != null) {
+                    rp = activeCon.getEffectiveReadPreference();
+                }
+                if (rp == null) {
+                    rp = driver.getDefaultReadPreference();
+                }
+                activeCon = driver.getReadConnection(rp);
                 setConnection(activeCon);
             }
             List<Map<String, Object>> ret = new ArrayList<>();

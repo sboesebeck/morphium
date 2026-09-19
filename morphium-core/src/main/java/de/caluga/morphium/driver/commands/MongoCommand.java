@@ -317,7 +317,8 @@ public abstract class MongoCommand<T extends MongoCommand> {
     /**
      * The {@code $readPreference} this command is sent with: the one set on the command, else the
      * one the connection was handed out for, else the {@code primaryPreferred} morphium has always
-     * sent. A mongos routes reads by this field, a mongod ignores it.
+     * sent. A mongos routes reads by this field; a mongod uses it for its secondaryOk decision, so a
+     * secondary rejects {@code mode: "primary"} with 13435.
      *
      * @return the read preference as it goes over the wire, never {@code null}
      */
@@ -334,7 +335,9 @@ public abstract class MongoCommand<T extends MongoCommand> {
 
         Doc ret = Doc.of("mode", rp.getType().getMode());
 
-        if (rp.getTagSet() != null && !rp.getTagSet().isEmpty()) {
+        // "Only empty tags are allowed with primary mode" - ReadPreference.addTag() has no type
+        // check, and primary() plus a tag was harmless while nothing was sent, so keep it harmless
+        if (rp.getType() != ReadPreferenceType.PRIMARY && rp.getTagSet() != null && !rp.getTagSet().isEmpty()) {
             // the wire protocol expects a list of tag documents, ordered by preference
             ret.put("tags", List.of(rp.getTagSet()));
         }

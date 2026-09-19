@@ -19,8 +19,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * explicit $readPreference must therefore be rejected (13435 NotPrimaryNoSecondaryOk), exactly
  * like mongod treats a direct connection without secondaryOk. Previously only an explicit
  * mode:"primary" was rejected - a preference-less read silently served possibly-stale data.
- * Morphium's own wire commands always carry $readPreference (default primaryPreferred), so
- * they are unaffected.
+ * Morphium's own wire commands always carry $readPreference - since #362 the one the caller
+ * asked for, so a morphium read that asks for the primary is rejected here as well, exactly as
+ * on mongod. Its SingleMongoConnectDriver sends primaryPreferred on a deliberate secondary
+ * connection for that reason.
  */
 public class SecondaryReadPreferenceTest {
 

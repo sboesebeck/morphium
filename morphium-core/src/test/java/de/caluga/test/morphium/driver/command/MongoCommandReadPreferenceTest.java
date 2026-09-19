@@ -19,8 +19,8 @@ import de.caluga.test.ConnectionMock;
 
 /**
  * The read preference a caller asks for has to end up in the command that is sent to the server.
- * On a replica set the driver picks the node itself and mongod ignores $readPreference, but a
- * mongos routes reads by exactly this field - so without it, all read preference configuration
+ * On a replica set the driver picks the node itself (mongod only uses $readPreference for its
+ * secondaryOk decision), but a mongos routes reads by exactly this field - so without it, all read preference configuration
  * (MorphiumConfig.defaultReadPreference, @DefaultReadPreference) is silently dropped on a
  * sharded cluster.
  */
@@ -88,6 +88,22 @@ public class MongoCommandReadPreferenceTest {
         assertThat(readPreferenceOf(cmd)).containsEntry("mode", "secondary");
         // the wire protocol expects a list of tag documents
         assertThat(readPreferenceOf(cmd).get("tags")).isEqualTo(List.of(Map.of("dc", "muc")));
+    }
+
+    /**
+     * MongoDB rejects tags with mode primary ("Only empty tags are allowed with primary mode"), and
+     * {@link ReadPreference#addTag} does not check the type - a primary() with a tag has to stay
+     * as harmless on the wire as it was while nothing was sent.
+     */
+    @Test
+    public void tagsAreNotSentWithModePrimary() {
+        ReadPreference readPreference = ReadPreference.primary();
+        readPreference.addTag("dc", "muc");
+        FindCommand cmd = new FindCommand(new ConnectionMock()).setColl("test");
+        cmd.setReadPreference(readPreference);
+
+        assertThat(readPreferenceOf(cmd)).containsEntry("mode", "primary");
+        assertThat(readPreferenceOf(cmd)).doesNotContainKey("tags");
     }
 
     /**

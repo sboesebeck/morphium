@@ -26,15 +26,31 @@ public class PooledDriverEffectiveReadPreferenceTest {
     }
 
     /**
-     * {@link PooledDriver#getDefaultReadPreference()} deliberately overrides the configured default
-     * with PRIMARY, so a read without an explicit read preference reads from the primary.
+     * Without a requested read preference the driver's default is used - whatever
+     * {@link PooledDriver#getDefaultReadPreference()} answers, this test does not pin that down.
      */
     @Test
-    public void withoutARequestedOneThePrimaryIsUsed() {
+    public void withoutARequestedOneTheDriverDefaultIsUsed() {
         try (PooledDriver driver = new PooledDriver()) {
             driver.setDefaultReadPreference(ReadPreference.nearest());
 
-            assertThat(driver.effectiveReadPreference(null).getType()).isEqualTo(ReadPreferenceType.PRIMARY);
+            assertThat(driver.effectiveReadPreference(null).getType())
+                .isEqualTo(driver.getDefaultReadPreference().getType());
+        }
+    }
+
+    /**
+     * {@code new ReadPreference()} is public and {@code DriverSettings} tolerates a null type, and
+     * the node selection switches on the type - so a typeless preference must never come out of here.
+     */
+    @Test
+    public void aReadPreferenceWithoutATypeIsTreatedLikeNone() {
+        try (PooledDriver driver = new PooledDriver()) {
+            ReadPreference typeless = new ReadPreference();
+
+            assertThat(driver.effectiveReadPreference(typeless).getType())
+                .isNotNull()
+                .isEqualTo(driver.getDefaultReadPreference().getType());
         }
     }
 

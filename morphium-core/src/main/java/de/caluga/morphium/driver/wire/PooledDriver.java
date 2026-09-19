@@ -1482,44 +1482,6 @@ public class PooledDriver extends DriverBase {
         return con;
     }
 
-    /**
-     * The read preference a read is actually performed with: the requested one (or the configured
-     * default), with PRIMARY forced where reading anywhere else would break read-your-own-write.
-     *
-     * @param rp the requested read preference, may be {@code null}
-     * @return the effective read preference, never {@code null}
-     */
-    protected ReadPreference effectiveReadPreference(ReadPreference rp) {
-        if (rp == null) {
-            rp = getDefaultReadPreference();
-        }
-
-        if (rp == null) {
-            return ReadPreference.primaryPreferred();
-        }
-
-        ReadPreferenceType type = rp.getType();
-
-        if (isTransactionInProgress()) {
-            return ReadPreference.primary();
-        }
-
-        // Force PRIMARY reads shortly after a transaction commit to ensure
-        // read-your-writes consistency. On replica sets, secondaries may not
-        // have replicated the committed data yet.
-        if (type != ReadPreferenceType.PRIMARY && isInReadAfterWriteWindow()) {
-            return ReadPreference.primary();
-        }
-
-        // Force PRIMARY reads for InMemory backend (PoppyDB) to ensure read-your-writes consistency
-        // InMemory backend replication is eventually consistent, so NEAREST/SECONDARY reads may return stale data
-        if (inMemoryBackend && type != ReadPreferenceType.PRIMARY) {
-            return ReadPreference.primary();
-        }
-
-        return rp;
-    }
-
     private MongoConnection selectReadConnection(ReadPreference rp) {
         try {
             if (!isReplicaSet()) {

@@ -5493,7 +5493,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         activeConnections.incrementAndGet();
         stats.get(DriverStatsKey.CONNECTIONS_BORROWED).incrementAndGet();
         InMemConnectionWrapper con = new InMemConnectionWrapper(this);
-        con.setEffectiveReadPreference(rp == null ? getDefaultReadPreference() : rp);
+        // there is no configured default on this driver (getDefaultReadPreference() is null),
+        // and everything is the primary here anyway
+        con.setEffectiveReadPreference(rp == null ? ReadPreference.primary() : rp);
         return con;
     }
 
