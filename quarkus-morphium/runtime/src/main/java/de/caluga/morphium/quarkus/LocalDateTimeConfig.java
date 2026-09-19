@@ -47,7 +47,7 @@ public interface LocalDateTimeConfig {
      *             same wave as the other {@code @Deprecated(since = "6.3", forRemoval = true)}
      *             members in the repo (#218).
      */
-    @Deprecated(since = "6.4.0", forRemoval = true)
+    @Deprecated(since = "6.3.10", forRemoval = true)
     @WithDefault("true")
     boolean useBsonDate();
 }
