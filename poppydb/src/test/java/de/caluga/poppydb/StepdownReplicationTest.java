@@ -1,6 +1,7 @@
 package de.caluga.poppydb;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -23,6 +24,7 @@ import de.caluga.morphium.driver.wire.SingleMongoConnection;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
 import de.caluga.poppydb.election.AppendEntriesRequest;
+import de.caluga.poppydb.election.ElectionConfig;
 import de.caluga.poppydb.election.ElectionManager;
 
 /**
@@ -120,8 +122,55 @@ public class StepdownReplicationTest {
         }
     }
 
+    /**
+     * A per-node election config with the priority takeover switched OFF (one instance per node -
+     * configureReplicaSet stores the node's own priority in it, so the three must not share one).
+     *
+     * <p>Why: the re-election after node1's stepdown is a race between node2 (priority 50) and
+     * node3 (priority 10) that node2 does not win reliably. {@code randomElectionTimeout()} is
+     * {@code random(2000..4000ms) + 2000ms * (1 - priority/100)}: node2 fires somewhere in
+     * 3.0-5.0s, node3 in 3.8-5.8s, the windows overlap by 1.2s, and whenever node2 draws high and
+     * node3 draws low, node3 campaigns first and wins (node1 grants the vote - it is blocked and
+     * has no reason to hold out). Roughly one election in five; reproduced locally, 1 red in 3.
+     *
+     * <p>Why not let the takeover fix it: with the takeover at test speed (1s stability) node3
+     * does yield to node2 - but node2 then yields to node1 one second later, because
+     * {@code checkPriorityTakeover} sees node1 as higher-priority, fresh and caught up, and cannot
+     * see that node1 is still inside its 10s stepdown block. node1 cannot campaign, the cluster
+     * is leaderless, node3 takes over, yields to node1 too, and so on until the block expires
+     * (seen 1 in 10 runs: terms 2, 3, 4 each held for one second). That is a protocol gap, not a
+     * test problem, and it is tracked separately; this test must not depend on it either way.
+     *
+     * <p>So: no takeover, and the test accepts whichever survivor wins - see
+     * {@link #waitForNewPrimary}. That is exactly what the test is about: the DEMOTED node must
+     * resume replication toward the new primary on its own, whoever that is. Which of the two
+     * survivors it is was never the point.
+     */
+    private static ElectionConfig noPriorityTakeover() {
+        return new ElectionConfig().setPriorityTakeoverEnabled(false);
+    }
+
+    /**
+     * Waits until one of {@code candidates} is primary and returns it. 30s: three nodes starting
+     * concurrently and one election with 2-6s timers per attempt - a second attempt must fit.
+     */
+    private PoppyDB waitForNewPrimary(PoppyDB demoted, PoppyDB... candidates) throws Exception {
+        long deadline = System.currentTimeMillis() + 30_000;
+        while (System.currentTimeMillis() < deadline) {
+            for (PoppyDB c : candidates) {
+                if (c.isPrimary()) {
+                    assertFalse(demoted.isPrimary(), "the demoted node must not be primary again");
+                    return c;
+                }
+            }
+            Thread.sleep(50);
+        }
+        throw new AssertionError("no survivor became primary within 30s after the stepdown");
+    }
+
+    /** 30s: the initial election of three concurrently started nodes, with room for a retry. */
     private void waitForPrimary(PoppyDB node) throws Exception {
-        long deadline = System.currentTimeMillis() + 15_000;
+        long deadline = System.currentTimeMillis() + 30_000;
         while (!node.isPrimary() && System.currentTimeMillis() < deadline) {
             Thread.sleep(50);
         }
@@ -202,15 +251,15 @@ public class StepdownReplicationTest {
         PoppyDB node2 = new PoppyDB(port2, "localhost", 20, 5);
         PoppyDB node3 = new PoppyDB(port3, "localhost", 20, 5);
         var hosts = List.of("localhost:" + port1, "localhost:" + port2, "localhost:" + port3);
-        // Distinct, strictly ordered priorities: node1 wins the initial election deterministically,
-        // and once it steps down, node2 - the higher-priority survivor - must win the re-election
-        // over node3 just as deterministically (same reasoning as UserFailoverTest).
+        // Distinct, strictly ordered priorities: node1 wins the initial election deterministically.
+        // Once it steps down, node2 usually wins the re-election over node3 - but not always, see
+        // noPriorityTakeover() for why, and why the test accepts either survivor as the new primary.
         var prio = Map.of("localhost:" + port1, 100,
                           "localhost:" + port2, 50,
                           "localhost:" + port3, 10);
-        node1.configureReplicaSet("rsStepdown", hosts, prio, true, null);
-        node2.configureReplicaSet("rsStepdown", hosts, prio, true, null);
-        node3.configureReplicaSet("rsStepdown", hosts, prio, true, null);
+        node1.configureReplicaSet("rsStepdown", hosts, prio, true, noPriorityTakeover());
+        node2.configureReplicaSet("rsStepdown", hosts, prio, true, noPriorityTakeover());
+        node3.configureReplicaSet("rsStepdown", hosts, prio, true, noPriorityTakeover());
 
         // Election mode needs a majority of the 3-node cluster to vote, so all nodes must be up
         // before waiting for leadership to settle.
@@ -241,26 +290,29 @@ public class StepdownReplicationTest {
         // necessary instead of just waiting for the real election's heartbeat to arrive. Same
         // term as the stepdown: not treated as a fresher term, just a plain "here's who the
         // leader is now" notification, exactly like a heartbeat that lost the race against
-        // onLeadershipChange(false) would look.
+        // onLeadershipChange(false) would look. Names node2 because that is the likely winner;
+        // if node3 wins instead, the real leader's first heartbeat (a higher term) overrides
+        // this - the same thing that happens in production when a guess is stale.
         leaderEm.handleAppendEntries(
                 AppendEntriesRequest.heartbeat(termAtStepdown, node2Address, 0, 0, 0));
 
-        // node2 has the higher priority of the two non-demoted nodes, so it must win the real
-        // re-election regardless of the synthetic injection above, which only ever affected
-        // node1's own view of who the leader is.
-        waitForPrimary(node2);
+        // Either survivor may win the re-election (see noPriorityTakeover()); what matters is that
+        // node1 does not, and that it resumes replication toward whoever did.
+        PoppyDB newPrimary = waitForNewPrimary(node1, node2, node3);
+        int newPrimaryPort = newPrimary == node2 ? port2 : port3;
+        int otherPort = newPrimary == node2 ? port3 : port2;
 
         // A user created on the NEW primary must reach every OTHER node - including node1, which
-        // is still running, demoted to secondary, and must have resumed replication toward node2
-        // on its own (this is the crux of the ordering-gap bug: node1 must NOT need a further
+        // is still running, demoted to secondary, and must have resumed replication toward the new
+        // primary on its own (this is the crux of the ordering-gap bug: node1 must NOT need a further
         // leader change to start replicating again).
-        Map<String, Object> postStepdownReply = command(port2, Doc.of(
+        Map<String, Object> postStepdownReply = command(newPrimaryPort, Doc.of(
                 "createUser", "post-stepdown-user", "pwd", "post-stepdown-pw", "roles", List.of(), "$db", "admin"));
         assertEquals(1.0, okOf(postStepdownReply),
                 "createUser on the new primary must succeed: " + postStepdownReply);
 
-        assertTrue(poll(30_000, () -> scramLoginWorks(port3, "post-stepdown-user", "post-stepdown-pw")),
-                "a user created on the NEW primary must replicate to node3");
+        assertTrue(poll(30_000, () -> scramLoginWorks(otherPort, "post-stepdown-user", "post-stepdown-pw")),
+                "a user created on the NEW primary must replicate to the other follower");
         assertTrue(poll(30_000, () -> scramLoginWorks(port1, "post-stepdown-user", "post-stepdown-pw")),
                 "the DEMOTED node (node1, still running) must resume replication toward the new primary");
     }
