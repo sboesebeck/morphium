@@ -51,6 +51,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
+import java.math.BigInteger;
+import java.math.BigDecimal;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -1243,11 +1245,23 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             Map<String, Object> m = (Map<String, Object>) val;
             Object cn = m.get("class_name");
 
-            if (cn instanceof String && m.containsKey("value") && m.size() == 2) {
+            boolean marker = cn instanceof String && m.containsKey("value")
+                             && (m.size() == 2 || (m.size() == 3 && m.containsKey("flags")));
+
+            if (marker) {
                 Object v = m.get("value");
 
                 try {
                     switch ((String) cn) {
+                        case "java.util.regex.Pattern": {
+                            Object fl = m.get("flags");
+                            int flags = fl instanceof Number ? ((Number) fl).intValue() : 0;
+                            return Pattern.compile(v.toString(), flags);
+                        }
+
+                        case "de.caluga.morphium.driver.bson.MongoTimestamp":
+                            return new MongoTimestamp(v instanceof Number ? ((Number) v).longValue() : Long.parseLong(v.toString()));
+
                         case "org.bson.types.ObjectId":
                         case "de.caluga.morphium.driver.MorphiumId":
                             return new MorphiumId(v.toString());
@@ -1362,10 +1376,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * <p>The file is written crash-safely: see {@link #writeDumpAtomically(File, DumpBody)}.
      */
     public void dumpToFile(String db, File f) throws IOException {
-        ObjectMapperImpl mapper = new ObjectMapperImpl();
-        MorphiumTypeMapper<ObjectId> typeMapper = getObjectIdTypeMapper();
-        mapper.registerCustomMapperFor(ObjectId.class, typeMapper);
-
         // Snapshot each collection's document list under its read lock. Collection storage is a
         // plain ArrayList now (was CopyOnWriteArrayList), so the serializer below must walk stable
         // copies rather than the live lists to avoid ConcurrentModificationException.
@@ -1379,14 +1389,26 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             try (GZIPOutputStream gzip = new GZIPOutputStream(out);
                 OutputStreamWriter wr = new OutputStreamWriter(gzip, StandardCharsets.UTF_8)) {
 
-                InMemDumpContainer d = new InMemDumpContainer();
-                d.setCreated(System.currentTimeMillis());
-                d.setData(snapshot);
-                d.setDb(db);
-                // Secondary-index definitions (#340) - null (key absent) when the db has none,
-                // so a dump without indexes keeps exactly the legacy shape.
-                d.setIndexes(snapshotIndexes(db));
-                Map<String, Object> ser = mapper.serialize(d);
+                // The container is written by hand, in the exact shape the entity mapper produced
+                // (_id = created, db, data, indexes), but WITHOUT the mapper: the store holds
+                // plain documents of wire types, and the mapper rejected any value it had no
+                // mapping for ("Cannot write object to db that is neither entity, embedded nor
+                // serializable" for a timestamp or MinKey) - no dump at all for that database,
+                // every interval, until the document was gone. writeDumpJson knows every wire
+                // type and has a fallback for the rest; the restore (restoreDumpValue) is its
+                // counterpart and never used the mapper either.
+                Map<String, Object> ser = new LinkedHashMap<>();
+                ser.put("_id", System.currentTimeMillis());
+                ser.put("db", db);
+                ser.put("data", snapshot);
+                // Secondary-index definitions (#340) - absent when the db has none, so a dump
+                // without indexes keeps exactly the legacy shape.
+                Map<String, List<Map<String, Object>>> indexes = snapshotIndexes(db);
+
+                if (indexes != null) {
+                    ser.put("indexes", indexes);
+                }
+
                 writeDumpMeasured(db, ser, wr);
                 wr.flush();
                 gzip.finish();
@@ -1760,6 +1782,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         } else if (o instanceof byte[]) {
             out.write("{ \"class_name\" : \"[B\", \"value\" : \""
                       + Base64.getEncoder().encodeToString((byte[]) o) + "\" } ");
+        } else if (o instanceof Pattern) {
+            // A BSON regex is decoded into a Pattern (BsonDecoder), so the store holds them. Written
+            // bare it came out as `"field" : a*` - not JSON - and one such document failed the
+            // restore of its whole database on every node of a replica set, whose partial-restore
+            // guard (#306) then kept all of them from standing for election.
+            Pattern p = (Pattern) o;
+            out.write("{ \"class_name\" : \"java.util.regex.Pattern\", \"value\" : ");
+            Utils.writeEscapedJsonString(p.pattern(), out);
+            out.write(", \"flags\" : " + p.flags() + " } ");
+        } else if (o instanceof MongoTimestamp) {
+            out.write("{ \"class_name\" : \"" + MongoTimestamp.class.getName() + "\", \"value\" : "
+                      + ((MongoTimestamp) o).getValue() + " } ");
         } else if (o instanceof Map) {
             out.write("{ ");
             boolean comma = false;
@@ -1805,11 +1839,36 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             out.write("]");
         } else if (o instanceof Enum) {
             Utils.writeEscapedJsonString(((Enum <?>) o).name(), out);
-        } else {
-            // numbers, booleans
+        } else if (o instanceof Boolean || o instanceof Integer || o instanceof Long || o instanceof Short
+                   || o instanceof Byte || o instanceof BigInteger || o instanceof BigDecimal
+                   || o instanceof AtomicInteger || o instanceof AtomicLong) {
             out.write(o.toString());
+        } else if (o instanceof Double || o instanceof Float) {
+            double d = ((Number) o).doubleValue();
+
+            if (Double.isNaN(d) || Double.isInfinite(d)) {
+                // JSON has no NaN/Infinity token - as a string the dump stays readable
+                Utils.writeEscapedJsonString(String.valueOf(d), out);
+            } else {
+                out.write(o.toString());
+            }
+        } else {
+            // Whatever else reaches the store (MinKey/MaxKey, JS code, a Character from an
+            // embedded caller, ...): the value may lose its type, the database must not lose its
+            // dump. A bare toString() token here is what made a regex unrestorable.
+            String cls = o.getClass().getName();
+
+            if (dumpFallbackTypesWarned.add(cls)) {
+                LoggerFactory.getLogger(InMemoryDriver.class).warn("Dump: no JSON form for values of type {} - written as their string form, "
+                         + "they will restore as strings", cls);
+            }
+
+            Utils.writeEscapedJsonString(o.toString(), out);
         }
     }
+
+    /** Value types the dump writer has already warned about (once per type per process). */
+    private static final Set<String> dumpFallbackTypesWarned = ConcurrentHashMap.newKeySet();
 
     @Override
     public List<String> listDatabases() {
