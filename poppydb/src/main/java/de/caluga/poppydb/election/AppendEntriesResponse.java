@@ -38,6 +38,14 @@ public class AppendEntriesResponse {
      * Nodes from before priority takeover was introduced omit the field, hence the -1 default.
      */
     private int priority = -1;
+    /**
+     * Whether the follower may currently campaign - false while it sits inside a stepdown block
+     * (replSetStepDown, or a priority-takeover yield). null when the follower did not say, i.e.
+     * a node from before this field existed; the leader then assumes electable, as it always did.
+     * Carried so a leader's priority takeover does not hand leadership to a node that cannot
+     * take it (#385).
+     */
+    private Boolean electable;
 
     public AppendEntriesResponse() {
     }
@@ -101,6 +109,15 @@ public class AppendEntriesResponse {
     /**
      * Convert to Map for wire protocol transmission.
      */
+    public Boolean getElectable() {
+        return electable;
+    }
+
+    public AppendEntriesResponse setElectable(Boolean electable) {
+        this.electable = electable;
+        return this;
+    }
+
     public Map<String, Object> toMap() {
         Map<String, Object> map = new HashMap<>();
         map.put("ok", 1);
@@ -112,6 +129,9 @@ public class AppendEntriesResponse {
         }
         if (priority >= 0) {
             map.put("priority", priority);
+        }
+        if (electable != null) {
+            map.put("electable", electable);
         }
         return map;
     }
@@ -132,6 +152,9 @@ public class AppendEntriesResponse {
         if (map.get("priority") instanceof Number prio) {
             resp.setPriority(prio.intValue());
         }
+        if (map.get("electable") instanceof Boolean e) {
+            resp.setElectable(e);
+        }
         return resp;
     }
 
@@ -143,6 +166,7 @@ public class AppendEntriesResponse {
                 ", matchIndex=" + matchIndex +
                 ", followerId='" + followerId + '\'' +
                 ", priority=" + priority +
+                ", electable=" + electable +
                 '}';
     }
 }

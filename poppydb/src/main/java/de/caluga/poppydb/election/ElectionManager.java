@@ -123,6 +123,10 @@ public class ElectionManager {
     // Priority takeover bookkeeping (leader only): what we learned from heartbeat responses
     private final Map<String, Integer> peerPriorities = new ConcurrentHashMap<>();
     private final Map<String, Long> peerLastContact = new ConcurrentHashMap<>();
+    // What each peer last said about its own electability (#385): FALSE while it sits inside a
+    // stepdown block. Absent for peers that do not send the field (pre-#385 nodes) - treated as
+    // electable, i.e. the behaviour before the field existed.
+    private final Map<String, Boolean> peerElectable = new ConcurrentHashMap<>();
     private volatile long leaderSince = 0;
     private volatile long leaderStartSequence = 0;
 
@@ -569,6 +573,7 @@ public class ElectionManager {
 
             // Peer liveness must be re-established from our own heartbeats; priorities stay valid
             peerLastContact.clear();
+            peerElectable.clear();
 
             log.info("{} became LEADER at term {}", myAddress, currentTerm.get());
 
@@ -1239,7 +1244,8 @@ public class ElectionManager {
                 log.debug("{} rejecting appendEntries from {} (term {} < {})",
                         myAddress, request.getLeaderId(), requestTerm, myTerm);
                 return new AppendEntriesResponse(myTerm, false, lastLogIndex.get())
-                        .setFollowerId(myAddress).setPriority(takeoverPriority());
+                        .setFollowerId(myAddress).setPriority(takeoverPriority())
+                        .setElectable(!isElectionBlocked());
             }
 
             // Valid heartbeat from current leader
@@ -1284,9 +1290,12 @@ public class ElectionManager {
             }
 
             // For now, just acknowledge (log replication will be added later).
-            // The priority lets the leader detect that we are a better candidate (priority takeover).
+            // The priority lets the leader detect that we are a better candidate (priority takeover);
+            // electable tells it whether we could actually take over right now (#385) - a node
+            // inside its stepdown block looks like a perfect successor otherwise.
             return new AppendEntriesResponse(myTerm, true, lastLogIndex.get())
-                    .setFollowerId(myAddress).setPriority(takeoverPriority());
+                    .setFollowerId(myAddress).setPriority(takeoverPriority())
+                    .setElectable(!isElectionBlocked());
 
         } finally {
             stateLock.unlock();
@@ -1333,6 +1342,13 @@ public class ElectionManager {
                 // Nodes older than priority takeover omit the field and report -1
                 if (response.getPriority() >= 0) {
                     peerPriorities.put(peer, response.getPriority());
+                }
+                // Nodes older than #385 omit electable; forget any earlier value so a peer that
+                // was downgraded mid-flight is not judged on stale information.
+                if (response.getElectable() != null) {
+                    peerElectable.put(peer, response.getElectable());
+                } else {
+                    peerElectable.remove(peer);
                 }
 
                 log.trace("{} received heartbeat ack from {}", myAddress, peer);
@@ -1456,6 +1472,13 @@ public class ElectionManager {
                 continue;
             }
 
+            if (Boolean.FALSE.equals(peerElectable.get(peer))) {
+                // Inside its stepdown block: it could not win the election our yield would
+                // trigger, and the cluster would sit leaderless until its block expires (#385).
+                log.debug("{} skipping higher-priority peer {} - not electable right now (stepdown block)",
+                        myAddress, peer);
+                continue;
+            }
             if (!isCaughtUp(peer, localSequence)) {
                 continue;
             }
