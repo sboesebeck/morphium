@@ -69,6 +69,28 @@ public class WatchCursorManager {
         return state == null ? -1 : state.queuedBytes.get();
     }
 
+    // #389: an ended change stream is remembered for a while after its removal, so a getMore
+    // that arrives late - after the parked one was answered, or after failAllUnservable - is
+    // still answered 286 with the terminal reason, not as an exhausted cursor by the generic
+    // getMore path. "Exhausted" (ok:1, id 0) tells the client its stream ended normally; it
+    // resumes in place with the same dead token and gets the same answer again (the loop
+    // behind #383). Bounded twice: a client's getMore follows its aggregate within
+    // milliseconds, so a few seconds of grace cover every real case, and a hard capacity
+    // keeps a burst (#380: thousands of ended streams within a second) from growing the map.
+    private volatile long endedWatchCursorGraceMs = 10_000;
+    private volatile int endedWatchCursorCapacity = 10_000;
+    private final ConcurrentMap<Long, EndedWatchCursor> endedWatchCursors = new ConcurrentHashMap<>();
+
+    private record EndedWatchCursor(String reason, long endedAt) {}
+
+    void setEndedWatchCursorGraceMs(long graceMs) {
+        this.endedWatchCursorGraceMs = graceMs;
+    }
+
+    void setEndedWatchCursorCapacity(int capacity) {
+        this.endedWatchCursorCapacity = capacity;
+    }
+
     private final AtomicLong cursorIdGenerator = new AtomicLong(1000);
     private final ConcurrentMap<Long, WatchCursorState> watchCursors = new ConcurrentHashMap<>();
     private final ConcurrentMap<Long, TailableCursorState> tailableCursors = new ConcurrentHashMap<>();
@@ -416,6 +438,13 @@ public class WatchCursorManager {
             return getMoreWatch(state, maxTimeMs);
         }
 
+        // #389: the other branch of the race - the stream was ended and removed before this
+        // getMore arrived. Same answer as the parked branch, so the client sees one condition.
+        String endedReason = endedWatchCursorReason(cursorId);
+        if (endedReason != null) {
+            return CompletableFuture.failedFuture(new ChangeStreamHistoryLostException(endedReason));
+        }
+
         TailableCursorState tailableState = tailableCursors.get(cursorId);
         if (tailableState != null) {
             return getMoreTailable(tailableState, maxTimeMs);
@@ -443,6 +472,7 @@ public class WatchCursorManager {
         if (state.wcmd != null && state.wcmd.getTerminalError() != null) {
             log.warn("Cursor {} ended unservable: {}", state.cursorId, state.wcmd.getTerminalError());
             removeWatchCursor(state.cursorId);
+            rememberEnded(state.cursorId, state.wcmd.getTerminalError());
             return CompletableFuture.failedFuture(
                 new ChangeStreamHistoryLostException(state.wcmd.getTerminalError()));
         }
@@ -598,9 +628,58 @@ public class WatchCursorManager {
     }
 
     /**
+     * Whether this id belongs to a change stream that was ended and removed within the grace
+     * (#389): such a getMore has to take the watch path, where it is answered 286, and not the
+     * generic one, where it would be answered as an exhausted cursor.
+     */
+    public boolean isEndedWatchCursor(long cursorId) {
+        return endedWatchCursorReason(cursorId) != null;
+    }
+
+    private String endedWatchCursorReason(long cursorId) {
+        EndedWatchCursor ended = endedWatchCursors.get(cursorId);
+
+        if (ended == null) {
+            return null;
+        }
+
+        if (System.currentTimeMillis() - ended.endedAt() > endedWatchCursorGraceMs) {
+            endedWatchCursors.remove(cursorId, ended);
+            return null;
+        }
+
+        return ended.reason();
+    }
+
+    private void rememberEnded(long cursorId, String reason) {
+        if (endedWatchCursors.size() >= endedWatchCursorCapacity) {
+            long now = System.currentTimeMillis();
+            endedWatchCursors.values().removeIf(e -> now - e.endedAt() > endedWatchCursorGraceMs);
+
+            // still full: a burst within the grace - drop the oldest, it had the most time
+            while (endedWatchCursors.size() >= endedWatchCursorCapacity) {
+                Map.Entry<Long, EndedWatchCursor> oldest = null;
+
+                for (Map.Entry<Long, EndedWatchCursor> e : endedWatchCursors.entrySet()) {
+                    if (oldest == null || e.getValue().endedAt() < oldest.getValue().endedAt()) {
+                        oldest = e;
+                    }
+                }
+
+                if (oldest == null || !endedWatchCursors.remove(oldest.getKey(), oldest.getValue())) {
+                    break;
+                }
+            }
+        }
+
+        endedWatchCursors.put(cursorId, new EndedWatchCursor(reason, System.currentTimeMillis()));
+    }
+
+    /**
      * Kill a cursor.
      */
     public boolean killCursor(long cursorId) {
+        endedWatchCursors.remove(cursorId); // the client let go of it - nothing to remember
         WatchCursorState watchState = removeWatchCursor(cursorId);
         if (watchState != null) {
             // Complete any pending getMore requests with empty results
@@ -777,6 +856,7 @@ public class WatchCursorManager {
         // them and then hit the terminal check.
         if (state.events.isEmpty()) {
             removeWatchCursor(cursorId);
+            rememberEnded(cursorId, reason);
         }
     }
 
