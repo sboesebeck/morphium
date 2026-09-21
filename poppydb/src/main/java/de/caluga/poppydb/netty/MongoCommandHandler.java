@@ -466,6 +466,13 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         if (log.isDebugEnabled()) log.debug("Incoming {}", Utils.toJsonString(doc));
 
         String cmd = doc.keySet().iterator().next(); // first key = command name (no stream overhead)
+
+        // #380 instrumentation: count change stream registrations HERE, ahead of the middleware,
+        // so the ones the RECOVERING gate refuses (13436) are counted too - the open question
+        // is how many arrive, not how many are served. One map lookup per aggregate.
+        if (cursorManager != null && cmd.equals("aggregate") && isChangeStreamRegistration(doc)) {
+            cursorManager.recordChangeStreamRegistration(changeStreamResumeToken(doc) != null);
+        }
         log.debug("Handling command {}", cmd);
 
         // currentOp/killOp visibility: the op is registered for its synchronous dispatch;
@@ -898,6 +905,26 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             && pipeline.get(0) instanceof Map<?, ?> first && first.containsKey("$currentOp");
     }
 
+    /** An aggregate whose pipeline opens with $changeStream - a change stream registration. */
+    private static boolean isChangeStreamRegistration(Map<String, Object> doc) {
+        Object p = doc.get("pipeline");
+        return p instanceof List<?> pipeline && !pipeline.isEmpty()
+            && pipeline.get(0) instanceof Map<?, ?> first && first.containsKey("$changeStream");
+    }
+
+    /** The resumeAfter/startAfter token of a change stream registration, or null if it starts fresh. */
+    private static Object changeStreamResumeToken(Map<String, Object> doc) {
+        Object first = ((List<?>) doc.get("pipeline")).get(0);
+        Object spec = ((Map<?, ?>) first).get("$changeStream");
+
+        if (!(spec instanceof Map<?, ?> changeStream)) {
+            return null;
+        }
+
+        Object token = changeStream.get("resumeAfter");
+        return token != null ? token : changeStream.get("startAfter");
+    }
+
     /**
      * db.currentOp(): answer the $currentOp pipeline from the live op registry. Follow-up
      * $match stages (mongosh appends the currentOp filter as one) are applied; any other
@@ -1309,6 +1336,12 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 long created = connectionsCreatedSupplier == null ? current : connectionsCreatedSupplier.getAsLong();
                 answer.put("connections", Doc.of("current", current,
                         "available", Math.max(0, 1000000 - current), "totalCreated", created));
+            }
+
+            // #380 instrumentation: the change stream registration counters (see
+            // WatchCursorManager.changeStreamStats), so a client can read the rate on demand.
+            if (cmd.equals("serverStatus") && cursorManager != null) {
+                answer.put("changeStreams", cursorManager.changeStreamStats());
             }
 
             // Promote the pending user once the driver confirms the SCRAM exchange succeeded.

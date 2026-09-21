@@ -2433,6 +2433,28 @@ public class PoppyDB {
 
         localDataClearedForSync = true;
         setLocalDataComplete(false);
+
+        // #380: the third consequence - the client change streams this node still holds. The
+        // wipe that follows is invisible to them (it runs with change stream events suppressed),
+        // so left alone they would sit out the sync and continue on the re-synced data with an
+        // undetectable gap. A RECOVERING member serves no reads: end them now with the answer
+        // the clients restart on (286), while new registrations are refused by the gate in
+        // preDispatch (13436) until the sync completes. Ended here rather than in
+        // clearLocalDatabases() because the notice is the node-level transition; the manager
+        // does not know about the wire side.
+        int ended = cursorManager.getStats().get("watchCursors") instanceof Number n ? n.intValue() : 0;
+        cursorManager.failAllUnservable("ChangeStreamHistoryLost: this node is re-syncing its data from "
+                + "the primary - the resume window is gone; restart the stream");
+
+        if (ended > 0) {
+            log.info("Ended {} client change stream(s): this node is re-syncing (RECOVERING) and cannot "
+                    + "serve them - clients re-establish their streams once the sync is complete", ended);
+        }
+    }
+
+    /** The #380 change stream registration counters - see {@code WatchCursorManager.changeStreamStats}. */
+    public Map<String, Object> getChangeStreamStats() {
+        return cursorManager.changeStreamStats();
     }
 
     /** Test seam: stand in for "a sync emptied this node's store". */

@@ -1297,7 +1297,7 @@ PoppyDB implements the following MongoDB admin commands:
 | `listCommands` | Names of every command this server answers - and only those; `shutdown` is listed only where it works, explicitly refused commands are not listed |
 | `currentOp` / `$currentOp` stage | Live operations from the server's op registry — `db.currentOp()` works, including `$match` filters |
 | `killOp` | Marks an op kill-pending; best-effort thread interrupt (never a Netty event loop — cooperative like mongod) |
-| `serverStatus` | Includes real client connection gauges (`connections.current`/`totalCreated` from the Netty channel group) |
+| `serverStatus` | Includes real client connection gauges (`connections.current`/`totalCreated` from the Netty channel group) and the change stream counters `changeStreams.registrations` / `resumeRegistrations` (lifetime totals of registrations that reached this node, served or refused) / `open` (#380) |
 | `dbStats` / `collStats` | Real BSON data sizes, estimated index sizes |
 | `hostInfo` | Host basics (hostname, cores, memory, OS, JVM) |
 | `connectionStatus` | Authenticated user of this connection (empty without `--auth`) |

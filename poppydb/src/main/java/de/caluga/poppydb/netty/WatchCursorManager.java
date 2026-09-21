@@ -4,6 +4,7 @@ import io.netty.channel.ChannelHandlerContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.bson.MongoTimestamp;
 import de.caluga.morphium.driver.commands.WatchCommand;
@@ -121,6 +122,43 @@ public class WatchCursorManager {
     /** Is this occurrence one of the ones worth a line of its own? (1, 2, 4, 8, ...) */
     public boolean shouldReport(long occurrence) {
         return occurrence > 0 && (occurrence & (occurrence - 1)) == 0;
+    }
+
+    // #380 instrumentation: what drove ~40,000 registration attempts per second at a node that
+    // had just emptied its store is undecided - ChangeStreamMonitor's retry is paced at 1s, and
+    // the repetition was not paced by network round-trips either. Counting what arrives is the
+    // measurement that decides it at the next rolling restart; nothing is concluded here.
+    // Lifetime totals, never reset: rates are read as deltas between two readings (the CLI's
+    // alive line prints them every 10s, serverStatus on demand).
+    private final java.util.concurrent.atomic.AtomicLong changeStreamRegistrations =
+            new java.util.concurrent.atomic.AtomicLong();
+    private final java.util.concurrent.atomic.AtomicLong changeStreamResumeRegistrations =
+            new java.util.concurrent.atomic.AtomicLong();
+
+    /** Count one incoming change stream registration (served or refused). */
+    public void recordChangeStreamRegistration(boolean withResumeToken) {
+        changeStreamRegistrations.incrementAndGet();
+
+        if (withResumeToken) {
+            changeStreamResumeRegistrations.incrementAndGet();
+        }
+    }
+
+    /** Change stream registrations that reached this node since it started, served or refused. */
+    public long getChangeStreamRegistrations() {
+        return changeStreamRegistrations.get();
+    }
+
+    /** The subset of {@link #getChangeStreamRegistrations()} that carried a resume token. */
+    public long getChangeStreamResumeRegistrations() {
+        return changeStreamResumeRegistrations.get();
+    }
+
+    /** The #380 counters plus the number of open streams, as serverStatus and the CLI report them. */
+    public Map<String, Object> changeStreamStats() {
+        return Doc.of("registrations", changeStreamRegistrations.get(),
+                "resumeRegistrations", changeStreamResumeRegistrations.get(),
+                "open", (long) watchCursors.size());
     }
 
     public long nextCursorId() {
@@ -739,6 +777,33 @@ public class WatchCursorManager {
         // them and then hit the terminal check.
         if (state.events.isEmpty()) {
             removeWatchCursor(cursorId);
+        }
+    }
+
+    /**
+     * Ends every registered change stream as unservable - the node is turning RECOVERING (#380).
+     *
+     * <p>A node that empties its store for a full sync does so under
+     * {@code suppressChangeStreamEvents()}: the drops are invisible to the streams registered
+     * while it was still primary, which would sit parked through the wipe and continue on the
+     * re-synced data with a gap no consumer can detect - precisely what
+     * {@code InMemoryDriver.failHistoryLost} exists to prevent for resumes. MongoDB ends every
+     * open cursor on the transition to RECOVERING; this is the same, with the answer the clients
+     * already key their restart on. The reason therefore has to carry the
+     * "ChangeStreamHistoryLost" marker: it is what a parked getMore is answered with (286) and
+     * what the next getMore finds as the terminal error.
+     *
+     * <p>Goes through {@link WatchCommand#setTerminalError} rather than {@link #failUnservable}
+     * directly, so the stream is ended the way the driver ends one: the terminal error is set on
+     * the command for the later-getMore check, and the hook wakes whatever is parked right now.
+     */
+    public void failAllUnservable(String reason) {
+        for (WatchCursorState state : new ArrayList<>(watchCursors.values())) {
+            if (state.wcmd != null) {
+                state.wcmd.setTerminalError(reason);
+            } else {
+                killCursor(state.cursorId);
+            }
         }
     }
 

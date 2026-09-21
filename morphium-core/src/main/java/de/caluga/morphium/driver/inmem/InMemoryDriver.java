@@ -11533,6 +11533,36 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return 16; // numbers, booleans, dates, ObjectIds, other scalars
     }
 
+    // A history-lost answer never comes alone: a change of primary invalidates every client's
+    // resume token at once (#361), and a node that emptied its store for a full sync answers
+    // every resume behind the drop with it - 186,465 identical lines in five seconds on one
+    // node during a rolling restart (#380). Logging each of them is unreadable at any level, so
+    // the burst is throttled to its powers of two: 1, 2, 4, 8, ... keeps the beginning, the
+    // growth and the final order of magnitude, and the rest goes to DEBUG. A quiet period starts
+    // a fresh count, so the next burst is reported from 1 again. Same pattern, same reset, as
+    // PoppyDB's WatchCursorManager one layer up - which emitted 18 lines for the same burst.
+    // Driver-wide, not per subscription, because the burst is.
+    private static final long HISTORY_LOST_QUIET_RESET_MS = 60_000;
+    private final AtomicLong historyLostCount = new AtomicLong();
+    private final AtomicLong historyLostLastSeen = new AtomicLong();
+
+    /** Count one history-lost stream end and return its running number within the burst. */
+    private long recordHistoryLost() {
+        long now = System.currentTimeMillis();
+        long last = historyLostLastSeen.getAndSet(now);
+
+        if (last != 0 && now - last > HISTORY_LOST_QUIET_RESET_MS) {
+            historyLostCount.set(0);
+        }
+
+        return historyLostCount.incrementAndGet();
+    }
+
+    /** Is this occurrence one of the ones worth a line of its own? (1, 2, 4, 8, ...) */
+    private static boolean shouldReportHistoryLost(long occurrence) {
+        return occurrence > 0 && (occurrence & (occurrence - 1)) == 0;
+    }
+
     private class ChangeStreamSubscription {
         private final String db;
         private final String collection;
@@ -11718,14 +11748,30 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
          * cursor layer which answers the next getMore with code 286. The message carries the
          * "ChangeStreamHistoryLost" marker both ChangeStreamMonitor (discard token, restart
          * fresh) and PoppyDB's ReplicationManager (full re-sync) key their recovery on.
+         *
+         * <p>Not an ERROR (#380): the stream is ended with a protocol-defined answer that both
+         * consumers handle by restarting - an expected condition, the same reasoning as #331 for
+         * the IOException family and #361 for the wire-level 286. And throttled, because it
+         * arrives in bursts (see {@link #recordHistoryLost}): the reported occurrences say where
+         * in the burst they are, the rest is still there at DEBUG.
          */
         private void failHistoryLost(String reason) {
             terminalError = "ChangeStreamHistoryLost: resume window lost for change stream on "
                     + db + "." + collection + ": " + reason
                     + " - resuming from this point would silently lose events; resync or restart the stream.";
-            log.error("Change stream on {}.{}: resume window lost - {}. Ending the stream instead "
-                    + "of delivering a gapped suffix: the hole would be undetectable data loss.",
-                    db, collection, reason);
+            long occurrence = recordHistoryLost();
+
+            if (shouldReportHistoryLost(occurrence)) {
+                log.info("Change stream on {}.{}: resume window lost - {}. Ending the stream instead "
+                        + "of delivering a gapped suffix: the hole would be undetectable data loss "
+                        + "(occurrence {} of the current burst)",
+                        db, collection, reason, occurrence);
+            } else {
+                log.debug("Change stream on {}.{}: resume window lost - {}. Ending the stream instead "
+                        + "of delivering a gapped suffix: the hole would be undetectable data loss.",
+                        db, collection, reason);
+            }
+
             deactivate();
         }
 
