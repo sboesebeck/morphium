@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+#### PoppyDB: a node that empties its store for a full sync ends its client change streams (#380)
+A stepped-down primary that falls back to a full sync drops every local database while its client connections stay open and their change streams stay registered. The wipe runs with change stream events suppressed, so those streams never saw the drop: they sat parked through the sync and would have continued on the re-synced data with a gap no consumer can detect. New registrations were already refused while the node re-syncs (13436 `NotPrimaryOrSecondary`, the RECOVERING gate of #356/#371); the streams registered before the wipe were not covered. The node now ends every open change stream the moment its store is emptied - a parked getMore is answered at once with `ChangeStreamHistoryLost` (286), the same answer clients already key their restart on - and logs one line with the count. Clients re-establish their streams once the sync is complete.
+
+#### InMemoryDriver: a history-lost burst is throttled and no longer logged at ERROR (#380)
+`failHistoryLost` logged every ended stream at ERROR, unthrottled. On the node above every resume attempt of the connected clients landed behind the drop, and the node wrote 186,465 identical ERROR lines (66 MB) in five seconds, burying everything else that happened in that window. The condition is an expected, client-handled one (the same reasoning as #331 and #361), so the line is now INFO, and a burst is reported at its powers of two only (1, 2, 4, 8, ... with the running count), the rest at DEBUG; the count resets after a minute of quiet. This is the throttling PoppyDB's `WatchCursorManager` already applied one layer up, where the same burst came out as 18 lines. The wire contract is unchanged: every ended stream still carries the `ChangeStreamHistoryLost` marker.
+
+#### PoppyDB: change stream registrations are counted (#380)
+What drove ~40,000 registration attempts per second at the re-syncing node is undecided: `ChangeStreamMonitor` paces its retries at one second, and the repetition was not paced by network round-trips either. Every change stream registration that reaches a node is now counted - ahead of the RECOVERING gate, so refused attempts count too - with the subset that carried a resume token. The lifetime totals are in `serverStatus.changeStreams` (`registrations`, `resumeRegistrations`, `open`) and in the CLI's `PoppyDB alive` line every ten seconds, so the rate at the next rolling restart is a delta between two lines.
+
 
 ## [6.3.10] - 2026-09-19
 
