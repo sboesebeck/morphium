@@ -127,12 +127,28 @@ public class ElectionManager {
     // stepdown block. Absent for peers that do not send the field (pre-#385 nodes) - treated as
     // electable, i.e. the behaviour before the field existed.
     private final Map<String, Boolean> peerElectable = new ConcurrentHashMap<>();
+    // What each peer last said about its replication position in OUR sequence space (#388):
+    // the heartbeat channel of "caught up", next to the replSetProgress acks the
+    // peerSequenceSupplier knows about. Absent for peers that do not send the field.
+    private final Map<String, Long> peerAppliedSequence = new ConcurrentHashMap<>();
+    // Why the takeover currently does not yield to a higher-priority peer, per peer (#388):
+    // the last reason wins, removed once the peer qualifies. Exposed in getStats() and logged
+    // at INFO when it first appears or changes (takeoverWithheldLoggedAt throttles repeats).
+    private final Map<String, String> takeoverWithheld = new ConcurrentHashMap<>();
+    private final Map<String, Long> takeoverWithheldLoggedAt = new ConcurrentHashMap<>();
+    private static final long TAKEOVER_WITHHELD_RELOG_MS = 60_000;
     private volatile long leaderSince = 0;
     private volatile long leaderStartSequence = 0;
+    // Our sequence as of the previous takeover check: the freshness target a peer must have
+    // reached to count as caught up (#388), see checkPriorityTakeover. -1 = no sample yet.
+    private volatile long localSequenceAtLastCheck = -1;
 
     // Replication progress hooks, injected by PoppyDB. Defaults make every peer count as caught up.
     private volatile LongSupplier localSequenceSupplier = () -> 0L;
     private volatile ToLongFunction<String> peerSequenceSupplier = peer -> -1L;
+    // Our own replication position in the CURRENT leader's sequence space, reported in every
+    // heartbeat response (#388). Negative = unknown, the field is then omitted.
+    private volatile LongSupplier appliedSequenceSupplier = () -> -1L;
 
     // Timers and executors
     private ScheduledExecutorService scheduler;
@@ -333,7 +349,7 @@ public class ElectionManager {
 
             // Notify leadership change outside the lock
             if (wasLeader && onLeadershipChange != null) {
-                scheduler.execute(() -> onLeadershipChange.accept(false));
+                dispatchCallback(() -> onLeadershipChange.accept(false), "leadership change (demoted)");
             }
 
             // Restart election timer — see the resetTimer javadoc above for why this is
@@ -574,6 +590,10 @@ public class ElectionManager {
             // Peer liveness must be re-established from our own heartbeats; priorities stay valid
             peerLastContact.clear();
             peerElectable.clear();
+            peerAppliedSequence.clear();
+            takeoverWithheld.clear();
+            takeoverWithheldLoggedAt.clear();
+            localSequenceAtLastCheck = -1;
 
             log.info("{} became LEADER at term {}", myAddress, currentTerm.get());
 
@@ -592,7 +612,27 @@ public class ElectionManager {
 
         // Notify leadership change outside the lock
         if (onLeadershipChange != null) {
-            scheduler.execute(() -> onLeadershipChange.accept(true));
+            dispatchCallback(() -> onLeadershipChange.accept(true), "leadership change (elected)");
+        }
+    }
+
+    /**
+     * Runs a PoppyDB callback on the scheduler - unless the manager is stopping: an
+     * AppendEntries that arrives while stop() has already shut the scheduler down used to run
+     * becomeFollower() into a RejectedExecutionException, logged at ERROR by the transport for
+     * no functional effect (#388). The window between {@code running = false} and the executor's
+     * shutdown is racy by nature, so the exception is still caught, not only pre-empted.
+     */
+    private void dispatchCallback(Runnable callback, String what) {
+        ScheduledExecutorService executor = scheduler;
+        if (!running || executor == null || executor.isShutdown()) {
+            log.debug("{} not dispatching {} callback - manager is stopped", myAddress, what);
+            return;
+        }
+        try {
+            executor.execute(callback);
+        } catch (RejectedExecutionException e) {
+            log.debug("{} {} callback rejected - manager is shutting down", myAddress, what);
         }
     }
 
@@ -1245,7 +1285,8 @@ public class ElectionManager {
                         myAddress, request.getLeaderId(), requestTerm, myTerm);
                 return new AppendEntriesResponse(myTerm, false, lastLogIndex.get())
                         .setFollowerId(myAddress).setPriority(takeoverPriority())
-                        .setElectable(!isElectionBlocked());
+                        .setElectable(!isElectionBlocked())
+                        .setAppliedSequence(reportedAppliedSequence());
             }
 
             // Valid heartbeat from current leader
@@ -1285,7 +1326,7 @@ public class ElectionManager {
             if (onLeaderDiscovered != null) {
                 String leader = request.getLeaderId();
                 if (leader != null && !leader.equals(previousLeader)) {
-                    scheduler.execute(() -> onLeaderDiscovered.accept(leader));
+                    dispatchCallback(() -> onLeaderDiscovered.accept(leader), "leader discovered");
                 }
             }
 
@@ -1295,11 +1336,22 @@ public class ElectionManager {
             // inside its stepdown block looks like a perfect successor otherwise.
             return new AppendEntriesResponse(myTerm, true, lastLogIndex.get())
                     .setFollowerId(myAddress).setPriority(takeoverPriority())
-                    .setElectable(!isElectionBlocked());
+                    .setElectable(!isElectionBlocked())
+                    .setAppliedSequence(reportedAppliedSequence());
 
         } finally {
             stateLock.unlock();
         }
+    }
+
+    /**
+     * Our replication position for the heartbeat response (#388): the last leader sequence we
+     * applied, or null (field omitted) when we have none - a leader must never read "unknown"
+     * as "at 0".
+     */
+    private Long reportedAppliedSequence() {
+        long seq = appliedSequenceSupplier.getAsLong();
+        return seq < 0 ? null : seq;
     }
 
     /**
@@ -1349,6 +1401,12 @@ public class ElectionManager {
                     peerElectable.put(peer, response.getElectable());
                 } else {
                     peerElectable.remove(peer);
+                }
+                // Same rolling-upgrade rule for the replication position (#388)
+                if (response.getAppliedSequence() != null) {
+                    peerAppliedSequence.put(peer, response.getAppliedSequence());
+                } else {
+                    peerAppliedSequence.remove(peer);
                 }
 
                 log.trace("{} received heartbeat ack from {}", myAddress, peer);
@@ -1428,11 +1486,17 @@ public class ElectionManager {
      * A peer only qualifies if it is
      * <ul>
      *   <li>configured with a higher priority than ours,</li>
-     *   <li>still answering our heartbeats, and</li>
+     *   <li>still answering our heartbeats,</li>
+     *   <li>allowed to campaign right now (#385), and</li>
      *   <li>caught up with our replication stream (see {@link #isCaughtUp}).</li>
      * </ul>
      * We only yield once we have been leader for {@code priorityTakeoverMinStabilityMs},
      * so a settling cluster does not flap.
+     *
+     * <p>Why a peer is NOT handed leadership is recorded per peer in {@link #takeoverWithheld}
+     * (visible in {@link #getStats()}) and logged at INFO when the reason first appears or
+     * changes, throttled to once a minute otherwise (#388: with every skip at DEBUG, a takeover
+     * that never fires left no trace in the field).
      */
     private void checkPriorityTakeover() {
         if (!running || state != ElectionState.LEADER || !config.isPriorityTakeoverEnabled()) {
@@ -1441,6 +1505,16 @@ public class ElectionManager {
 
         long now = System.currentTimeMillis();
         long stableFor = now - leaderSince;
+        long localSequence = localSequenceSupplier.getAsLong();
+
+        // The freshness target for "caught up" (#388): a peer that has acknowledged everything
+        // we had at the PREVIOUS check - one check interval ago - keeps pace. Comparing against
+        // the sequence of this very instant asked a follower on a busy set to be exactly level
+        // at a sampled moment, which a perfectly healthy one practically never is: writes keep
+        // arriving between its last ack and our sample. Sampled from the first check on, so
+        // the first check after the stability window already has a target.
+        long caughtUpTarget = localSequenceAtLastCheck < 0 ? localSequence : Math.min(localSequenceAtLastCheck, localSequence);
+        localSequenceAtLastCheck = localSequence;
 
         if (stableFor < config.getPriorityTakeoverMinStabilityMs()) {
             log.trace("{} leader for only {}ms, not yet eligible to yield", myAddress, stableFor);
@@ -1448,7 +1522,6 @@ public class ElectionManager {
         }
 
         int myPriority = config.getElectionPriority();
-        long localSequence = localSequenceSupplier.getAsLong();
 
         // A peer that stopped answering heartbeats must not inherit leadership
         long freshnessMs = Math.max(3L * config.getHeartbeatIntervalMs(), 2000L);
@@ -1467,22 +1540,24 @@ public class ElectionManager {
             Long lastContact = peerLastContact.get(peer);
 
             if (lastContact == null || now - lastContact > freshnessMs) {
-                log.debug("{} skipping higher-priority peer {} - no heartbeat response for {}ms",
-                        myAddress, peer, lastContact == null ? -1 : now - lastContact);
+                withholdTakeover(peer, peerPriority, "no heartbeat response",
+                        lastContact == null ? "none this term" : "last one " + (now - lastContact) + "ms ago");
                 continue;
             }
 
             if (Boolean.FALSE.equals(peerElectable.get(peer))) {
                 // Inside its stepdown block: it could not win the election our yield would
                 // trigger, and the cluster would sit leaderless until its block expires (#385).
-                log.debug("{} skipping higher-priority peer {} - not electable right now (stepdown block)",
-                        myAddress, peer);
+                withholdTakeover(peer, peerPriority, "not electable right now (stepdown block)", null);
                 continue;
             }
-            if (!isCaughtUp(peer, localSequence)) {
+            String[] lag = isCaughtUp(peer, localSequence, caughtUpTarget);
+            if (lag != null) {
+                withholdTakeover(peer, peerPriority, lag[0], lag[1]);
                 continue;
             }
 
+            takeoverWithheld.remove(peer);
             successor = peer;
             successorPriority = peerPriority;
         }
@@ -1505,30 +1580,65 @@ public class ElectionManager {
     }
 
     /**
-     * Whether the peer has replicated far enough to take over without data loss.
-     * Sequences are change stream tokens issued by this leader, reported back by the
-     * secondaries; a peer we have no progress report for is never considered caught up.
+     * Records why the takeover does not yield to {@code peer} right now. INFO the first time
+     * and whenever the KIND of reason changes, at most once a minute for an unchanged kind
+     * (the detail - lag counts, ages - changes on every check and must not defeat the
+     * throttle), DEBUG in between: an operator wondering why the preferred node does not lead
+     * finds the answer in the log without turning DEBUG on (#388).
      */
-    private boolean isCaughtUp(String peer, long localSequence) {
+    private void withholdTakeover(String peer, int peerPriority, String kind, String detail) {
+        String reason = detail == null ? kind : kind + " (" + detail + ")";
+        String previous = takeoverWithheld.put(peer, reason);
+        long now = System.currentTimeMillis();
+        Long loggedAt = takeoverWithheldLoggedAt.get(peer);
+        boolean changed = previous == null || !previous.startsWith(kind);
+        if (changed || loggedAt == null || now - loggedAt > TAKEOVER_WITHHELD_RELOG_MS) {
+            takeoverWithheldLoggedAt.put(peer, now);
+            log.info("{} (priority {}) not yielding to higher-priority peer {} (priority {}): {}",
+                    myAddress, config.getElectionPriority(), peer, peerPriority, reason);
+        } else {
+            log.debug("{} not yielding to {}: {}", myAddress, peer, reason);
+        }
+    }
+
+    /**
+     * Whether the peer has replicated far enough to take over without data loss: null if it
+     * has, otherwise the reason it has not as {kind, detail} for {@link #withholdTakeover}.
+     *
+     * <p>Sequences are change stream tokens issued by this leader. The peer's position is the
+     * best of what it acknowledged via replSetProgress ({@code peerSequenceSupplier}) and what
+     * it reported in its heartbeat responses (#388): the ack bookkeeping lives in a coordinator
+     * that is recreated on every leadership change and only hears from a follower whose
+     * position moved past what it last reported - to whichever primary that was - so a fully
+     * caught-up peer could stay unknown to it indefinitely. A peer we have no position for from
+     * either channel is never considered caught up.
+     *
+     * <p>{@code target} is our sequence as of the previous takeover check (see
+     * {@link #checkPriorityTakeover}); the peer must have reached it, minus the configured
+     * maximum lag.
+     */
+    private String[] isCaughtUp(String peer, long localSequence, long target) {
         if (localSequence <= leaderStartSequence) {
-            return true;  // we replicated nothing during our term - any peer is as up-to-date as we are
+            return null;  // we replicated nothing during our term - any peer is as up-to-date as we are
         }
 
-        long peerSequence = peerSequenceSupplier.applyAsLong(peer);
+        long acked = peerSequenceSupplier.applyAsLong(peer);
+        Long reported = peerAppliedSequence.get(peer);
+        long peerSequence = Math.max(acked, reported == null ? -1L : reported);
 
         if (peerSequence < 0) {
-            log.debug("{} skipping higher-priority peer {} - no replication progress reported", myAddress, peer);
-            return false;
+            return new String[]{"no replication progress reported",
+                    "neither acknowledged nor in heartbeats; we are at " + localSequence + ", term started at " + leaderStartSequence};
         }
 
-        long lag = localSequence - peerSequence;
+        long lag = target - peerSequence;
 
         if (lag > config.getPriorityTakeoverMaxLag()) {
-            log.debug("{} skipping higher-priority peer {} - lagging {} events behind", myAddress, peer, lag);
-            return false;
+            return new String[]{"lagging", lag + " events behind our position of one check ago: peer at "
+                    + peerSequence + ", we were at " + target + ", now at " + localSequence};
         }
 
-        return true;
+        return null;
     }
 
     // ==================== State Persistence (#306 point 5) ====================
@@ -1790,6 +1900,16 @@ public class ElectionManager {
      */
     public void setPeerSequenceSupplier(ToLongFunction<String> supplier) {
         this.peerSequenceSupplier = supplier != null ? supplier : peer -> -1L;
+    }
+
+    /**
+     * Supplies this node's replication position in the current leader's sequence space - the
+     * last leader sequence it has applied - or a negative value if it has none. Reported to the
+     * leader in every heartbeat response so its priority takeover can see that we are caught up
+     * even when no replSetProgress ack reached it (#388).
+     */
+    public void setAppliedSequenceSupplier(LongSupplier supplier) {
+        this.appliedSequenceSupplier = supplier != null ? supplier : () -> -1L;
     }
 
     public void setOnLeadershipChange(Consumer<Boolean> callback) {
@@ -2121,6 +2241,7 @@ public class ElectionManager {
             stats.put("leaseExpiryMs", Math.max(0, leaseExpiryTime - System.currentTimeMillis()));
             stats.put("leaderSinceMs", System.currentTimeMillis() - leaderSince);
             stats.put("peerPriorities", new LinkedHashMap<>(peerPriorities));
+            stats.put("takeoverWithheld", new LinkedHashMap<>(takeoverWithheld));
         }
         return stats;
     }

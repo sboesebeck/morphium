@@ -937,6 +937,12 @@ public class PoppyDB {
                 ReplicationCoordinator coordinator = replicationCoordinatorRef.get();
                 return coordinator == null ? -1L : coordinator.getAcknowledgedSequence(peer);
             });
+            // Our own position for the heartbeat response (#388): the leader's takeover must
+            // not depend on replSetProgress acks alone - see ElectionManager.isCaughtUp.
+            electionManager.setAppliedSequenceSupplier(() -> {
+                ReplicationManager rm = replicationManager;
+                return rm == null ? -1L : rm.getLastAppliedSequence();
+            });
 
             // Create network client for inter-node communication
             electionNetworkClient = new ElectionNetworkClient(electionManager);
