@@ -46,6 +46,14 @@ public class AppendEntriesResponse {
      * take it (#385).
      */
     private Boolean electable;
+    /**
+     * The follower's replication position in the leader's sequence space - the last change
+     * stream sequence of the leader it has applied. null when the follower did not say (a node
+     * from before this field existed, or one that has no position yet). Lets the leader's
+     * priority takeover judge "caught up" from the heartbeat itself instead of only from
+     * replSetProgress acks it may never receive (#388).
+     */
+    private Long appliedSequence;
 
     public AppendEntriesResponse() {
     }
@@ -118,6 +126,15 @@ public class AppendEntriesResponse {
         return this;
     }
 
+    public Long getAppliedSequence() {
+        return appliedSequence;
+    }
+
+    public AppendEntriesResponse setAppliedSequence(Long appliedSequence) {
+        this.appliedSequence = appliedSequence;
+        return this;
+    }
+
     public Map<String, Object> toMap() {
         Map<String, Object> map = new HashMap<>();
         map.put("ok", 1);
@@ -132,6 +149,9 @@ public class AppendEntriesResponse {
         }
         if (electable != null) {
             map.put("electable", electable);
+        }
+        if (appliedSequence != null) {
+            map.put("appliedSequence", appliedSequence);
         }
         return map;
     }
@@ -155,6 +175,9 @@ public class AppendEntriesResponse {
         if (map.get("electable") instanceof Boolean e) {
             resp.setElectable(e);
         }
+        if (map.get("appliedSequence") instanceof Number seq) {
+            resp.setAppliedSequence(seq.longValue());
+        }
         return resp;
     }
 
@@ -167,6 +190,7 @@ public class AppendEntriesResponse {
                 ", followerId='" + followerId + '\'' +
                 ", priority=" + priority +
                 ", electable=" + electable +
+                ", appliedSequence=" + appliedSequence +
                 '}';
     }
 }

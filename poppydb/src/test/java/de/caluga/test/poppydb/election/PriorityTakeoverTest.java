@@ -71,6 +71,18 @@ public class PriorityTakeoverTest {
     private ElectionManager leaderWithPeer(ElectionConfig config, int peerPriority,
                                            long localSequence, long peerSequence,
                                            java.util.function.Supplier<Boolean> peerElectable) throws Exception {
+        return leaderWithPeer(config, peerPriority, localSequence, peerSequence, peerElectable, null);
+    }
+
+    /**
+     * {@code peerAppliedSequence} is the replication position the stubbed peer reports in its
+     * heartbeat responses (#388) - null to omit the field the way a node from before #388 does.
+     * {@code peerSequence} stays what the leader's own ack bookkeeping (replSetProgress) knows.
+     */
+    private ElectionManager leaderWithPeer(ElectionConfig config, int peerPriority,
+                                           long localSequence, long peerSequence,
+                                           java.util.function.Supplier<Boolean> peerElectable,
+                                           java.util.function.LongSupplier peerAppliedSequence) throws Exception {
         ElectionManager manager = new ElectionManager(ME, List.of(ME, PEER), config);
         managers.add(manager);
 
@@ -84,7 +96,8 @@ public class PriorityTakeoverTest {
         manager.setSendAppendEntries((peer, request) ->
                 manager.handleAppendEntriesResponse(peer, new AppendEntriesResponse(request.getTerm(), true)
                         .setFollowerId(peer).setPriority(peerPriority)
-                        .setElectable(peerElectable == null ? null : peerElectable.get())));
+                        .setElectable(peerElectable == null ? null : peerElectable.get())
+                        .setAppliedSequence(peerAppliedSequence == null ? null : peerAppliedSequence.getAsLong())));
 
         CountDownLatch leaderLatch = new CountDownLatch(1);
         manager.setOnLeadershipChange(isLeader -> {
@@ -260,6 +273,159 @@ public class PriorityTakeoverTest {
         assertEquals(Boolean.TRUE, AppendEntriesResponse.fromMap(new AppendEntriesResponse(1, true).setElectable(true).toMap()).getElectable());
         assertNull(AppendEntriesResponse.fromMap(new AppendEntriesResponse(1, true).toMap()).getElectable());
         assertFalse(new AppendEntriesResponse(1, true).toMap().containsKey("electable"), "unknown must not be sent as a value");
+    }
+
+    // ==================== #388: takeover does not fire ====================
+
+    /**
+     * #388: the leader's ack bookkeeping (replSetProgress into a ReplicationCoordinator that is
+     * recreated on every leadership change) may never hear from a peer that is in fact fully
+     * caught up - the follower only reports when its position moved past what it last reported,
+     * to whichever primary that was. Since #385 the heartbeat response is the channel a follower
+     * tells the leader about itself; its replication position takes the same way. A peer that
+     * says "I am at 100" in its heartbeats while the ack bookkeeping knows nothing (-1) must be
+     * handed leadership.
+     */
+    @Test
+    void testYieldsToPeerThatReportsItsPositionInHeartbeats() throws Exception {
+        ElectionManager manager = leaderWithPeer(takeoverConfig(), 100, 100, -1, null, () -> 100);
+        assertStepsDown(manager);
+    }
+
+    /** The heartbeat-reported position is subject to the same lag rule as the ack. */
+    @Test
+    void testKeepsLeadershipWhenHeartbeatReportsLag() throws Exception {
+        ElectionManager manager = leaderWithPeer(takeoverConfig(), 100, 100, -1, null, () -> 40);
+        assertStaysLeader(manager);
+    }
+
+    /**
+     * #388, the busy set: "lag == 0 against the leader's sequence of this very instant" is a
+     * condition whose outcome depends on where the sample falls relative to the last write and
+     * the follower's ack, not on whether the follower keeps pace. The rule is a freshness
+     * window, as mongod's priority takeover uses one: a peer that has acknowledged everything
+     * the leader had at the PREVIOUS takeover check - one check interval ago - has caught up.
+     * Here the peer is always exactly one event behind the instant the check samples, i.e. it
+     * has applied everything that existed a moment ago, and must be handed leadership.
+     */
+    @Test
+    void testYieldsToPeerThatKeepsPaceWithAContinuousWriteLoad() throws Exception {
+        ElectionConfig config = takeoverConfig();
+        ElectionManager manager = new ElectionManager(ME, List.of(ME, PEER), config);
+        managers.add(manager);
+
+        // every read of the local sequence is a new write; the peer has always acked the
+        // previous one
+        AtomicLong local = new AtomicLong(0);
+        manager.setLocalSequenceSupplier(local::incrementAndGet);
+        manager.setPeerSequenceSupplier(peer -> local.get() - 1);
+
+        manager.setSendVoteRequest((peer, request) ->
+                manager.handleVoteResponse(peer, request, new VoteResponse(request.getTerm(), true, peer)));
+        manager.setSendAppendEntries((peer, request) ->
+                manager.handleAppendEntriesResponse(peer, new AppendEntriesResponse(request.getTerm(), true)
+                        .setFollowerId(peer).setPriority(100)));
+
+        CountDownLatch leaderLatch = new CountDownLatch(1);
+        manager.setOnLeadershipChange(isLeader -> {
+            if (isLeader) leaderLatch.countDown();
+        });
+        manager.start();
+        assertTrue(leaderLatch.await(2, TimeUnit.SECONDS), "should become leader");
+
+        assertStepsDown(manager);
+    }
+
+    /** A peer that stopped acknowledging is still not caught up, whatever the write load does. */
+    @Test
+    void testKeepsLeadershipWhenPeerFallsBehindUnderWriteLoad() throws Exception {
+        ElectionConfig config = takeoverConfig();
+        ElectionManager manager = new ElectionManager(ME, List.of(ME, PEER), config);
+        managers.add(manager);
+
+        AtomicLong local = new AtomicLong(0);
+        manager.setLocalSequenceSupplier(local::incrementAndGet);
+        manager.setPeerSequenceSupplier(peer -> 1L);  // acked the first write, nothing since
+
+        manager.setSendVoteRequest((peer, request) ->
+                manager.handleVoteResponse(peer, request, new VoteResponse(request.getTerm(), true, peer)));
+        manager.setSendAppendEntries((peer, request) ->
+                manager.handleAppendEntriesResponse(peer, new AppendEntriesResponse(request.getTerm(), true)
+                        .setFollowerId(peer).setPriority(100)));
+
+        CountDownLatch leaderLatch = new CountDownLatch(1);
+        manager.setOnLeadershipChange(isLeader -> {
+            if (isLeader) leaderLatch.countDown();
+        });
+        manager.start();
+        assertTrue(leaderLatch.await(2, TimeUnit.SECONDS), "should become leader");
+
+        assertStaysLeader(manager);
+    }
+
+    /**
+     * The follower side of #388: a node reports its replication position (in the leader's
+     * sequence space) in every heartbeat response - and omits the field when it has none, so
+     * a leader never mistakes "unknown" for "at 0".
+     */
+    @Test
+    void testFollowerReportsItsAppliedSequenceInHeartbeatResponses() throws Exception {
+        ElectionManager follower = new ElectionManager(PEER, List.of(ME, PEER), takeoverConfig());
+        managers.add(follower);
+
+        assertNull(follower.handleAppendEntries(AppendEntriesRequest.heartbeat(1, ME, 0, 0, 0)).getAppliedSequence(),
+                "without a position supplier the field must be omitted");
+
+        follower.setAppliedSequenceSupplier(() -> 42L);
+        assertEquals(42L, follower.handleAppendEntries(AppendEntriesRequest.heartbeat(1, ME, 0, 0, 0)).getAppliedSequence());
+
+        follower.setAppliedSequenceSupplier(() -> -1L);
+        assertNull(follower.handleAppendEntries(AppendEntriesRequest.heartbeat(1, ME, 0, 0, 0)).getAppliedSequence(),
+                "a negative position means unknown and must be omitted");
+    }
+
+    /** The field must survive the wire: present when set, absent when unknown. */
+    @Test
+    void testAppliedSequenceSurvivesToMapFromMap() {
+        assertEquals(17L, AppendEntriesResponse.fromMap(new AppendEntriesResponse(1, true).setAppliedSequence(17L).toMap()).getAppliedSequence());
+        assertNull(AppendEntriesResponse.fromMap(new AppendEntriesResponse(1, true).toMap()).getAppliedSequence());
+        assertFalse(new AppendEntriesResponse(1, true).toMap().containsKey("appliedSequence"), "unknown must not be sent as a value");
+    }
+
+    /**
+     * #388, ask 3: the reason a takeover is withheld must be visible - per peer, in the stats
+     * (and at INFO in the log, throttled), not only at DEBUG.
+     */
+    @Test
+    void testWithheldTakeoverReasonIsExposedInStats() throws Exception {
+        ElectionManager manager = leaderWithPeer(takeoverConfig(), 100, 100, 40);
+
+        long until = System.currentTimeMillis() + 5_000;
+        Map<?, ?> reasons = null;
+        while (System.currentTimeMillis() < until) {
+            Object r = manager.getStats().get("takeoverWithheld");
+            if (r instanceof Map<?, ?> m && m.containsKey(PEER)) {
+                reasons = m;
+                break;
+            }
+            Thread.sleep(25);
+        }
+        assertNotNull(reasons, "the leader must expose why it does not yield to " + PEER);
+        assertTrue(String.valueOf(reasons.get(PEER)).contains("lagging"), "reason: " + reasons.get(PEER));
+        assertEquals(ElectionState.LEADER, manager.getState());
+    }
+
+    /**
+     * #388, side note: an AppendEntries that arrives while the manager is shutting down ran
+     * becomeFollower() into a shut-down scheduler - RejectedExecutionException, logged at ERROR
+     * with no functional effect. The callback dispatch must be guarded.
+     */
+    @Test
+    void testHeartbeatAfterStopDoesNotThrow() throws Exception {
+        ElectionManager manager = leaderWithPeer(takeoverConfig().setPriorityTakeoverEnabled(false), 10, 0, 0);
+        long term = manager.getCurrentTerm();
+        manager.stop();
+        assertDoesNotThrow(() -> manager.handleAppendEntries(AppendEntriesRequest.heartbeat(term + 1, PEER, 0, 0, 0)));
     }
 
     @Test

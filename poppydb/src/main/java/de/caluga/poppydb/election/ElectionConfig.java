@@ -63,6 +63,16 @@ public class ElectionConfig {
     public static final int MAX_PRIORITY = 100;
 
     /**
+     * Priority distance that guarantees an election ORDER (#387): two nodes whose priorities
+     * differ by at least this many points never draw overlapping election timeouts - every
+     * timeout of the higher-priority node is shorter than every timeout of the lower-priority
+     * one. Nodes closer than a step (or equal) still randomize against each other.
+     * Default: 10, so the usual 100/50/25 or 100/50/10 layouts are strictly ordered.
+     * Can be overridden via system property "morphiumserver.electionPriorityStep".
+     */
+    private int electionPriorityStep = Integer.getInteger("morphiumserver.electionPriorityStep", 10);
+
+    /**
      * Whether this node can become leader.
      * Set to false for arbiter-like nodes that participate in voting but never lead.
      * Default: true
@@ -192,6 +202,18 @@ public class ElectionConfig {
         return this;
     }
 
+    public int getElectionPriorityStep() {
+        return electionPriorityStep;
+    }
+
+    public ElectionConfig setElectionPriorityStep(int electionPriorityStep) {
+        if (electionPriorityStep < 1 || electionPriorityStep > MAX_PRIORITY) {
+            throw new IllegalArgumentException("electionPriorityStep must be between 1 and " + MAX_PRIORITY + ", got " + electionPriorityStep);
+        }
+        this.electionPriorityStep = electionPriorityStep;
+        return this;
+    }
+
     public boolean isCanBecomeLeader() {
         return canBecomeLeader;
     }
@@ -274,41 +296,58 @@ public class ElectionConfig {
     }
 
     /**
-     * Generate a random election timeout within the configured range,
-     * adjusted by this node's priority.
+     * Fraction of a priority slot that the random jitter may use. The rest of the slot is the
+     * guaranteed gap between two adjacent priority steps - the room a higher-priority node has
+     * to finish its PreVote and vote rounds before the next step's timer can fire at all.
+     * With the defaults (2000..4000ms, step 10) a slot is 200ms: 100ms jitter, 100ms gap; on
+     * the 5000..10000ms test runner 250ms/250ms.
+     */
+    static final double SLOT_JITTER_FRACTION = 0.5;
+
+    /**
+     * Generate a random election timeout within the configured range, ordered by this node's
+     * priority (#387).
      *
-     * Higher priority nodes get shorter timeouts, making them more likely
-     * to start elections first and become leader.
+     * <p>The range {@code [electionTimeoutMinMs, electionTimeoutMaxMs)} is divided into
+     * {@code MAX_PRIORITY / electionPriorityStep} slots of equal width. A node's slot is
+     * {@code (MAX_PRIORITY - priority) / step}: priority 100 owns the first slot at the
+     * minimum, each step down moves one slot later. Within its slot a node randomizes over the
+     * first {@link #SLOT_JITTER_FRACTION} of the width, so
+     * <ul>
+     *   <li>two nodes whose priorities are at least one step apart NEVER overlap - every
+     *       timeout of the higher one is shorter than every timeout of the lower one, with the
+     *       rest of the slot as guaranteed gap;</li>
+     *   <li>nodes of equal priority (or closer than a step) still randomize against each
+     *       other, which is what prevents split votes between them.</li>
+     * </ul>
      *
-     * Formula: baseTimeout + priorityDelay
-     * - baseTimeout: random value between min and max
-     * - priorityDelay: additional delay for lower priority nodes
-     *   - Priority 100 (max): no additional delay
-     *   - Priority 50: adds ~50% of the timeout range as delay
-     *   - Priority 1: adds ~99% of the timeout range as delay
-     *   - Priority 0: should never call this (handled by canBecomeLeader)
+     * <p>The previous formula, {@code random(min..max) + range * (1 - priority/100)}, gave
+     * only a bias: its random span was as wide as the whole priority delay, so any two
+     * priorities less than 100 apart drew overlapping windows (100 vs 90: 2.0-4.0s against
+     * 2.2-4.2s) and the lower one campaigned first in a sizeable share of elections - one in
+     * five for 50 vs 10, followed by a priority takeover 30s later and a second round of lost
+     * resume tokens on every client.
      *
-     * This ensures higher priority nodes have election timeouts that are
-     * consistently shorter than lower priority nodes, similar to MongoDB.
+     * <p>Timeouts scale with the configured min/max, nothing is hard-coded; the highest
+     * priority now times out at the minimum instead of anywhere in the range, and the lowest
+     * stays below the maximum instead of a full range above it.
      */
     public int randomElectionTimeout() {
         int range = electionTimeoutMaxMs - electionTimeoutMinMs;
-        int baseTimeout = electionTimeoutMinMs + (int) (Math.random() * range);
 
         // Priority 0 nodes should not start elections (handled elsewhere),
         // but if they do, give them maximum delay
         if (electionPriority <= 0) {
-            return baseTimeout + range * 2;  // Very long timeout
+            return electionTimeoutMaxMs + range * 2;  // Very long timeout
         }
 
-        // Calculate priority-based delay:
-        // Priority 100 -> delay factor 0 (no delay)
-        // Priority 50 -> delay factor 0.5 (50% of range added)
-        // Priority 1 -> delay factor 0.99 (99% of range added)
-        double priorityFactor = 1.0 - ((double) electionPriority / MAX_PRIORITY);
-        int priorityDelay = (int) (range * priorityFactor);
+        int slots = MAX_PRIORITY / electionPriorityStep;
+        int slotWidth = Math.max(1, range / slots);
+        int slot = Math.min((MAX_PRIORITY - electionPriority) / electionPriorityStep, slots - 1);
+        int jitterSpan = Math.max(1, (int) (slotWidth * SLOT_JITTER_FRACTION));
+        int jitter = (int) (Math.random() * jitterSpan);
 
-        return baseTimeout + priorityDelay;
+        return electionTimeoutMinMs + slot * slotWidth + jitter;
     }
 
     /**
@@ -327,6 +366,7 @@ public class ElectionConfig {
                 ", heartbeatIntervalMs=" + heartbeatIntervalMs +
                 ", leaderLeaseTimeoutMs=" + leaderLeaseTimeoutMs +
                 ", electionPriority=" + electionPriority +
+                ", electionPriorityStep=" + electionPriorityStep +
                 ", canBecomeLeader=" + canBecomeLeader +
                 ", priorityTakeoverEnabled=" + priorityTakeoverEnabled +
                 '}';
