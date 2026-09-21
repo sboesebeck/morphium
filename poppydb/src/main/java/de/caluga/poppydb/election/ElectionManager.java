@@ -2155,8 +2155,14 @@ public class ElectionManager {
                 log.info("{} will not seek election until {} ms", myAddress, noElectionUntil);
             }
 
-            // Become follower
+            // Become follower. becomeFollower(term, null) keeps the previous leader on purpose
+            // (a vote or a higher term does not say who leads now) - here the previous leader
+            // is this node, and a stepped-down node must not go on advertising itself: hello
+            // then answered isWritablePrimary:false together with primary:<itself>, the driver
+            // retried this very node and met its recovering gate (13436) in a loop until the
+            // next leader's first heartbeat arrived. mongod reports no primary in that window.
             becomeFollower(currentTerm.get(), null);
+            currentLeader = null;
             log.info("{} successfully stepped down from leader", myAddress);
             return true;
 
