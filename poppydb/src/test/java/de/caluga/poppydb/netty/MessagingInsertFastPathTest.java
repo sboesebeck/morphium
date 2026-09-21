@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,6 +55,39 @@ public class MessagingInsertFastPathTest {
         optimizer = new MessagingOptimizer(drv);
         optimizer.setWatchCursorManager(cursorManager);
         optimizer.registerMessagingCollection(DB, COLL, LOCK_COLL, "subscriber-1");
+        awaitMessagingIndexes();
+    }
+
+    /**
+     * Registration builds the messaging indexes on a background thread, and since #386 every
+     * index build is a change stream event with a sequence number of its own. The sequence
+     * assertions below are about the fast-path alone, so the build must be over before a test
+     * samples the sequence - otherwise a late createIndexes event lands between the sample and
+     * the check (seen on the loaded test runner as "expected: 2L but was: 4L").
+     */
+    private void awaitMessagingIndexes() {
+        long deadline = System.currentTimeMillis() + 5000;
+
+        while (System.currentTimeMillis() < deadline) {
+            // getIndexes() reports the name under $options, as the dump format does
+            List<String> names = drv.getIndexes(DB, COLL).stream()
+                .map(i -> i.get("$options") instanceof Map<?, ?> o ? String.valueOf(o.get("name")) : "")
+                .collect(Collectors.toList());
+
+            if (MessagingOptimizer.MESSAGING_INDEXES.stream()
+                    .allMatch(i -> names.contains(String.valueOf(i.get("name"))))) {
+                return;
+            }
+
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+
+        throw new IllegalStateException("messaging indexes not built within 5s: " + drv.getIndexes(DB, COLL));
     }
 
     @AfterEach
