@@ -252,8 +252,10 @@ public final class IndexKey {
      * <ul>
      *   <li>{@link #MISSING} sorts before every other value (ascending sense, before direction
      *       is applied) - matching MongoDB's null/missing-sorts-first behaviour;</li>
-     *   <li>numbers are unified via {@link Number#doubleValue()} so {@code int}/{@code long}/
-     *       {@code double} compare purely by magnitude, never by type;</li>
+     *   <li>numbers compare by exact value across {@code int}/{@code long}/{@code double}, never
+     *       by type, via {@code QueryHelper.compareNumbers} (#379) - the same cascade the
+     *       matcher's {@code $lt}..{@code $gte} use, so a range served from this TreeMap and a
+     *       collscan agree even past 2^53, where {@code doubleValue()} would merge neighbours;</li>
      *   <li>temporal values are normalised via {@code QueryHelper.toTemporalNumber} - raw
      *       {@code java.time} objects and their serialised Map forms ({@code {sec,n}} for
      *       LocalDateTime, {@code {type:"instant",seconds,nanos}} for Instant) all compare
@@ -293,7 +295,11 @@ public final class IndexKey {
         }
 
         if (a instanceof Number && b instanceof Number) {
-            return Double.compare(((Number) a).doubleValue(), ((Number) b).doubleValue());
+            // #379: the very cascade the matcher's range operators use. A doubleValue()
+            // comparison here filed 2^53 and 2^53+1 in ONE TreeMap bucket, so a range bound
+            // built from one of them cut the other off and an index range scan answered
+            // differently from a collscan over the same documents.
+            return QueryHelper.compareNumbers((Number) a, (Number) b);
         }
 
         // Temporal types, same normalisation QueryHelper uses for $lt/$gt: raw java.time
