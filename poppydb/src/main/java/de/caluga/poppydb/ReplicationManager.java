@@ -94,9 +94,12 @@ public class ReplicationManager {
     private volatile Morphium primaryMorphium;
     private ExecutorService replicationExecutor;
     private ScheduledExecutorService progressReporter;
-    // Periodic index diff (#258): change streams carry no index DDL, so createIndexes/dropIndexes
-    // on the primary are picked up by diffing listIndexes at this interval (and once as part of
-    // every initial sync). 30s of index lag is acceptable - the data plane is not affected.
+    // Periodic index diff (#258): createIndexes/dropIndexes on the primary are picked up by
+    // diffing listIndexes at this interval (and once as part of every initial sync). Since #386
+    // index DDL also arrives as change stream events and is applied in order with the data, so
+    // this diff is the safety net for whatever the stream did not carry (an index created while
+    // this node was disconnected and resumed past the replay window, a failed apply) - no longer
+    // the only path. It used to be, and a leader change inside one interval lost the index.
     private static final long INDEX_SYNC_INTERVAL_MS = TimeUnit.SECONDS.toMillis(30);
     private ScheduledExecutorService indexSyncer;
     private volatile long watchCursorId = -1;
@@ -2247,10 +2250,12 @@ public class ReplicationManager {
      */
     /**
      * Replicate the index definitions of every user database/collection from the given source
-     * driver to the local one (#258). Change streams do not carry index DDL (neither MongoDB's
-     * nor ours), so this runs after the initial-sync snapshot and periodically from
-     * {@code indexSyncLoop} - the periodic diff also picks up createIndexes/dropIndexes that
-     * happened on the primary while this node was disconnected.
+     * driver to the local one (#258). Runs after the initial-sync snapshot (the snapshot copies
+     * documents only) and periodically from {@link #periodicIndexSync}. Live index DDL arrives
+     * as createIndexes/dropIndexes change stream events since #386 (see
+     * {@code applyChangeEvent}); this diff is the safety net behind that - it also picks up
+     * index changes that happened on the primary while this node was disconnected and whose
+     * events fell out of the replay window.
      */
     void syncIndexesFrom(MorphiumDriver source) throws Exception {
         for (String dbName : source.listDatabases()) {
@@ -2274,6 +2279,23 @@ public class ReplicationManager {
      * ones the primary no longer has. The {@code _id} index is never touched. The diff is
      * name-based; MongoDB refuses to change an existing index's options under the same name
      * anyway (IndexOptionsConflict), so a name match means the spec matches.
+     *
+     * <p><b>Who is right when they differ - the primary, always.</b> This diff drops a local
+     * index the primary does not have, with no notion of where the local one came from, and
+     * that is deliberate: it is MongoDB's rollback rule. Before #386 it was also what lost an
+     * index after a leader change - the follower that had it (from the OLD primary, via the
+     * periodic diff) aligned itself to a NEW primary that had never received it, and deleted
+     * the only copy. That was not this rule being wrong, it was the index never having been
+     * replicated as an event: a follower can only be promoted with what the stream gave it,
+     * and the stream carried no index DDL. Now that it does, an index the primary lacks means
+     * one of two things, and both call for the drop: the primary removed it (dropIndexes - the
+     * event will normally have arrived first, this is the net), or it was created on a primary
+     * that lost leadership before the build reached a majority - the w:1 write MongoDB rolls
+     * back in the same situation, and PoppyDB's w:majority waits for replication on
+     * createIndexes just as it does for documents. "Push it up to the new primary instead" was
+     * considered and rejected: it would make a follower's stale state authoritative over the
+     * elected primary's, which no replicated write does, and it would resurrect a
+     * legitimately dropped index on a node that missed the dropIndexes event.
      */
     void applyIndexDiff(String db, String coll, List<IndexDescription> primaryIndexes) throws Exception {
         // #323: index DDL is a local write too, and it reaches the driver through a connection
@@ -2591,6 +2613,13 @@ public class ReplicationManager {
                 .setDb("admin")  // Watch at cluster level
                 .setMaxTimeMS(500)  // 500ms timeout - low latency for messaging tests
                 .setFullDocument(WatchCommand.FullDocumentEnum.updateLookup)
+                // #386: index builds and drops arrive as createIndexes/dropIndexes events, in
+                // order with the data - a follower holds the index before it can be elected,
+                // and a new primary has everything its predecessor committed. Without this the
+                // stream carries data only (mongod semantics) and indexes reached followers
+                // solely through the 30s periodic diff, which a leader change inside that
+                // window turned into a cluster-wide loss of the index.
+                .setShowExpandedEvents(true)
                 .setPipeline(List.of());  // Empty = watch everything
             // Fires once the watch cursor is established on the primary. From that point the
             // stream captures every subsequent write, so the initial-sync snapshot can safely
@@ -3046,6 +3075,52 @@ public class ReplicationManager {
                     break;
                 }
 
+                // Index DDL (#386): MongoDB's expanded events, requested on the watch with
+                // showExpandedEvents. Applied through the same command path a client uses, so
+                // the local driver builds the identical index (full spec: TTL, unique, partial,
+                // ...). Both are idempotent for the resume case (an event can arrive twice
+                // across a reconnect): createIndex on an existing key is a no-op, and a drop is
+                // skipped when the index is already gone.
+                case "createIndexes": {
+                    List<Map<String, Object>> indexes = describedIndexes(event);
+                    if (!indexes.isEmpty()) {
+                        GenericCommand cmd = new GenericCommand(localDriver);
+                        cmd.setDb(db);
+                        cmd.setColl(coll);
+                        cmd.setCmdData(Doc.of("createIndexes", coll, "$db", db, "indexes", indexes));
+                        runLocalApplyCommand(cmd, "createIndexes on " + db + "." + coll);
+                        log.info("Index replication: applied createIndexes {} on {}.{} from the change stream",
+                                 indexNames(indexes), db, coll);
+                    }
+                    break;
+                }
+
+                case "dropIndexes": {
+                    List<Map<String, Object>> indexes = describedIndexes(event);
+                    if (!indexes.isEmpty()) {
+                        Set<String> present = new HashSet<>();
+                        for (IndexDescription l : listIndexesOf(localDriver, db, coll)) {
+                            present.add(l.getName());
+                        }
+                        for (Map<String, Object> idx : indexes) {
+                            String name = (String) idx.get("name");
+                            if (name == null || !present.contains(name)) {
+                                log.debug("Index replication: dropIndexes {} on {}.{} - already absent locally",
+                                          name, db, coll);
+                                continue;
+                            }
+                            GenericCommand cmd = new GenericCommand(localDriver);
+                            cmd.setDb(db);
+                            cmd.setColl(coll);
+                            cmd.setCmdData(Doc.of("dropIndexes", coll, "$db", db, "index", name));
+                            runLocalApplyCommand(cmd, "dropIndexes " + name + " on " + db + "." + coll);
+                            log.info("Index replication: applied dropIndexes {} on {}.{} from the change stream",
+                                     name, db, coll);
+                        }
+                    }
+                    break;
+                }
+
                 case "invalidate": {
                     log.warn("Received invalidate event, change stream will be restarted");
                     break;
@@ -3156,6 +3231,25 @@ public class ReplicationManager {
         }
 
         return result;
+    }
+
+    /** {@code operationDescription.indexes} of an expanded index DDL event; empty if malformed. */
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> describedIndexes(Map<String, Object> event) {
+        if (event.get("operationDescription") instanceof Map<?, ?> description
+                && description.get("indexes") instanceof List<?> indexes) {
+            return (List<Map<String, Object>>) indexes;
+        }
+        log.warn("Index DDL event without operationDescription.indexes, ignoring: {}", event);
+        return List.of();
+    }
+
+    private static List<Object> indexNames(List<Map<String, Object>> indexes) {
+        List<Object> names = new ArrayList<>();
+        for (Map<String, Object> idx : indexes) {
+            names.add(idx.get("name"));
+        }
+        return names;
     }
 
     /**
