@@ -4938,7 +4938,7 @@ Netty internals, replace the configuration via <code>-Dlogback.configurationFile
 </tr>
 <tr>
 <td><code>serverStatus</code></td>
-<td>Includes real client connection gauges (<code>connections.current</code>/<code>totalCreated</code> from the Netty channel group)</td>
+<td>Includes real client connection gauges (<code>connections.current</code>/<code>totalCreated</code> from the Netty channel group) and the change stream counters <code>changeStreams.registrations</code> / <code>resumeRegistrations</code> (lifetime totals of registrations that reached this node, served or refused) / <code>open</code> (#380)</td>
 </tr>
 <tr>
 <td><code>dbStats</code> / <code>collStats</code></td>
