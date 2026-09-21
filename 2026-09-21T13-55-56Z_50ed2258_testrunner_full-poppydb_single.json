@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "commit": "50ed2258849ce6d2f8bc4222ae569bf45f38722c",
+  "branch": "develop",
+  "timestamp": "2026-09-21T13:55:56Z",
+  "runner": "testrunner",
+  "scope": {
+    "complete": true,
+    "tags": null,
+    "testPattern": null
+  },
+  "phases": {
+    "poppydb_single": {
+      "classes": 235,
+      "methods": 1319,
+      "passed": 1305,
+      "skipped": 14,
+      "broken": 0,
+      "duration_s": 4353,
+      "flaky": 0
+    }
+  }
+}
