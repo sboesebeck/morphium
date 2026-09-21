@@ -235,6 +235,23 @@ public class InitialSyncTest {
         return c instanceof Number ? ((Number) c).intValue() : -1;
     }
 
+    /**
+     * A read aimed at a secondary has to say so. Without {@code $readPreference} the command is a
+     * PRIMARY read - that is MongoDB's default - and a secondary answers 13435
+     * NotPrimaryNoSecondaryOk, the same as mongod does on a direct connection without secondaryOk
+     * (see {@code MongoCommandHandler.preDispatch} step 2). Sending the preference is what makes
+     * this a secondary read rather than a mislabelled primary one.
+     *
+     * <p>The RECOVERING half of the test is unaffected either way: the initial-sync gate is step 0
+     * and answers 13436 before the read preference is ever looked at - so with the preference set,
+     * that assertion now proves a legitimate secondary read is refused during the sync, instead of
+     * a read that would have been refused regardless.
+     */
+    private Map<String, Object> secondaryRead() {
+        return Doc.of("count", coll(0), "query", Doc.of(), "$db", DB,
+                      "$readPreference", Doc.of("mode", "secondaryPreferred"));
+    }
+
     private double okOf(Map<String, Object> reply) {
         Object v = reply.get("ok");
         return v instanceof Number ? ((Number) v).doubleValue() : 0.0;
@@ -308,8 +325,7 @@ public class InitialSyncTest {
                         return;
                     }
                     while (!pollerStop.get() && !sawRecovering.get()) {
-                        Map<String, Object> reply = command(sock, Doc.of(
-                                "count", coll(0), "query", Doc.of(), "$db", DB));
+                        Map<String, Object> reply = command(sock, secondaryRead());
                         if (codeOf(reply) == 13436) {
                             sawRecovering.set(true);
                             return;
@@ -364,7 +380,7 @@ public class InitialSyncTest {
                 Map<String, Object> reply = null;
                 long readDeadline = System.currentTimeMillis() + 10_000;
                 while (System.currentTimeMillis() < readDeadline) {
-                    reply = command(sock, Doc.of("count", coll(0), "query", Doc.of(), "$db", DB));
+                    reply = command(sock, secondaryRead());
                     if (okOf(reply) == 1.0) {
                         break;
                     }
