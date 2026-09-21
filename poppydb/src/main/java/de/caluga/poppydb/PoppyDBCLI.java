@@ -146,7 +146,12 @@ public class PoppyDBCLI {
         }));
 
         while (srv.isRunning()) {
-            log.info("PoppyDB alive - connections: {}", srv.getConnectionCount());
+            // The change stream counters are lifetime totals (#380): the rate is the delta
+            // between two consecutive lines, ten seconds apart.
+            Map<String, Object> cs = srv.getChangeStreamStats();
+            log.info("PoppyDB alive - connections: {}, change streams: {} open, {} registrations since start "
+                    + "({} with resume token)", srv.getConnectionCount(), cs.get("open"),
+                    cs.get("registrations"), cs.get("resumeRegistrations"));
             sleep(10000);
         }
     }
