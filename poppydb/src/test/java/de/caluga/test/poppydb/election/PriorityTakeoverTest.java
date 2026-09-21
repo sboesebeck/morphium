@@ -60,6 +60,17 @@ public class PriorityTakeoverTest {
      */
     private ElectionManager leaderWithPeer(ElectionConfig config, int peerPriority,
                                            long localSequence, long peerSequence) throws Exception {
+        return leaderWithPeer(config, peerPriority, localSequence, peerSequence, null);
+    }
+
+    /**
+     * {@code peerElectable} is what the stubbed peer reports in its heartbeat responses: true or
+     * false as a live value (a supplier, so a test can flip it), null to omit the field the way a
+     * node from before #385 does.
+     */
+    private ElectionManager leaderWithPeer(ElectionConfig config, int peerPriority,
+                                           long localSequence, long peerSequence,
+                                           java.util.function.Supplier<Boolean> peerElectable) throws Exception {
         ElectionManager manager = new ElectionManager(ME, List.of(ME, PEER), config);
         managers.add(manager);
 
@@ -72,7 +83,8 @@ public class PriorityTakeoverTest {
                 manager.handleVoteResponse(peer, request, new VoteResponse(request.getTerm(), true, peer)));
         manager.setSendAppendEntries((peer, request) ->
                 manager.handleAppendEntriesResponse(peer, new AppendEntriesResponse(request.getTerm(), true)
-                        .setFollowerId(peer).setPriority(peerPriority)));
+                        .setFollowerId(peer).setPriority(peerPriority)
+                        .setElectable(peerElectable == null ? null : peerElectable.get())));
 
         CountDownLatch leaderLatch = new CountDownLatch(1);
         manager.setOnLeadershipChange(isLeader -> {
@@ -186,6 +198,68 @@ public class PriorityTakeoverTest {
         assertEquals(ElectionState.LEADER, manager.getState(), "must not yield inside the stability window");
 
         assertStepsDown(manager);
+    }
+
+    /**
+     * #385: a higher-priority peer that reports itself as not electable - it is inside its own
+     * stepdown block - must not be handed leadership. Handing over anyway leaves the cluster
+     * without a leader until the block expires; seen as a cascade over three nodes where terms 2,
+     * 3 and 4 each lasted a second (StepdownReplicationTest with the takeover at test speed).
+     */
+    @Test
+    void testDoesNotYieldToPeerInsideItsStepdownBlock() throws Exception {
+        ElectionManager manager = leaderWithPeer(takeoverConfig(), 100, 0, 0, () -> false);
+        assertStaysLeader(manager);
+    }
+
+    /**
+     * The flip side: the moment the blocked peer reports itself electable again, the takeover
+     * proceeds - the fix must delay the handover, not prevent it.
+     */
+    @Test
+    void testYieldsOnceBlockedPeerIsElectableAgain() throws Exception {
+        java.util.concurrent.atomic.AtomicBoolean electable = new java.util.concurrent.atomic.AtomicBoolean(false);
+        ElectionManager manager = leaderWithPeer(takeoverConfig(), 100, 0, 0, electable::get);
+        assertStaysLeader(manager);
+        electable.set(true);
+        assertStepsDown(manager);
+    }
+
+    /**
+     * Rolling upgrade: a peer from before #385 sends no electable field. It is treated as
+     * electable - today's behaviour, pinned so the new check cannot silently disable takeovers
+     * against older nodes. Green before and after the fix by design.
+     */
+    @Test
+    void testPeerWithoutElectableFieldIsTreatedAsElectable() throws Exception {
+        ElectionManager manager = leaderWithPeer(takeoverConfig(), 100, 0, 0, null);
+        assertStepsDown(manager);
+    }
+
+    /**
+     * The follower side of #385: while inside its stepdown block a node must say so in its
+     * heartbeat responses, and stop saying so once the block is over.
+     */
+    @Test
+    void testFollowerReportsItsStepdownBlockInHeartbeatResponses() throws Exception {
+        ElectionManager manager = leaderWithPeer(takeoverConfig().setPriorityTakeoverEnabled(false), 10, 0, 0);
+        assertTrue(manager.stepDown(1, 0, true), "stepdown should succeed");
+        AppendEntriesResponse blocked = manager.handleAppendEntries(
+                AppendEntriesRequest.heartbeat(manager.getCurrentTerm() + 1, PEER, 0, 0, 0));
+        assertEquals(Boolean.FALSE, blocked.getElectable(), "inside the stepdown block the follower must report electable=false");
+        Thread.sleep(1200);
+        AppendEntriesResponse free = manager.handleAppendEntries(
+                AppendEntriesRequest.heartbeat(manager.getCurrentTerm() + 1, PEER, 0, 0, 0));
+        assertEquals(Boolean.TRUE, free.getElectable(), "after the block the follower must report electable=true");
+    }
+
+    /** The field must survive the wire: present when set, absent when unknown. */
+    @Test
+    void testElectableSurvivesToMapFromMap() {
+        assertEquals(Boolean.FALSE, AppendEntriesResponse.fromMap(new AppendEntriesResponse(1, true).setElectable(false).toMap()).getElectable());
+        assertEquals(Boolean.TRUE, AppendEntriesResponse.fromMap(new AppendEntriesResponse(1, true).setElectable(true).toMap()).getElectable());
+        assertNull(AppendEntriesResponse.fromMap(new AppendEntriesResponse(1, true).toMap()).getElectable());
+        assertFalse(new AppendEntriesResponse(1, true).toMap().containsKey("electable"), "unknown must not be sent as a value");
     }
 
     @Test

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+#### PoppyDB: the priority takeover no longer yields to a node inside its stepdown block (#385)
+`checkPriorityTakeover` picked its successor by priority, heartbeat freshness and replication lag - and could not see whether the peer was allowed to campaign at all. A follower's stepdown block (`replSetStepDown`, or a takeover yield of its own) was local state the heartbeat response did not carry, so a blocked node looked like a perfect successor: the leader yielded to it, the cluster went leaderless, the next survivor won and yielded to the same blocked node, and so on until the block expired. Seen as a three-node cascade with terms 2, 3 and 4 each held for one second; on a live cluster the deploy pipeline's `replSetStepDown 60` combined with the 30s takeover stability would hit the same window, unnoticed so far only because the pipeline restarts the stepped-down node in between. The heartbeat response now carries `electable` (false inside a stepdown block), the leader keeps it per peer next to `peerLastContact`, and the successor selection skips peers that reported false. Peers that do not send the field - nodes from before this release during a rolling upgrade - are treated as electable, i.e. as before.
 
 ## [6.3.11] - 2026-09-21
 
