@@ -807,7 +807,9 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         // unnecessary empty round-trips that increased change stream event latency.
         int effectiveWaitMs = maxTimeMs;
 
-        if (cursorManager.hasCursor(cursorId)) {
+        // #389: an ended-and-removed change stream still takes the watch path within its grace,
+        // where it is answered 286 - the generic path below would answer it as exhausted.
+        if (cursorManager.hasCursor(cursorId) || cursorManager.isEndedWatchCursor(cursorId)) {
             // Async getMore for watch/tailable cursors
             CompletableFuture<List<Map<String, Object>>> future = cursorManager.getMore(cursorId, effectiveWaitMs);
 
