@@ -66,6 +66,17 @@ public class SingleMongoConnection implements MongoConnection {
     // names the abandoning command when readReplyFor detects an out-of-sync stream
     private volatile String lastReadReplyOrigin;
 
+    // #383: pacing for the in-place restart of a change stream whose cursor came back
+    // exhausted (id 0). A stream that dies right after every (re)registration - PoppyDB ends a
+    // stream with a foreign resume token asynchronously, so the first getMore can find the
+    // cursor already gone - would otherwise be re-registered in a tight loop with the same dead
+    // token (~13,000 registrations/s measured). The first restart is immediate (a one-off
+    // exhaustion, e.g. after an invalidate, resumes as before); every further one in a row
+    // waits, doubling from MIN up to MAX with jitter, until a getMore reply proves the
+    // restarted stream alive.
+    static final long WATCH_RESTART_BACKOFF_MIN_MS = 100;
+    static final long WATCH_RESTART_BACKOFF_MAX_MS = 5_000;
+
     // Extra client-side wait on top of a watch getMore's maxTimeMS: the server answers
     // within maxTimeMS, this grace covers network and processing time. Only a truly broken
     // connection exceeds it.
@@ -840,6 +851,11 @@ public class SingleMongoConnection implements MongoConnection {
         boolean registrationCallbackCalled = false;
 
         long watchIterations = 0;
+        // #383: in-place restarts in a row without a getMore reply that proved the stream alive;
+        // the aggregate answer itself is no such proof - an exhausted-on-arrival stream answers
+        // it ok:1 with a cursor id and dies on the first getMore
+        int restartsInARow = 0;
+        boolean firstReplyAfterStart = true;
         try {
             while (true) {
                 watchIterations++;
@@ -904,6 +920,15 @@ public class SingleMongoConnection implements MongoConnection {
                 // log.debug("CursorID:" + cursor.get("id").toString());
                 long cursorId = Long.parseLong(cursor.get("id").toString());
                 command.setMetaData("cursor", cursorId);
+
+                if (cursorId != 0) {
+                    if (firstReplyAfterStart) {
+                        firstReplyAfterStart = false;
+                    } else {
+                        // a getMore answered with a live cursor: the stream survived its start
+                        restartsInARow = 0;
+                    }
+                }
 
                 // PoppyDB-specific, best-effort: some servers (PoppyDB primaries) piggyback their
                 // current change-stream sequence on the initial aggregate response, following the
@@ -1017,7 +1042,24 @@ public class SingleMongoConnection implements MongoConnection {
                     msg.setFirstDoc(doc);
                     sendQuery(msg);
                 } else {
-                    log.debug("WATCH: cursor exhausted, restarting");
+                    long backoff = watchRestartBackoffMs(restartsInARow);
+
+                    if (backoff > 0) {
+                        log.warn("WATCH: stream on {} ended right after its registration ({} restarts in a row) - restarting in {}ms",
+                                 command.getColl(), restartsInARow, backoff);
+
+                        try {
+                            Thread.sleep(backoff);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                    } else {
+                        log.debug("WATCH: cursor exhausted, restarting");
+                    }
+
+                    restartsInARow++;
+                    firstReplyAfterStart = true;
                     // Use resume token if available to prevent duplicate events
                     if (lastResumeToken[0] != null) {
                         command.setResumeAfter(lastResumeToken[0]);
@@ -1038,6 +1080,22 @@ public class SingleMongoConnection implements MongoConnection {
                 command.setResumeAfter(lastResumeToken[0]);
             }
         }
+    }
+
+    /**
+     * How long to wait before the n-th in-place restart in a row (#383): 0 for the first one,
+     * then MIN doubling up to MAX, with jitter (half the step fixed, half random) so that clients
+     * hit by the same failover do not re-register in lockstep. package-private for testing.
+     */
+    static long watchRestartBackoffMs(int restartsInARow) {
+        if (restartsInARow <= 0) {
+            return 0;
+        }
+
+        long step = WATCH_RESTART_BACKOFF_MIN_MS << Math.min(restartsInARow - 1, 20);
+        step = Math.min(step, WATCH_RESTART_BACKOFF_MAX_MS);
+        long half = step / 2;
+        return half + java.util.concurrent.ThreadLocalRandom.current().nextLong(half + 1);
     }
 
     @Override
