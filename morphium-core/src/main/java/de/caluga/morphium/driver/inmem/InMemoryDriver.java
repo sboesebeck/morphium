@@ -4793,6 +4793,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         int droppedCount = 0;
+        // what was actually removed - emitted as ONE dropIndexes event below (#386)
+        List<Map<String, Object>> dropped = new ArrayList<>();
 
         if ("*".equals(indexName)) {
             // Drop all indexes except _id
@@ -4813,6 +4815,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
             indexesForCollection.removeAll(toRemove);
             droppedCount = toRemove.size();
+            for (Map<String, Object> idx : toRemove) {
+                dropped.add(indexEventSpec(idx));
+            }
             // Structural index change - see createIndex()'s matching invalidateIndexStore call
             // for why a full invalidate-and-lazily-rebuild (rather than store.removeIndex() calls
             // here) is the chosen approach; this path pre-dates Task 4 and has never taken the
@@ -4848,6 +4853,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (toRemove != null) {
                 indexesForCollection.remove(toRemove);
                 droppedCount = 1;
+                dropped.add(indexEventSpec(toRemove));
                 invalidateIndexStore(db, coll);
                 // If the dropped index is this collection's TTL index, clear its sweep registration
                 // and expiry queue so the driver stops deleting documents by a now-removed index
@@ -4872,6 +4878,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 addResult(ret, prepareResult(Doc.of("ok", 0, "errmsg", "index not found: " + indexName)));
                 return ret;
             }
+        }
+
+        // Replicated like the build (#386): a secondary drops the same indexes in order with the
+        // data, instead of waiting for the periodic diff to notice they are gone on the primary.
+        if (!dropped.isEmpty()) {
+            notifyIndexDdl(db, coll, "dropIndexes", dropped);
         }
 
         addResult(ret, prepareResult(Doc.of("ok", 1.0, "nIndexesWas", indexesForCollection.size() + droppedCount)));
@@ -10587,10 +10599,79 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         dispatchEvent(eventInfo);
     }
 
+    /**
+     * MongoDB's "expanded" change stream events (6.0+): index DDL, which a watch only sees when
+     * it asked for it with {@code showExpandedEvents: true}. Everything else - messaging, cache
+     * synchronisation, application change streams - keeps seeing data events only, exactly as
+     * against mongod. PoppyDB's replication asks for them (#386): index builds and drops
+     * replicate in order with the data, instead of only through the periodic index diff.
+     */
+    static boolean isExpandedEvent(String op) {
+        return "createIndexes".equals(op) || "dropIndexes".equals(op);
+    }
+
+    /**
+     * Emits an index DDL event. Routed through {@link #notifyWatchers} like a write so it gets
+     * a sequence token, lands in the replay buffer (a reconnecting secondary resumes into it)
+     * and is dispatched in order with the surrounding data events - an index build that is
+     * only replicated by a periodic diff is lost when the leader changes inside the diff
+     * interval (#386). {@code indexes} is the {@code operationDescription.indexes} list of
+     * MongoDB's event shape: one full index spec ({@code key} plus every option) per index.
+     */
+    private void notifyIndexDdl(String db, String collection, String op, List<Map<String, Object>> indexes) {
+        notifyWatchers(db, collection, op, Doc.of("indexes", indexes));
+    }
+
+    /** {@code {key: {...}, name: ...}} of a stored index map ({@code {field: dir, ..., $options: {...}}}). */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> indexEventSpec(Map<String, Object> stored) {
+        Map<String, Object> key = new LinkedHashMap<>();
+        for (var e : stored.entrySet()) {
+            if (!e.getKey().startsWith("$")) {
+                key.put(e.getKey(), e.getValue());
+            }
+        }
+        Map<String, Object> spec = new LinkedHashMap<>();
+        spec.put("key", key);
+        Map<String, Object> opts = (Map<String, Object>) stored.get("$options");
+        Object name = opts != null && opts.get("name") != null ? opts.get("name") : stored.get("name");
+        if (name != null) {
+            spec.put("name", name);
+        }
+        return spec;
+    }
+
+    /**
+     * The expanded-event shape: no document, no documentKey - the DDL travels in
+     * {@code operationDescription} (deep-copied: the caller's spec maps stay its own).
+     */
+    private ChangeStreamEventInfo buildExpandedEvent(String db, String collection, String op,
+            Map<String, Object> operationDescription) {
+        Map<String, Object> event = new LinkedHashMap<>();
+        long token = changeStreamSequence.incrementAndGet();
+        event.put("_id", createResumeToken(token));
+        event.put("operationType", op);
+        Map<String, String> ns = new HashMap<>();
+        ns.put("db", db);
+        ns.put("coll", collection);
+        event.put("ns", ns);
+        long clusterTime = System.currentTimeMillis();
+        event.put("clusterTime", clusterTime);
+        event.put("txnNumber", txn.incrementAndGet());
+        event.put("lsid", Doc.of("id", new MorphiumId()));
+        event.put("operationDescription", deepCopyAndNormalizeDocument(operationDescription));
+        return new ChangeStreamEventInfo(token, db, collection, Collections.unmodifiableMap(event), clusterTime);
+    }
+
     @SuppressWarnings("unchecked")
     private ChangeStreamEventInfo buildChangeStreamEvent(String db, String collection, String op, Map doc,
             Map<String, Object> updatedFields, List<String> removedFields, Map<String, Object> beforeDocument,
             boolean beforeDocumentIsExclusiveCopy) {
+        if (isExpandedEvent(op)) {
+            // index DDL: `doc` is the operationDescription, not a document (see notifyIndexDdl)
+            return buildExpandedEvent(db, collection, op, (Map<String, Object>) doc);
+        }
+
         // The after-image is ALWAYS the live, in-place-mutated stored document - it must be
         // deep-copied, no exceptions (see deepCopyAndNormalizeDocument's javadoc and cf3e9cace).
         Map<String, Object> newDocument = deepCopyAndNormalizeDocument((Map<String, Object>) doc);
@@ -11860,6 +11941,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 return;
             }
 
+            // Index DDL only reaches a watch that asked for expanded events (mongod semantics,
+            // see isExpandedEvent). Checked here, ahead of the dedup window and the pipeline,
+            // because every delivery path - live, replay, and the post-replay flush - ends here.
+            if (!showExpandedEvents && isExpandedEvent((String) info.event.get("operationType"))) {
+                return;
+            }
+
             // resumed watch: live dispatch and history replay can both carry this event
             if (deliveredTokens != null && !firstDelivery(info.token)) {
                 return;
@@ -13058,6 +13146,23 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             } finally {
                 ttlBootstrapLock.writeLock().unlock();
             }
+        }
+
+        // A NEW index is a replicated event (#386) - like mongod's oplog entry for an index
+        // build. Re-creating an existing index is a no-op there too and emits nothing. After
+        // every lock is released, the convention of every other notifyWatchers call. The spec is
+        // the wire shape a createIndexes command carries: key plus every option (name, unique,
+        // expireAfterSeconds, partialFilterExpression, ...), so a secondary applying the event
+        // builds the identical index.
+        if (!found) {
+            Map<String, Object> spec = new LinkedHashMap<>();
+            spec.put("key", new LinkedHashMap<>(indexDef));
+            for (var e : options.entrySet()) {
+                if (!"key".equals(e.getKey())) {
+                    spec.put(e.getKey(), e.getValue());
+                }
+            }
+            notifyIndexDdl(db, collection, "createIndexes", List.of(spec));
         }
     }
 

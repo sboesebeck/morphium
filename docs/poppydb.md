@@ -345,13 +345,21 @@ This is particularly useful for testing scenarios where you want to:
 ### Index replication
 
 Secondaries replicate **index definitions** as well as documents (since 6.3.0, #258): the initial
-sync copies the primary's `listIndexes` output after the data snapshot, and a periodic diff (every
-30s) converges afterwards — indexes created on the primary are created on the secondary with their
-full options (unique, TTL, partial, sparse, ...), and indexes dropped on the primary are dropped
-locally (the `_id` index is never touched). The periodic diff also covers changes the secondary
-missed while disconnected. Change streams carry no index DDL, so index changes can lag up to one
-diff interval behind; document replication is unaffected. After a failover, a promoted secondary
-therefore enforces the same unique constraints and expires TTL documents like the old primary did.
+sync copies the primary's `listIndexes` output after the data snapshot, and from then on
+`createIndexes` and `dropIndexes` on the primary arrive as **change stream events** (since 6.3.12,
+#386 — MongoDB's expanded events `createIndexes`/`dropIndexes` with the full spec in
+`operationDescription.indexes`), applied in order with the data: an index created on the primary
+is on every secondary as soon as the writes before it are, with its full options (unique, TTL,
+partial, sparse, ...), and an index dropped on the primary is dropped on the secondaries the same
+way (the `_id` index is never touched). A periodic diff of `listIndexes` (every 30s) remains as the
+safety net for changes whose events a secondary missed while disconnected. After a failover, a
+promoted secondary therefore enforces the same unique constraints and expires TTL documents like
+the old primary did — including an index created moments before the leader change, which the
+periodic diff alone used to lose (#386).
+
+The DDL events follow mongod semantics: a change stream only sees them when it was opened with
+`showExpandedEvents: true`. Application change streams, messaging and cache synchronisation do not
+ask for them and keep seeing data events only.
 
 ### Replication buffer sizing
 
