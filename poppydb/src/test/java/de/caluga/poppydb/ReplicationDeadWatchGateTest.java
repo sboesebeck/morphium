@@ -164,9 +164,26 @@ public class ReplicationDeadWatchGateTest {
                     "the replication watch cursor must be established on the primary");
             long generationOfDeadWatch = rm.watchGeneration.get();
 
-            // Load while the gate is closed: the reader blocks on its 2KB budget, the primary's
-            // 4KB cursor budget overflows, the primary kills the cursor.
-            for (int i = 0; i < 30; i++) {
+            // Load while the gate is closed, in two steps. The scenario needs the reader BLOCKED
+            // in its 2KB budget before the primary's 4KB cursor budget overflows: only then is
+            // the kill invisible to the reader and the guard the sole line of defence. Two
+            // ~1.9KB events cannot overflow the primary (3.7KB < 4KB) but do block the reader on
+            // the second one - so wait for that before the rest of the load lands. Loaded in one
+            // go, a slow reader (test runner at load 24) had not fetched anything when the third
+            // event killed the cursor; its next getMore was answered "exhausted", the connection
+            // resumed in place from its token under a fresh cursor id, the primary then reported
+            // THAT cursor alive and the guard - correctly - had nothing to discard.
+            for (int i = 0; i < 2; i++) {
+                primary.getDriver().store(DB, COLL,
+                        List.of(Doc.of("_id", "load-" + i, "payload", "x".repeat(1024))), null);
+            }
+
+            assertTrue(poll(15_000, () -> rm.getEventQueueBytePressureCount() >= 1),
+                    "precondition: the reader must be blocked in byte-budget backpressure");
+            assertTrue(primaryWatchCursorCount(primary) >= 1,
+                    "precondition: the cursor must still be alive while the reader is blocked");
+
+            for (int i = 2; i < 30; i++) {
                 primary.getDriver().store(DB, COLL,
                         List.of(Doc.of("_id", "load-" + i, "payload", "x".repeat(1024))), null);
             }
