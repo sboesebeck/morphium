@@ -8,8 +8,12 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -29,6 +33,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * equals a Double whose value is an integer that converts back to the very same Long, so
  * {@code 9007199254740993L} (2^53+1, no exact double form) must NOT match
  * {@code 9007199254740992.0}. {@code BigDecimal} stays out (#343, decimal128 there).
+ *
+ * <p>#379 closes the remaining gap, the OPERATOR path: {@code $eq}/{@code $ne}/{@code $lt}..
+ * {@code $gte}, the interpreted {@code $in} and {@code listEquals} compared every Number via
+ * {@code doubleValue()} - including Long against Long - so past 2^53 adjacent longs collapsed
+ * ({@code {$eq: 2^53+1}} matched a stored 2^53, {@code {$lt: 2^53+1}} missed it). Ordering
+ * cannot be fixed by a cast, so the comparison is a cascade (Long vs Long exact, Long vs Double
+ * exact by value, Double vs Double as before), and the {@code IndexKey} TreeMap comparator
+ * follows it so an index range scan and a collscan cannot disagree.
  *
  * <p>Covers every path that used to compare by wrapper type: the interpreted matcher
  * ({@code QueryHelper}), the compiled matcher ({@code CompiledQuery}, which {@code find} uses),
@@ -456,5 +468,303 @@ public class NumericTypeMatchTest {
                 "interpreted $all: stored 2^53+1 / probe double 2^53");
         assertFalse(QueryHelper.matchesQuery(Doc.of("dbls", Doc.of("$all", List.of(beyond))), Doc.of("dbls", List.of(nearest)), null),
                 "interpreted $all: stored double 2^53 / probe long 2^53+1");
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // #379: the OPERATOR path ($eq/$ne/$lt/$lte/$gt/$gte, interpreted $in, listEquals) and the
+    // index comparator must be exact past 2^53 too. After #342/#344 the direct-equality path was
+    // exact while the operator path still compared every Number via doubleValue(), so adjacent
+    // longs collapsed: {$eq: 2^53+1} matched a stored 2^53, {$lt: 2^53+1} missed it.
+    // ------------------------------------------------------------------------------------------
+
+    private static final long TWO_POW_53 = 9007199254740992L;
+
+    /**
+     * The issue's headline: every comparison operator, Long against Long, on the three adjacent
+     * values 2^53, 2^53+1, 2^53+2. Only 2^53 and 2^53+2 have a double form, so via doubleValue()
+     * 2^53+1 collapses onto 2^53 - {$eq} hits one row too many, {$lt} one too few. Both matchers
+     * (compiled via find, interpreted via matchesQuery) must give the exact answer.
+     */
+    @Test
+    public void operatorPathComparesLongsExactlyBeyondDoublePrecision() throws Exception {
+        long p = TWO_POW_53;
+        assertEquals((double) p, (double) (p + 1), "test premise: 2^53+1 has no exact double form");
+
+        InMemoryDriver drv = freshDriver();
+        try {
+            new InsertMongoCommand(drv).setDb(DB).setColl(COLL)
+                    .setDocuments(List.of(Doc.of("lng", p), Doc.of("lng", p + 1), Doc.of("lng", p + 2))).execute();
+
+            assertEquals(1, drv.find(DB, COLL, Doc.of("lng", Doc.of("$eq", p + 1)), null, null, 0, 0).size(),
+                    "#379: {$eq: 2^53+1} must match exactly the 2^53+1 row, not the 2^53 row too (compiled path)");
+            assertEquals(2, drv.find(DB, COLL, Doc.of("lng", Doc.of("$ne", p + 1)), null, null, 0, 0).size(),
+                    "#379: {$ne: 2^53+1} must keep the 2^53 row (compiled path)");
+            assertEquals(1, drv.find(DB, COLL, Doc.of("lng", Doc.of("$lt", p + 1)), null, null, 0, 0).size(),
+                    "#379: {$lt: 2^53+1} must find the stored 2^53 (compiled path)");
+            assertEquals(1, drv.find(DB, COLL, Doc.of("lng", Doc.of("$lte", p)), null, null, 0, 0).size(),
+                    "#379: {$lte: 2^53} must NOT include the stored 2^53+1 (compiled path)");
+            assertEquals(2, drv.find(DB, COLL, Doc.of("lng", Doc.of("$gt", p)), null, null, 0, 0).size(),
+                    "#379: {$gt: 2^53} must find the stored 2^53+1 (compiled path)");
+            assertEquals(2, drv.find(DB, COLL, Doc.of("lng", Doc.of("$gte", p + 1)), null, null, 0, 0).size(),
+                    "#379: {$gte: 2^53+1} must NOT include the stored 2^53 (compiled path)");
+        } finally {
+            drv.close();
+        }
+
+        Map<String, Object> stored = Doc.of("lng", p);
+        assertFalse(QueryHelper.matchesQuery(Doc.of("lng", Doc.of("$eq", p + 1)), stored, null),
+                "#379: interpreted $eq must not collapse 2^53+1 onto a stored 2^53");
+        assertTrue(QueryHelper.matchesQuery(Doc.of("lng", Doc.of("$ne", p + 1)), stored, null),
+                "#379: interpreted $ne must keep a stored 2^53 for 2^53+1");
+        assertTrue(QueryHelper.matchesQuery(Doc.of("lng", Doc.of("$lt", p + 1)), stored, null),
+                "#379: interpreted {$lt: 2^53+1} must find a stored 2^53");
+        assertFalse(QueryHelper.matchesQuery(Doc.of("lng", Doc.of("$gte", p + 1)), stored, null),
+                "#379: interpreted {$gte: 2^53+1} must not include a stored 2^53");
+        assertTrue(QueryHelper.matchesQuery(Doc.of("lng", Doc.of("$gt", p)), Doc.of("lng", p + 1), null),
+                "#379: interpreted {$gt: 2^53} must find a stored 2^53+1");
+        assertFalse(QueryHelper.matchesQuery(Doc.of("lng", Doc.of("$in", List.of(p + 1))), stored, null),
+                "#379: the interpreted $in goes through compareValues and must be exact as well");
+        assertTrue(QueryHelper.matchesQuery(Doc.of("lng", Doc.of("$in", List.of(p, p + 2))), stored, null),
+                "sanity: interpreted $in still hits an exact member");
+    }
+
+    /**
+     * Long against Double ORDERING past 2^53 - the reason this is a cascade and not a cast: a
+     * stored 2^53+1 is strictly greater than the double 2^53, and Long.MAX_VALUE is strictly
+     * less than the double 2^63 it rounds to. Via doubleValue() both pairs compare EQUAL, so the
+     * strict operators miss and the inclusive ones hit the wrong way round. Equality stays the
+     * #344 rule (no cross-type hit for either pair).
+     */
+    @Test
+    public void operatorPathOrdersLongAgainstDoubleExactlyBeyondDoublePrecision() throws Exception {
+        long beyond = TWO_POW_53 + 1;
+        double nearest = (double) TWO_POW_53;      // 9007199254740992.0
+        double twoPow63 = 0x1p63;                  // (double) Long.MAX_VALUE rounds up to this
+
+        InMemoryDriver drv = freshDriver();
+        try {
+            new InsertMongoCommand(drv).setDb(DB).setColl(COLL)
+                    .setDocuments(List.of(Doc.of("lng", beyond), Doc.of("max", Long.MAX_VALUE), Doc.of("dbl", nearest))).execute();
+
+            // stored Long 2^53+1 vs. query Double 2^53
+            assertEquals(1, drv.find(DB, COLL, Doc.of("lng", Doc.of("$gt", nearest)), null, null, 0, 0).size(),
+                    "#379: a stored 2^53+1 is greater than the double 2^53 (compiled path)");
+            assertEquals(0, drv.find(DB, COLL, Doc.of("lng", Doc.of("$lte", nearest)), null, null, 0, 0).size(),
+                    "#379: a stored 2^53+1 is NOT <= the double 2^53 (compiled path)");
+            assertEquals(0, drv.find(DB, COLL, Doc.of("lng", Doc.of("$eq", nearest)), null, null, 0, 0).size(),
+                    "#344 rule holds in the operator path: no cross-type equality for 2^53+1 / 2^53.0");
+            // stored Double 2^53 vs. query Long 2^53+1
+            assertEquals(1, drv.find(DB, COLL, Doc.of("dbl", Doc.of("$lt", beyond)), null, null, 0, 0).size(),
+                    "#379: a stored double 2^53 is less than the long 2^53+1 (compiled path)");
+            assertEquals(0, drv.find(DB, COLL, Doc.of("dbl", Doc.of("$gte", beyond)), null, null, 0, 0).size(),
+                    "#379: a stored double 2^53 is NOT >= the long 2^53+1 (compiled path)");
+            // stored Long.MAX_VALUE vs. query Double 2^63
+            assertEquals(1, drv.find(DB, COLL, Doc.of("max", Doc.of("$lt", twoPow63)), null, null, 0, 0).size(),
+                    "#379: Long.MAX_VALUE is less than the double 2^63 (compiled path)");
+            assertEquals(0, drv.find(DB, COLL, Doc.of("max", Doc.of("$gte", twoPow63)), null, null, 0, 0).size(),
+                    "#379: Long.MAX_VALUE is NOT >= the double 2^63 (compiled path)");
+        } finally {
+            drv.close();
+        }
+
+        assertTrue(QueryHelper.matchesQuery(Doc.of("lng", Doc.of("$gt", nearest)), Doc.of("lng", beyond), null),
+                "#379: interpreted matcher, stored 2^53+1 > double 2^53");
+        assertFalse(QueryHelper.matchesQuery(Doc.of("lng", Doc.of("$lte", nearest)), Doc.of("lng", beyond), null),
+                "#379: interpreted matcher, stored 2^53+1 is not <= double 2^53");
+        assertTrue(QueryHelper.matchesQuery(Doc.of("dbl", Doc.of("$lt", beyond)), Doc.of("dbl", nearest), null),
+                "#379: interpreted matcher, stored double 2^53 < long 2^53+1");
+        assertTrue(QueryHelper.matchesQuery(Doc.of("max", Doc.of("$lt", twoPow63)), Doc.of("max", Long.MAX_VALUE), null),
+                "#379: interpreted matcher, Long.MAX_VALUE < double 2^63");
+        assertFalse(QueryHelper.matchesQuery(Doc.of("max", Doc.of("$gte", twoPow63)), Doc.of("max", Long.MAX_VALUE), null),
+                "#379: interpreted matcher, Long.MAX_VALUE is not >= double 2^63");
+    }
+
+    /**
+     * -0.0 against the integer literal 0: Double.compare orders -0.0 below 0.0, so today
+     * {$lt: 0} matched a stored -0.0 while {$eq: 0} did not. Under the exactness rule -0.0 IS
+     * the exact long 0 (#344's isExactLong says so, and the direct path already matched), so
+     * the operator path must agree: $eq/$lte/$gte hit, $lt/$gt/$ne miss - as in MongoDB.
+     */
+    @Test
+    public void negativeZeroIsTheExactLongZeroInTheOperatorPath() throws Exception {
+        InMemoryDriver drv = freshDriver();
+        try {
+            new InsertMongoCommand(drv).setDb(DB).setColl(COLL)
+                    .setDocuments(List.of(Doc.of("dbl", -0.0d))).execute();
+
+            assertEquals(1, drv.find(DB, COLL, Doc.of("dbl", 0), null, null, 0, 0).size(),
+                    "#344 premise: the direct path already matches -0.0 with the literal 0");
+            assertEquals(1, drv.find(DB, COLL, Doc.of("dbl", Doc.of("$eq", 0)), null, null, 0, 0).size(),
+                    "#379: {$eq: 0} must match a stored -0.0 (compiled path)");
+            assertEquals(0, drv.find(DB, COLL, Doc.of("dbl", Doc.of("$lt", 0)), null, null, 0, 0).size(),
+                    "#379: {$lt: 0} must NOT match a stored -0.0 (compiled path)");
+            assertEquals(0, drv.find(DB, COLL, Doc.of("dbl", Doc.of("$gt", 0)), null, null, 0, 0).size(),
+                    "#379: {$gt: 0} must NOT match a stored -0.0 (compiled path)");
+            assertEquals(1, drv.find(DB, COLL, Doc.of("dbl", Doc.of("$lte", 0)), null, null, 0, 0).size(),
+                    "#379: {$lte: 0} must match a stored -0.0 (compiled path)");
+            assertEquals(1, drv.find(DB, COLL, Doc.of("dbl", Doc.of("$gte", 0)), null, null, 0, 0).size(),
+                    "#379: {$gte: 0} must match a stored -0.0 (compiled path)");
+            assertEquals(0, drv.find(DB, COLL, Doc.of("dbl", Doc.of("$ne", 0)), null, null, 0, 0).size(),
+                    "#379: {$ne: 0} must NOT match a stored -0.0 (compiled path)");
+        } finally {
+            drv.close();
+        }
+
+        assertTrue(QueryHelper.matchesQuery(Doc.of("dbl", Doc.of("$eq", 0)), Doc.of("dbl", -0.0d), null),
+                "#379: interpreted {$eq: 0} must match a stored -0.0");
+        assertFalse(QueryHelper.matchesQuery(Doc.of("dbl", Doc.of("$lt", 0)), Doc.of("dbl", -0.0d), null),
+                "#379: interpreted {$lt: 0} must NOT match a stored -0.0");
+        assertTrue(QueryHelper.matchesQuery(Doc.of("dbl", Doc.of("$gte", 0L)), Doc.of("dbl", -0.0d), null),
+                "#379: interpreted {$gte: 0L} must match a stored -0.0");
+    }
+
+    /**
+     * Regression guard for the cascade: for |v| <= 2^53 every long is exactly a double, so the
+     * old doubleValue() comparison was already right there and the new one must not move a
+     * single answer. Mixed wrappers, non-integral doubles on both sides of an integer, negative
+     * values, the boundary value 2^53 itself, and the Number types the cascade does NOT take
+     * over (Float, BigDecimal - #343) all keep their behaviour.
+     */
+    @Test
+    public void everydayValuesAreUnchangedByTheExactCascade() {
+        // integral wrappers vs. each other
+        assertTrue(QueryHelper.matchesQuery(Doc.of("v", Doc.of("$lt", 3)), Doc.of("v", 2L), null));
+        assertTrue(QueryHelper.matchesQuery(Doc.of("v", Doc.of("$gte", (short) 2)), Doc.of("v", 2), null));
+        assertFalse(QueryHelper.matchesQuery(Doc.of("v", Doc.of("$gt", 2L)), Doc.of("v", (byte) 2), null));
+        assertTrue(QueryHelper.matchesQuery(Doc.of("v", Doc.of("$eq", 2)), Doc.of("v", 2L), null));
+        // integral vs. non-integral double, both directions, both signs
+        assertTrue(QueryHelper.matchesQuery(Doc.of("v", Doc.of("$gt", 2.5d)), Doc.of("v", 3L), null));
+        assertFalse(QueryHelper.matchesQuery(Doc.of("v", Doc.of("$lt", 2.5d)), Doc.of("v", 3L), null));
+        assertTrue(QueryHelper.matchesQuery(Doc.of("v", Doc.of("$lt", 3L)), Doc.of("v", 2.5d), null));
+        assertTrue(QueryHelper.matchesQuery(Doc.of("v", Doc.of("$gt", -3.5d)), Doc.of("v", -3L), null));
+        assertTrue(QueryHelper.matchesQuery(Doc.of("v", Doc.of("$lt", -2.5d)), Doc.of("v", -3L), null));
+        assertFalse(QueryHelper.matchesQuery(Doc.of("v", Doc.of("$gt", -2.5d)), Doc.of("v", -3L), null));
+        assertFalse(QueryHelper.matchesQuery(Doc.of("v", Doc.of("$eq", 2.5d)), Doc.of("v", 2), null));
+        assertTrue(QueryHelper.matchesQuery(Doc.of("v", Doc.of("$ne", 2.5d)), Doc.of("v", 2), null));
+        // integral vs. exactly-integral double
+        assertTrue(QueryHelper.matchesQuery(Doc.of("v", Doc.of("$eq", 2.0d)), Doc.of("v", 2L), null));
+        assertTrue(QueryHelper.matchesQuery(Doc.of("v", Doc.of("$lte", 2.0d)), Doc.of("v", 2), null));
+        assertFalse(QueryHelper.matchesQuery(Doc.of("v", Doc.of("$lt", 2.0d)), Doc.of("v", 2), null));
+        // the boundary itself: 2^53 as long and as double are the same value
+        assertTrue(QueryHelper.matchesQuery(Doc.of("v", Doc.of("$eq", (double) TWO_POW_53)), Doc.of("v", TWO_POW_53), null));
+        assertFalse(QueryHelper.matchesQuery(Doc.of("v", Doc.of("$gt", (double) TWO_POW_53)), Doc.of("v", TWO_POW_53), null));
+        assertTrue(QueryHelper.matchesQuery(Doc.of("v", Doc.of("$gte", TWO_POW_53)), Doc.of("v", (double) TWO_POW_53), null));
+        // double vs. double keeps Double.compare (NaN equals NaN, infinities order)
+        assertTrue(QueryHelper.matchesQuery(Doc.of("v", Doc.of("$lt", 2.5d)), Doc.of("v", 2.25d), null));
+        assertTrue(QueryHelper.matchesQuery(Doc.of("v", Doc.of("$eq", Double.NaN)), Doc.of("v", Double.NaN), null));
+        assertTrue(QueryHelper.matchesQuery(Doc.of("v", Doc.of("$lt", Double.POSITIVE_INFINITY)), Doc.of("v", Long.MAX_VALUE), null));
+        assertTrue(QueryHelper.matchesQuery(Doc.of("v", Doc.of("$gt", Double.NEGATIVE_INFINITY)), Doc.of("v", Long.MIN_VALUE), null));
+        // Number types outside the cascade stay on the old doubleValue() comparison (#343 for BigDecimal)
+        assertTrue(QueryHelper.matchesQuery(Doc.of("v", Doc.of("$eq", 2.5f)), Doc.of("v", 2.5d), null));
+        assertTrue(QueryHelper.matchesQuery(Doc.of("v", Doc.of("$lt", new java.math.BigDecimal("2.75"))), Doc.of("v", 2L), null));
+        assertTrue(QueryHelper.matchesQuery(Doc.of("v", Doc.of("$eq", new java.math.BigDecimal("2"))), Doc.of("v", 2L), null));
+    }
+
+    /**
+     * Structural half of #379: the TreeMap comparator behind every index range scan. Adjacent
+     * longs past 2^53 must order strictly (today they compare EQUAL via doubleValue(), so the
+     * TreeMap files them in one bucket and a bound built from one of them cuts the other off),
+     * and a Long must order exactly against a Double that is not an exact long (2^63 is the
+     * only such double near Long.MAX_VALUE, exact doubles are lifted to Long by IndexKey).
+     */
+    @Test
+    public void indexKeyComparatorOrdersLongsExactlyBeyondDoublePrecision() {
+        IndexDefinition def = IndexDefinition.fromIndexMap(Doc.of("lng", 1));
+        Comparator<IndexKey> cmp = IndexKey.comparator(def);
+        long p = TWO_POW_53;
+
+        assertTrue(cmp.compare(IndexKey.of(List.of(p)), IndexKey.of(List.of(p + 1))) < 0,
+                "#379: 2^53 must sort strictly below 2^53+1 in the index");
+        assertTrue(cmp.compare(IndexKey.of(List.of(p + 1)), IndexKey.of(List.of(p + 2))) < 0,
+                "#379: 2^53+1 must sort strictly below 2^53+2 in the index");
+        assertTrue(cmp.compare(IndexKey.of(List.of(Long.MAX_VALUE)), IndexKey.of(List.of(0x1p63))) < 0,
+                "#379: Long.MAX_VALUE must sort strictly below the double 2^63 in the index");
+        assertTrue(cmp.compare(IndexKey.of(List.of(0x1p63)), IndexKey.of(List.of(Long.MAX_VALUE))) > 0,
+                "#379: ...and the comparator must be antisymmetric about it");
+        assertEquals(0, cmp.compare(IndexKey.of(List.of(p)), IndexKey.of(List.of((double) p))),
+                "sanity: 2^53 as long and as double are one key");
+        assertTrue(cmp.compare(IndexKey.of(List.of(2L)), IndexKey.of(List.of(2.5d))) < 0,
+                "sanity: everyday long-vs-double ordering is unchanged");
+    }
+
+    /**
+     * The test that makes IndexKey a mandatory part of the fix: with an index on the field, a
+     * range query is answered by a TreeMap range scan whose bounds are IndexKeys; without one,
+     * by the matcher over every document. Past 2^53 both used doubleValue() and were wrong in
+     * DIFFERENT ways, so fixing only the matcher would make an indexed collection answer
+     * differently from an unindexed one. Every operator/operand pair is checked against the
+     * exact long arithmetic AND across the two drivers, and the counters prove the indexed
+     * driver really served the query from the index.
+     */
+    @Test
+    public void indexRangeScanAgreesWithCollscanBeyondDoublePrecision() throws Exception {
+        long p = TWO_POW_53;
+        List<Long> values = List.of(p - 1, p, p + 1, p + 2, p + 3, Long.MAX_VALUE - 1, Long.MAX_VALUE);
+        List<Map<String, Object>> docs = new ArrayList<>();
+        for (long v : values) {
+            docs.add(Doc.of("lng", v));
+        }
+
+        InMemoryDriver indexed = freshDriver();
+        InMemoryDriver scanned = freshDriver();
+        try {
+            new InsertMongoCommand(indexed).setDb(DB).setColl(COLL).setDocuments(docs).execute();
+            new InsertMongoCommand(scanned).setDb(DB).setColl(COLL).setDocuments(docs).execute();
+            indexed.createIndex(DB, COLL, Doc.of("lng", 1), Doc.of("name", "lng_idx"));
+
+            List<Long> operands = List.of(p, p + 1, p + 2, Long.MAX_VALUE - 1, Long.MAX_VALUE);
+            for (long operand : operands) {
+                for (String op : List.of("$lt", "$lte", "$gt", "$gte", "$eq")) {
+                    Map<String, Object> query = Doc.of("lng", Doc.of(op, operand));
+                    Set<Long> expected = new TreeSet<>();
+                    for (long v : values) {
+                        boolean hit = switch (op) {
+                            case "$lt" -> v < operand;
+                            case "$lte" -> v <= operand;
+                            case "$gt" -> v > operand;
+                            case "$gte" -> v >= operand;
+                            default -> v == operand;
+                        };
+                        if (hit) {
+                            expected.add(v);
+                        }
+                    }
+
+                    long fullScansBefore = indexed.fullScans;
+                    long indexHitsBefore = indexed.indexHits;
+                    Set<Long> viaIndex = longs(indexed.find(DB, COLL, query, null, null, 0, 0));
+                    if (!"$eq".equals(op)) {
+                        // The planner turns the four range operators into a TreeMap RangeScan; the
+                        // operator spelling of $eq is not planned (only the direct {lng: v} form is)
+                        // and is compared here purely for matcher agreement.
+                        assertEquals(indexHitsBefore + 1, indexed.indexHits, "test premise: " + query + " must be served by the index");
+                        assertEquals(fullScansBefore, indexed.fullScans, "test premise: " + query + " must not fall back to a full scan");
+                    }
+                    Set<Long> viaScan = longs(scanned.find(DB, COLL, query, null, null, 0, 0));
+
+                    assertEquals(expected, viaScan, "#379: collscan must be exact for " + query);
+                    assertEquals(expected, viaIndex, "#379: index range scan must be exact for " + query);
+                }
+            }
+
+            // A Double operand that is not an exact long: 2^63. Its IndexKey stays a Double, so the
+            // TreeMap comparator has to order it against the stored longs exactly as the matcher does.
+            Map<String, Object> belowTwoPow63 = Doc.of("lng", Doc.of("$lt", 0x1p63));
+            assertEquals(new TreeSet<>(values), longs(scanned.find(DB, COLL, belowTwoPow63, null, null, 0, 0)),
+                    "#379: every long is below the double 2^63 (collscan)");
+            assertEquals(new TreeSet<>(values), longs(indexed.find(DB, COLL, belowTwoPow63, null, null, 0, 0)),
+                    "#379: every long is below the double 2^63 (index range scan)");
+        } finally {
+            indexed.close();
+            scanned.close();
+        }
+    }
+
+    private static Set<Long> longs(List<Map<String, Object>> rows) {
+        Set<Long> out = new TreeSet<>();
+        for (Map<String, Object> row : rows) {
+            out.add(((Number) row.get("lng")).longValue());
+        }
+        return out;
     }
 }

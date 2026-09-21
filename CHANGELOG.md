@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+#### InMemoryDriver: comparison operators and the index comparator are exact past 2^53 (#379)
+The operator path - `$eq`, `$ne`, `$lt`..`$gte`, the interpreted `$in` and whole-array equality - compared every Number via `doubleValue()`, Long against Long included. A double cannot tell neighbouring longs apart beyond 2^53, so `{$eq: 9007199254740993}` matched a stored `9007199254740992` and `{$lt: 9007199254740993}` did not find it; snowflake ids, nanosecond timestamps and long-stored hashes all live there. After #342 and #344 the split was inverted: the direct-equality path was exact, the operator path was not. Since the range operators need an ORDER and a Long against a Double past 2^53 has no common exact type, this is a cascade rather than a cast (`QueryHelper.compareNumbers`): integral wrappers compare via `Long.compare`, a Long against a Double by exact value (integer part first, then the fraction - no BigDecimal on the hot path), Double against Double via `Double.compare` as before, and every other Number type (`Float`, `BigDecimal` - #343) keeps the old `doubleValue()` comparison. Equality in the cascade is exactly #344's rule, so `-0.0` is the long 0: `{$eq: 0}` now hits a stored `-0.0` and `{$lt: 0}` no longer does, as in MongoDB. The `IndexKey` TreeMap comparator uses the same cascade - it filed 2^53 and 2^53+1 in one bucket, so a range query served by an index answered differently from the same query over an unindexed collection. Values within ±2^53 are unaffected: every long there is exactly a double, and the old comparison was already right.
 
 ## [6.3.10] - 2026-09-19
 

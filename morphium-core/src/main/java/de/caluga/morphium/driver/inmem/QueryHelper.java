@@ -2788,6 +2788,88 @@ public class QueryHelper {
         return normalizeIntegral(v);
     }
 
+    /**
+     * Exact three-way numeric comparison across wrapper types (#379) - the ordering counterpart
+     * of {@link #numericEquals}. Every operator that orders or equates numbers ({@code $eq},
+     * {@code $ne}, {@code $lt}..{@code $gte}, the interpreted {@code $in}, {@link #listEquals})
+     * and the {@code IndexKey} TreeMap comparator go through here, so a range scan served by an
+     * index and a collscan can never disagree.
+     *
+     * <p>Until #379 all of them compared via {@code doubleValue()}, which is exact only for
+     * |v| <= 2^53: past that, adjacent longs share one double, so {@code {$eq: 2^53+1}} matched a
+     * stored 2^53 and {@code {$lt: 2^53+1}} missed it. Snowflake ids (~1.8e18), nanosecond
+     * timestamps and long-stored hashes all live there. A cast cannot fix ORDERING (a long and
+     * a double past 2^53 have no common exact type short of BigDecimal), hence a cascade:
+     * <ul>
+     *   <li>integral wrapper vs integral wrapper: {@code Long.compare}, exact;</li>
+     *   <li>integral wrapper vs {@code Double}: {@link #compareLongToDouble}, exact by value -
+     *       equality here is precisely #344's {@code doubleEqualsLong} rule, so {@code -0.0}
+     *       equals the long 0 ({@code {$eq: 0}} hits a stored {@code -0.0}, {@code {$lt: 0}}
+     *       does not - as in MongoDB and in the direct path since #344);</li>
+     *   <li>{@code Double} vs {@code Double}: {@code Double.compare}, unchanged (NaN equals NaN
+     *       and sorts last, {@code -0.0} below {@code 0.0});</li>
+     *   <li>anything else ({@code Float}, {@code BigDecimal}, {@code BigInteger}, atomics):
+     *       {@code doubleValue()} as before - {@code Float} never survives a write (BsonEncoder
+     *       emits BSON double) and BigDecimal is #343.</li>
+     * </ul>
+     * Returns -1/0/1 only, so callers may negate the result.
+     */
+    static int compareNumbers(Number a, Number b) {
+        boolean aIntegral = isIntegralWrapper(a);
+        boolean bIntegral = isIntegralWrapper(b);
+
+        if (aIntegral && bIntegral) {
+            return Long.compare(a.longValue(), b.longValue());
+        }
+        if (aIntegral && b instanceof Double) {
+            return compareLongToDouble(a.longValue(), (Double) b);
+        }
+        if (a instanceof Double && bIntegral) {
+            return -compareLongToDouble(b.longValue(), (Double) a);
+        }
+        if (a instanceof Double && b instanceof Double) {
+            return Integer.signum(Double.compare((Double) a, (Double) b));
+        }
+
+        return Integer.signum(Double.compare(a.doubleValue(), b.doubleValue()));
+    }
+
+    /**
+     * Orders a {@code long} against a {@code double} by exact mathematical value, without
+     * BigDecimal and without ever widening the long to double (#379). The split is by the
+     * double's integer part: {@code (long) d} truncates toward zero and is exact for every
+     * finite {@code |d| < 2^63}. If that integer part already differs from {@code l}, the sign
+     * is decided (a fraction can never bridge a whole unit). If it equals {@code l}, only the
+     * fraction {@code d - t} remains - and that subtraction is exact in both regimes: for
+     * {@code |d| < 2^53} the truncated value is itself a representable double, for
+     * {@code |d| >= 2^53} every double is an integer, so the fraction is zero.
+     *
+     * <p>{@code -0.0} truncates to 0 with a fraction of {@code -0.0}, which is neither
+     * {@code > 0} nor {@code < 0}, so {@code -0.0} compares EQUAL to the long 0 - the same verdict
+     * {@link #isExactLong} gives it. NaN keeps {@code Double.compare}'s placement above every
+     * number, the infinities and every double at or beyond 2^63 in magnitude sit outside the
+     * whole long range (note {@code 2^63} itself is exactly {@code Long.MAX_VALUE + 1}).
+     */
+    private static int compareLongToDouble(long l, double d) {
+        if (Double.isNaN(d) || d >= 0x1p63) {
+            return -1;
+        }
+        if (d < -0x1p63) {
+            return 1;
+        }
+
+        long truncated = (long) d;
+        if (l != truncated) {
+            return l < truncated ? -1 : 1;
+        }
+
+        double fraction = d - (double) truncated;
+        if (fraction > 0) {
+            return -1;
+        }
+        return fraction < 0 ? 1 : 0;
+    }
+
     static boolean compareValues(Object left, Object right, Collator coll) {
         Object normalizedLeft = normalizeId(left);
         Object normalizedRight = normalizeId(right);
@@ -2801,7 +2883,8 @@ public class QueryHelper {
         }
 
         if (normalizedLeft instanceof Number && normalizedRight instanceof Number) {
-            return Double.compare(((Number) normalizedLeft).doubleValue(), ((Number) normalizedRight).doubleValue()) == 0;
+            // #379: exact across wrapper types - never via doubleValue(), see compareNumbers.
+            return compareNumbers((Number) normalizedLeft, (Number) normalizedRight) == 0;
         }
 
         return normalizedLeft.equals(normalizedRight);
@@ -2899,7 +2982,8 @@ public class QueryHelper {
         }
 
         if (left instanceof Number && right instanceof Number) {
-            return Double.compare(((Number) left).doubleValue(), ((Number) right).doubleValue()) <= offset;
+            // #379: exact ordering across wrapper types, see compareNumbers.
+            return compareNumbers((Number) left, (Number) right) <= offset;
         }
 
         // Temporal types: normalise both sides to a comparable Long.
@@ -2934,7 +3018,8 @@ public class QueryHelper {
         }
 
         if (left instanceof Number && right instanceof Number) {
-            return Double.compare(((Number) left).doubleValue(), ((Number) right).doubleValue()) >= offset;
+            // #379: exact ordering across wrapper types, see compareNumbers.
+            return compareNumbers((Number) left, (Number) right) >= offset;
         }
 
         // Temporal types: normalise both sides to a comparable Long.
