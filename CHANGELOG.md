@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [6.3.11] - 2026-09-21
+
 ### Fixed
 
 #### InMemoryDriver: comparison operators and the index comparator are exact past 2^53 (#379)
