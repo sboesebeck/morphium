@@ -609,6 +609,15 @@ public class ReplicationManager {
         try {
             syncIndexesFrom(pm.getDriver());
         } catch (Exception e) {
+            if (isSyncSourceSteppedDown(e)) {
+                // #364: nothing to retry against this host; the replication loop meets the same
+                // answer on its next watch registration and backs off, and the leadership change
+                // re-targets replication.
+                log.warn("Periodic index sync: source {}:{} is no longer the primary ({}) - waiting for the "
+                        + "leadership change to re-target replication (#364)", primaryHost, primaryPort,
+                        e.getMessage());
+                return;
+            }
             log.warn("Periodic index sync failed (will retry in {}ms): {}", INDEX_SYNC_INTERVAL_MS, e.getMessage());
         }
     }
@@ -1446,8 +1455,10 @@ public class ReplicationManager {
 
     /**
      * #364: true if {@code e} (or a cause of it) says the sync source is not the primary any
-     * more - NotPrimaryNoSecondaryOk (13435), NotWritablePrimary (10107) or PrimarySteppedDown
-     * (189), by code or by the "Error: CODE - not primary ..." message the driver formats. The
+     * more - NotPrimaryNoSecondaryOk (13435), NotWritablePrimary (10107), PrimarySteppedDown
+     * (189) or NotPrimaryOrSecondary (13436: the demoted node has already started its own
+     * re-sync from the new leader), by code or by the "Error: CODE - not primary ..." message
+     * the driver formats. The
      * reaction differs from every other error: the host is up and will keep answering exactly
      * this until the leadership change re-targets replication, so reconnecting at full speed
      * is a CPU-burning loop right when the election needs the CPU.
@@ -1456,20 +1467,31 @@ public class ReplicationManager {
         for (Throwable t = e; t != null; t = t.getCause() == t ? null : t.getCause()) {
             if (t instanceof MorphiumDriverException mde && mde.getMongoCode() instanceof Number code) {
                 int c = code.intValue();
-                if (c == 13435 || c == 10107 || c == 189) {
+                if (c == 13435 || c == 10107 || c == 189 || c == 13436) {
                     return true;
                 }
             }
             String msg = t.getMessage();
             if (msg != null) {
                 String lower = msg.toLowerCase(Locale.ROOT);
-                if (lower.contains("13435") || lower.contains("10107")
+                if (lower.contains("13435") || lower.contains("10107") || lower.contains("13436")
                         || lower.contains("not primary") || lower.contains("not master")) {
                     return true;
                 }
             }
         }
         return false;
+    }
+
+    /**
+     * #364: the delay before the next attempt against a sync source that answered "not
+     * primary" - one second, doubling, capped at ten. Shared by the replication loop and the
+     * initial-sync thread. The retry is not dropped altogether because the same host can
+     * become primary again (a priority takeover back to it), and the leader-discovery
+     * callback does not re-fire for an unchanged leader address.
+     */
+    static long nextStepDownBackoff(long previousMs) {
+        return previousMs == 0 ? 1000 : Math.min(previousMs * 2, 10_000);
     }
 
     private void disconnectFromPrimary() {
@@ -1554,7 +1576,7 @@ public class ReplicationManager {
                     // leader-discovery callback does not re-fire for an unchanged leader address.
                     disconnectFromPrimary();
                     boolean first = stepDownBackoffMs == 0;
-                    stepDownBackoffMs = first ? 1000 : Math.min(stepDownBackoffMs * 2, 10_000);
+                    stepDownBackoffMs = nextStepDownBackoff(stepDownBackoffMs);
                     if (first) {
                         log.warn("Sync source {}:{} is no longer the primary ({}) - waiting for the "
                                 + "leadership change to re-target replication, retrying with backoff "
@@ -1632,6 +1654,9 @@ public class ReplicationManager {
 
         initialSyncThread = new Thread(() -> {
             long backoffMs = 1000;
+            // #364: consecutive attempts against a source that answered "not primary" back off
+            // 1s -> 10s and are logged once per streak, like in replicationLoop()
+            long stepDownBackoffMs = 0;
             wipedThisSyncCycle.set(false); // fresh cycle: no wipe has happened yet, shortcut is fair game
             try {
                 while (running.get()) {
@@ -1868,6 +1893,26 @@ public class ReplicationManager {
                             log.info("Initial sync abandoned: replication manager was stopped");
                             return;
                         }
+
+                        if (isSyncSourceSteppedDown(e)) {
+                            // #364: the source is up and will answer exactly this until the
+                            // leadership change re-targets replication. Not an error of this
+                            // node, not a stuck sync - the escalation below must not count it.
+                            boolean first = stepDownBackoffMs == 0;
+                            stepDownBackoffMs = nextStepDownBackoff(stepDownBackoffMs);
+                            if (first) {
+                                log.warn("Sync source {}:{} is no longer the primary ({}) - initial sync waits "
+                                        + "for the leadership change to re-target replication, retrying with "
+                                        + "backoff from {}ms (#364)", primaryHost, primaryPort, e.getMessage(),
+                                        stepDownBackoffMs);
+                            } else {
+                                log.debug("Sync source {}:{} still not primary - initial sync retries in {}ms",
+                                        primaryHost, primaryPort, stepDownBackoffMs);
+                            }
+                            Thread.sleep(stepDownBackoffMs);
+                            continue;
+                        }
+                        stepDownBackoffMs = 0;
 
                         // Snapshot failed while the watch may still be healthy. Retry from within
                         // this thread with backoff, keeping the gate closed, so the node cannot get

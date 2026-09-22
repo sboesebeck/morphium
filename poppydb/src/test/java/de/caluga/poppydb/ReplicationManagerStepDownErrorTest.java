@@ -25,6 +25,23 @@ public class ReplicationManagerStepDownErrorTest {
         assertTrue(ReplicationManager.isSyncSourceSteppedDown(withCode(13435)), "NotPrimaryNoSecondaryOk");
         assertTrue(ReplicationManager.isSyncSourceSteppedDown(withCode(10107)), "NotWritablePrimary");
         assertTrue(ReplicationManager.isSyncSourceSteppedDown(withCode(189)), "PrimarySteppedDown");
+        assertTrue(ReplicationManager.isSyncSourceSteppedDown(withCode(13436)),
+                "NotPrimaryOrSecondary: a demoted source re-syncing after the leader change");
+    }
+
+    @Test
+    void stepDownBackoffDoublesFromOneSecondToTenSecondsCap() {
+        long b = ReplicationManager.nextStepDownBackoff(0);
+        assertEquals(1000, b, "first retry after a second");
+        b = ReplicationManager.nextStepDownBackoff(b);
+        assertEquals(2000, b);
+        b = ReplicationManager.nextStepDownBackoff(b);
+        assertEquals(4000, b);
+        b = ReplicationManager.nextStepDownBackoff(b);
+        assertEquals(8000, b);
+        b = ReplicationManager.nextStepDownBackoff(b);
+        assertEquals(10_000, b, "capped at ten seconds");
+        assertEquals(10_000, ReplicationManager.nextStepDownBackoff(b), "stays at the cap");
     }
 
     @Test
