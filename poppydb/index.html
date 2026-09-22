@@ -3052,6 +3052,15 @@ warning is the only thing telling you it did:</p>
 <div class="language-text highlight"><pre><span></span><code>PARTIAL RESTORE on startup: only 6 of 8 databases restored ... Continuing startup WITHOUT
 the failed databases!
 </code></pre></div>
+<p>Such a node holds back candidacy (logged as <code>holding back candidacy ... failed dump files:
+[...]</code>, once a minute) until an initial sync from a primary has given it a complete copy. If
+the <strong>same</strong> file failed on every node - a dump-format bug, a dump written by a newer version -
+there is no primary to sync from and nobody holds a better copy, so the nodes exchange their
+restore finding and the highest-priority one lifts its guard by itself (#391, <code>LIFTING the
+partial-restore candidacy guard</code> on WARN); the others then sync from it. A peer with a
+complete copy, one that lost different files, or one that does not answer keeps every guard
+in place. To pick a node by hand - a mixed-version set during a rolling upgrade, or a peer
+that is down - run <code>db.adminCommand({poppyAcceptPartialRestore: 1})</code> on it.</p>
 <p>Dumps written before 6.3.2 remain readable - they are read as UTF-8 with a fallback for the
 platform default encoding they were written under, and raw newlines inside string values are
 preserved. Keep old dumps and try them; a restore attempt is cheap and the log says exactly
@@ -3948,6 +3957,10 @@ Netty internals, replace the configuration via <code>-Dlogback.configurationFile
 <tr>
 <td><code>replSetStepDown</code></td>
 <td>Step down from primary (for replica sets)</td>
+</tr>
+<tr>
+<td><code>poppyAcceptPartialRestore</code></td>
+<td>Lift the partial-restore candidacy guard on this node so it may become primary with its incomplete data (#391); answers <code>lifted</code> and the failed dump file names. Normally not needed: when every node lost the same dump files the highest-priority node lifts its guard by itself</td>
 </tr>
 <tr>
 <td><code>startSession</code> / <code>endSessions</code> / <code>refreshSessions</code></td>
