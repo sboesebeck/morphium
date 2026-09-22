@@ -138,10 +138,26 @@ public class SyncSourceStepdownDuringInitialSyncTest {
         return v instanceof Number ? ((Number) v).doubleValue() : 0.0;
     }
 
+    /**
+     * Name of the sync thread under test. The appender sits on the class logger, and the
+     * replica set's own followers run ReplicationManagers of their own in this JVM: when the
+     * leader steps down while THEIR copy is still running (it was, on the loaded test runner),
+     * their sync threads log the very same WARN. Only this manager's thread counts.
+     */
+    private String syncThreadName;
+
+    private void nameSyncThread(String name) {
+        Thread t = rm.getInitialSyncThreadForTest();
+        assertTrue(t != null, "the sync thread must exist once the pause is reached");
+        t.setName(name);
+        syncThreadName = name;
+    }
+
     private List<ILoggingEvent> events(Level level, String containing) {
         List<ILoggingEvent> out = new ArrayList<>();
         for (ILoggingEvent ev : new ArrayList<>(appender.list)) {
-            if (ev.getLevel() == level && ev.getFormattedMessage().contains(containing)) {
+            if (ev.getLevel() == level && ev.getFormattedMessage().contains(containing)
+                && (syncThreadName == null || syncThreadName.equals(ev.getThreadName()))) {
                 out.add(ev);
             }
         }
@@ -187,6 +203,7 @@ public class SyncSourceStepdownDuringInitialSyncTest {
         rm.start();
         assertTrue(poll(15_000, rm::syncReadPauseReachedForTest),
             "the sync thread must be parked inside syncCollection's read");
+        nameSyncThread("sync-under-test-stepdown");
 
         // nobody may take over: the set stays leaderless, the stepped-down node names no primary
         for (int p : List.of(port2, port3)) {
@@ -248,6 +265,7 @@ public class SyncSourceStepdownDuringInitialSyncTest {
         rm.start();
         assertTrue(poll(15_000, rm::syncReadPauseReachedForTest),
             "the sync thread must be parked inside syncCollection's read");
+        nameSyncThread("sync-under-test-dropped");
 
         // what replicationLoop() does on a stepped-down or stale source, at the worst moment
         rm.disconnectFromPrimaryForTest();
@@ -265,7 +283,8 @@ public class SyncSourceStepdownDuringInitialSyncTest {
         StringBuilder sb = new StringBuilder();
         for (ILoggingEvent ev : new ArrayList<>(appender.list)) {
             if (ev.getLevel().isGreaterOrEqual(Level.WARN)) {
-                sb.append('\n').append(ev.getLevel()).append(' ').append(ev.getFormattedMessage());
+                sb.append('\n').append(ev.getLevel()).append(" [").append(ev.getThreadName()).append("] ")
+                    .append(ev.getFormattedMessage());
             }
         }
         return sb.toString();
