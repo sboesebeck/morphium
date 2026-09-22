@@ -1,8 +1,8 @@
 package de.caluga.morphium.driver.commands.auth;
 
+import com.ongres.scram.client.ChannelBindingPolicy;
 import com.ongres.scram.client.ScramClient;
-import com.ongres.scram.client.ScramSession;
-import com.ongres.scram.common.ScramMechanisms;
+import com.ongres.scram.common.StringPreparation;
 import com.ongres.scram.common.exception.ScramInvalidServerSignatureException;
 import com.ongres.scram.common.exception.ScramParseException;
 import com.ongres.scram.common.exception.ScramServerErrorException;
@@ -18,9 +18,8 @@ import org.slf4j.LoggerFactory;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-
-import static com.ongres.scram.common.stringprep.StringPreparations.NO_PREPARATION;
-import static com.ongres.scram.common.stringprep.StringPreparations.SASL_PREPARATION;
+import java.util.Arrays;
+import java.util.List;
 
 public class SaslAuthCommand extends MongoCommand<SaslAuthCommand> {
     private String user;
@@ -73,72 +72,72 @@ public class SaslAuthCommand extends MongoCommand<SaslAuthCommand> {
 
 
     public void execute() throws MorphiumDriverException, ScramParseException, NoSuchAlgorithmException, ScramInvalidServerSignatureException, ScramServerErrorException {
-        ScramClient scramClient = null;
         if (mechanism == null) mechanism = "SCRAM-SHA-256";
-        String pwd = "";
+        char[] pwd = new char[0];
+        StringPreparation preparation;
         if (mechanism.equals("SCRAM-SHA-1")) {
-            scramClient = ScramClient
-                    .channelBinding(ScramClient.ChannelBinding.NO)
-                    .stringPreparation(NO_PREPARATION)
-                    .selectClientMechanism(ScramMechanisms.SCRAM_SHA_1)
-                    // .nonceSupplier(() -> "fyko+d2lbbFgONRv9qkxdawL")
-                    .setup();
-            pwd = user + ":mongo:" + password;
+            // MongoDB legacy: PBKDF2 input is md5Hex(user + ":mongo:" + password), no SASLprep
+            String mangled = user + ":mongo:" + password;
             MessageDigest md = MessageDigest.getInstance("MD5");
-            md.update(pwd.getBytes(StandardCharsets.UTF_8));
+            md.update(mangled.getBytes(StandardCharsets.UTF_8));
             var md5 = md.digest();
             StringBuilder hex = new StringBuilder();
             for (byte b : md5) {
                 hex.append(Utils.getHex(b).toLowerCase());
             }
-            pwd = hex.toString();
+            pwd = hex.toString().toCharArray();
+            preparation = StringPreparation.NO_PREPARATION;
         } else if (mechanism.equals("SCRAM-SHA-256")) {
-            scramClient = ScramClient
-                    .channelBinding(ScramClient.ChannelBinding.NO)
-                    .stringPreparation(SASL_PREPARATION)
-                    .selectClientMechanism(ScramMechanisms.SCRAM_SHA_256)
-                    // .nonceSupplier(() -> "fyko+d2lbbFgONRv9qkxdawL")
-                    .setup();
-            pwd = password;
+            pwd = password.toCharArray();
+            preparation = StringPreparation.SASL_PREPARATION;
         } else {
             throw new MorphiumDriverException("Unsupported SCRAM mechanism " + mechanism);
         }
-        ScramSession scramSession = scramClient.scramSession(user);
-        var msg = scramSession.clientFirstMessage();
+        try {
+            // MongoDB does not support channel binding (-PLUS): DISABLE pins the gs2-cbind-flag to "n",
+            // the same wire format the old ChannelBinding.NO produced
+            ScramClient scramClient = ScramClient.builder()
+                    .advertisedMechanisms(List.of(mechanism))
+                    .username(user)
+                    .password(pwd)
+                    .channelBindingPolicy(ChannelBindingPolicy.DISABLE)
+                    .stringPreparation(preparation)
+                    // .nonceSupplier(() -> "fyko+d2lbbFgONRv9qkxdawL")
+                    .build();
+            var msg = scramClient.clientFirstMessage();
 
-        //Step 1: saslStart
-        GenericCommand cmd = new GenericCommand(getConnection());
-        cmd.setCommandName("saslStart");
-        cmd.setCmdData(Doc.of("saslStart", 1, "mechanism", mechanism, "payload", msg.getBytes(StandardCharsets.UTF_8), "options", Doc.of("skipEmptyExchange", true)));
-        cmd.setDb(getDb());
-        var id = getConnection().sendCommand(cmd);
-        var answer = getConnection().readSingleAnswer(id);
-        if (!answer.containsKey("conversationId")) {
-            throw new MorphiumDriverException("Error authentication: " + answer.get("errmsg"));
+            //Step 1: saslStart
+            GenericCommand cmd = new GenericCommand(getConnection());
+            cmd.setCommandName("saslStart");
+            cmd.setCmdData(Doc.of("saslStart", 1, "mechanism", mechanism, "payload", msg.toString().getBytes(StandardCharsets.UTF_8), "options", Doc.of("skipEmptyExchange", true)));
+            cmd.setDb(getDb());
+            var id = getConnection().sendCommand(cmd);
+            var answer = getConnection().readSingleAnswer(id);
+            if (!answer.containsKey("conversationId")) {
+                throw new MorphiumDriverException("Error authentication: " + answer.get("errmsg"));
+            }
+            //answer for step one contains conversation id and payload String
+            int conversationId = (Integer) answer.get("conversationId");
+            String payload = new String((byte[]) answer.get("payload"));
+            scramClient.serverFirstMessage(payload);
+
+            //Step 2: sending hashed password to mongo
+
+            String s1 = scramClient.clientFinalMessage().toString();
+            cmd = new GenericCommand(getConnection());
+            cmd.setCommandName("saslContinue");
+            cmd.setCmdData((Doc.of("saslContinue", 1, "conversationId", conversationId, "payload", s1.getBytes(StandardCharsets.UTF_8))));
+            cmd.setDb(getDb());
+
+            id = getConnection().sendCommand(cmd);
+            answer = getConnection().readSingleAnswer(id);
+            if (!answer.get("ok").equals(1.0)) {
+                throw new MorphiumDriverException((String) answer.get("errmsg"));
+            }
+            payload = new String((byte[]) answer.get("payload"));
+            scramClient.serverFinalMessage(payload);
+        } finally {
+            Arrays.fill(pwd, (char) 0);
         }
-        //answer for step one contains conversation id and payload String
-        int conversationId = (Integer) answer.get("conversationId");
-        String payload = new String((byte[]) answer.get("payload"));
-        ScramSession.ServerFirstProcessor serverFirstProcessor = scramSession.receiveServerFirstMessage(payload);
-
-        //Step 2: sending hashed password to mongo
-
-        ScramSession.ClientFinalProcessor clientFinalProcessor
-                = serverFirstProcessor.clientFinalProcessor(pwd);
-        String s1 = clientFinalProcessor.clientFinalMessage();
-        cmd = new GenericCommand(getConnection());
-        cmd.setCommandName("saslContinue");
-        cmd.setCmdData((Doc.of("saslContinue", 1, "conversationId", conversationId, "payload", s1.getBytes(StandardCharsets.UTF_8))));
-        cmd.setDb(getDb());
-
-        id = getConnection().sendCommand(cmd);
-        answer = getConnection().readSingleAnswer(id);
-        if (!answer.get("ok").equals(1.0)) {
-            throw new MorphiumDriverException((String) answer.get("errmsg"));
-        }
-        payload = new String((byte[]) answer.get("payload"));
-        clientFinalProcessor.receiveServerFinalMessage(payload);
-//        log.info("Logged in");
-
     }
 }
