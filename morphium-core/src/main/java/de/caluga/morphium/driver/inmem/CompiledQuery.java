@@ -166,67 +166,28 @@ public final class CompiledQuery {
         }
     }
 
-    private enum Kind { HARD, WHERE, NORMAL }
-
-    private static final class KeyedNode {
-        final Kind kind;
-        final Node node;
-        KeyedNode(Kind kind, Node node) {
-            this.kind = kind;
-            this.node = node;
-        }
-    }
-
     /**
-     * Mirrors the top-level loop of {@code matchesQueryInterpreted}: $and/$or/$nor/$not/$expr
-     * return immediately the moment they are evaluated (later keys, in map iteration order, are
-     * never reached); a normal field/$jsonSchema/$textSearch condition ANDs (false short-circuits
-     * immediately, success sets ret=true and continues); $where is the one operator that does
-     * NEITHER - it just overwrites `ret` and continues, so a failing $where can be silently undone
-     * by a later successful key, and a passing $where can be silently undone by a later failing
-     * key. That is almost certainly an interpreter bug, but per the correctness gate we replicate
-     * it exactly rather than "fixing" it.
-     *
-     * KNOWN-DIVERGENCE: the WHERE kind's overwrite-and-continue behavior above (a $where result can
-     * be silently undone by a later key, in either direction) diverges from real MongoDB, which
-     * ANDs all top-level predicates. Preserved to match the interpreter.
+     * ANDs every top-level predicate. MongoDB requires all top-level keys of a query document to
+     * match: boolean operators ($and/$or/$nor/$not), $expr, $where, $jsonSchema and $textSearch are
+     * ordinary predicates here, so no operator can skip or be undone by a sibling key and the order
+     * of keys is irrelevant (see #396).
      */
     private static final class SequenceNode implements Node {
-        final Kind[] kinds;
         final Node[] nodes;
 
-        SequenceNode(List<KeyedNode> keyed) {
-            kinds = new Kind[keyed.size()];
-            nodes = new Node[keyed.size()];
-            for (int i = 0; i < keyed.size(); i++) {
-                kinds[i] = keyed.get(i).kind;
-                nodes[i] = keyed.get(i).node;
-            }
+        SequenceNode(List<Node> nodes) {
+            this.nodes = nodes.toArray(new Node[0]);
         }
 
         @Override
         public boolean test(Map<String, Object> doc) {
-            boolean ret = false;
-
-            for (int i = 0; i < nodes.length; i++) {
-                switch (kinds[i]) {
-                    case HARD:
-                        return nodes[i].test(doc);
-
-                    case WHERE:
-                        ret = nodes[i].test(doc);
-                        break;
-
-                    case NORMAL:
-                        if (!nodes[i].test(doc)) {
-                            return false;
-                        }
-                        ret = true;
-                        break;
+            for (Node node : nodes) {
+                if (!node.test(doc)) {
+                    return false;
                 }
             }
 
-            return ret;
+            return true;
         }
     }
 
@@ -235,92 +196,90 @@ public final class CompiledQuery {
             return TrueNode.INSTANCE;
         }
 
-        List<KeyedNode> keyed = new ArrayList<>(query.size());
+        List<Node> nodes = new ArrayList<>(query.size());
 
         for (String key : query.keySet()) {
-            keyed.add(compileTopLevelKey(key, query, ctx));
+            nodes.add(compileTopLevelKey(key, query, ctx));
         }
 
-        if (keyed.size() == 1) {
-            return keyed.get(0).node;
+        if (nodes.size() == 1) {
+            return nodes.get(0);
         }
 
-        return new SequenceNode(keyed);
+        return new SequenceNode(nodes);
     }
 
     @SuppressWarnings("unchecked")
-    private static KeyedNode compileTopLevelKey(String key, Map<String, Object> query, Ctx ctx) {
+    private static Node compileTopLevelKey(String key, Map<String, Object> query, Ctx ctx) {
         Object value = query.get(key);
 
         switch (key) {
             case "$and": {
                 List<Node> children = compileList((List<Map<String, Object>>) value, ctx);
-                return new KeyedNode(Kind.HARD, doc -> {
+                return doc -> {
                     for (Node c : children) {
                         if (!c.test(doc)) {
                             return false;
                         }
                     }
                     return true;
-                });
+                };
             }
 
             case "$or": {
                 List<Node> children = compileList((List<Map<String, Object>>) value, ctx);
-                return new KeyedNode(Kind.HARD, doc -> {
+                return doc -> {
                     for (Node c : children) {
                         if (c.test(doc)) {
                             return true;
                         }
                     }
                     return false;
-                });
+                };
             }
 
             case "$nor": {
                 List<Node> children = compileList((List<Map<String, Object>>) value, ctx);
-                return new KeyedNode(Kind.HARD, doc -> {
+                return doc -> {
                     for (Node c : children) {
                         if (c.test(doc)) {
                             return false;
                         }
                     }
                     return true;
-                });
+                };
             }
 
             case "$not": {
                 Node inner = compileQueryNode((Map<String, Object>) value, ctx);
-                return new KeyedNode(Kind.HARD, doc -> !inner.test(doc));
+                return doc -> !inner.test(doc);
             }
 
             case "$expr": {
                 Expr expr = Expr.parse(value);
-                return new KeyedNode(Kind.HARD, doc -> {
+                return doc -> {
                     Object result = expr.evaluate(doc);
                     if (result instanceof Expr) {
                         result = ((Expr) result).evaluate(doc);
                     }
                     return Boolean.TRUE.equals(result);
-                });
+                };
             }
 
             case "$jsonSchema": {
                 if (!(value instanceof Map)) {
-                    return new KeyedNode(Kind.NORMAL, doc -> false);
+                    return doc -> false;
                 }
                 Map<String, Object> schema = (Map<String, Object>) value;
-                return new KeyedNode(Kind.NORMAL, doc -> QueryHelper.matchesJsonSchema(schema, doc));
+                return doc -> QueryHelper.matchesJsonSchema(schema, doc);
             }
 
             case "$where": {
-                // The interpreter reads query.get("$where") from the enclosing query map at match
-                // time - the raw script string is static per compiled query, so capture it once.
-                return new KeyedNode(Kind.WHERE, doc -> QueryHelper.runWhere(query, doc));
+                return doc -> QueryHelper.runWhere(query, doc);
             }
 
             case "$textSearch": {
-                return new KeyedNode(Kind.NORMAL, doc -> QueryHelper.matchesTextSearch(value, doc));
+                return doc -> QueryHelper.matchesTextSearch(value, doc);
             }
 
             default:
@@ -328,7 +287,7 @@ public final class CompiledQuery {
                     throw new IllegalArgumentException("unknown top level operator: " + key);
                 }
 
-                return new KeyedNode(Kind.NORMAL, compileFieldKey(key, query, ctx));
+                return compileFieldKey(key, query, ctx);
         }
     }
 

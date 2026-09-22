@@ -429,7 +429,7 @@ public class QueryHelper {
             }
             switch (keyQuery) {
                 case "$and": {
-                        // list of field queries
+                        // list of field queries - ANDs with any sibling top-level keys (#396)
                         @SuppressWarnings("unchecked")
                         List<Map<String, Object>> lst = ((List<Map<String, Object >> ) query.get(keyQuery));
 
@@ -439,30 +439,43 @@ public class QueryHelper {
                             }
                         }
 
-                        return true;
+                        ret = true;
+                        continue;
                     }
 
                 case "$or": {
-                        // list of or queries
+                        // list of or queries - ANDs with any sibling top-level keys (#396)
                         @SuppressWarnings("unchecked")
                         List<Map<String, Object>> lst = ((List<Map<String, Object >> ) query.get(keyQuery));
+                        boolean anyMatch = false;
 
                         for (Map<String, Object> q : lst) {
                             if (matchesQueryInterpreted(q, toCheck, collation)) {
-                                return true;
+                                anyMatch = true;
+                                break;
                             }
                         }
 
-                        return false;
+                        if (!anyMatch) {
+                            return false;
+                        }
+
+                        ret = true;
+                        continue;
                     }
 
                 case "$not": {
                         //noinspection unchecked
-                        return (!matchesQueryInterpreted((Map<String, Object>) query.get(keyQuery), toCheck, collation));
+                        if (matchesQueryInterpreted((Map<String, Object>) query.get(keyQuery), toCheck, collation)) {
+                            return false;
+                        }
+
+                        ret = true;
+                        continue;
                     }
 
                 case "$nor": {
-                        // list of or queries
+                        // list of or queries - ANDs with any sibling top-level keys (#396)
                         @SuppressWarnings("unchecked")
                         List<Map<String, Object>> lst = ((List<Map<String, Object >> ) query.get(keyQuery));
 
@@ -472,7 +485,8 @@ public class QueryHelper {
                             }
                         }
 
-                        return true;
+                        ret = true;
+                        continue;
                     }
 
                 case "$expr": {
@@ -485,7 +499,13 @@ public class QueryHelper {
                         }
 
                         org.slf4j.LoggerFactory.getLogger(QueryHelper.class).debug("QueryHelper: $expr result = {}", result);
-                        return Boolean.TRUE.equals(result);
+
+                        if (!Boolean.TRUE.equals(result)) {
+                            return false;
+                        }
+
+                        ret = true;
+                        continue;
                     }
 
                 case "$jsonSchema": {
@@ -504,7 +524,11 @@ public class QueryHelper {
                     }
 
                 case "$where":
-                    ret = runWhere(query, toCheck);
+                    if (!runWhere(query, toCheck)) {
+                        return false;
+                    }
+
+                    ret = true;
                     continue;
 
                 case "$textSearch":

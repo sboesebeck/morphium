@@ -231,6 +231,31 @@ public class CompiledQueryTest {
         cases.add(new Case("nested $and/$or combo", Doc.of("$and", List.of(Doc.of("a", 1), Doc.of("$or", List.of(Doc.of("b", 9), Doc.of("c", 3))))),
                             Doc.of("a", 1, "b", 2, "c", 3), true));
 
+        // All top-level keys are ANDed, regardless of operator order - a boolean operator must not
+        // short-circuit the whole query and skip a sibling key that appears after it (#396).
+        Map<String, Object> andThenField = new LinkedHashMap<>();
+        andThenField.put("$and", List.of(Doc.of("a", 1)));
+        andThenField.put("b", 2);
+        cases.add(new Case("$and + sibling field, both match -> true",
+                            andThenField, Doc.of("a", 1, "b", 2), true));
+        cases.add(new Case("$and + sibling field, sibling fails -> false",
+                            andThenField, Doc.of("a", 1, "b", 9), false));
+        Map<String, Object> andFalseThenField = new LinkedHashMap<>();
+        andFalseThenField.put("$and", List.of(Doc.of("a", 9)));
+        andFalseThenField.put("b", 2);
+        cases.add(new Case("$and fails + sibling field matches -> false",
+                            andFalseThenField, Doc.of("a", 1, "b", 2), false));
+        Map<String, Object> orThenField = new LinkedHashMap<>();
+        orThenField.put("$or", List.of(Doc.of("a", 1), Doc.of("a", 9)));
+        orThenField.put("b", 9);
+        cases.add(new Case("$or matches + sibling field fails -> false",
+                            orThenField, Doc.of("a", 1, "b", 2), false));
+        Map<String, Object> exprThenField = new LinkedHashMap<>();
+        exprThenField.put("$expr", Doc.of("$gt", List.of("$a", "$b")));
+        exprThenField.put("c", 3);
+        cases.add(new Case("$expr true + sibling field fails -> false",
+                            exprThenField, Doc.of("a", 5, "b", 2, "c", 9), false));
+
         // ---------------------------------------------------------------- $expr (top-level)
         cases.add(new Case("$expr true", Doc.of("$expr", Doc.of("$gt", List.of("$a", "$b"))), Doc.of("a", 5, "b", 2), true));
         cases.add(new Case("$expr false", Doc.of("$expr", Doc.of("$gt", List.of("$a", "$b"))), Doc.of("a", 1, "b", 2), false));
@@ -316,14 +341,15 @@ public class CompiledQueryTest {
         // ---------------------------------------------------------------- $where (GraalVM JS is on the test classpath)
         cases.add(new Case("$where script true", Doc.of("$where", "a == 1"), Doc.of("a", 1), true));
         cases.add(new Case("$where script false", Doc.of("$where", "a == 1"), Doc.of("a", 2), false));
-        // $where does NOT properly AND with a following key - a documented interpreter quirk
-        // (see CompiledQuery's SequenceNode javadoc / KNOWN-DIVERGENCE), replicated not fixed: a
-        // failing $where followed by a successful ordinary key silently "passes" overall.
+        // $where ANDs with sibling keys like every other top-level predicate (#396): a failing
+        // $where fails the whole query even when a later ordinary key matches.
+        cases.add(new Case("$where true + matching sibling field -> true",
+                            Doc.of("$where", "a == 1", "b", 2), Doc.of("a", 1, "b", 2), true));
         Map<String, Object> whereThenField = new LinkedHashMap<>();
         whereThenField.put("$where", "a == 1");
         whereThenField.put("b", 2);
-        cases.add(new Case("$where(false) followed by successful field overwrites ret -> true (interpreter quirk, preserved)",
-                            whereThenField, Doc.of("a", 9, "b", 2), true));
+        cases.add(new Case("$where(false) + matching field -> false (all top-level keys are ANDed)",
+                            whereThenField, Doc.of("a", 9, "b", 2), false));
 
         // ---------------------------------------------------------------- $jsonSchema
         cases.add(new Case("$jsonSchema bsonType match", Doc.of("$jsonSchema", Doc.of("bsonType", "object", "required", List.of("a"))), Doc.of("a", 1), true));
