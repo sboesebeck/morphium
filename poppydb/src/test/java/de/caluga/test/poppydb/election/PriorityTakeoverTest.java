@@ -480,6 +480,13 @@ public class PriorityTakeoverTest {
         servers.add(restarted);
 
         assertTrue(awaitLeader(restarted, 15000), "restarted high-priority node should reclaim leadership");
+        // The temporary leader learns of the new term from the restarted node's first heartbeat,
+        // and its primary flag follows in the asynchronous leadership callback - on the loaded
+        // test runner that is not done the instant the restarted node's state reads LEADER.
+        long deadline = System.currentTimeMillis() + 5000;
+        while (temporaryLeader.isPrimary() && System.currentTimeMillis() < deadline) {
+            Thread.sleep(50);
+        }
         assertFalse(temporaryLeader.isPrimary(), "temporary leader should have stepped down");
     }
 
