@@ -97,6 +97,21 @@ public class PrimaryReadStepdownRetryTest {
         assertTrue(node.isPrimary(), "node must become primary");
     }
 
+    /**
+     * The stepdown reply is sent as soon as the ElectionManager is FOLLOWER; the node's
+     * {@code primary} flag follows in the leadership-change callback, which the ElectionManager
+     * dispatches on its scheduler pool - 9 ms later on the loaded test runner. The command
+     * handler's not-primary gate reads the ElectionManager directly, so no client sees that
+     * gap; only this flag does.
+     */
+    private static void waitForStepdown(PoppyDB node) throws Exception {
+        long deadline = System.currentTimeMillis() + 5_000;
+        while (node.isPrimary() && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20);
+        }
+        assertFalse(node.isPrimary(), "node must have stepped down");
+    }
+
     /** Send one OP_MSG command over a raw socket to a node and return the reply's first document. */
     private Map<String, Object> command(int port, Map<String, Object> cmd) throws Exception {
         try (Socket sock = new Socket()) {
@@ -161,7 +176,7 @@ public class PrimaryReadStepdownRetryTest {
         Map<String, Object> stepdown = command(port1,
             Doc.of("replSetStepDown", 30, "force", true, "$db", "admin"));
         assertEquals(1.0, okOf(stepdown), "replSetStepDown on the primary must succeed: " + stepdown);
-        assertFalse(node1.isPrimary(), "node1 must have stepped down");
+        waitForStepdown(node1);
 
         // the stepped-down node's own hello: not primary, and it must not name ITSELF as the
         // primary either - the MongoCommandHandler fallback did, after #392 had cleared the
