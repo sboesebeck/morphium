@@ -14,10 +14,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.ongres.scram.client.ChannelBindingPolicy;
 import com.ongres.scram.client.ScramClient;
-import com.ongres.scram.common.ScramMechanisms;
 
-import static com.ongres.scram.common.stringprep.StringPreparations.SASL_PREPARATION;
+import static com.ongres.scram.common.StringPreparation.SASL_PREPARATION;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -74,23 +74,24 @@ public class AuthEnforcementTest {
 
     /** Full SCRAM-SHA-256 exchange over the wire handler; returns the final reply. */
     private Map<String, Object> authenticate(EmbeddedChannel ch, String user, String pwd) throws Exception {
-        ScramClient client = ScramClient.channelBinding(ScramClient.ChannelBinding.NO)
+        ScramClient client = ScramClient.builder()
+                .advertisedMechanisms(java.util.List.of("SCRAM-SHA-256"))
+                .username(user)
+                .password(pwd.toCharArray())
+                .channelBindingPolicy(ChannelBindingPolicy.DISABLE)
                 .stringPreparation(SASL_PREPARATION)
-                .selectClientMechanism(ScramMechanisms.SCRAM_SHA_256)
-                .setup();
-        var session = client.scramSession(user);
+                .build();
 
         Map<String, Object> first = send(ch, Doc.of("saslStart", 1, "mechanism", "SCRAM-SHA-256",
-                "payload", session.clientFirstMessage().getBytes(StandardCharsets.UTF_8),
+                "payload", client.clientFirstMessage().toString().getBytes(StandardCharsets.UTF_8),
                 "options", Doc.of("skipEmptyExchange", true), "$db", "admin"));
         assertThat(first.get("ok")).as("saslStart: " + first).isEqualTo(1.0);
 
-        var serverFirst = session.receiveServerFirstMessage(
+        client.serverFirstMessage(
                 new String((byte[]) first.get("payload"), StandardCharsets.UTF_8));
-        var clientFinal = serverFirst.clientFinalProcessor(pwd);
 
         return send(ch, Doc.of("saslContinue", 1, "conversationId", first.get("conversationId"),
-                "payload", clientFinal.clientFinalMessage().getBytes(StandardCharsets.UTF_8), "$db", "admin"));
+                "payload", client.clientFinalMessage().toString().getBytes(StandardCharsets.UTF_8), "$db", "admin"));
     }
 
     private Map<String, Object> findCmd() {

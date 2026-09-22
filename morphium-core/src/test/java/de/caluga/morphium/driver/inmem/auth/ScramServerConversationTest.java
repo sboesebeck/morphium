@@ -1,8 +1,8 @@
 package de.caluga.morphium.driver.inmem.auth;
 
+import com.ongres.scram.client.ChannelBindingPolicy;
 import com.ongres.scram.client.ScramClient;
-import com.ongres.scram.client.ScramSession;
-import com.ongres.scram.common.ScramMechanisms;
+import com.ongres.scram.common.StringPreparation;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -10,13 +10,12 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 
 import de.caluga.morphium.driver.inmem.auth.ScramCredentials.Mechanism;
 import de.caluga.morphium.driver.inmem.auth.ScramServerConversation.AuthenticationFailedException;
 
-import static com.ongres.scram.common.stringprep.StringPreparations.NO_PREPARATION;
-import static com.ongres.scram.common.stringprep.StringPreparations.SASL_PREPARATION;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -75,17 +74,23 @@ public class ScramServerConversationTest {
     }
 
     // Same client construction as SaslAuthCommand.execute(), including the mongo password mangling.
-    private ScramClient buildClient(Mechanism mechanism) {
+    private ScramClient buildClient(Mechanism mechanism, String user, String scramPassword) {
         if (mechanism == Mechanism.SCRAM_SHA_1) {
-            return ScramClient.channelBinding(ScramClient.ChannelBinding.NO)
-                    .stringPreparation(NO_PREPARATION)
-                    .selectClientMechanism(ScramMechanisms.SCRAM_SHA_1)
-                    .setup();
+            return ScramClient.builder()
+                    .advertisedMechanisms(List.of("SCRAM-SHA-1"))
+                    .username(user)
+                    .password(scramPassword.toCharArray())
+                    .channelBindingPolicy(ChannelBindingPolicy.DISABLE)
+                    .stringPreparation(StringPreparation.NO_PREPARATION)
+                    .build();
         }
-        return ScramClient.channelBinding(ScramClient.ChannelBinding.NO)
-                .stringPreparation(SASL_PREPARATION)
-                .selectClientMechanism(ScramMechanisms.SCRAM_SHA_256)
-                .setup();
+        return ScramClient.builder()
+                .advertisedMechanisms(List.of("SCRAM-SHA-256"))
+                .username(user)
+                .password(scramPassword.toCharArray())
+                .channelBindingPolicy(ChannelBindingPolicy.DISABLE)
+                .stringPreparation(StringPreparation.SASL_PREPARATION)
+                .build();
     }
 
     private String clientPassword(Mechanism mechanism, String user, String rawPassword) throws Exception {
@@ -103,13 +108,12 @@ public class ScramServerConversationTest {
 
     private void roundTrip(Mechanism mechanism, ScramCredentials credentials, String user, String rawPassword) throws Exception {
         ScramServerConversation server = new ScramServerConversation(credentials);
-        ScramSession session = buildClient(mechanism).scramSession(user);
-        String serverFirst = server.handleClientFirst(session.clientFirstMessage());
-        ScramSession.ClientFinalProcessor finalProcessor = session.receiveServerFirstMessage(serverFirst)
-                .clientFinalProcessor(clientPassword(mechanism, user, rawPassword));
-        String serverFinal = server.handleClientFinal(finalProcessor.clientFinalMessage());
+        ScramClient client = buildClient(mechanism, user, clientPassword(mechanism, user, rawPassword));
+        String serverFirst = server.handleClientFirst(client.clientFirstMessage().toString());
+        client.serverFirstMessage(serverFirst);
+        String serverFinal = server.handleClientFinal(client.clientFinalMessage().toString());
         // throws ScramInvalidServerSignatureException if our serverKey-side math is off
-        finalProcessor.receiveServerFinalMessage(serverFinal);
+        client.serverFinalMessage(serverFinal);
         assertThat(server.isComplete()).isTrue();
         assertThat(server.getUser()).isEqualTo(user);
     }
@@ -136,10 +140,10 @@ public class ScramServerConversationTest {
         new SecureRandom().nextBytes(salt);
         ScramCredentials creds = ScramCredentials.derive(Mechanism.SCRAM_SHA_256, "testuser", "correct", salt, 4096);
         ScramServerConversation server = new ScramServerConversation(creds);
-        ScramSession session = buildClient(Mechanism.SCRAM_SHA_256).scramSession("testuser");
-        String serverFirst = server.handleClientFirst(session.clientFirstMessage());
-        String clientFinal = session.receiveServerFirstMessage(serverFirst)
-                .clientFinalProcessor("wrong").clientFinalMessage();
+        ScramClient client = buildClient(Mechanism.SCRAM_SHA_256, "testuser", "wrong");
+        String serverFirst = server.handleClientFirst(client.clientFirstMessage().toString());
+        client.serverFirstMessage(serverFirst);
+        String clientFinal = client.clientFinalMessage().toString();
         assertThatThrownBy(() -> server.handleClientFinal(clientFinal))
                 .isInstanceOf(AuthenticationFailedException.class);
         assertThat(server.isComplete()).isFalse();

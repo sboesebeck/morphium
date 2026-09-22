@@ -10,8 +10,8 @@ import java.security.MessageDigest;
 import java.util.List;
 import java.util.Map;
 
+import com.ongres.scram.client.ChannelBindingPolicy;
 import com.ongres.scram.client.ScramClient;
-import com.ongres.scram.common.ScramMechanisms;
 
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.Doc;
@@ -20,8 +20,7 @@ import de.caluga.morphium.driver.commands.auth.CreateUserAdminCommand;
 import de.caluga.morphium.driver.commands.auth.SaslAuthCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 
-import static com.ongres.scram.common.stringprep.StringPreparations.NO_PREPARATION;
-import static com.ongres.scram.common.stringprep.StringPreparations.SASL_PREPARATION;
+import static com.ongres.scram.common.StringPreparation.SASL_PREPARATION;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
@@ -127,17 +126,19 @@ public class InMemScramAuthTest {
         // server-final payload on the second step and done:true on a third, empty saslContinue
         createUser("frank", "pw123");
 
-        ScramClient scramClient = ScramClient.channelBinding(ScramClient.ChannelBinding.NO)
+        ScramClient scramClient = ScramClient.builder()
+                .advertisedMechanisms(List.of("SCRAM-SHA-256"))
+                .username("frank")
+                .password("pw123".toCharArray())
+                .channelBindingPolicy(ChannelBindingPolicy.DISABLE)
                 .stringPreparation(SASL_PREPARATION)
-                .selectClientMechanism(ScramMechanisms.SCRAM_SHA_256)
-                .setup();
-        var session = scramClient.scramSession("frank");
+                .build();
 
         var con = drv.getPrimaryConnection(null);
         GenericCommand start = new GenericCommand(con);
         start.setCommandName("saslStart");
         start.setCmdData(Doc.of("saslStart", 1, "mechanism", "SCRAM-SHA-256",
-                "payload", session.clientFirstMessage().getBytes(StandardCharsets.UTF_8)));
+                "payload", scramClient.clientFirstMessage().toString().getBytes(StandardCharsets.UTF_8)));
         start.setDb("admin");
         Map<String, Object> reply = con.readSingleAnswer(con.sendCommand(start));
 
@@ -145,19 +146,18 @@ public class InMemScramAuthTest {
         assertThat(reply.get("done")).as("first step is never done").isEqualTo(false);
         int conversationId = (Integer) reply.get("conversationId");
 
-        var serverFirst = session.receiveServerFirstMessage(new String((byte[]) reply.get("payload"), StandardCharsets.UTF_8));
-        var clientFinal = serverFirst.clientFinalProcessor("pw123");
+        scramClient.serverFirstMessage(new String((byte[]) reply.get("payload"), StandardCharsets.UTF_8));
 
         GenericCommand cont = new GenericCommand(con);
         cont.setCommandName("saslContinue");
         cont.setCmdData(Doc.of("saslContinue", 1, "conversationId", conversationId,
-                "payload", clientFinal.clientFinalMessage().getBytes(StandardCharsets.UTF_8)));
+                "payload", scramClient.clientFinalMessage().toString().getBytes(StandardCharsets.UTF_8)));
         cont.setDb("admin");
         reply = con.readSingleAnswer(con.sendCommand(cont));
 
         assertThat(reply.get("ok")).isEqualTo(1.0);
         assertThat(reply.get("done")).as("without skipEmptyExchange the second step is not done").isEqualTo(false);
-        clientFinal.receiveServerFinalMessage(new String((byte[]) reply.get("payload"), StandardCharsets.UTF_8));
+        scramClient.serverFinalMessage(new String((byte[]) reply.get("payload"), StandardCharsets.UTF_8));
 
         GenericCommand fin = new GenericCommand(con);
         fin.setCommandName("saslContinue");

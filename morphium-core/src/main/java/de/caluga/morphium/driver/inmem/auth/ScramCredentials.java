@@ -1,6 +1,6 @@
 package de.caluga.morphium.driver.inmem.auth;
 
-import com.ongres.scram.common.stringprep.StringPreparations;
+import com.ongres.scram.common.StringPreparation;
 
 import javax.crypto.Mac;
 import javax.crypto.SecretKeyFactory;
@@ -81,7 +81,7 @@ public final class ScramCredentials {
         try {
             String password = mechanism == Mechanism.SCRAM_SHA_1
                               ? md5Hex(user + ":mongo:" + rawPassword)
-                              : StringPreparations.SASL_PREPARATION.normalize(rawPassword);
+                              : new String(StringPreparation.SASL_PREPARATION.normalize(rawPassword.toCharArray()));
             return deriveRaw(mechanism, password, salt, iterationCount);
         } catch (IllegalStateException | IllegalArgumentException e) {
             throw e;

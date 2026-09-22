@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+#### SCRAM authentication: ongres scram upgraded from 2.1 to 3.4 - CVE-2025-59432 (timing side channel in the proof and signature comparison)
+The pinned `com.ongres.scram:client:2.1` compared client proofs and server signatures with `Arrays.equals`, which short-circuits on the first mismatched byte: response timing leaks how many leading bytes of a guess matched, so an attacker who can measure authentication round trips closely enough can recover authentication material byte by byte (CVE-2025-59432, CVSS 7.5, fixed upstream by switching to the constant-time `MessageDigest.isEqual`). The fix is not a version bump: 3.x was a full API rewrite - `char[]` passwords, renamed artifacts (`com.ongres.scram:scram-client`, transitively `scram-common` and `saslprep` 2.4), a staged `ScramClient.builder()` instead of the old fluent setup, message objects instead of raw strings, and `StringPreparation` replacing `stringprep.StringPreparations` - so `SaslAuthCommand.execute()` was migrated to the new flow, `ScramCredentials` to the new normalize signature, and the four test classes that drive the client directly with it. The target is 3.4, not the advisory's 3.2 minimum: 3.3 fixes CVE-2026-53712 (a silent channel-binding downgrade through `TlsServerEndpoint` on certificates whose signature algorithm has no traditional WITH name, e.g. Ed25519), which 3.2 would have shipped. Wire behaviour is unchanged - `ChannelBindingPolicy.DISABLE` pins the gs2-cbind-flag to `n,,` exactly as `ChannelBinding.NO` did (mongod advertises no `-PLUS` mechanism), SCRAM-SHA-1 still feeds `md5Hex(user + ":mongo:" + password)` through `NO_PREPARATION` and SCRAM-SHA-256 the SASLprep'd password, and the password is now held as `char[]` and wiped after the client-final message is built. The server side (`ScramServerConversation`, used by InMemoryDriver/PoppyDB) never used the vulnerable comparison - it has always verified with `MessageDigest.isEqual` - and is untouched. Verified by the RFC 5802/7677 test vectors (exact wire bytes), the client/server round-trip tests, `InMemScramAuthTest` and PoppyDB's `AuthEnforcementTest`.
+
 ### Fixed
 
 #### PoppyDB: the ReplicationManager's retry budget is set on the driver it actually uses
