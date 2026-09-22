@@ -97,6 +97,9 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             "aborttransaction", "committransaction", "getmore", "killcursors",
             "getlog", "getparameter", "replsetprogress",
             "requestvote", "appendentries", "replsetgetstatus", "replsetstepdown", "replsetfreeze",
+            // #391: the restore-finding probe runs between members of a LEADERLESS set, and the
+            // operator's override is for a node that is not primary by definition
+            "poppyrestorestatus", "poppyacceptpartialrestore",
             "currentop", "killop", "listcommands", "hostinfo", "connectionstatus", "whatsmyuri",
             "replsetgetconfig", "serverstatus",
             // read-only diagnostics that MUST work on secondaries: dbHash exists to compare
@@ -660,6 +663,16 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 answer = processReplSetFreeze(doc);
                 break;
 
+            // #391: restore finding exchanged between the members of a leaderless set, and the
+            // operator's override for the partial-restore candidacy guard
+            case RestoreStatus.COMMAND:
+                answer = processRestoreStatus();
+                break;
+
+            case "poppyAcceptPartialRestore":
+                answer = processAcceptPartialRestore();
+                break;
+
             // ── Direct dispatch for hot-path commands ──
             // Bypasses GenericCommand reflection roundtrip: Map → InMemoryDriver directly.
             case "insert":
@@ -1177,6 +1190,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 "getFreeMonitoringStatus", "getLog", "getParameter", "setParameter", "listDatabases", "serverStatus",
                 "currentOp", "killOp", "listCommands", "hostInfo", "connectionStatus", "whatsmyuri",
                 "replSetGetStatus", "replSetGetConfig", "replSetStepDown", "replSetFreeze",
+                RestoreStatus.COMMAND, "poppyAcceptPartialRestore",
                 "saslStart", "saslContinue", "logout", "endSessions", "startSession", "refreshSessions",
                 "killCursors", "getMore", "insert", "find", "update", "delete", "count", "distinct",
                 "aggregate", "createIndexes", "bulkWrite", "abortTransaction", "commitTransaction",
@@ -2580,6 +2594,36 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             log.error("Error during stepdown: {}", e.getMessage(), e);
             return Doc.of("ok", 0.0, "errmsg", "Step down error: " + e.getMessage(), "code", 1);
         }
+    }
+
+    /**
+     * Answer a peer's {@code poppyRestoreStatus} probe (#391) with this node's restore finding.
+     * Read-only; see {@link RestoreStatus} for the wire form and why this is its own command.
+     */
+    private Map<String, Object> processRestoreStatus() {
+        if (electionManager == null) {
+            return Doc.of("ok", 0.0, "errmsg", "Election not enabled on this server", "code", 76);
+        }
+        return electionManager.restoreStatus().toMap();
+    }
+
+    /**
+     * {@code poppyAcceptPartialRestore} (#391): lift the partial-restore candidacy guard on THIS
+     * node at once, so it may become primary with its incomplete data. For the case the
+     * automatic cluster-wide acceptance does not apply (mixed versions during a rolling upgrade,
+     * a peer that is down) or when the operator wants to pick a specific node. Answers
+     * {@code ok:1} with {@code lifted} (false if there was nothing to lift, or the data is
+     * incomplete for another reason than a failed restore) and the failed dump file names.
+     */
+    private Map<String, Object> processAcceptPartialRestore() {
+        if (electionManager == null) {
+            return Doc.of("ok", 0.0, "errmsg", "Election not enabled on this server", "code", 76);
+        }
+        List<String> files = electionManager.getFailedRestoreFiles();
+        boolean lifted = electionManager.acceptPartialRestore("operator command poppyAcceptPartialRestore");
+        log.warn("poppyAcceptPartialRestore: lifted={}, failed dump files {}", lifted, files);
+        return Doc.of("ok", 1.0, "lifted", lifted, "failedFiles", new java.util.ArrayList<>(files),
+                "dataComplete", electionManager.isDataComplete());
     }
 
     /**

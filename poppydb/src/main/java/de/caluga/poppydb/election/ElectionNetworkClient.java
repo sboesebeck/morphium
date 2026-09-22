@@ -97,6 +97,7 @@ public class ElectionNetworkClient {
         // Wire up callbacks for sending messages
         electionManager.setSendVoteRequest(this::sendVoteRequest);
         electionManager.setSendAppendEntries(this::sendAppendEntries);
+        electionManager.setSendRestoreStatusProbe(this::sendRestoreStatusProbe);
 
         log.info("ElectionNetworkClient started for {}", electionManager.getMyAddress());
     }
@@ -157,6 +158,33 @@ public class ElectionNetworkClient {
                 log.debug("Failed to send vote request to {}: {}", peer, e.getMessage());
                 // Treat as vote denied
                 electionManager.handleVoteResponse(peer, request, new VoteResponse(0, false, peer));
+            }
+        });
+    }
+
+    /**
+     * Ask a peer for its restore finding (#391) - sent by a node that holds back candidacy for
+     * an incomplete restore, once per election timeout. Anything but a proper answer (peer down,
+     * or an older version that does not know the command and answers with an error) is
+     * reported to nobody: the ElectionManager treats a missing answer as unknown, which blocks
+     * the automatic acceptance.
+     */
+    private void sendRestoreStatusProbe(String peer) {
+        if (!running) {
+            return;
+        }
+
+        executor.submit(() -> {
+            try {
+                Map<String, Object> response = exchange(peer, RestoreStatus.requestMap(electionManager.getMyAddress()));
+                RestoreStatus status = RestoreStatus.fromMap(response);
+                if (status != null) {
+                    electionManager.handleRestoreStatusResponse(peer, status);
+                } else {
+                    log.debug("No restore status from {} (answer: {}) - treating as unknown", peer, response);
+                }
+            } catch (Exception e) {
+                log.debug("Failed to probe restore status of {}: {}", peer, e.getMessage());
             }
         });
     }
