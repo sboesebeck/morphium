@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [6.3.12] - 2026-09-22
+
 ### Security
 
 #### SCRAM authentication: ongres scram upgraded from 2.1 to 3.4 - CVE-2025-59432 (timing side channel in the proof and signature comparison)
