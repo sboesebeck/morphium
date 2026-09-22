@@ -54,6 +54,20 @@ public class ReplicationManagerStepDownErrorTest {
     }
 
     @Test
+    void aNumberThatMerelyLooksLikeTheCodeIsNotAStepDown() {
+        // ports are random in tests, counts and ids carry any digits - only the driver's
+        // "Error: CODE - ..." shape means the code
+        assertFalse(ReplicationManager.isSyncSourceSteppedDown(
+                new RuntimeException("Connection refused: localhost:13435")), "a port");
+        assertFalse(ReplicationManager.isSyncSourceSteppedDown(
+                new RuntimeException("13436 documents copied, then: broken pipe")), "a count");
+        assertFalse(ReplicationManager.isSyncSourceSteppedDown(
+                new RuntimeException("Connecting to primary at localhost:10107 failed")), "a port again");
+        assertTrue(ReplicationManager.isSyncSourceSteppedDown(
+                new RuntimeException("Error: 13436 - node is recovering")), "the driver's shape");
+    }
+
+    @Test
     void otherErrorsAreNot() {
         assertFalse(ReplicationManager.isSyncSourceSteppedDown(new RuntimeException("Connection refused")));
         assertFalse(ReplicationManager.isSyncSourceSteppedDown(withCode(146)));

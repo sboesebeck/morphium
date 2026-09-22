@@ -37,8 +37,14 @@ import static org.junit.jupiter.api.Assertions.*;
  * next round, so the expected winner is always the highest-priority survivor: 100 steps down, 50
  * must win; 50 steps down, 100 must win; and so on. Node 40 must never lead.
  *
- * <p>Timers are scaled down (1000..2000ms) to keep the twenty rounds within a minute and a half;
- * the ordering property does not depend on the scale, only on the slot geometry.
+ * <p>Timers are scaled down (2000..4000ms) to keep the twenty rounds under two minutes; the
+ * ordering property does not depend on the scale, only on the slot geometry. Not lower: the
+ * ordering is one of timers, and whether the higher priority's vote requests also ARRIVE first is
+ * up to the host. With 1000..2000ms the guaranteed gap between two priorities a step apart was
+ * 50ms, and on the test runner under a load of ten (2026-09-22, round 1) the priority-50
+ * candidate's request took over 100ms to reach the third node while the priority-40 request got
+ * there first. 2000..4000ms doubles the gap to 100ms; every round must still be won by the
+ * highest priority - a wrong winner is a bug, not a statistic.
  */
 @Tag("server")
 public class PriorityOrderedElectionTest {
@@ -85,8 +91,8 @@ public class PriorityOrderedElectionTest {
     /** One instance per node - configureReplicaSet stores the node's own priority in it. */
     private static ElectionConfig fastElections() {
         return new ElectionConfig()
-                .setElectionTimeoutMinMs(1000)
-                .setElectionTimeoutMaxMs(2000)
+                .setElectionTimeoutMinMs(2000)
+                .setElectionTimeoutMaxMs(4000)
                 .setHeartbeatIntervalMs(250)
                 .setPriorityTakeoverEnabled(false);
     }
@@ -159,9 +165,9 @@ public class PriorityOrderedElectionTest {
                 }
             }
 
-            // 3s block: longer than any election timeout of this round, so the demoted node
+            // 5s block: longer than any election timeout of this round, so the demoted node
             // cannot simply take its leadership back; unblocked again before the next round
-            assertTrue(demoted.getElectionManager().stepDown(3, 0, true), "round " + round + ": stepdown should succeed");
+            assertTrue(demoted.getElectionManager().stepDown(5, 0, true), "round " + round + ": stepdown should succeed");
 
             PoppyDB winner = null;
             long deadline = System.currentTimeMillis() + 20_000;
@@ -190,16 +196,7 @@ public class PriorityOrderedElectionTest {
             awaitUnblocked(10_000);
         }
 
-        // The ordering is one of timers: the higher priority always times out first. Whether
-        // its vote requests also ARRIVE first is up to the host - with 1000..2000 ms the
-        // guaranteed gap between two priorities a step apart is 50 ms, and on the test runner
-        // under a load of ten (2026-09-22, round 1: the priority-50 candidate's request took
-        // over 100 ms to reach the third node, the priority-40 request got there first) that
-        // is lost once in a while. One such round in twenty is that; the old formula lost six.
-        if (!wrongWinners.isEmpty()) {
-            log.warn("lower-priority winner in {} of {} rounds: {}", wrongWinners.size(), ROUNDS, wrongWinners);
-        }
-        assertTrue(wrongWinners.size() <= 1, "a lower-priority node won the re-election in "
+        assertTrue(wrongWinners.isEmpty(), "a lower-priority node won the re-election in "
                 + wrongWinners.size() + " of " + ROUNDS + " rounds: " + wrongWinners);
     }
 }
