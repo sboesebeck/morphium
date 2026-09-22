@@ -206,7 +206,7 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
                 return resentAfterNetworkError ? reconcileWriteErrorsAfterNetworkRetry(crs) : crs;
             } catch (MorphiumDriverException e) {
                 String errMsg = e.getMessage() == null ? "" : e.getMessage().toLowerCase();
-                if (isStepDownError(e, errMsg)) {
+                if (StepDownErrors.isStepDownError(e)) {
                     // Primary stepped down / is shutting down: the write was rejected, so
                     // retrying on the newly elected primary is safe.
                     if (attempts++ >= maxAttempts) {
@@ -325,22 +325,6 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
             }
         }
 
-    }
-
-    /**
-     * True for errors indicating the node is not (or no longer) the primary and the
-     * write was rejected: NotWritablePrimary(10107), PrimarySteppedDown(189),
-     * ShutdownInProgress(91), InterruptedAtShutdown(11600),
-     * InterruptedDueToReplStateChange(11602), NotPrimaryNoSecondaryOk(13435).
-     */
-    private boolean isStepDownError(MorphiumDriverException e, String lowerCaseMsg) {
-        if (e.getMongoCode() instanceof Number mc) {
-            int code = mc.intValue();
-            if (code == 10107 || code == 189 || code == 91 || code == 11600 || code == 11602 || code == 13435) {
-                return true;
-            }
-        }
-        return lowerCaseMsg.contains("not primary") || lowerCaseMsg.contains("not master");
     }
 
     /** ExceededMemoryLimit - InMemoryDriver.checkMemoryWatermark refuses document-creating writes with it. */

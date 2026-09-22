@@ -2062,7 +2062,16 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             // secondary: advertise secondary:false so drivers do not route reads to it.
             res.setSecondary(!isPrimary && !secondarySyncingSupplier.getAsBoolean());
             res.setSetName(rsName);
-            res.setPrimary(currentPrimaryHost != null ? currentPrimaryHost : (isPrimary ? myAddress : primaryHost));
+            // In election mode the ElectionManager's snapshot is the only truth about the leader:
+            // a stepped-down node has cleared it (#392) and must not fall back to the cached
+            // primaryHost, which still names itself - the driver then retried the demoted node
+            // instead of waiting for the winner (#393). The static fallback stays for RS
+            // configurations without elections.
+            String advertisedPrimary = currentPrimaryHost != null ? currentPrimaryHost
+                : isPrimary ? myAddress
+                : electionManager != null ? null
+                : primaryHost;
+            res.setPrimary(advertisedPrimary);
             res.setMe(myAddress);
         } else {
             res.setWritablePrimary(true);

@@ -321,6 +321,21 @@ public interface MorphiumDriver extends Closeable {
 
     MongoConnection getPrimaryConnection(WriteConcern wc) throws MorphiumDriverException;
 
+    /**
+     * Tells the driver that {@code rejectedBy} - a connection it handed out for the primary -
+     * answered a not-primary/stepdown error (see
+     * {@link de.caluga.morphium.driver.commands.StepDownErrors}). A driver with topology
+     * discovery uses this to refresh its notion of the primary right away, ahead of its next
+     * heartbeat, so that the caller's next {@link #getPrimaryConnection(WriteConcern)} does not
+     * hand out the same stale node again (#393). The connection is still borrowed by the caller
+     * when this is called and is released by the caller afterwards. The default does nothing:
+     * without discovery there is nothing to refresh. Implementations must not throw.
+     *
+     * @param rejectedBy the primary connection whose node answered "not primary"
+     */
+    default void refreshPrimaryAfterStepDown(MongoConnection rejectedBy) {
+    }
+
     void releaseConnection(MongoConnection con);
     void closeConnection(MongoConnection con);
 
