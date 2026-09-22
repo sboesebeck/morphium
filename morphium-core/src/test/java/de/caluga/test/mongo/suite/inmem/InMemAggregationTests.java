@@ -734,14 +734,17 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         // Test $graphLookup - recursive lookup for organizational hierarchy
         Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
 
-        // Start from CEO and find all subordinates recursively
+        // Start from CEO and find all subordinates recursively.
+        // mongod semantics: match connectToField against the current value, then recurse with
+        // connectFromField. CEO.counter = 1 matches managers (dval = 1), whose counters 2..4 then
+        // match the employees (dval = 2..4).
         agg.match(morphium.createQueryFor(UncachedObject.class).f("counter").eq(1)); // Start with CEO
 
         agg.graphLookup(
                         "uncached_object",               // collection to lookup in
                         Expr.field("counter"),           // startWith: field to start traversal from
-                        "dval",                          // connectFromField: field to match with connectToField
-                        "counter",                       // connectToField: field to connect to
+                        "counter",                       // connectFromField: value used for the next level
+                        "dval",                          // connectToField: field matched against the value
                         "subordinates",                  // as: output array field name
                         null,                           // maxDepth: no limit
                         null,                           // depthField: don't track depth

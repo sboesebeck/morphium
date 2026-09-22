@@ -18,6 +18,7 @@ import de.caluga.morphium.query.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.text.Collator;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -1628,7 +1629,14 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                         ret.addAll(data);
                     }
                 } else {
-                    ret.addAll(data.subList(idx, data.size() - idx));
+                    // $skip drops the first idx documents. The old expression
+                    // data.subList(idx, data.size() - idx) returned size-2*idx documents and threw
+                    // IllegalArgumentException for idx > size/2 (#395).
+                    if (idx < 0) {
+                        throw mongoCommandError(5107200, "Skip value must be non-negative, but received: " + idx);
+                    }
+
+                    ret.addAll(data.subList(Math.min(idx, data.size()), data.size()));
                 }
 
                 break;
@@ -1647,48 +1655,90 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
                 break;
 
-            case "$unwind":
-                op = step.get(stage);
+            case "$unwind": {
+                // Parse the spec once, before iterating the input documents - the old code
+                // reassigned `op` inside the loop, leaking state across documents (#395).
+                Object unwindSpec = step.get(stage);
+                Object pathSpec = unwindSpec;
+                boolean preserveNullAndEmptyArrays = false;
+                String includeArrayIndex = null;
+
+                if (unwindSpec instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> spec = (Map<String, Object>) unwindSpec;
+                    pathSpec = spec.get("path");
+                    preserveNullAndEmptyArrays = Boolean.TRUE.equals(spec.get("preserveNullAndEmptyArrays"));
+                    Object idxField = spec.get("includeArrayIndex");
+
+                    if (idxField != null) {
+                        includeArrayIndex = idxField.toString();
+                    }
+                }
+
+                if (pathSpec == null) {
+                    throw mongoCommandError(40324, "no path specified to $unwind stage");
+                }
+
+                boolean exprPath = pathSpec instanceof Expr;
 
                 for (Map<String, Object> o : data) {
-                    List lst;
-                    String n;
+                    Object value;
+                    String path;
 
-                    if (op instanceof Map) {
-                        op = ((Map) op).get("path");
+                    if (exprPath) {
+                        Expr pathExpr = (Expr) pathSpec;
+                        value = pathExpr.evaluate(o);
+                        path = String.valueOf(pathExpr.toQueryObject());
+                    } else {
+                        path = pathSpec.toString();
+                        value = extractValueByPath(o, path.startsWith("$") ? path.substring(1) : path);
                     }
 
-                    if (op instanceof Expr) {
-                        lst = (List)((Expr) op).evaluate(o);
-                        n = ((Expr) op).toQueryObject().toString();
-                    } else if (op instanceof String) {
-                        //should be a reference
-                        if (op.toString().startsWith("$")) {
-                            op = op.toString().substring(1);
+                    if (path.startsWith("$")) {
+                        path = path.substring(1);
+                    }
+
+                    if (value instanceof List) {
+                        List<?> elements = (List<?>) value;
+
+                        if (!elements.isEmpty()) {
+                            long arrayIndex = 0;
+
+                            for (Object element : elements) {
+                                Map<String, Object> result = new HashMap<>(o);
+                                putUnwoundValue(result, path, element);
+
+                                if (includeArrayIndex != null) {
+                                    result.put(includeArrayIndex, arrayIndex);
+                                }
+
+                                ret.add(result);
+                                arrayIndex++;
+                            }
+
+                            continue;
+                        }
+                    } else if (value != null) {
+                        // a non-array, non-null operand is treated as a one-element array (mongod)
+                        if (includeArrayIndex != null) {
+                            Map<String, Object> result = new HashMap<>(o);
+                            result.put(includeArrayIndex, null);
+                            ret.add(result);
+                        } else {
+                            ret.add(new HashMap<>(o));
                         }
 
-                        n = op.toString();
-                        lst = (List) o.get(op.toString());
-                    } else {
-                        log.error("Wrong reference: " + op);
-                        break;
+                        continue;
                     }
 
-                    if (lst == null) {
-                        break;
-                    }
-
-                    for (Object value : lst) {
+                    // Operand is null, missing, or an empty array. MongoDB drops the document unless
+                    // preserveNullAndEmptyArrays is set (#395). The previous `break` dropped every
+                    // remaining input document instead of just this one.
+                    if (preserveNullAndEmptyArrays) {
                         Map<String, Object> result = new HashMap<>(o);
 
-                        if (n.startsWith("$")) {
-                            n = n.substring(1);
-                        }
-
-                        if (result.containsKey(n)) {
-                            result.put(n, value);
-                        } else {
-                            result.put(new AnnotationAndReflectionHelper(true).convertCamelCase(n), value);
+                        if (includeArrayIndex != null) {
+                            result.put(includeArrayIndex, null);
                         }
 
                         ret.add(result);
@@ -1696,36 +1746,43 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 }
 
                 break;
+            }
 
             case "$search":
-                log.warn(
-                                "The $search aggregation pipeline stage is only available for collections hosted on MongoDB Atlas cluster tiers running MongoDB version 4.2 or later. To learn more, see Atlas Search.");
-                break;
+                // Atlas-only. Previously this logged a warning and broke, leaving the freshly
+                // initialized empty `ret` in place, so every input document was silently dropped
+                // (#395). Fail loudly instead, like the other unsupported stages.
+                throw mongoCommandError(40324,
+                    "Unrecognized pipeline stage name: '$search' - Atlas Search is not available on the in-memory driver");
 
-            case "$sort":
+            case "$sort": {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> keysToSortBy = (Map<String, Object>) step.get(stage);
                 List<Map<String, Object>> sortedList = new ArrayList<>(data);
+                Collator sortCollator = collation == null ? null : QueryHelper.getCollator(collation.toQueryObject());
+
                 sortedList.sort((o1, o2) -> {
-                    for (String k : keysToSortBy.keySet()) {
-                        @SuppressWarnings("unchecked")
-                        int i = ((Comparable) o1.get(k)).compareTo(o2.get(k));
+                    for (Map.Entry<String, Object> entry : keysToSortBy.entrySet()) {
+                        String k = entry.getKey();
+                        Object v = entry.getValue();
+
+                        // Dotted paths are resolved and a missing field sorts as null (lowest)
+                        // instead of throwing NPE; strings honor the pipeline collation (#395).
+                        int i = compareForSort(extractValueByPath(o1, k), extractValueByPath(o2, k), sortCollator);
 
                         if (i != 0) {
-                            if (keysToSortBy.get(k).equals(-1)) {
-                                i = -i;
-                            }
-
-                            //TextIndex ignored, will be handeled like normal sort
-                            return i;
+                            boolean descending = v instanceof Number && ((Number) v).intValue() < 0;
+                            return descending ? -i : i;
                         }
                     }
+
                     return 0;
                 });
                 ret = sortedList;
                 break;
+            }
 
-            case "$lookup":
+            case "$lookup": {
                 // from: <collection to join>,
                 //       localField: <field from the input documents>,
                 //       foreignField: <field from the documents of the "from" collection>,
@@ -1742,7 +1799,19 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 Map<String, Object> let = (Map<String, Object>) lookup.get("let");
                 String as = (String) lookup.get("as");
 
-                if (pipeline != null || let != null) {
+                if (let != null && pipeline == null) {
+                    // mongod rejects `let` without a `pipeline`; the old code fell into the advanced
+                    // branch and cross-joined the whole foreign collection for every input document
+                    // (#395).
+                    throw mongoCommandError(9, "Cannot specify 'let' without specifying 'pipeline' in $lookup");
+                }
+
+                if (pipeline == null && (localField == null || foreignField == null)) {
+                    throw mongoCommandError(40324,
+                        "$lookup requires either 'localField' and 'foreignField', or 'pipeline'");
+                }
+
+                if (pipeline != null) {
                     // Advanced $lookup with pipeline and let variables
                     for (Map<String, Object> doc : data) {
                         // Process let variables - create a context with variables from the current document
@@ -1819,42 +1888,34 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 }
 
                 for (Map<String, Object> doc : data) {
-                    Object localValue = doc.get(localField);
-
-                    // Use the InMemoryDriver's private find method via reflection or direct access
-                    // Since we're in the InMemAggregator which is part of the inmem package,
-                    // we can access the InMemoryDriver's data directly
+                    // dotted paths and array-valued join keys are both supported (#395)
+                    Object localValue = extractValueByPath(doc, localField);
                     InMemoryDriver inMemDriver = (InMemoryDriver) morphium.getDriver();
+                    Map<String, List<Map<String, Object>>> database =
+                        inMemDriver.getDatabase(morphium.getConfig().connectionSettings().getDatabase());
+                    List<Map<String, Object>> foreignCollection = database.get(collection);
 
-                    try {
-                        // Get the foreign collection data directly from InMemoryDriver
-                        Map<String, List<Map<String, Object>>> database = inMemDriver.getDatabase(morphium.getConfig().connectionSettings().getDatabase());
-                        List<Map<String, Object>> foreignCollection = database.get(collection);
-
-                        if (foreignCollection == null) {
-                            foreignCollection = new ArrayList<>();
-                        }
-
-                        // Find matching documents
-                        List<Map<String, Object>> matches = new ArrayList<>();
-                        for (Map<String, Object> foreignDoc : foreignCollection) {
-                            Object foreignValue = foreignDoc.get(foreignField);
-                            if ((localValue == null && foreignValue == null) ||
-                                    (localValue != null && localValue.equals(foreignValue))) {
-                                matches.add(new HashMap<>(foreignDoc));
-                            }
-                        }
-
-                        // Create new document with joined data
-                        Map<String, Object> resultDoc = new HashMap<>(doc);
-                        resultDoc.put(as, matches);
-                        ret.add(resultDoc);
-                    } catch (Exception e) {
-                        throw new RuntimeException("$lookup failed: " + e.getMessage(), e);
+                    if (foreignCollection == null) {
+                        foreignCollection = new ArrayList<>();
                     }
+
+                    List<Map<String, Object>> matches = new ArrayList<>();
+
+                    for (Map<String, Object> foreignDoc : foreignCollection) {
+                        Object foreignValue = extractValueByPath(foreignDoc, foreignField);
+
+                        if (lookupValuesEqual(localValue, foreignValue)) {
+                            matches.add(new HashMap<>(foreignDoc));
+                        }
+                    }
+
+                    Map<String, Object> resultDoc = new HashMap<>(doc);
+                    resultDoc.put(as, matches);
+                    ret.add(resultDoc);
                 }
 
                 break;
+            }
 
             case "$sample":
                 int size = ((Number)((Map) step.get(stage)).get("size")).intValue();
@@ -2320,7 +2381,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 ret = sortByCountResult;
                 break;
 
-            case "$graphLookup":
+            case "$graphLookup": {
                 op = step.get(stage);
 
                 if (op instanceof Map) {
@@ -2330,7 +2391,9 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     String connectFromField = (String) graphParams.get("connectFromField");
                     String connectToField = (String) graphParams.get("connectToField");
                     String asField = (String) graphParams.get("as");
-                    Integer maxDepth = (Integer) graphParams.get("maxDepth");
+                    Integer maxDepth = graphParams.get("maxDepth") instanceof Number n ? n.intValue() : null;
+                    String depthField = (String) graphParams.get("depthField");
+                    Map<String, Object> restrictSearchWithMatch = toQueryMap(graphParams.get("restrictSearchWithMatch"));
 
                     // Get the foreign collection data
                     InMemoryDriver inMemDriver = (InMemoryDriver) morphium.getDriver();
@@ -2345,60 +2408,69 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                             Object startValue;
                             if (startWithObj instanceof Expr) {
                                 startValue = ((Expr) startWithObj).evaluate(doc);
-                            } else if (startWithObj instanceof String) {
-                                String fieldName = startWithObj.toString();
-                                if (fieldName.startsWith("$")) {
-                                    fieldName = fieldName.substring(1);
-                                }
-                                startValue = doc.get(fieldName);
+                            } else if (startWithObj instanceof String startStr) {
+                                String fieldName = startStr.startsWith("$") ? startStr.substring(1) : startStr;
+                                startValue = extractValueByPath(doc, fieldName);
                             } else {
                                 startValue = startWithObj;
                             }
 
-                            // Perform recursive lookup
+                            // Breadth-first traversal. mongod matches connectToField against the
+                            // current value and recurses via connectFromField; the old code had the
+                            // two swapped, ignored depthField/restrictSearchWithMatch and returned
+                            // nothing for maxDepth:0 (#395).
                             Set<Object> visited = new HashSet<>();
-                            Queue<Object> toVisit = new LinkedList<>();
-                            toVisit.add(normalizeGraphValue(startValue));
+                            Queue<GraphSearch> toVisit = new LinkedList<>();
+                            toVisit.add(new GraphSearch(normalizeGraphValue(startValue), 0));
 
-                            int currentDepth = 0;
-                            while (!toVisit.isEmpty() && (maxDepth == null || currentDepth < maxDepth)) {
-                                Queue<Object> nextLevel = new LinkedList<>();
+                            while (!toVisit.isEmpty()) {
+                                GraphSearch current = toVisit.poll();
 
-                                while (!toVisit.isEmpty()) {
-                                    Object searchValue = toVisit.poll();
-                                    if (visited.contains(searchValue)) continue;
-                                    visited.add(searchValue);
+                                if (visited.contains(current.value)) {
+                                    continue;
+                                }
 
-                                    // Find matching documents
-                                    for (Map<String, Object> foreignDoc : foreignCollection) {
-                                        Object connectFromValue = foreignDoc.get(connectFromField);
-                                        if (graphValuesEqual(searchValue, connectFromValue)) {
-                                            graphResults.add(new HashMap<>(foreignDoc));
+                                visited.add(current.value);
 
-                                            // Add connectFromField value for next level
-                                            Object connectToValue = foreignDoc.get(connectToField);
-                                            if (connectToValue != null) {
-                                                Object normalized = normalizeGraphValue(connectToValue);
-                                                if (!visited.contains(normalized)) {
-                                                    nextLevel.add(normalized);
-                                                }
+                                for (Map<String, Object> foreignDoc : foreignCollection) {
+                                    if (restrictSearchWithMatch != null
+                                            && !QueryHelper.matchesQuery(restrictSearchWithMatch, foreignDoc, null)) {
+                                        continue;
+                                    }
+
+                                    Object connectToValue = extractValueByPath(foreignDoc, connectToField);
+
+                                    if (graphValuesEqual(current.value, connectToValue)) {
+                                        Map<String, Object> match = new HashMap<>(foreignDoc);
+
+                                        if (depthField != null) {
+                                            match.put(depthField, current.depth);
+                                        }
+
+                                        graphResults.add(match);
+
+                                        if (maxDepth == null || current.depth < maxDepth) {
+                                            Object connectFromValue = normalizeGraphValue(extractValueByPath(foreignDoc, connectFromField));
+
+                                            if (connectFromValue != null && !visited.contains(connectFromValue)) {
+                                                toVisit.add(new GraphSearch(connectFromValue, current.depth + 1));
                                             }
                                         }
                                     }
                                 }
-
-                                toVisit = nextLevel;
-                                currentDepth++;
                             }
 
-                            // Add results to document
-                            doc.put(asField, graphResults);
+                            // copy the input document instead of mutating it in place (#395)
+                            Map<String, Object> resultDoc = new HashMap<>(doc);
+                            resultDoc.put(asField, graphResults);
+                            ret.add(resultDoc);
                         }
+                    } else {
+                        ret = new ArrayList<>(data);
                     }
-
-                    ret = new ArrayList<>(data);
                 }
                 break;
+            }
 
             case "$geoNear":
                 op = step.get(stage);
@@ -3445,6 +3517,154 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         }
 
         return current;
+    }
+
+    /**
+     * Writes an unwound value into the (already shallow-copied) output document. Dotted paths are
+     * set in place with a copy-on-write of the maps along the path so the source document is never
+     * mutated (#395); a flat path keeps the camel-case fallback the stage always had.
+     */
+    private void putUnwoundValue(Map<String, Object> target, String path, Object value) {
+        if (path.contains(".")) {
+            setValueByPathCopying(target, path, value);
+        } else if (target.containsKey(path)) {
+            target.put(path, value);
+        } else {
+            target.put(new AnnotationAndReflectionHelper(true).convertCamelCase(path), value);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void setValueByPathCopying(Map<String, Object> target, String path, Object value) {
+        String[] parts = path.split("\\.");
+        Map<String, Object> current = target;
+
+        for (int i = 0; i < parts.length - 1; i++) {
+            Object next = current.get(parts[i]);
+            Map<String, Object> copy;
+
+            if (next instanceof Map) {
+                copy = new LinkedHashMap<>((Map<String, Object>) next);
+            } else {
+                copy = new LinkedHashMap<>();
+            }
+
+            current.put(parts[i], copy);
+            current = copy;
+        }
+
+        current.put(parts[parts.length - 1], value);
+    }
+
+    /**
+     * Null-safe ordering used by {@code $sort}: numbers compare numerically, strings honor the
+     * collation, equal same-type comparables fall back to compareTo, and a missing field (null)
+     * sorts before every present value. Different BSON types are ordered by a coarse type rank.
+     */
+    @SuppressWarnings("unchecked")
+    private static int compareForSort(Object a, Object b, Collator coll) {
+        if (a == null && b == null) {
+            return 0;
+        }
+
+        if (a == null) {
+            return -1;
+        }
+
+        if (b == null) {
+            return 1;
+        }
+
+        if (a instanceof Number && b instanceof Number) {
+            return QueryHelper.compareNumbers((Number) a, (Number) b);
+        }
+
+        if (a instanceof String sa && b instanceof String sb) {
+            return coll != null ? coll.compare(sa, sb) : sa.compareTo(sb);
+        }
+
+        if (a.getClass().equals(b.getClass()) && a instanceof Comparable) {
+            return ((Comparable<Object>) a).compareTo(b);
+        }
+
+        return Integer.compare(sortTypeRank(a), sortTypeRank(b));
+    }
+
+    private static int sortTypeRank(Object o) {
+        if (o instanceof Number) {
+            return 1;
+        }
+
+        if (o instanceof String) {
+            return 2;
+        }
+
+        if (o instanceof Map || o instanceof List) {
+            return 3;
+        }
+
+        if (o instanceof Boolean) {
+            return 4;
+        }
+
+        if (o instanceof Date) {
+            return 5;
+        }
+
+        return 6;
+    }
+
+    /**
+     * MongoDB {@code $lookup} equality: two scalars are equal (with numeric/id normalization via
+     * {@link QueryHelper#compareValues}), and an array on either side matches if any of its elements
+     * matches. This is what makes a {@code localField} holding an array join against a scalar
+     * {@code foreignField} (and vice versa), like mongod.
+     */
+    private static boolean lookupValuesEqual(Object localValue, Object foreignValue) {
+        if (localValue instanceof List) {
+            for (Object l : (List<?>) localValue) {
+                if (lookupValuesEqual(l, foreignValue)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        if (foreignValue instanceof List) {
+            for (Object f : (List<?>) foreignValue) {
+                if (lookupValuesEqual(localValue, f)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        return QueryHelper.compareValues(localValue, foreignValue, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> toQueryMap(Object o) {
+        if (o instanceof Map) {
+            return (Map<String, Object>) o;
+        }
+
+        if (o instanceof Query) {
+            return ((Query<?>) o).toQueryObject();
+        }
+
+        return null;
+    }
+
+    private static final class GraphSearch {
+        final Object value;
+        final int depth;
+
+        GraphSearch(Object value, int depth) {
+            this.value = value;
+            this.depth = depth;
+        }
     }
 
     /**
