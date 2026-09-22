@@ -6,6 +6,7 @@ import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.bson.BsonEncoder;
+import de.caluga.morphium.driver.inmem.QueryHelper;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1027,7 +1028,8 @@ public abstract class Expr {
         }
 
         if (a instanceof Number && b instanceof Number) {
-            return Double.compare(((Number) a).doubleValue(), ((Number) b).doubleValue());
+            // #381: exact past 2^53, as the matcher is since #379
+            return QueryHelper.compareNumbers((Number) a, (Number) b);
         }
 
         if (a instanceof Comparable && a.getClass().isInstance(b)) {
@@ -2498,7 +2500,7 @@ public abstract class Expr {
             }
 
             if (o instanceof Number && v instanceof Number
-                    && Double.compare(((Number) o).doubleValue(), ((Number) v).doubleValue()) == 0) {
+                    && QueryHelper.compareNumbers((Number) o, (Number) v) == 0) {
                 return true;
             }
         }

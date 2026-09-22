@@ -2612,9 +2612,8 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         if (value2 == null) return 1;
 
         if (value1 instanceof Number && value2 instanceof Number) {
-            double d1 = ((Number) value1).doubleValue();
-            double d2 = ((Number) value2).doubleValue();
-            return Double.compare(d1, d2);
+            // #381: exact past 2^53, as the matcher is since #379
+            return QueryHelper.compareNumbers((Number) value1, (Number) value2);
         }
 
         if (value1 instanceof String && value2 instanceof String) {
@@ -5040,7 +5039,8 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         }
 
         if (a instanceof Number && b instanceof Number) {
-            return Double.compare(((Number) a).doubleValue(), ((Number) b).doubleValue());
+            // #381: exact past 2^53, as the matcher is since #379
+            return QueryHelper.compareNumbers((Number) a, (Number) b);
         }
 
         if (a instanceof Comparable && a.getClass().isAssignableFrom(b.getClass())) {

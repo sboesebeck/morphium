@@ -2813,8 +2813,13 @@ public class QueryHelper {
      *       emits BSON double) and BigDecimal is #343.</li>
      * </ul>
      * Returns -1/0/1 only, so callers may negate the result.
+     *
+     * <p>Public since #381: the aggregation pipeline ({@code InMemAggregator}'s bucket and
+     * window comparators, {@code Expr}'s $sortArray/$maxN/$minN and set membership) uses the
+     * same cascade, so a pipeline that {@code $match}es exactly cannot bucket or sort the same
+     * values inexactly.
      */
-    static int compareNumbers(Number a, Number b) {
+    public static int compareNumbers(Number a, Number b) {
         boolean aIntegral = isIntegralWrapper(a);
         boolean bIntegral = isIntegralWrapper(b);
 
