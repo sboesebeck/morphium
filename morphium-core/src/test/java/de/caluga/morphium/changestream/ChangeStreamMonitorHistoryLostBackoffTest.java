@@ -66,12 +66,12 @@ public class ChangeStreamMonitorHistoryLostBackoffTest {
     @Timeout(60)
     public void registrationRejectedWithHistoryLostIsRetriedWithBackoff() throws Exception {
         server = new HistoryLostServer(HistoryLostServer.Mode.REJECT_REGISTRATION);
-        int registrations = measureRegistrations();
+        Measurement m = measureRegistrations();
 
-        assertThat(registrations)
+        assertThat(m.total)
                 .as("the monitor keeps retrying - 286 is transient (a failover), never terminal")
                 .isGreaterThanOrEqualTo(2);
-        assertThat(registrations)
+        assertThat(m.inWindow)
                 .as("registrations in %d ms against a server that answers every registration "
                         + "with 286 - must be backed off, not a tight loop", MEASURE_MS)
                 .isLessThanOrEqualTo(10);
@@ -83,10 +83,10 @@ public class ChangeStreamMonitorHistoryLostBackoffTest {
         // PoppyDB's shape: the aggregate registers fine (ok:1, cursor id), the first getMore
         // finds the stream ended unservable and answers 286.
         server = new HistoryLostServer(HistoryLostServer.Mode.REJECT_FIRST_GETMORE);
-        int registrations = measureRegistrations();
+        Measurement m = measureRegistrations();
 
-        assertThat(registrations).isGreaterThanOrEqualTo(2);
-        assertThat(registrations)
+        assertThat(m.total).isGreaterThanOrEqualTo(2);
+        assertThat(m.inWindow)
                 .as("registrations in %d ms against a server whose first getMore answers 286 - "
                         + "must be backed off, not a tight loop", MEASURE_MS)
                 .isLessThanOrEqualTo(10);
@@ -102,16 +102,29 @@ public class ChangeStreamMonitorHistoryLostBackoffTest {
         // re-registered in place with the same dead token, immediately, without the monitor's
         // error classifier ever running.
         server = new HistoryLostServer(HistoryLostServer.Mode.CURSOR_GONE_ON_GETMORE);
-        int registrations = measureRegistrations();
+        Measurement m = measureRegistrations();
 
-        assertThat(registrations).isGreaterThanOrEqualTo(2);
-        assertThat(registrations)
+        assertThat(m.total).isGreaterThanOrEqualTo(2);
+        assertThat(m.inWindow)
                 .as("registrations in %d ms against a server whose getMore answers 'cursor exhausted' "
                         + "for every fresh stream - must be backed off, not a tight loop", MEASURE_MS)
                 .isLessThanOrEqualTo(10);
     }
 
-    private int measureRegistrations() throws Exception {
+    /**
+     * {@code inWindow}: registrations within {@link #MEASURE_MS} of the first one - the rate,
+     * which must be a backoff and not a loop. {@code total}: registrations seen until either a
+     * second one arrived or {@link #RETRY_DEADLINE_MS} passed - whether the monitor retries at
+     * all. Two numbers rather than one, because the second registration is at the mercy of the
+     * host: one second of backoff plus a fresh connection took more than four seconds on the
+     * test runner under a load of 27 (2026-09-22), and a fixed 5 s window then read "gave up".
+     */
+    record Measurement(int inWindow, int total) {
+    }
+
+    private static final long RETRY_DEADLINE_MS = 30_000;
+
+    private Measurement measureRegistrations() throws Exception {
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.driverSettings().setDriverName("InMemDriver");
         cfg.connectionSettings().setDatabase("csm_backoff_test");
@@ -132,14 +145,28 @@ public class ChangeStreamMonitorHistoryLostBackoffTest {
         f.set(monitor, driver);
 
         monitor.startAsync();
-        Thread.sleep(MEASURE_MS);
+        long start = System.currentTimeMillis();
+        while (server.registrations.get() == 0 && System.currentTimeMillis() - start < RETRY_DEADLINE_MS) {
+            Thread.sleep(20);
+        }
+        assertThat(server.registrations.get()).as("the monitor must register at all").isGreaterThan(0);
+        long windowEnd = server.firstRegistrationAt.get() + MEASURE_MS;
+        long wait = windowEnd - System.currentTimeMillis();
+        if (wait > 0) {
+            Thread.sleep(wait);
+        }
+        int inWindow = server.registrations.get();
+        while (server.registrations.get() < 2 && System.currentTimeMillis() - start < RETRY_DEADLINE_MS) {
+            Thread.sleep(50);
+        }
         monitor.terminate();
 
-        int registrations = server.registrations.get();
-        System.out.println("#383 [" + server.mode + "] registrations in " + MEASURE_MS + " ms: " + registrations
+        int total = server.registrations.get();
+        System.out.println("#383 [" + server.mode + "] registrations in " + MEASURE_MS + " ms: " + inWindow
+                + ", total until the retry was seen: " + total
                 + " (with resumeAfter: " + server.resumeRegistrations.get() + ", getMores: " + server.getMores.get()
                 + ", first->last registration " + (server.lastRegistrationAt.get() - server.firstRegistrationAt.get()) + " ms)");
-        return registrations;
+        return new Measurement(inWindow, total);
     }
 
     /**
