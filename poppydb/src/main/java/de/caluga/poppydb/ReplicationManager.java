@@ -289,6 +289,11 @@ public class ReplicationManager {
         return inFlightSyncConnection;
     }
 
+    /** What {@link #replicationLoop()} does to a stepped-down or stale source: close and null the primary client. */
+    void disconnectFromPrimaryForTest() {
+        disconnectFromPrimary();
+    }
+
     /** The driver this manager reads the primary through, null before {@link #start()} connected. */
     MorphiumDriver primaryDriverForTest() {
         Morphium pm = primaryMorphium;
@@ -1485,8 +1490,12 @@ public class ReplicationManager {
             }
             String msg = t.getMessage();
             if (msg != null) {
+                // The driver formats a server error as "Error: CODE - message". Only that shape
+                // means the code: a random test port, a document count or an id fragment
+                // containing the same digits must not be read as a stepdown.
                 String lower = msg.toLowerCase(Locale.ROOT);
-                if (lower.contains("13435") || lower.contains("10107") || lower.contains("13436")
+                if (lower.contains("error: 13435 -") || lower.contains("error: 10107 -")
+                        || lower.contains("error: 13436 -") || lower.contains("error: 189 -")
                         || lower.contains("not primary") || lower.contains("not master")) {
                     return true;
                 }
@@ -1768,6 +1777,11 @@ public class ReplicationManager {
                             }
                         }
 
+                        // The copy (or the shortcut's hash comparison) read from the source: a
+                        // stepped-down streak, if any, is over - a later one is a new streak and
+                        // gets its own WARN (#364).
+                        stepDownBackoffMs = 0;
+
                         // Guard: if the watch died or was re-established during the copy (or the
                         // shortcut's hash comparison), the result may be missing writes that fell
                         // into the gap. Discard it and retry under the new watch instead of
@@ -1906,13 +1920,24 @@ public class ReplicationManager {
                             return;
                         }
 
-                        if (isSyncSourceSteppedDown(e)) {
-                            // #364: the source is up and will answer exactly this until the
-                            // leadership change re-targets replication. Not an error of this
-                            // node, not a stuck sync - the escalation below must not count it.
+                        // #364: two shapes of "the source is gone for now", neither an error of
+                        // this node nor a stuck sync - the escalation below must not count them.
+                        // (a) The source answered "not primary": it is up and will keep answering
+                        // that until the leadership change re-targets replication. (b) The
+                        // replication loop itself dropped the connection - on that very answer to
+                        // its watch registration, or on a stale watch - and nulled primaryMorphium
+                        // while the copy was between two reads, so the copy's next read failed
+                        // with a NullPointerException or a closed connection that no code classifies.
+                        boolean droppedByLoop = !connected.get();
+                        if (droppedByLoop || isSyncSourceSteppedDown(e)) {
                             boolean first = stepDownBackoffMs == 0;
                             stepDownBackoffMs = nextStepDownBackoff(stepDownBackoffMs);
-                            if (first) {
+                            if (first && droppedByLoop) {
+                                log.warn("Sync source {}:{} was dropped by the replication loop mid-copy ({}) - "
+                                        + "initial sync waits for the reconnect or the leadership change, "
+                                        + "retrying with backoff from {}ms (#364)", primaryHost, primaryPort,
+                                        e.getMessage(), stepDownBackoffMs);
+                            } else if (first) {
                                 log.warn("Sync source {}:{} is no longer the primary ({}) - initial sync waits "
                                         + "for the leadership change to re-target replication, retrying with "
                                         + "backoff from {}ms (#364)", primaryHost, primaryPort, e.getMessage(),

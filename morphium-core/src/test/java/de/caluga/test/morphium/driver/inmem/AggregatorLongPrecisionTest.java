@@ -109,6 +109,24 @@ public class AggregatorLongPrecisionTest {
     }
 
     @Test
+    public void bucketOutputMinMaxAreExactLongs() throws Exception {
+        // the output accumulators of $bucket have their own $min/$max, apart from $group's;
+        // they folded through double and answered a Double for a long field
+        insert(TWO_POW_53, TWO_POW_53 + 1);
+        Aggregator<LongDoc, Map> agg = aggregator();
+        agg.addOperator(UtilsMap.of("$bucket", Doc.of(
+            "groupBy", "$v",
+            "boundaries", List.of(TWO_POW_53, TWO_POW_53 + 2),
+            "output", Doc.of("mx", Doc.of("$max", "$v"), "mn", Doc.of("$min", "$v")))));
+
+        List<Map<String, Object>> res = agg.aggregateMap();
+
+        assertEquals(1, res.size(), res.toString());
+        assertEquals(Long.valueOf(TWO_POW_53 + 1), res.get(0).get("mx"), "$max keeps the long: " + res);
+        assertEquals(Long.valueOf(TWO_POW_53), res.get(0).get("mn"), "$min keeps the long: " + res);
+    }
+
+    @Test
     public void pipelineSortOrdersLongsPast2Pow53() throws Exception {
         // inserted out of order; a stable sort that sees 2^53+1 == 2^53 keeps the insertion order
         insert(TWO_POW_53 + 1, TWO_POW_53, TWO_POW_53 + 3, TWO_POW_53 + 2);

@@ -201,20 +201,64 @@ public class SyncSourceStepdownDuringInitialSyncTest {
         rm.releaseSyncReadPauseForTest();
 
         // the copy's next read is answered 13435; the driver's own retries end within seconds
-        assertTrue(poll(60_000, () -> !events(Level.WARN, "no longer the primary").isEmpty()),
+        assertTrue(poll(60_000, () -> !events(Level.WARN, "initial sync waits").isEmpty()),
             "the sync thread must report the stepped-down source once at WARN; events so far: "
                 + describe());
         // let the sync retry at least twice more (stepped-down backoff 1s, 2s, plus the
         // driver's retries inside each attempt) - the WARN must not repeat per attempt
         Thread.sleep(15_000);
 
-        assertEquals(1, events(Level.WARN, "no longer the primary").size(),
+        assertEquals(1, events(Level.WARN, "initial sync waits").size(),
             "one WARN per streak, not per attempt: " + describe());
         assertTrue(events(Level.ERROR, "Initial sync failed").isEmpty(),
             "a stepped-down sync source is not an ERROR: " + describe());
         assertTrue(events(Level.ERROR, "NODE STUCK IN RECOVERY").isEmpty(),
             "a leaderless window must not escalate as a stuck node: " + describe());
         assertFalse(node1.isPrimary(), "sanity: the set stayed leaderless for the whole window");
+    }
+
+    /**
+     * The other way the copy loses its source: the replication loop itself drops the
+     * connection - on the stepped-down answer to its watch registration, or on a stale watch -
+     * and nulls the primary Morphium while the copy is between two reads. The copy's next read
+     * then fails with a NullPointerException or a closed connection, which no error code
+     * classifies. That is the manager's own doing, not a broken sync: one WARN, backoff, and
+     * the copy completes once the loop has reconnected.
+     */
+    @Test
+    @Timeout(120)
+    public void aSourceDroppedByTheLoopMidCopyIsNotAnErrorEither() throws Exception {
+        int port = nextPort();
+        PoppyDB primary = new PoppyDB(port, "localhost", 20, 5);
+        startServer(primary, port);
+        for (int c = 0; c < 2; c++) {
+            primary.getDriver().store(DB, "coll" + c, List.of(Doc.of("_id", "d" + c, "v", c)), null);
+        }
+
+        rmLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(ReplicationManager.class);
+        appender = new ListAppender<>();
+        appender.start();
+        rmLogger.addAppender(appender);
+
+        local = new InMemoryDriver();
+        local.connect();
+        rm = new ReplicationManager(local, "localhost", port);
+        rm.setWipedThisSyncCycleForTest(true);
+        rm.armSyncReadPauseForTest();
+        rm.start();
+        assertTrue(poll(15_000, rm::syncReadPauseReachedForTest),
+            "the sync thread must be parked inside syncCollection's read");
+
+        // what replicationLoop() does on a stepped-down or stale source, at the worst moment
+        rm.disconnectFromPrimaryForTest();
+        rm.releaseSyncReadPauseForTest();
+
+        assertTrue(poll(60_000, rm::isInitialSyncComplete),
+            "the copy must complete once the loop has reconnected; events: " + describe());
+        assertTrue(events(Level.ERROR, "Initial sync failed").isEmpty(),
+            "a source dropped by the manager itself is not an ERROR: " + describe());
+        assertEquals(1, events(Level.WARN, "initial sync waits").size(),
+            "one WARN for the dropped source: " + describe());
     }
 
     private String describe() {

@@ -3198,31 +3198,29 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     }
                     return count > 0 ? total / count : 0;
 
-                case "$min":
-                    Double min = null;
+                case "$min": {
+                    // #381: the value itself, compared exactly - not a double fold that
+                    // collapses longs past 2^53 and answers a Double for a long field
+                    Number min = null;
                     for (Map<String, Object> doc : groupDocs) {
                         Object value = extractValue(operand, doc);
-                        if (value instanceof Number) {
-                            double d = ((Number) value).doubleValue();
-                            if (min == null || d < min) {
-                                min = d;
-                            }
+                        if (value instanceof Number n && (min == null || QueryHelper.compareNumbers(n, min) < 0)) {
+                            min = n;
                         }
                     }
                     return min;
+                }
 
-                case "$max":
-                    Double max = null;
+                case "$max": {
+                    Number max = null;
                     for (Map<String, Object> doc : groupDocs) {
                         Object value = extractValue(operand, doc);
-                        if (value instanceof Number) {
-                            double d = ((Number) value).doubleValue();
-                            if (max == null || d > max) {
-                                max = d;
-                            }
+                        if (value instanceof Number n && (max == null || QueryHelper.compareNumbers(n, max) > 0)) {
+                            max = n;
                         }
                     }
                     return max;
+                }
 
                 case "$first":
                     if (!groupDocs.isEmpty()) {
