@@ -347,14 +347,14 @@ This is particularly useful for testing scenarios where you want to:
 Secondaries replicate **index definitions** as well as documents (since 6.3.0, #258): the initial
 sync copies the primary's `listIndexes` output after the data snapshot, and from then on
 `createIndexes` and `dropIndexes` on the primary arrive as **change stream events** (since 6.3.12,
-#386 — MongoDB's expanded events `createIndexes`/`dropIndexes` with the full spec in
+#386 - MongoDB's expanded events `createIndexes`/`dropIndexes` with the full spec in
 `operationDescription.indexes`), applied in order with the data: an index created on the primary
 is on every secondary as soon as the writes before it are, with its full options (unique, TTL,
 partial, sparse, ...), and an index dropped on the primary is dropped on the secondaries the same
 way (the `_id` index is never touched). A periodic diff of `listIndexes` (every 30s) remains as the
 safety net for changes whose events a secondary missed while disconnected. After a failover, a
 promoted secondary therefore enforces the same unique constraints and expires TTL documents like
-the old primary did — including an index created moments before the leader change, which the
+the old primary did - including an index created moments before the leader change, which the
 periodic diff alone used to lose (#386).
 
 The DDL events follow mongod semantics: a change stream only sees them when it was opened with
