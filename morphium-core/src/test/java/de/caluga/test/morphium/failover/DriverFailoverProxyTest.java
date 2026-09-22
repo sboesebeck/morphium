@@ -68,6 +68,9 @@ public class DriverFailoverProxyTest {
      * connection target. */
     private final java.util.Set<String> arbiterProxyAddresses = new java.util.HashSet<>();
     private Morphium morphium;
+    /** The backend the running scenario discovered - kept so {@link #tearDown()} can settle the
+     * replica set it disturbed. null if {@link #readBackend()} never ran (assumption failed). */
+    private Backend backend;
     /** Every workload thread a scenario starts is registered here (before start()) so
      * {@link #tearDown()} can defensively interrupt/join it as a fallback - the normal join
      * happens in the scenario's own finally block, but if that is somehow skipped (e.g. an
@@ -96,6 +99,174 @@ public class DriverFailoverProxyTest {
             try { t.join(2000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
         }
         trackedThreads.clear();
+        settleReplicaSet();
+    }
+
+    /**
+     * Leaves the replica set the way the next test class expects to find it: the highest-priority
+     * member is primary, every member is healthy, and no election is still pending.
+     *
+     * <p>Found via the 2026-09-21 run on testrunner.fritz.box: this class ran green, and 3 seconds
+     * later {@code messaging.AdvancedMessagingTests} (next in alphabetical order) failed with
+     * {@code 13435 not primary and secondaryOk=false} out of {@code listCollections} - green again on
+     * its isolated retry. Every scenario here steps the current primary down (15s re-election
+     * block) and cancels its own freeze in its finally block, but nothing waited for the aftermath:
+     * with mongo1 at priority 100 and mongo2 at 50, whichever of the two the scenario left primary,
+     * the cluster still had a priority takeover ahead of it once the block expired - and that
+     * landed inside whatever test came next. The scenario javadocs already call this out
+     * ("cluster still settling") for the scenarios of THIS class; this closes the same gap towards
+     * the classes that follow.
+     *
+     * <p>Passive on purpose: it only WAITS for the takeover the set has coming, it never drives
+     * one. The first version of this method stepped the interim primary down to force the
+     * election (24acf6e19, reverted): against PoppyDB that failed deterministically, because a
+     * stepdown block cannot be lifted there ({@code replSetFreeze 0} lifts a freeze only) and its
+     * priority takeover did not fire at all in this class's sequence at the time (#388). Since
+     * #387/#388 both backends take over reliably on their own - mongod ~10s after the interim
+     * election, PoppyDB after its 30s stability window plus the 15s stepdown block - so waiting
+     * is enough, and it cannot itself disturb the set. {@code replSetFreeze 0} is still sent to
+     * every data-bearing member first, so a freeze left over from a scenario does not delay the
+     * takeover; the member that is currently primary refuses it, which is fine and expected.
+     *
+     * <p>Fails the test if the set does not settle within the timeout: leaving an unsettled cluster
+     * behind is this class's defect, and the failure should be charged here, not to the innocent
+     * next class. Best-effort where it cannot know better - no backend, no config - is a no-op.
+     */
+    private void settleReplicaSet() {
+        if (backend == null) {
+            return;
+        }
+        long started = System.currentTimeMillis();
+        String expectedPrimary;
+        List<String> dataBearing = new ArrayList<>();
+        Map<String, Double> priorities = new HashMap<>();
+        try (ControlChannel ch = new ControlChannel(backend.host(), backend.port(),
+                backend.authDb(), backend.user(), backend.password())) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> config = (Map<String, Object>) ch.command(
+                    Doc.of("replSetGetConfig", 1, "$db", "admin")).get("config");
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> cfgMembers = (List<Map<String, Object>>) config.get("members");
+            String best = null;
+            double bestPriority = -1;
+            for (Map<String, Object> m : cfgMembers) {
+                if (Boolean.TRUE.equals(m.get("arbiterOnly"))) {
+                    continue;
+                }
+                String host = (String) m.get("host");
+                dataBearing.add(host);
+                double prio = m.get("priority") instanceof Number n ? n.doubleValue() : 1.0;
+                priorities.put(host, prio);
+                if (prio > bestPriority) {
+                    bestPriority = prio;
+                    best = host;
+                }
+            }
+            expectedPrimary = best;
+        } catch (Exception e) {
+            log.warn("settleReplicaSet: could not read the replica set config from {}:{} - "
+                    + "leaving the cluster as is: {}", backend.host(), backend.port(), e.getMessage());
+            return;
+        }
+        assertTrue(expectedPrimary != null, "replica set config lists no data-bearing member");
+
+        for (String member : dataBearing) {
+            freezeNode(backend, member, 0);
+        }
+
+        final String wanted = expectedPrimary;
+        // "Settled" means: no priority takeover is pending and no member is mid-resync. That is
+        // the case when the primary IS the highest-priority node - or shares its priority with it
+        // (a set configured without priorities has nothing to take over; insisting on one
+        // particular node there would be a coin toss) - and every data-bearing member reports
+        // ITSELF as PRIMARY or SECONDARY. Each member is asked directly: a PoppyDB follower that
+        // is re-syncing after a leader change (every leader change triggers one) reports
+        // RECOVERING for itself, but the primary's replSetGetStatus does not show that - and a
+        // follower in that state may not campaign, so a scenario that steps the fresh primary
+        // down while the others are still syncing leaves the set without an electable node
+        // until the stepdown block expires (seen on the test runner: "no new primary elected
+        // within 40s" with both followers logging "holding back candidacy: local data is
+        // incomplete"). The state must then HOLD for a few seconds: the resync starts a
+        // fraction of a second after the election, so a single good sample right after it
+        // proves nothing. The timeout covers the slowest backend: PoppyDB's 15s stepdown block
+        // plus its 30s takeover stability window plus an election plus the resync.
+        final double wantedPriority = priorities.getOrDefault(wanted, 1.0);
+        final long deadline = started + 120_000;
+        final long requiredStableMs = 3_000;
+        boolean settled = false;
+        long stableSince = -1;
+        while (System.currentTimeMillis() < deadline) {
+            if (everyMemberSettled(backend, dataBearing, priorities, wantedPriority)) {
+                long now = System.currentTimeMillis();
+                if (stableSince < 0) {
+                    stableSince = now;
+                }
+                if (now - stableSince >= requiredStableMs) {
+                    settled = true;
+                    break;
+                }
+            } else {
+                stableSince = -1;
+            }
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+        String primaryNow = currentPrimary(backend);
+        long took = System.currentTimeMillis() - started;
+        assertTrue(settled, "replica set did not settle within 120s after this scenario: expected a node of "
+                + "priority " + wantedPriority + " (" + wanted + ") to be PRIMARY and every data-bearing member "
+                + "to report itself PRIMARY or SECONDARY for " + requiredStableMs + "ms (last primary: "
+                + primaryNow + ") - the next test class would inherit a cluster with a takeover or a resync "
+                + "still pending");
+        log.info("replica set settled after {}ms: {} is PRIMARY (priority {}), all members healthy and stable",
+                took, primaryNow, priorities.get(primaryNow));
+    }
+
+    /**
+     * One settle sample: asks every data-bearing member for its OWN replSetGetStatus and requires
+     * each to report itself PRIMARY or SECONDARY, exactly one PRIMARY among them, and that one
+     * of the wanted priority. Any member that cannot be reached or is mid-election counts as
+     * not settled - the caller keeps polling.
+     */
+    private boolean everyMemberSettled(Backend backend, List<String> dataBearing,
+            Map<String, Double> priorities, double wantedPriority) {
+        String primary = null;
+        for (String member : dataBearing) {
+            String[] hp = member.split(":");
+            try (ControlChannel ch = new ControlChannel(hp[0], Integer.parseInt(hp[1]),
+                    backend.authDb(), backend.user(), backend.password())) {
+                Map<String, Object> self = ch.members().stream()
+                        .filter(m -> member.equals(m.get("name")) || Boolean.TRUE.equals(m.get("self")))
+                        .findFirst().orElse(null);
+                String state = self == null ? null : (String) self.get("stateStr");
+                if ("PRIMARY".equals(state)) {
+                    if (primary != null && !primary.equals(member)) {
+                        return false; // two members each believe they lead - mid-transition
+                    }
+                    primary = member;
+                } else if (!"SECONDARY".equals(state)) {
+                    return false; // RECOVERING, STARTUP2, DOWN, unreachable, mid-election
+                }
+            } catch (Exception e) {
+                return false;
+            }
+        }
+        return primary != null && priorities.getOrDefault(primary, 1.0) >= wantedPriority;
+    }
+
+    /** Name of the current primary, or null if there is none right now / the status call fails. */
+    private String currentPrimary(Backend backend) {
+        try (ControlChannel ch = new ControlChannel(backend.host(), backend.port(),
+                backend.authDb(), backend.user(), backend.password())) {
+            return ch.members().stream().filter(m -> "PRIMARY".equals(m.get("stateStr")))
+                    .map(m -> (String) m.get("name")).findFirst().orElse(null);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     // ---- backend discovery & proxy wiring (design spec: "Backend discovery & proxy wiring") ----
@@ -126,7 +297,8 @@ public class DriverFailoverProxyTest {
             user = userInfo.substring(0, userInfo.indexOf(':'));
             password = userInfo.substring(userInfo.indexOf(':') + 1);
         }
-        return new Backend(uri, host, port, "admin", user, password);
+        backend = new Backend(uri, host, port, "admin", user, password);
+        return backend;
     }
 
     private Map<String, String> wireProxies(Backend backend, List<Map<String, Object>> members) throws Exception {
@@ -350,6 +522,7 @@ public class DriverFailoverProxyTest {
         }
     }
 
+
     /** Prevents {@code nodeName} from campaigning for primary for {@code seconds} (0 cancels an
      * active freeze immediately). Used after stepping the frozen-proxy primary down, to keep it
      * from reclaiming primacy via priority takeover once replSetStepDown's own (much shorter,
@@ -398,22 +571,31 @@ public class DriverFailoverProxyTest {
                 lastFailure == null ? null : lastFailure.getMessage());
     }
 
-    /** Polls until a new primary (not {@code exPrimaryName}) is elected, reusing a single
-     * {@link ControlChannel} across polls (I2 fix) instead of opening a brand-new one - full TCP
-     * connect + hello + possibly SCRAM auth - on every 200ms tick, which is wasteful and, on an
+    /** Polls until a new primary (not {@code exPrimaryName}) is elected. See {@link #pollMembers}
+     * for the channel handling. */
+    private boolean pollForNewPrimary(Backend backend, String exPrimaryName, long timeoutMs) throws Exception {
+        return pollMembers(backend, timeoutMs, members -> members.stream().anyMatch(m ->
+                "PRIMARY".equals(m.get("stateStr")) && !exPrimaryName.equals(m.get("name"))));
+    }
+
+    /** Polls {@code replSetGetStatus} until {@code condition} holds for its member list, reusing a
+     * single {@link ControlChannel} across polls (I2 fix) instead of opening a brand-new one - full
+     * TCP connect + hello + possibly SCRAM auth - on every 200ms tick, which is wasteful and, on an
      * auth-enabled backend, generates a lot of short-lived authenticated connections against a
      * test with a "zero live sockets left behind" constraint. Uses {@link ControlChannel#poll}
-     * so the actual wait/backoff logic lives in one place; the condition here only reconnects
-     * when a poll attempt throws - {@code replSetStepDown} can legitimately kill the channel's
-     * connection, and the control-channel node itself might be mid-election too. */
-    private boolean pollForNewPrimary(Backend backend, String exPrimaryName, long timeoutMs) throws Exception {
+     * so the actual wait/backoff logic lives in one place; this only reconnects when a poll
+     * attempt throws - {@code replSetStepDown} can legitimately kill the channel's connection,
+     * and the control-channel node itself might be mid-election too. Extracted from
+     * {@code pollForNewPrimary} when {@link #settleReplicaSet} needed the same loop with a
+     * different condition. */
+    private boolean pollMembers(Backend backend, long timeoutMs,
+            java.util.function.Predicate<List<Map<String, Object>>> condition) throws Exception {
         ControlChannel[] channelHolder = { new ControlChannel(backend.host(), backend.port(),
                 backend.authDb(), backend.user(), backend.password()) };
         try {
             return channelHolder[0].poll(timeoutMs, () -> {
                 try {
-                    return channelHolder[0].members().stream().anyMatch(m ->
-                            "PRIMARY".equals(m.get("stateStr")) && !exPrimaryName.equals(m.get("name")));
+                    return condition.test(channelHolder[0].members());
                 } catch (Exception e) {
                     // Connection died (stepdown) or the node is mid-election - reconnect for the
                     // next tick instead of giving up the whole poll.
