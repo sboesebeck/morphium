@@ -496,7 +496,7 @@ public class PooledDriver extends DriverBase {
                     // driver got stuck retrying the FIRST ex-primary for 20+ seconds even though
                     // the second node's own "I'm not primary" reply already named the real
                     // winner.
-                    String advertised = resolveAdvertisedPrimary(hello);
+                    String advertised = resolveAdvertisedPrimary(hello, hostConnected);
                     if (advertised != null) {
                         log.warn("Primary failover? {} -> {} (re-resolved from {}'s own hello)",
                                 primaryNode, advertised, hostConnected);
@@ -506,7 +506,7 @@ public class PooledDriver extends DriverBase {
                         primaryNode = null;
                     }
                 } else if (primaryNode == null && hello.getPrimary() != null) {
-                    String advertised = resolveAdvertisedPrimary(hello);
+                    String advertised = resolveAdvertisedPrimary(hello, hostConnected);
                     if (advertised != null) {
                         primaryNode = advertised;
                     }
@@ -595,11 +595,18 @@ public class PooledDriver extends DriverBase {
      * configs may advertise members with different casing than the client seed, or without a
      * port.
      */
-    private String resolveAdvertisedPrimary(HelloResult hello) {
+    private String resolveAdvertisedPrimary(HelloResult hello, String hostConnected) {
         if (hello.getPrimary() == null) {
             return null;
         }
         String advertised = normalizeHostKey(resolveAlias(hello.getPrimary()));
+        if (!Boolean.TRUE.equals(hello.getWritablePrimary()) && advertised.equals(normalizeHostKey(hostConnected))) {
+            // "I am not primary - the primary is me": a stepped-down node whose leader bookkeeping
+            // lags behind its role (seen on PoppyDB, #392/#393). Taking it at face value keeps
+            // the driver on the very node that just rejected it; a self-contradictory hello
+            // names nobody, and the heartbeat finds the real winner.
+            return null;
+        }
         return hosts.containsKey(advertised) ? advertised : null;
     }
 
@@ -1686,6 +1693,42 @@ public class PooledDriver extends DriverBase {
         }
 
         return con;
+    }
+
+    /**
+     * Asks the node behind {@code rejectedBy} for a hello and feeds the answer through the same
+     * path as a heartbeat reply. A stepped-down node answers {@code isWritablePrimary: false}
+     * and, once it has heard from the winner, names the new primary: {@link #handleHelloResult}
+     * then either switches to the advertised primary at once or clears {@code primaryNode}, on
+     * which {@link #getPrimaryConnection} waits for the heartbeat to find the winner. Without
+     * this, {@code primaryNode} stays on the stepped-down node for up to a heartbeat interval
+     * and every retry would land on it again (#393). A node that cannot even answer a hello is
+     * forgotten as primary outright.
+     */
+    @Override
+    public void refreshPrimaryAfterStepDown(MongoConnection rejectedBy) {
+        if (rejectedBy == null || !running) {
+            return;
+        }
+
+        String hostConnected = String.format("%s:%d", rejectedBy.getConnectedToHost(), rejectedBy.getConnectedToPort());
+
+        if (rejectedBy instanceof SingleMongoConnection smc && rejectedBy.isConnected()) {
+            try {
+                HelloResult hello = smc.getHelloResult(false, Math.max(2000, getHeartbeatFrequency()));
+                handleHelloResult(hello, hostConnected);
+                return;
+            } catch (Exception e) {
+                log.warn("hello on {} after its not-primary answer failed ({}) - forgetting it as primary",
+                         hostConnected, e.getMessage());
+            }
+        }
+
+        synchronized (primaryNodeLock) {
+            if (normalizeHostKey(hostConnected).equals(primaryNode)) {
+                primaryNode = null;
+            }
+        }
     }
 
     private MongoConnection selectPrimaryConnection(WriteConcern wc) throws MorphiumDriverException {
