@@ -1676,7 +1676,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 }
 
                 if (pathSpec == null) {
-                    throw mongoCommandError(40324, "no path specified to $unwind stage");
+                    throw mongoCommandError(28812, "no path specified to $unwind stage");
                 }
 
                 boolean exprPath = pathSpec instanceof Expr;
@@ -1737,6 +1737,11 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     if (preserveNullAndEmptyArrays) {
                         Map<String, Object> result = new HashMap<>(o);
 
+                        if (value instanceof List) {
+                            // an empty array: mongod keeps the document but drops the field itself
+                            removeValueByPath(result, path);
+                        }
+
                         if (includeArrayIndex != null) {
                             result.put(includeArrayIndex, null);
                         }
@@ -1765,13 +1770,16 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     for (Map.Entry<String, Object> entry : keysToSortBy.entrySet()) {
                         String k = entry.getKey();
                         Object v = entry.getValue();
+                        boolean descending = v instanceof Number && ((Number) v).intValue() < 0;
 
-                        // Dotted paths are resolved and a missing field sorts as null (lowest)
-                        // instead of throwing NPE; strings honor the pipeline collation (#395).
-                        int i = compareForSort(extractValueByPath(o1, k), extractValueByPath(o2, k), sortCollator);
+                        // Dotted paths are resolved, an array-valued field sorts by its smallest
+                        // element (largest when descending), and a missing field sorts as null
+                        // (lowest) instead of throwing NPE; strings honor the collation (#395).
+                        Object a = sortKey(extractValueByPath(o1, k), descending, sortCollator);
+                        Object b = sortKey(extractValueByPath(o2, k), descending, sortCollator);
+                        int i = compareForSort(a, b, sortCollator);
 
                         if (i != 0) {
-                            boolean descending = v instanceof Number && ((Number) v).intValue() < 0;
                             return descending ? -i : i;
                         }
                     }
@@ -2420,6 +2428,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                             // two swapped, ignored depthField/restrictSearchWithMatch and returned
                             // nothing for maxDepth:0 (#395).
                             Set<Object> visited = new HashSet<>();
+                            Set<Object> emittedIds = new HashSet<>();
                             Queue<GraphSearch> toVisit = new LinkedList<>();
                             toVisit.add(new GraphSearch(normalizeGraphValue(startValue), 0));
 
@@ -2441,19 +2450,31 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                     Object connectToValue = extractValueByPath(foreignDoc, connectToField);
 
                                     if (graphValuesEqual(current.value, connectToValue)) {
+                                        // mongod emits each foreign document once even when several
+                                        // values reach it - dedupe by _id
+                                        Object id = foreignDoc.get("_id");
+                                        Object dedupeKey = id != null ? id : foreignDoc;
+
+                                        if (!emittedIds.add(dedupeKey)) {
+                                            continue;
+                                        }
+
                                         Map<String, Object> match = new HashMap<>(foreignDoc);
 
                                         if (depthField != null) {
-                                            match.put(depthField, current.depth);
+                                            // mongod stores the depth as a 64-bit number
+                                            match.put(depthField, (long) current.depth);
                                         }
 
                                         graphResults.add(match);
 
                                         if (maxDepth == null || current.depth < maxDepth) {
-                                            Object connectFromValue = normalizeGraphValue(extractValueByPath(foreignDoc, connectFromField));
+                                            for (Object connectFromElement : asValueList(extractValueByPath(foreignDoc, connectFromField))) {
+                                                Object connectFromValue = normalizeGraphValue(connectFromElement);
 
-                                            if (connectFromValue != null && !visited.contains(connectFromValue)) {
-                                                toVisit.add(new GraphSearch(connectFromValue, current.depth + 1));
+                                                if (connectFromValue != null && !visited.contains(connectFromValue)) {
+                                                    toVisit.add(new GraphSearch(connectFromValue, current.depth + 1));
+                                                }
                                             }
                                         }
                                     }
@@ -2654,6 +2675,27 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     }
 
     private boolean graphValuesEqual(Object a, Object b) {
+        // an array on either side matches if any element matches (array-valued connect fields)
+        if (a instanceof List) {
+            for (Object x : (List<?>) a) {
+                if (graphValuesEqual(x, b)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        if (b instanceof List) {
+            for (Object y : (List<?>) b) {
+                if (graphValuesEqual(a, y)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         if (a == null || b == null) {
             return Objects.equals(a, b);
         }
@@ -2663,6 +2705,14 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         }
 
         return Objects.equals(a, b);
+    }
+
+    private static List<Object> asValueList(Object value) {
+        if (value instanceof List) {
+            return (List<Object>) value;
+        }
+
+        return value == null ? Collections.emptyList() : Collections.singletonList(value);
     }
 
     @Override
@@ -3503,20 +3553,81 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         return (current instanceof Number) ? ((Number) current).doubleValue() : null;
     }
 
+    /**
+     * Resolves a dotted path. When a segment lands on an array, the remaining path is mapped over
+     * its elements and the results are collected into a list (flattened), the way MongoDB matches a
+     * dotted {@code $lookup} key or an array-valued {@code $graphLookup} connect field. Returns null
+     * when nothing is found.
+     */
     @SuppressWarnings("unchecked")
     private Object extractValueByPath(Map<String, Object> map, String path) {
         String[] parts = path.split("\\.");
         Object current = map;
 
         for (String part : parts) {
-            if (current instanceof Map) {
-                current = ((Map<String, Object>) current).get(part);
-            } else {
+            current = stepInto(current, part);
+
+            if (current == null) {
                 return null;
             }
         }
 
         return current;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object stepInto(Object current, String part) {
+        if (current instanceof Map) {
+            return ((Map<String, Object>) current).get(part);
+        }
+
+        if (current instanceof List) {
+            List<Object> collected = new ArrayList<>();
+
+            for (Object item : (List<Object>) current) {
+                Object value = stepInto(item, part);
+
+                if (value instanceof List) {
+                    collected.addAll((List<Object>) value);
+                } else if (value != null) {
+                    collected.add(value);
+                }
+            }
+
+            return collected.isEmpty() ? null : collected;
+        }
+
+        return null;
+    }
+
+    /**
+     * Removes a (possibly dotted) path from an already shallow-copied document, copying the maps
+     * along the path so the source document is not touched. Used by {@code $unwind} when mongod
+     * drops the field of an empty array under {@code preserveNullAndEmptyArrays}.
+     */
+    @SuppressWarnings("unchecked")
+    private void removeValueByPath(Map<String, Object> target, String path) {
+        if (!path.contains(".")) {
+            target.remove(path);
+            return;
+        }
+
+        String[] parts = path.split("\\.");
+        Map<String, Object> current = target;
+
+        for (int i = 0; i < parts.length - 1; i++) {
+            Object next = current.get(parts[i]);
+
+            if (!(next instanceof Map)) {
+                return;
+            }
+
+            Map<String, Object> copy = new LinkedHashMap<>((Map<String, Object>) next);
+            current.put(parts[i], copy);
+            current = copy;
+        }
+
+        current.remove(parts[parts.length - 1]);
     }
 
     /**
@@ -3554,6 +3665,36 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         }
 
         current.put(parts[parts.length - 1], value);
+    }
+
+    /**
+     * Reduces an array-valued sort key to the element mongod compares with: the smallest element
+     * when ascending, the largest when descending. Non-arrays pass through.
+     */
+    private static Object sortKey(Object value, boolean descending, Collator coll) {
+        if (!(value instanceof List)) {
+            return value;
+        }
+
+        List<?> list = (List<?>) value;
+
+        if (list.isEmpty()) {
+            return null;
+        }
+
+        Object best = list.get(0);
+
+        for (int i = 1; i < list.size(); i++) {
+            Object item = list.get(i);
+            int cmp = compareForSort(item, best, coll);
+
+            // null is a legitimate (lowest) element - track by position, not by "best == null"
+            if (descending ? cmp > 0 : cmp < 0) {
+                best = item;
+            }
+        }
+
+        return best;
     }
 
     /**

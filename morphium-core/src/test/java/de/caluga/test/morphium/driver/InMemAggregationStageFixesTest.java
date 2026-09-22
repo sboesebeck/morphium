@@ -392,4 +392,102 @@ public class InMemAggregationStageFixesTest {
         assertThat(chain).hasSize(1);
         assertThat(chain.get(0).get("name")).isEqualTo("Eliot");
     }
+
+    // ---------------------------------------------------------------- array paths / follow-up nits
+
+    @Test
+    public void unwindPreserveOnEmptyArrayDropsTheField() throws Exception {
+        insert(Doc.of("_id", new MorphiumId(), "name", "empty", "tags", List.of()));
+
+        Aggregator<StageItem, Map> agg = aggregator();
+        agg.addOperator(UtilsMap.of("$unwind", Doc.of(
+                "path", "$tags",
+                "preserveNullAndEmptyArrays", true)));
+
+        List<Map<String, Object>> res = agg.aggregateMap();
+        assertThat(res).hasSize(1);
+        assertThat(res.get(0).get("name")).isEqualTo("empty");
+        assertThat(res.get(0)).doesNotContainKey("tags");
+    }
+
+    @Test
+    public void unwindWithoutPathReportsMongods28812() throws Exception {
+        Aggregator<StageItem, Map> agg = aggregator();
+        agg.addOperator(UtilsMap.of("$unwind", Doc.of("preserveNullAndEmptyArrays", true)));
+
+        assertThatThrownBy(agg::aggregateMap)
+                .satisfies(t -> assertThat(((de.caluga.morphium.driver.MorphiumDriverException) t).getMongoCode())
+                        .isEqualTo(28812));
+    }
+
+    @Test
+    public void lookupMatchesDottedPathThroughAnArray() throws Exception {
+        insertForeign(Doc.of("_id", "c1", "name", "one"),
+                      Doc.of("_id", "c3", "name", "three"));
+        insert(Doc.of("_id", new MorphiumId(), "name", "a",
+                      "items", List.of(Doc.of("sku", "c1"), Doc.of("sku", "c2"))));
+
+        Aggregator<StageItem, Map> agg = aggregator();
+        agg.addOperator(UtilsMap.of("$lookup", Doc.of(
+                "from", FOREIGN,
+                "localField", "items.sku",
+                "foreignField", "_id",
+                "as", "joined")));
+
+        List<Map<String, Object>> res = agg.aggregateMap();
+        List<Map<String, Object>> joined = (List<Map<String, Object>>) res.get(0).get("joined");
+        assertThat(joined).extracting(m -> m.get("name")).containsExactly("one");
+    }
+
+    @Test
+    public void graphLookupMatchesArrayConnectFieldsAndDeduplicates() throws Exception {
+        insertForeign(Doc.of("_id", "A", "deps", List.of("x")),
+                      Doc.of("_id", "B", "deps", List.of("x", "y")),
+                      Doc.of("_id", "C", "deps", List.of("y")));
+        insert(Doc.of("_id", new MorphiumId(), "start", List.of("x", "y")));
+
+        Aggregator<StageItem, Map> agg = aggregator();
+        agg.addOperator(UtilsMap.of("$graphLookup", Doc.of(
+                "from", FOREIGN,
+                "startWith", "$start",
+                "connectFromField", "_id",
+                "connectToField", "deps",
+                "as", "reached")));
+
+        List<Map<String, Object>> res = agg.aggregateMap();
+        List<Map<String, Object>> reached = (List<Map<String, Object>>) res.get(0).get("reached");
+        // A and C once each, B reached through both x and y but emitted once
+        assertThat(reached).extracting(m -> m.get("_id")).containsExactlyInAnyOrder("A", "B", "C");
+        assertThat(reached).hasSize(3);
+    }
+
+    @Test
+    public void sortArrayValuedFieldUsesMinAscendingAndMaxDescending() throws Exception {
+        insert(Doc.of("_id", new MorphiumId(), "name", "b-only", "tags", List.of("b")),
+               Doc.of("_id", new MorphiumId(), "name", "ac", "tags", List.of("a", "c")));
+
+        Aggregator<StageItem, Map> asc = aggregator();
+        asc.addOperator(UtilsMap.of("$sort", Doc.of("tags", 1)));
+        assertThat(asc.aggregateMap()).extracting(m -> (String) m.get("name")).containsExactly("ac", "b-only");
+
+        Aggregator<StageItem, Map> desc = aggregator();
+        desc.addOperator(UtilsMap.of("$sort", Doc.of("tags", -1)));
+        assertThat(desc.aggregateMap()).extracting(m -> (String) m.get("name")).containsExactly("ac", "b-only");
+    }
+
+    @Test
+    public void sortArrayContainingNullUsesNullAsItsSmallestElement() throws Exception {
+        // [5, null, 7] ascending sorts by null, i.e. before [1]; a "best == null" scan would have
+        // skipped over the null and sorted by 7
+        insert(Doc.of("_id", new MorphiumId(), "name", "one", "vals", List.of(1)),
+               Doc.of("_id", new MorphiumId(), "name", "with-null", "vals", Arrays.asList(5, null, 7)));
+
+        Aggregator<StageItem, Map> asc = aggregator();
+        asc.addOperator(UtilsMap.of("$sort", Doc.of("vals", 1)));
+        assertThat(asc.aggregateMap()).extracting(m -> (String) m.get("name")).containsExactly("with-null", "one");
+
+        Aggregator<StageItem, Map> desc = aggregator();
+        desc.addOperator(UtilsMap.of("$sort", Doc.of("vals", -1)));
+        assertThat(desc.aggregateMap()).extracting(m -> (String) m.get("name")).containsExactly("with-null", "one");
+    }
 }
