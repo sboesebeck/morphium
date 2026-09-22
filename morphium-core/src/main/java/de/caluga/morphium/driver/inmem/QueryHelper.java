@@ -1104,7 +1104,11 @@ public class QueryHelper {
                                 return false;
 
                             case "$jsonSchema":
-                                break;
+                                // $jsonSchema is only valid as a top-level predicate in MongoDB
+                                // ({ $jsonSchema: <schema> }). In field position mongod rejects the
+                                // query; previously this break fell through to `return true` and
+                                // silently matched every document (#397).
+                                throw new IllegalArgumentException("unknown operator: $jsonSchema");
 
                             case "$geoIntersects":
                                 if (!geoIntersects(checkValue, commandMap.get(commandKey))) {
@@ -1465,7 +1469,7 @@ public class QueryHelper {
 
                                 return commandMap.equals(toCheck);
                         }
-                        // Fallthrough from break cases ($options, $jsonSchema, $geoWithin)
+                        // Fallthrough from the $options modifier case only
                         return true;
                     } else {
                         if (keyQuery.contains(".")) {

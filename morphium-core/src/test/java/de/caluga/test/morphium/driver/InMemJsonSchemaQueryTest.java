@@ -1,6 +1,7 @@
 package de.caluga.test.morphium.driver;
 
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.commands.FindCommand;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
@@ -126,5 +127,29 @@ public class InMemJsonSchemaQueryTest {
         assertTrue(names.contains("Ivan"), "Ivan should satisfy array constraints");
         assertTrue(names.contains("NoScores"), "Documents without the optional field should pass");
         assertFalse(names.contains("Jill"), "Jill should be rejected due to non-unique scores");
+    }
+
+    @Test
+    public void fieldPositionJsonSchemaIsRejectedLikeMongod() throws Exception {
+        var drv = new InMemoryDriver();
+        drv.connect();
+
+        new InsertMongoCommand(drv).setDb(db).setColl(coll)
+            .setDocuments(List.of(Doc.of("name", "Alice", "age", 32)))
+            .execute();
+
+        // $jsonSchema is a top-level predicate only ({ $jsonSchema: <schema> }); in field position
+        // mongod rejects the query rather than matching every document (#397).
+        FindCommand cmd = new FindCommand(drv)
+            .setDb(db)
+            .setColl(coll)
+            .setFilter(Doc.of("age", Doc.of("$jsonSchema", Doc.of("bsonType", "int"))));
+
+        MorphiumDriverException thrown = assertThrows(MorphiumDriverException.class, cmd::execute);
+        assertNotNull(thrown.getCause(), "the rejection must carry its cause, not be swallowed");
+        assertTrue(thrown.getCause() instanceof IllegalArgumentException,
+            "expected the field-position $jsonSchema rejection to surface, got: " + thrown);
+        assertTrue(thrown.getCause().getMessage().contains("$jsonSchema"),
+            "error should name $jsonSchema, was: " + thrown.getCause().getMessage());
     }
 }

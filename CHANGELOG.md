@@ -14,6 +14,9 @@ The pinned `com.ongres.scram:client:2.1` compared client proofs and server signa
 
 ### Fixed
 
+#### InMemoryDriver: $jsonSchema in field position is rejected like mongod (#397)
+The field-position `case "$jsonSchema"` only broke out of the switch and fell through to the method's unconditional `return true`, so `{field: {$jsonSchema: ...}}` matched every document. `$jsonSchema` is a top-level predicate (`{$jsonSchema: <schema>}`); in field position mongod rejects the query, and the driver now does too (`unknown operator: $jsonSchema`). The top-level form is unchanged. Note this deviates from the wording of #397, which suggested validating the field value: rejecting is what mongod does, and validating would have invented a semantics the server does not have.
+
 #### InMemoryDriver: every top-level query predicate is ANDed again (#396)
 `$and`, `$or`, `$nor`, `$not` and `$expr` returned the moment they were reached, so a query such as `{$and: [{b: 2}], a: 1}` never evaluated `a`, and `$where` overwrote the accumulated result instead of combining with it, so a failing `$where` could be undone by a later matching field and a passing one by a later failing field. Both depended on the key order, and the compiled fast path reproduced the divergence on purpose ("KNOWN-DIVERGENCE"). All top-level keys now AND in both paths: the interpreter sets `ret` and continues, and `CompiledQuery.SequenceNode` is a plain AND (the `Kind`/`KeyedNode` special-casing is gone), so the interpreter and the compiled path cannot drift apart again.
 
