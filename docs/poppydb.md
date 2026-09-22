@@ -425,6 +425,16 @@ warning is the only thing telling you it did:
     PARTIAL RESTORE on startup: only 6 of 8 databases restored ... Continuing startup WITHOUT
     the failed databases!
 
+Such a node holds back candidacy (logged as `holding back candidacy ... failed dump files:
+[...]`, once a minute) until an initial sync from a primary has given it a complete copy. If
+the **same** file failed on every node - a dump-format bug, a dump written by a newer version -
+there is no primary to sync from and nobody holds a better copy, so the nodes exchange their
+restore finding and the highest-priority one lifts its guard by itself (#391, `LIFTING the
+partial-restore candidacy guard` on WARN); the others then sync from it. A peer with a
+complete copy, one that lost different files, or one that does not answer keeps every guard
+in place. To pick a node by hand - a mixed-version set during a rolling upgrade, or a peer
+that is down - run `db.adminCommand({poppyAcceptPartialRestore: 1})` on it.
+
 Dumps written before 6.3.2 remain readable - they are read as UTF-8 with a fallback for the
 platform default encoding they were written under, and raw newlines inside string values are
 preserved. Keep old dumps and try them; a restore attempt is cheap and the log says exactly
@@ -1314,6 +1324,7 @@ PoppyDB implements the following MongoDB admin commands:
 | `dbHash` | MD5 per collection + combined hash in canonical document order — compare replica-set members with one command, works on secondaries |
 | `validate` | Real data↔index consistency check against the collection's index store (stale/missing index entries, keysPerIndex) |
 | `replSetStepDown` | Step down from primary (for replica sets) |
+| `poppyAcceptPartialRestore` | Lift the partial-restore candidacy guard on this node so it may become primary with its incomplete data (#391); answers `lifted` and the failed dump file names. Normally not needed: when every node lost the same dump files the highest-priority node lifts its guard by itself |
 | `startSession` / `endSessions` / `refreshSessions` | Session management |
 | `getMore` | Cursor iteration for both regular queries and change streams |
 | `dumpNow` / `dumpStatus` | On-demand dump and persistence info (see [Persistence](#persistence-periodic-snapshots)); both work on a RECOVERING node |

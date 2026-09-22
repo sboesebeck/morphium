@@ -639,8 +639,10 @@ public class PoppyDBCLI {
                             + "WITHOUT the failed databases, and this node will NOT stand for election "
                             + "until an authoritative sync from a primary has completed - otherwise it "
                             + "could become primary and overwrite intact peers with its incomplete "
-                            + "state. If no peer holds a complete copy to sync from, recover manually: "
-                            + "restore or delete the broken dump file(s) and restart this node.",
+                            + "state. If EVERY node failed the same file(s), the highest-priority node "
+                            + "lifts its guard by itself (#391); to pick a node by hand run "
+                            + "poppyAcceptPartialRestore on it, or restore/delete the broken dump "
+                            + "file(s) and restart.",
                             restored.getRestored(), restored.getTotal(), restored.getFailedFiles());
                     srv.setLocalDataComplete(false);
                 }

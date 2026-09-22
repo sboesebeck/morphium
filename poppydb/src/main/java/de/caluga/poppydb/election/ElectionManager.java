@@ -61,6 +61,24 @@ public class ElectionManager {
     // authoritative initial sync has given us a complete copy.
     private volatile boolean dataComplete = true;
 
+    // Cluster-wide partial restore (#391). What this node's startup restore reported as failed
+    // dump files (file names, from DirectoryRestoreResult); empty when the restore was complete
+    // or the data is incomplete for another reason (store emptied for a sync - see PoppyDB).
+    // Answered to peers on the poppyRestoreStatus probe, and the automatic acceptance below
+    // requires it to be non-empty: "incomplete for an unknown reason" never resolves by itself.
+    private volatile List<String> failedRestoreFiles = List.of();
+    // What each peer answered to OUR probe in the CURRENT probe round (cleared when a new round
+    // is sent, so a peer that went away or was restarted with a repaired dump cannot be judged
+    // on an old answer). A peer without an entry is unknown and blocks the acceptance.
+    private final Map<String, RestoreStatus> peerRestoreStatus = new ConcurrentHashMap<>();
+    // Set once this node lifted its guard because no peer holds a better copy (or an operator
+    // told it to). Diagnostics only - the guard itself is dataComplete.
+    private volatile boolean partialRestoreAccepted = false;
+    // Throttle for the "holding back candidacy" WARN: first at once, then once a minute (before
+    // #391 it was one line per election timeout, hundreds of lines during a 25-minute outage).
+    private volatile long partialHoldLoggedAt = 0;
+    private static final long PARTIAL_HOLD_RELOG_MS = 60_000;
+
     // Candidacy restraint (D3, empty-node-wipe fix): highest lastLogIndex this process has ever
     // observed reported by ANY peer via AppendEntries/heartbeat traffic - the leader's own index
     // (advertised as prevLogIndex while we are a follower) or a follower's matchIndex (while we
@@ -162,6 +180,8 @@ public class ElectionManager {
     private Consumer<String> onLeaderDiscovered;   // Called when a new leader is discovered
     private BiConsumer<String, VoteRequest> sendVoteRequest;  // Send vote request to peer
     private BiConsumer<String, AppendEntriesRequest> sendAppendEntries;  // Send heartbeat to peer
+    private Consumer<String> sendRestoreStatusProbe;  // Ask a peer for its restore finding (#391)
+    private Consumer<List<String>> onPartialRestoreAccepted;  // This node lifted its partial-restore guard (#391)
 
     // State for tracking pending vote requests
     private volatile boolean electionInProgress = false;
@@ -413,9 +433,17 @@ public class ElectionManager {
         // hold-back would be a permanent deadlock (a single-node RS with one broken dump file
         // never serves again, and no runtime command lifts the guard). There is also nothing
         // the guard protects there: no intact peer whose data a partial primary could wipe.
+        //
+        // UNLESS every peer is in the same state (#391): when the same dump file failed on every
+        // node - a dump-format bug, a dump written by a newer version - nobody holds a better
+        // copy and the hold-back protects nothing; it only leaves the set without a primary
+        // until an operator moves the file on each node. So a held-back node asks its peers
+        // for their restore finding on every election timeout (its own probe, see
+        // RestoreStatus for why not the heartbeat or PreVote) and lifts its guard once ALL of
+        // them answered with the same failed files - see tryAcceptPartialRestore.
         if (!dataComplete && !peerAddresses.isEmpty()) {
-            log.warn("{} holding back candidacy: local data is incomplete (partial restore) - "
-                    + "waiting for an authoritative sync before taking part in elections", myAddress);
+            logPartialRestoreHold();
+            probePeerRestoreStatus();
             resetElectionTimer();
             return false;
         }
@@ -1879,12 +1907,217 @@ public class ElectionManager {
 
         if (was != complete) {
             log.info("{} data completeness changed to {}", myAddress, complete ? "COMPLETE" : "INCOMPLETE");
+            // a fresh hold logs at once again (#391 throttle)
+            partialHoldLoggedAt = 0;
         }
     }
 
     /** Whether this node considers its local data complete enough to stand for election. */
     public boolean isDataComplete() {
         return dataComplete;
+    }
+
+    // ==================== Cluster-wide partial restore (#391) ====================
+
+    /**
+     * Records which dump files this node's startup restore could not read (file names, from
+     * {@code DirectoryRestoreResult.getFailedFiles()}). Answered to peers on the
+     * {@code poppyRestoreStatus} probe and required - non-empty - for the automatic acceptance
+     * in {@link #tryAcceptPartialRestore()} and for {@link #acceptPartialRestore(String)}.
+     * PoppyDB clears it again once a completed sync (or an emptied store) has made the finding
+     * obsolete.
+     */
+    public void setFailedRestoreFiles(List<String> failedFiles) {
+        this.failedRestoreFiles = failedFiles == null ? List.of() : List.copyOf(failedFiles);
+    }
+
+    /** The failed dump files of this node's startup restore - see {@link #setFailedRestoreFiles}. */
+    public List<String> getFailedRestoreFiles() {
+        return failedRestoreFiles;
+    }
+
+    /** Sends a {@code poppyRestoreStatus} probe to the given peer; the answer arrives via
+     * {@link #handleRestoreStatusResponse}. Wired by ElectionNetworkClient. */
+    public void setSendRestoreStatusProbe(Consumer<String> callback) {
+        this.sendRestoreStatusProbe = callback;
+    }
+
+    /** Called (outside the state lock) with the failed files whenever this node lifts its
+     * partial-restore guard - automatically or by operator command. PoppyDB uses it to mark its
+     * own copy of the flag. */
+    public void setOnPartialRestoreAccepted(Consumer<List<String>> callback) {
+        this.onPartialRestoreAccepted = callback;
+    }
+
+    /** Whether this node lifted its partial-restore guard without a completed sync (#391). */
+    public boolean isPartialRestoreAccepted() {
+        return partialRestoreAccepted;
+    }
+
+    /**
+     * This node's own restore finding - the answer to a peer's {@code poppyRestoreStatus} probe.
+     * Read-only.
+     */
+    public RestoreStatus restoreStatus() {
+        boolean leaderKnown = state == ElectionState.LEADER || heardFromLeaderRecently();
+        return new RestoreStatus(myAddress, dataComplete, failedRestoreFiles, config.getElectionPriority(),
+                leaderKnown);
+    }
+
+    /**
+     * A peer's answer to our probe. Recorded for the current round, then the acceptance rule is
+     * evaluated - a held-back node whose last outstanding answer just arrived may lift its
+     * guard right here; the already armed election timer then campaigns as usual.
+     */
+    public void handleRestoreStatusResponse(String peer, RestoreStatus status) {
+        if (status == null) {
+            return;
+        }
+        stateLock.lock();
+        try {
+            peerRestoreStatus.put(peer, status);
+            log.debug("{} restore status from {}: {}", myAddress, peer, status);
+            if (!dataComplete) {
+                tryAcceptPartialRestore();
+            }
+        } finally {
+            stateLock.unlock();
+        }
+    }
+
+    /**
+     * Operator override ({@code poppyAcceptPartialRestore}): lift the guard on this node now,
+     * whatever the peers report - for mixed-version sets where the automatic exchange cannot
+     * complete, or to pick a specific node. Refused when the data is complete already (nothing
+     * to lift) or incomplete for another reason than a failed restore (the store was emptied
+     * for a sync - an empty node must not be made primary by this command; that state ends
+     * with the sync, or with a restart).
+     *
+     * @return true if the guard was lifted by this call
+     */
+    public boolean acceptPartialRestore(String reason) {
+        stateLock.lock();
+        try {
+            if (dataComplete) {
+                log.info("{} poppyAcceptPartialRestore: local data is complete, nothing to lift", myAddress);
+                return false;
+            }
+            if (failedRestoreFiles.isEmpty()) {
+                log.warn("{} poppyAcceptPartialRestore refused: local data is incomplete, but not from a "
+                        + "failed dump restore (the store was emptied for a sync, or the restore threw) - "
+                        + "wait for the sync, or restart the node", myAddress);
+                return false;
+            }
+            liftPartialRestoreGuard(reason);
+            return true;
+        } finally {
+            stateLock.unlock();
+        }
+    }
+
+    /**
+     * The automatic acceptance rule (#391), evaluated under the state lock whenever a probe
+     * answer arrives. Lifts this node's guard when ALL of the following hold, and fails closed
+     * on anything unknown:
+     * <ul>
+     *   <li>this node holds back for a failed restore (incomplete with a non-empty failed-file
+     *       set - "incomplete for an unknown reason" never resolves automatically);</li>
+     *   <li>neither this node nor any peer knows a working leader (with a leader the existing
+     *       sync path releases the guard, and lifting would only create a second primary);</li>
+     *   <li>EVERY peer - not a majority - answered the current probe round: a peer that did not
+     *       answer (down, unreachable, or an older version that does not know the probe) is
+     *       unknown and may well hold the file;</li>
+     *   <li>every peer reports incomplete data with EXACTLY the same failed-file set: a complete
+     *       peer, or one that lost a different set, has more than we do, and the plain #306
+     *       guard stays right (that peer wins, we sync from it);</li>
+     *   <li>this node has the highest priority among them (ties broken by the lower address),
+     *       so exactly one node lifts its guard and the others sync from it.</li>
+     * </ul>
+     */
+    private void tryAcceptPartialRestore() {
+        if (dataComplete || failedRestoreFiles.isEmpty() || peerAddresses.isEmpty()) {
+            return;
+        }
+        if (state == ElectionState.LEADER || heardFromLeaderRecently()) {
+            return;
+        }
+        Set<String> mine = new TreeSet<>(failedRestoreFiles);
+        int myPriority = config.getElectionPriority();
+        for (String peer : peerAddresses) {
+            RestoreStatus status = peerRestoreStatus.get(peer);
+            if (status == null) {
+                log.debug("{} partial-restore acceptance: no answer from {} yet", myAddress, peer);
+                return;
+            }
+            if (status.isDataComplete()) {
+                log.debug("{} partial-restore acceptance: {} holds a complete copy - keeping the guard", myAddress, peer);
+                return;
+            }
+            if (status.isLeaderKnown()) {
+                log.debug("{} partial-restore acceptance: {} knows a leader - keeping the guard", myAddress, peer);
+                return;
+            }
+            if (!mine.equals(new TreeSet<>(status.getFailedFiles()))) {
+                log.debug("{} partial-restore acceptance: {} lost {} instead of {} - keeping the guard",
+                        myAddress, peer, status.getFailedFiles(), mine);
+                return;
+            }
+            if (status.getPriority() > myPriority
+                    || (status.getPriority() == myPriority && peer.compareTo(myAddress) < 0)) {
+                log.debug("{} partial-restore acceptance: {} (priority {}) ranks above us (priority {}) - "
+                        + "it lifts its guard, we sync from it", myAddress, peer, status.getPriority(), myPriority);
+                return;
+            }
+        }
+        liftPartialRestoreGuard("no peer holds a complete copy of " + mine + " - every one of "
+                + peerAddresses + " reports the same failed dump files, none knows a leader, and this "
+                + "node has the highest priority (" + myPriority + ") among them");
+    }
+
+    /** Called under the state lock. */
+    private void liftPartialRestoreGuard(String reason) {
+        List<String> files = failedRestoreFiles;
+        log.warn("{} LIFTING the partial-restore candidacy guard: {}. This node may now become primary "
+                + "WITH its incomplete data (failed dump files: {}); the other nodes will take its state "
+                + "through their initial sync. Recover the missing databases from a backup if one exists.",
+                myAddress, reason, files);
+        partialRestoreAccepted = true;
+        setDataComplete(true);
+        peerRestoreStatus.clear();
+        if (onPartialRestoreAccepted != null) {
+            dispatchCallback(() -> onPartialRestoreAccepted.accept(files), "partial restore accepted");
+        }
+    }
+
+    /** One probe round: forget the previous answers, ask every peer. Called under the state lock. */
+    private void probePeerRestoreStatus() {
+        peerRestoreStatus.clear();
+        if (sendRestoreStatusProbe == null) {
+            return;
+        }
+        for (String peer : peerAddresses) {
+            try {
+                sendRestoreStatusProbe.accept(peer);
+            } catch (Exception e) {
+                log.debug("{} failed to send restore status probe to {}: {}", myAddress, peer, e.getMessage());
+            }
+        }
+    }
+
+    /** The throttled hold-back WARN: names the failed files (part 3 of #391), once a minute. */
+    private void logPartialRestoreHold() {
+        long now = System.currentTimeMillis();
+        if (now - partialHoldLoggedAt >= PARTIAL_HOLD_RELOG_MS) {
+            partialHoldLoggedAt = now;
+            log.warn("{} holding back candidacy: local data is incomplete (partial restore, failed dump "
+                    + "files: {}) - waiting for an authoritative sync before taking part in elections. "
+                    + "Lifts by itself once every peer reports the same failed files and no leader "
+                    + "exists, or by hand with poppyAcceptPartialRestore on the node that should lead "
+                    + "(repeated at most once a minute)", myAddress, failedRestoreFiles);
+        } else {
+            log.debug("{} holding back candidacy: local data is incomplete (failed dump files: {})",
+                    myAddress, failedRestoreFiles);
+        }
     }
 
     /**
@@ -2243,6 +2476,9 @@ public class ElectionManager {
         stats.put("preVoteInProgress", preVoteInProgress);
         stats.put("statePersistenceEnabled", isPersistenceEnabled());
         stats.put("stateFileUnreadable", stateFileUnreadable);
+        stats.put("dataComplete", dataComplete);
+        stats.put("failedRestoreFiles", failedRestoreFiles);
+        stats.put("partialRestoreAccepted", partialRestoreAccepted);
         if (state == ElectionState.LEADER) {
             stats.put("leaseExpiryMs", Math.max(0, leaseExpiryTime - System.currentTimeMillis()));
             stats.put("leaderSinceMs", System.currentTimeMillis() - leaderSince);

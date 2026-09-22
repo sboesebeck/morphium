@@ -114,6 +114,10 @@ public class PoppyDB {
     // (#306 review, P1-2). Kept as a field because the restore runs before the election manager
     // exists, and applied to it as soon as it does.
     private volatile boolean localDataComplete = true;
+    // The dump files the startup restore could not read (#391) - the reason behind a false
+    // localDataComplete when it comes from a restore. Handed to the ElectionManager for the
+    // cluster-wide acceptance; cleared once a sync (or an emptied store) has made it obsolete.
+    private volatile List<String> failedRestoreFiles = List.of();
     /**
      * True from the moment a sync empties the local store until a sync completes (#352).
      *
@@ -927,6 +931,10 @@ public class PoppyDB {
             // node reports index 0 and the index-based restraint cannot separate an intact node
             // from a gutted one. It would then overwrite the intact peers via their initial sync.
             electionManager.setDataComplete(localDataComplete);
+            // #391: the restore finding behind that flag, and the way back when the manager
+            // lifts the guard because no peer holds a better copy (or an operator says so)
+            electionManager.setFailedRestoreFiles(failedRestoreFiles);
+            electionManager.setOnPartialRestoreAccepted(this::onPartialRestoreAccepted);
             electionManager.setOnLeadershipChange(this::onLeadershipChange);
             electionManager.setOnLeaderDiscovered(this::onLeaderDiscovered);
 
@@ -2085,11 +2093,12 @@ public class PoppyDB {
 
         // A node whose data is not authoritative should not persist it either - but only while
         // something is coming that will make it authoritative again. `localDataComplete` returns
-        // to true in exactly one place, releaseDataCompleteAfterSync(), which fires from a
-        // ReplicationManager's initial-sync completion. A standalone node or a static-mode primary
-        // has no manager and will never get that, so refusing there would disable its persistence
-        // for the life of the process - every write after a failed restore would exist only in
-        // memory and die with it. That is worse than the empty dump this guard prevents.
+        // to true in releaseDataCompleteAfterSync(), which fires from a ReplicationManager's
+        // initial-sync completion (and in onPartialRestoreAccepted, #391). A standalone node or
+        // a static-mode primary has no manager and will never get that, so refusing there would
+        // disable its persistence for the life of the process - every write after a failed
+        // restore would exist only in memory and die with it. That is worse than the empty dump
+        // this guard prevents.
         if (!localDataComplete && hasReplicationManager()) {
             return "this node's local data is not authoritative yet";
         }
@@ -2325,9 +2334,13 @@ public class PoppyDB {
         // empty-node-wipe the guard exists to close. Only ever degrades: a complete restore
         // must not re-set true here, that could lift a guard some other code path dropped.
         if (!result.isComplete()) {
-            log.warn("Partial restore ({}/{} databases) - this node will not stand for election "
-                    + "until an authoritative sync has completed",
-                    result.getRestored(), result.getTotal());
+            log.warn("Partial restore ({}/{} databases, failed dump files: {}) - this node will not stand "
+                    + "for election until an authoritative sync has completed",
+                    result.getRestored(), result.getTotal(), result.getFailedFiles());
+            failedRestoreFiles = List.copyOf(result.getFailedFiles());
+            if (electionManager != null) {
+                electionManager.setFailedRestoreFiles(failedRestoreFiles);
+            }
             setLocalDataComplete(false);
         }
 
@@ -2374,6 +2387,25 @@ public class PoppyDB {
     }
 
     /**
+     * The ElectionManager lifted the partial-restore guard (#391): every peer lost the same
+     * dump files and no leader exists, or an operator ran {@code poppyAcceptPartialRestore}.
+     * The incomplete data is authoritative from here on - the peers sync from this node.
+     */
+    private void onPartialRestoreAccepted(List<String> files) {
+        log.warn("Partial restore accepted - the local data (missing {}) is treated as authoritative, "
+                + "this node may become primary", files);
+        localDataComplete = true;
+    }
+
+    /** The restore finding is obsolete once a sync has replaced (or emptied) the local store. */
+    private void clearFailedRestoreFiles() {
+        failedRestoreFiles = List.of();
+        if (electionManager != null) {
+            electionManager.setFailedRestoreFiles(List.of());
+        }
+    }
+
+    /**
      * ReplicationManager's initial-sync-completion hook (#306 review, P1-2): an authoritative
      * copy from the primary has fully replaced whatever the local restore produced - snapshot
      * AND the backlog buffered during it (the hook only fires once both are done, see
@@ -2408,6 +2440,7 @@ public class PoppyDB {
                     + "this node may stand for election");
             setLocalDataComplete(true);
         }
+        clearFailedRestoreFiles();
     }
 
     /**
@@ -2439,6 +2472,9 @@ public class PoppyDB {
 
         localDataClearedForSync = true;
         setLocalDataComplete(false);
+        // An emptied store is not "missing these files" any more - and must never be promoted
+        // by the #391 acceptance (which requires a failed-file set) if the primary dies mid-sync.
+        clearFailedRestoreFiles();
 
         // #380: the third consequence - the client change streams this node still holds. The
         // wipe that follows is invisible to them (it runs with change stream events suppressed),
