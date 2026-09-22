@@ -52,7 +52,7 @@ public class ReplSetGetStatusDownPeerTest {
     private void startServer(PoppyDB srv, int port) throws Exception {
         nodes.add(srv);
         srv.start();
-        long deadline = System.currentTimeMillis() + 10_000;
+        long deadline = System.currentTimeMillis() + 20_000;
         while (true) {
             try (Socket s = new Socket()) {
                 s.connect(new InetSocketAddress("localhost", port), 250);
@@ -67,7 +67,9 @@ public class ReplSetGetStatusDownPeerTest {
     }
 
     private void waitForPrimary(PoppyDB node) throws Exception {
-        long deadline = System.currentTimeMillis() + 15_000;
+        // Generous: the poppydb module stage runs alongside the gate and the five phases, so
+        // election and startup are slow under load (the sibling election tests poll 30s too).
+        long deadline = System.currentTimeMillis() + 30_000;
         while (!node.isPrimary() && System.currentTimeMillis() < deadline) {
             Thread.sleep(50);
         }
