@@ -14,6 +14,9 @@ The pinned `com.ongres.scram:client:2.1` compared client proofs and server signa
 
 ### Fixed
 
+#### InMemoryDriver: a remove findAndModify that matches nothing answers {value: null} (#398)
+`runCommand(FindAndModifyMongoCommand)` called `list.get(0)` on the result of its own find without checking whether there was a result, so `remove: true` on a query that matched nothing threw `IndexOutOfBoundsException` where mongod answers `{value: null, ok: 1}`. The update path already returned null for the no-match case; only the remove branch was missing the check. Lock and queue implementations that acquire optimistically and poll-release hit exactly this "nothing to remove" path.
+
 #### PoppyDB: the ReplicationManager's retry budget is set on the driver it actually uses
 The manager configured 3 retries and 500 ms between them on `connectionSettings()` for its connection to the primary and ran with the driver's own 5 and 100 ms: those two connection settings are read by the ChangeStreamMonitor (the pause before re-registering after a history-lost answer) and the SequenceGenerator, and are never copied onto the driver - the driver has its own pair with its own defaults, as `docs/configuration-reference.md` lists them. So every read the manager sent to a source that had already answered "not primary" was retried five times at the #393 pace ("retry 5/5" in the #364 logs). The budget is now set on the driver itself. The two-layer setting is left as it is for 6.3: copying the config values onto the driver would change the retry behaviour of every client in one direction or the other (the wiring was tried and reverted after `ChangeStreamMonitorHistoryLostBackoffTest` went from 5 to 46 registrations in 5 s), a cleanup for a major release.
 

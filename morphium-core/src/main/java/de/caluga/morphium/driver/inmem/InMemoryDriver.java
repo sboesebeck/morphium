@@ -4764,6 +4764,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         if (cmd.isRemove()) {
             var list = find(cmd.getDb(), cmd.getColl(), cmd.getQuery(), cmd.getSort(), null, 0, 1);
+
+            if (list.isEmpty()) {
+                // mongod answers {value: null, ok: 1} when a remove findAndModify matches nothing;
+                // previously this called list.get(0) and threw IndexOutOfBoundsException (#398).
+                addResult(ret, prepareResult(Doc.of("value", null)));
+                return ret;
+            }
+
             var res = delete (cmd.getDb(), cmd.getColl(), Doc.of("_id", list.get(0).get("_id")), null, false, null,
                               null);
             Map<String, Object> valueDoc = Doc.of("value", list.get(0));
