@@ -34,8 +34,8 @@ cfg.connectionSettings()
 | `setMaxConnections(int)` | 250 | Maximum connections |
 | `setMaxWaitTime(int)` | 2000 | Max wait time for connection from pool (ms) |
 | `setHeartbeatFrequency(int)` | 1000 | Heartbeat frequency in milliseconds |
-| `setRetriesOnNetworkError(int)` | 5 | Number of retries on network error |
-| `setSleepBetweenNetworkErrorRetries(int)` | 100 | Sleep between network error retries (ms) |
+| `setRetriesOnNetworkError(int)` | 1 | Number of retries on network error |
+| `setSleepBetweenNetworkErrorRetries(int)` | 1000 | Sleep between network error retries (ms) |
 | `setUseSSL(boolean)` | false | Enable SSL/TLS connections |
 | `setSslContext(SSLContext)` | null | Custom SSL context |
 | `setSslInvalidHostNameAllowed(boolean)` | false | Allow invalid host names (self-signed certs) |

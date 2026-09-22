@@ -289,6 +289,12 @@ public class ReplicationManager {
         return inFlightSyncConnection;
     }
 
+    /** The driver this manager reads the primary through, null before {@link #start()} connected. */
+    MorphiumDriver primaryDriverForTest() {
+        Morphium pm = primaryMorphium;
+        return pm == null ? null : pm.getDriver();
+    }
+
     private void awaitSyncReadPauseIfArmed() {
         AtomicBoolean hold = testSyncReadHold;
 
@@ -1443,6 +1449,12 @@ public class ReplicationManager {
 
             primaryMorphium = new Morphium(config);
             primaryMorphium.getDriver();  // Force connection
+            // The connectionSettings pair above feeds the ChangeStreamMonitor and the
+            // SequenceGenerator, not the driver - the driver has its own (5 retries, 100 ms).
+            // The reads this manager sends (initial sync, index sync, watch registration) are
+            // retried by the driver on a not-primary answer (#393); against a source that has
+            // stepped down that is wasted work, so the budget is set where it counts (#364).
+            primaryMorphium.getDriver().setRetriesOnNetworkError(3).setSleepBetweenErrorRetries(500);
 
             connected.set(true);
             log.info("Connected to primary with enhanced connection pool");

@@ -414,8 +414,6 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         morphiumDriver.setMaxConnectionIdleTime(getConfig().driverSettings().getMaxConnectionIdleTime());
         morphiumDriver.setMaxConnectionLifetime(getConfig().driverSettings().getMaxConnectionLifeTime());
         morphiumDriver.setMaxWaitTime(getConfig().connectionSettings().getMaxWaitTime());
-        morphiumDriver.setRetriesOnNetworkError(getConfig().connectionSettings().getRetriesOnNetworkError());
-        morphiumDriver.setSleepBetweenErrorRetries(getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries());
         morphiumDriver.setIdleSleepTime(getConfig().driverSettings().getIdleSleepTime());
         morphiumDriver.setCompression(getConfig().driverSettings().getCompressionType().getCode());
         morphiumDriver.setDefaultBatchSize(getConfig().driverSettings().getCursorBatchSize());

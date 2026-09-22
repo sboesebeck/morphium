@@ -17,10 +17,8 @@ public class ConnectionSettings extends Settings {
     private int maxConnections = 250;
     private int minConnections = 1;
     private String database;
-    // The driver's own defaults (DriverBase): until 6.3.12 Morphium never copied these two onto
-    // the driver, so 5 and 100 ms is what every client effectively ran with.
-    private int retriesOnNetworkError = 5;
-    private int sleepBetweenNetworkErrorRetries = 100;
+    private int retriesOnNetworkError = 1;
+    private int sleepBetweenNetworkErrorRetries = 1000;
     private boolean useSSL = false;
     @Transient
     private SSLContext sslContext;

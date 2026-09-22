@@ -6285,26 +6285,19 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return 6666;
     }
 
-    // Nothing in memory ever retries on a network error; the values are kept anyway so the
-    // driver reports what Morphium configured it with, like every other driver.
-    private int retriesOnNetworkError = 1;
-    private int sleepBetweenErrorRetries = 100;
-
     public int getRetriesOnNetworkError() {
-        return retriesOnNetworkError;
+        return 1;
     }
 
     public MorphiumDriver setRetriesOnNetworkError(int r) {
-        retriesOnNetworkError = r;
         return this;
     }
 
     public int getSleepBetweenErrorRetries() {
-        return sleepBetweenErrorRetries;
+        return 100;
     }
 
     public MorphiumDriver setSleepBetweenErrorRetries(int s) {
-        sleepBetweenErrorRetries = s;
         return this;
     }
 
