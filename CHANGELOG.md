@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+#### Morphium: a failed `new Morphium(config)` releases its driver instead of leaking its heartbeat and pool threads (IM-951)
+`PooledDriver.connect()` starts the heartbeat and the connection waiter before it waits for primary discovery, and when that wait times out it throws "No primary node found". The threads it started are non-daemon and nothing stopped them. That alone would be survivable - `close()` tears them down - but the throw came out of the `Morphium` constructor, so the caller never received the instance it would have to close, and the driver (plus its 1 `ConnectionWaiter` and up to 5 `MCon-` threads) was unreachable and ran for the life of the JVM. A service restarting against a bus outage (the IM-931 retry loop) leaked another ~6 threads per attempt, without bound: ~360 over the 90 minutes of the 2026-09-08 outage, ~1900 over eight hours. `setConfig()` now runs the normal close path when driver setup/connect/post-connect initialization fails after the driver exists, so a failed construction releases it. The driver teardown was split into `Morphium.releaseDriver()` so the retry-loop cleanup honors the shared-driver reference counts - a driver shared with other live `Morphium` instances (`sharedConnectionPool`, `inMemorySharedDatabases`) is only closed by the last instance to let go, not torn out from under them. Deliberately NOT changed: `PooledDriver.connect()` still leaves a failed driver alive rather than closing it itself. A driver whose `connect()` timed out is expected to keep probing and to recover once a primary appears - that is the #304 contract `PooledDriverHeartbeatResilienceTest` pins down - so the leak is fixed at the ownership boundary (the constructor that abandons the driver), not by changing `connect()`'s semantics. The read path's second "no primary" throw site (`selectPrimaryConnection`) runs on a live driver whose caller holds the reference and can close it, so it needs no cleanup.
+
 
 ## [6.3.12] - 2026-09-22
 
