@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+#### Documented: `useBsonDateForJavaTime` does not reach maps you build yourself
+The flag works through the `java.time` custom mappers, so it covers `store()`, filters built with `query.f(...)` and the update APIs, but not a query or update map handed to the driver as-is. `BsonEncoder` writes `java.time` values in such maps in the legacy format regardless of the flag, which affects raw driver commands (`FindAndModifyMongoCommand#setQuery`/`#setUpdate`), the update map of `Query#findOneAndUpdate(...)` and `Query#rawQuery(Map)`. A `$lt`/`$lte` there compares a sub-document and misses fields written as native dates. The `ObjectMappingSettings#isUseBsonDateForJavaTime` javadoc, `docs/configuration-reference.md` and the Quarkus configuration docs now name these paths and the supported way around them: put a `java.util.Date` into the map, which the encoder always writes as a native BSON Date and every `java.time` mapper reads back. No code change.
+
 ### Fixed
 
 #### `morphium-jakarta-data`: derived queries (`findBy...`/`countBy...`/`existsBy...`/`deleteBy...`) map comparison-operator arguments through custom type mappers, same as `@Query`(JDQL) methods and the type-safe `Query<T>` API

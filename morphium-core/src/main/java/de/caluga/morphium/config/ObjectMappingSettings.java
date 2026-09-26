@@ -144,12 +144,28 @@ public class ObjectMappingSettings extends Settings {
      * {@code query.f("field").eq(...)} -- see {@code MongoFieldImpl#checkValue}. The update APIs
      * ({@code set()}, {@code push()}, {@code addToSet()} and friends) route through
      * {@code MorphiumWriterImpl#marshallIfNecessary}, which consults the custom mappers with the
-     * same shape store() uses, so they follow this flag as well (#335). NOT covered:
+     * same shape store() uses, so they follow this flag as well (#335).
+     * <p>
+     * <b>NOT covered: any {@code Map}/{@code Doc} you build yourself.</b> Such a map reaches
+     * {@code de.caluga.morphium.driver.bson.BsonEncoder} without passing a custom mapper, and
+     * that low-level encoder writes {@code java.time} values in the legacy format regardless of
+     * this setting ({@code Instant} and {@code LocalDateTime} as sub-documents,
+     * {@code LocalDate}/{@code LocalTime} as longs). This includes:
      * <ul>
-     *   <li>raw {@code Doc.of("field", someLocalDateTime)} calls that go directly through
-     *       {@code de.caluga.morphium.driver.bson.BsonEncoder}; that low-level encoder writes
-     *       the legacy format regardless of this setting.</li>
+     *   <li>the query and update maps of driver commands used directly, e.g.
+     *       {@code FindAndModifyMongoCommand#setQuery}/{@code #setUpdate};</li>
+     *   <li>the update map of {@code Query#findOneAndUpdate(Map)} and
+     *       {@code Query#findOneAndUpdate(Map, boolean, boolean)} -- only the filter built via
+     *       {@code f(...)} is mapped, the update map is passed through as given;</li>
+     *   <li>a filter set via {@code Query#rawQuery(Map)}, which {@code toQueryObject()} returns
+     *       unchanged.</li>
      * </ul>
+     * A {@code $lt}/{@code $lte} on such a value compares a sub-document, not a date, and does
+     * not match fields written as native dates. To get a native BSON Date into a map you build
+     * yourself, pass a {@link java.util.Date} (e.g. {@code Date.from(instant)}): the encoder
+     * always writes {@code Date} as BSON type {@code 0x09}, and every {@code java.time} mapper
+     * reads a {@code Date} back. {@code getMapper().marshallIfCustomMapped(value)} also works,
+     * but follows this flag, so the map changes shape again if the flag is turned off.
      */
     public boolean isUseBsonDateForJavaTime() {
         return useBsonDateForJavaTime;
