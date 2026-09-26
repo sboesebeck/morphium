@@ -2534,7 +2534,7 @@ property — but covers the most commonly used ones, each verified directly agai
 <tr>
 <td><code>quarkus.morphium.use-bson-date-for-java-time</code></td>
 <td>--</td>
-<td>Store <code>Instant</code>, <code>LocalDate</code>, <code>LocalTime</code> and <code>LocalDateTime</code> as BSON <code>ISODate</code>. Unset leaves the previous per-type behaviour untouched</td>
+<td>Store <code>Instant</code>, <code>LocalDate</code>, <code>LocalTime</code> and <code>LocalDateTime</code> as BSON <code>ISODate</code>. Unset leaves the previous per-type behaviour untouched. Mapper path only: maps you build yourself (raw driver commands, the update map of <code>findOneAndUpdate</code>) need <code>java.util.Date</code>, see <a href="../configuration-reference/#usebsondateforjavatime-where-it-applies">configuration reference</a></td>
 <td><code>MorphiumRuntimeConfig.java</code></td>
 </tr>
 <tr>
