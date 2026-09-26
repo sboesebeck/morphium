@@ -141,7 +141,7 @@ public final class QueryExecutor {
             uniqueFields.add(mongoField);
             uniqueFields.addAll(aliases);
             for (String f : uniqueFields) {
-                aliasBranches.add(buildRawCondition(f, cond, args));
+                aliasBranches.add(buildRawCondition(f, cond, args, morphium));
             }
             FilterExpression fe = new FilterExpression();
             fe.setField(isNegatingOperator(cond.operator()) ? "$and" : "$or");
@@ -151,7 +151,7 @@ public final class QueryExecutor {
             // No aliases — build raw condition and add as FilterExpression.
             // Uses the same buildRawCondition() as the alias path, keeping
             // operator handling in a single place.
-            addRawConditionToQuery(query, buildRawCondition(mongoField, cond, args));
+            addRawConditionToQuery(query, buildRawCondition(mongoField, cond, args, morphium));
         }
     }
 
@@ -217,26 +217,42 @@ public final class QueryExecutor {
      * IS_TRUE, IS_FALSE) are null-safe. String-based operators (LIKE, STARTS_WITH,
      * ENDS_WITH, MATCHES, IGNORE_CASE) call {@code toString()} on the argument and
      * will throw {@link NullPointerException} if the argument is null.
+     * <p>
+     * <b>Comparison-operator arguments are run through {@link Morphium#getMapper()}'s
+     * {@code marshallIfCustomMapped(Object)}</b> before they reach the filter map,
+     * mirroring what {@link de.caluga.morphium.query.MongoFieldImpl#checkValue} does for
+     * the {@code query.f(...)} API. Without this, a comparison against a field of a
+     * custom-mapped type (e.g. {@code Instant} with {@code useBsonDateForJavaTime}
+     * enabled) built the way {@code @Query}(JDQL) methods do — via {@code f(...)}, see
+     * {@link JdqlMethodBridge#applyCondition} — matched correctly, while the equivalent
+     * derived method ({@code findBy}/{@code countBy}/{@code existsBy}/{@code deleteBy})
+     * silently returned zero matches: the argument reached {@code BsonEncoder} unmapped
+     * and was encoded in Morphium's legacy per-type format regardless of the flag, a
+     * different BSON type than the native date the flag wrote to disk. {@code IN}/{@code
+     * NIN} map every element individually, since {@code marshallIfCustomMapped} only
+     * matches a value whose own class is registered as a custom mapper — a
+     * {@code Collection} itself never is.
      */
     private static Map<String, Object> buildRawCondition(String fieldName,
                                                           Condition cond,
-                                                          Object[] args) {
+                                                          Object[] args,
+                                                          Morphium morphium) {
         Map<String, Object> result = new LinkedHashMap<>();
         switch (cond.operator()) {
-            case EQ -> result.put(fieldName, args[cond.paramIndex()]);
-            case NE -> result.put(fieldName, nullSafeOp("$ne", args[cond.paramIndex()]));
-            case GT -> result.put(fieldName, nullSafeOp("$gt", args[cond.paramIndex()]));
-            case GTE -> result.put(fieldName, nullSafeOp("$gte", args[cond.paramIndex()]));
-            case LT -> result.put(fieldName, nullSafeOp("$lt", args[cond.paramIndex()]));
-            case LTE -> result.put(fieldName, nullSafeOp("$lte", args[cond.paramIndex()]));
+            case EQ -> result.put(fieldName, mapValue(morphium, args[cond.paramIndex()]));
+            case NE -> result.put(fieldName, nullSafeOp("$ne", mapValue(morphium, args[cond.paramIndex()])));
+            case GT -> result.put(fieldName, nullSafeOp("$gt", mapValue(morphium, args[cond.paramIndex()])));
+            case GTE -> result.put(fieldName, nullSafeOp("$gte", mapValue(morphium, args[cond.paramIndex()])));
+            case LT -> result.put(fieldName, nullSafeOp("$lt", mapValue(morphium, args[cond.paramIndex()])));
+            case LTE -> result.put(fieldName, nullSafeOp("$lte", mapValue(morphium, args[cond.paramIndex()])));
             case BETWEEN -> {
                 Map<String, Object> range = new LinkedHashMap<>();
-                range.put("$gte", args[cond.paramIndex()]);
-                range.put("$lte", args[cond.paramIndex2()]);
+                range.put("$gte", mapValue(morphium, args[cond.paramIndex()]));
+                range.put("$lte", mapValue(morphium, args[cond.paramIndex2()]));
                 result.put(fieldName, range);
             }
-            case IN -> result.put(fieldName, nullSafeOp("$in", args[cond.paramIndex()]));
-            case NIN -> result.put(fieldName, nullSafeOp("$nin", args[cond.paramIndex()]));
+            case IN -> result.put(fieldName, nullSafeOp("$in", mapCollection(morphium, args[cond.paramIndex()])));
+            case NIN -> result.put(fieldName, nullSafeOp("$nin", mapCollection(morphium, args[cond.paramIndex()])));
             case LIKE -> {
                 String regex = likeToRegex(args[cond.paramIndex()].toString());
                 result.put(fieldName, Map.of("$regex", regex));
@@ -271,6 +287,37 @@ public final class QueryExecutor {
         Map<String, Object> map = new LinkedHashMap<>(1);
         map.put(op, value);
         return map;
+    }
+
+    /**
+     * Routes a comparison-operator argument through {@code Morphium#getMapper()}'s
+     * {@code marshallIfCustomMapped(Object)}, so a value of a custom-mapped type (e.g.
+     * {@code Instant}) is stored in the same on-disk shape a {@code query.f(...)} filter
+     * or {@code store()} would use. {@code null} is passed through unchanged, matching
+     * {@code marshallIfCustomMapped}'s own null handling and every operator's null-safety
+     * contract above.
+     */
+    private static Object mapValue(Morphium morphium, Object value) {
+        return morphium.getMapper().marshallIfCustomMapped(value);
+    }
+
+    /**
+     * Same mapping as {@link #mapValue}, applied to every element of an {@code IN}/{@code
+     * NIN} argument individually. {@code marshallIfCustomMapped} only matches a value
+     * whose own runtime class is registered as a custom mapper — a {@code Collection}
+     * itself never is, so mapping the collection as a whole would be a no-op and leave
+     * every element unmapped.
+     */
+    @SuppressWarnings("unchecked")
+    private static Object mapCollection(Morphium morphium, Object value) {
+        if (!(value instanceof Collection<?> collection)) {
+            return value;
+        }
+        List<Object> mapped = new ArrayList<>(collection.size());
+        for (Object element : collection) {
+            mapped.add(mapValue(morphium, element));
+        }
+        return mapped;
     }
 
     /**
