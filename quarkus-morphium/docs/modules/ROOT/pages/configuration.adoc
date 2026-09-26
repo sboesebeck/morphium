@@ -91,7 +91,7 @@ All configuration properties live under the `quarkus.morphium.*` prefix in
 
 | `quarkus.morphium.use-bson-date-for-java-time`
 | –
-| Store `Instant`, `LocalDate`, `LocalTime` and `LocalDateTime` as BSON `ISODate`. Left unset, the extension keeps its previous per-type behaviour. Setting it to `false` is not "keep things as they are": `LocalDateTime` defaults to `ISODate` today via the deprecated property below, so `false` here flips it to the legacy Map format.
+| Store `Instant`, `LocalDate`, `LocalTime` and `LocalDateTime` as BSON `ISODate`. Left unset, the extension keeps its previous per-type behaviour. Setting it to `false` is not "keep things as they are": `LocalDateTime` defaults to `ISODate` today via the deprecated property below, so `false` here flips it to the legacy Map format. The flag reaches values that pass through the object mapper (entities, `query.f(...)` filters, `set()`/`push()`). Maps you build yourself, such as raw driver command maps or the update map of `Query#findOneAndUpdate`, bypass it: `BsonEncoder` writes `java.time` values there in the legacy format. Use `java.util.Date` (e.g. `Date.from(instant)`) in such maps to get a native date.
 
 | `quarkus.morphium.local-date-time.use-bson-date`
 | `true`

@@ -240,6 +240,41 @@ cfg.objectMappingSettings()
 | `setObjectSerializationEnabled(boolean)` | true | Enable object serialization |
 | `setCamelCaseConversionEnabled(boolean)` | true | Convert camelCase to snake_case in MongoDB |
 | `setWarnOnNoEntitySerialization(boolean)` | false | Warn if no entity serialization is available |
+| `setUseBsonDateForJavaTime(boolean)` | false | Store `Instant`, `LocalDate`, `LocalTime` and `LocalDateTime` as native BSON Date instead of Morphium's legacy formats. Mapper path only, see below |
+
+### `useBsonDateForJavaTime`: where it applies
+
+The flag is evaluated by the `java.time` custom mappers, so it applies wherever a value passes
+through the object mapper:
+
+- entity persistence (`store()`),
+- filters built with the type-safe query API (`query.f("field").lt(instant)`),
+- the update APIs (`set()`, `push()`, `addToSet()` and friends).
+
+It does **not** apply to maps you build yourself. Those reach `BsonEncoder` without passing a
+mapper, and the encoder writes `java.time` values in the legacy format regardless of the flag
+(`Instant` and `LocalDateTime` as sub-documents, `LocalDate`/`LocalTime` as longs). This affects:
+
+- query and update maps passed to driver commands directly, e.g.
+  `FindAndModifyMongoCommand#setQuery` / `#setUpdate`,
+- the update map of `Query#findOneAndUpdate(Map)` and
+  `Query#findOneAndUpdate(Map, boolean, boolean)` (the filter built via `f(...)` is mapped, the
+  update map is not),
+- a filter set via `Query#rawQuery(Map)`.
+
+A `$lt`/`$lte` against such a value compares a sub-document, not a date, and does not match
+fields written as native dates. Put a `java.util.Date` into the map instead:
+
+```java
+var now = Instant.now();
+var query = Map.<String, Object>of("expiresAt", Map.of("$lte", Date.from(now)));
+var update = Map.<String, Object>of("$set", Map.of("expiresAt", Date.from(now.plus(leaseDuration))));
+```
+
+`BsonEncoder` always writes a `Date` as BSON type `0x09`, and every `java.time` mapper reads a
+`Date` back, so the entity field can stay an `Instant`. Precision is milliseconds, the same as
+with the flag. `morphium.getMapper().marshallIfCustomMapped(value)` also produces a `Date`, but
+only while the flag is on; with the flag off it produces the legacy shape again.
 
 ## Error Handling Settings
 
