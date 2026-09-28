@@ -79,9 +79,12 @@ List<Map> topCustomers = agg.aggregate();
 7) Graph lookup (hierarchical relations)
 ```java
 Aggregator<Employee, Map> agg = morphium.createAggregator(Employee.class, Map.class);
+// Finds the boss referenced by the input document's reportsTo field and then the whole
+// reporting line under that boss: connectToField is matched against the current value and
+// traversal recurses through connectFromField, like mongod.
 agg.graphLookup(
   Employee.class,
-  Expr.field("$reportsTo"), // start with
+  Expr.field("reportsTo"), // start with
   "_id",                   // connectFrom
   "reportsTo",             // connectTo
   "hierarchy",             // output array
