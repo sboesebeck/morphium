@@ -79,9 +79,11 @@ List<Map> topCustomers = agg.aggregate();
 7) Graph lookup (hierarchical relations)
 ```java
 Aggregator<Employee, Map> agg = morphium.createAggregator(Employee.class, Map.class);
-// Finds the boss referenced by the input document's reportsTo field and then the whole
-// reporting line under that boss: connectToField is matched against the current value and
-// traversal recurses through connectFromField, like mongod.
+// For each input document, collects everyone who reports - directly or transitively - to the
+// manager referenced by its reportsTo value: documents whose reportsTo matches the current
+// value join the hierarchy (the manager's direct reports at depth 0, their reports at depth 1,
+// ...) and traversal recurses through connectFromField, like mongod. The manager's own
+// document is not part of the result.
 agg.graphLookup(
   Employee.class,
   Expr.field("reportsTo"), // start with
@@ -94,6 +96,14 @@ agg.graphLookup(
 );
 List<Map> hierarchy = agg.aggregate();
 ```
+
+> Note: `graphLookup` takes the field names as raw strings. Morphium stores `reportsTo` as the
+> MongoDB field `reports_to` by default, so the strings above only resolve when you enable
+> `setTranslateAggregationFieldNames(true)` (or pass the stored snake_case names directly -
+> the repo's own tests use `reports_to`). Without translation the example silently matches
+> nothing, so relying on the default config here would be a footgun. Two drivers also differ
+> on whether the input document lands in its own `hierarchy` (the in-memory driver includes
+> it, real MongoDB excludes it), so the content of `hierarchy` is not identical across backends.
 
 8) Faceted search
 ```java
