@@ -2406,6 +2406,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#poppydb-serverstatus-replication-flow-control" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PoppyDB serverStatus: replication flow control
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2853,6 +2864,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#poppydb-serverstatus-replication-flow-control" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PoppyDB serverStatus: replication flow control
+      
+    </span>
+  </a>
   
 </li>
       
@@ -3414,6 +3436,66 @@ dashboards above without touching application code.</p>
 <li><strong>Level 3</strong>: Error rate &gt; 10% - Full system investigation</li>
 </ul>
 <p>This monitoring guide provides comprehensive coverage of Morphium's DriverStats and ensures optimal connection pool performance and early issue detection.</p>
+<h2 id="poppydb-serverstatus-replication-flow-control">PoppyDB serverStatus: replication flow control<a class="headerlink" href="#poppydb-serverstatus-replication-flow-control" title="Permanent link">&para;</a></h2>
+<p>A PoppyDB primary reports its replication flow-control gate (see <code>docs/poppydb.md</code>, "Replication
+flow control") in the <code>poppyFlowControl</code> section of <code>serverStatus</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>enabled</code></td>
+<td>the configured switch (<code>replication-flow-control</code>)</td>
+</tr>
+<tr>
+<td><code>engaged</code></td>
+<td>true while writers are being braked</td>
+</tr>
+<tr>
+<td><code>engagedSinceMs</code></td>
+<td>wall-clock millis of the current engagement, 0 when free</td>
+</tr>
+<tr>
+<td><code>slowestMember</code></td>
+<td>the secondary whose replication-watch queue is fullest</td>
+</tr>
+<tr>
+<td><code>slowestFillPercent</code></td>
+<td>that queue's fill as percent of <code>cursor-queue-budget</code></td>
+</tr>
+<tr>
+<td><code>parkedWrites</code></td>
+<td>writes currently held back</td>
+</tr>
+<tr>
+<td><code>totalParked</code></td>
+<td>writes held back since start</td>
+</tr>
+<tr>
+<td><code>totalWaitMs</code></td>
+<td>summed wait of all released writes</td>
+</tr>
+<tr>
+<td><code>maxWaitMs</code></td>
+<td>longest single wait observed</td>
+</tr>
+<tr>
+<td><code>releasedByTimeout</code></td>
+<td>writes released by <code>replication-flow-control-max-wait</code> instead of by drain</td>
+</tr>
+<tr>
+<td><code>engagements</code></td>
+<td>how often the gate closed since start</td>
+</tr>
+</tbody>
+</table>
+<p>Alert on <code>releasedByTimeout</code> growing (a secondary that does not drain) and on long <code>engaged</code>
+phases (sustained write load above what the slowest secondary applies). A short <code>engaged</code> burst
+during bulk loads is the mechanism working as intended.</p>
 
 
 
