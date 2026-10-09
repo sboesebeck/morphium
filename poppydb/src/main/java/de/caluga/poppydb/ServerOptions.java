@@ -61,6 +61,10 @@ class ServerOptions {
     // frees nothing while a stalled cursor still references it). Overflow kills the cursor,
     // same policy as the count cap; 0 = byte cap off.
     String cursorQueueBudget = "64m";
+    // Global byte budget across ALL live watch cursors' buffered events (addendum to #321). The
+    // per-cursor budget bounds one slow consumer; the fleet total is otherwise unbounded. Same
+    // size syntax; overflow kills the newest offending cursor. 0 = global cap off (default).
+    String globalCursorBudget = "0";
 
     /** canonical config key (see ConfigLoader) -> origin of the effective value. */
     final Map<String, Source> sources = new LinkedHashMap<>();
@@ -152,6 +156,14 @@ class ServerOptions {
      */
     long cursorQueueBudgetBytes() {
         return parseByteSize("cursor-queue-budget", cursorQueueBudget, Runtime.getRuntime().maxMemory());
+    }
+
+    /**
+     * global-cursor-budget resolved to bytes against the current JVM's max heap. Same contract as
+     * {@link #replayBufferBytes()}; {@code 0} disables the global bound.
+     */
+    long globalCursorBudgetBytes() {
+        return parseByteSize("global-cursor-budget", globalCursorBudget, Runtime.getRuntime().maxMemory());
     }
 
     /** Kept as a named entry point for the replay-buffer key (and its existing tests). */

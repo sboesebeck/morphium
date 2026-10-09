@@ -185,6 +185,8 @@ max-bson-size = 16777216
 #dump-interval = 300
 #replay-buffer = 256m
 #event-queue-budget = 256m
+#cursor-queue-budget = 64m
+#global-cursor-budget = 0
 ```
 
 Load it explicitly, or drop it at one of the default search paths:
@@ -405,6 +407,32 @@ watch this before it becomes an incident:
 | `eventQueueSize` / `eventQueueCapacity` | Current depth / configured bound of the secondary's local replication event queue — a queue that is consistently near capacity means the batch processor cannot keep up with incoming events. |
 | `replicationLagEvents` | The primary's sequence at the most recent watch registration minus `lastAppliedSequence` — an approximation of how many events behind the secondary was at reconnect time. |
 | `watchGeneration` | Bumped on every successful watch (re-)registration; a fast-climbing counter indicates a flapping connection. |
+
+### Watch cursor buffering
+
+A watch cursor's queued, undelivered change-stream events are bounded by bytes on two levels,
+because every queued event shares its payload with the replay-buffer entry - evicting from the
+replay buffer frees nothing while a cursor still references the payload:
+
+| Option | Default | Bounds |
+|---|---|---|
+| `--cursor-queue-budget` | `64m` | one watch cursor's buffered, undelivered events |
+| `--global-cursor-budget` | `0` (off) | the fleet total across ALL watch cursors |
+
+`0` disables the bound. On overflow a cursor is killed (the client sees it die and re-establishes
+it) - the same policy as the per-cursor entry cap: in server mode delivery runs on the writer
+thread, so blocking one slow consumer would stall the whole node's write path, and dropping would
+silently lose events. The per-cursor budget kills the cursor whose own queue exceeded it; the
+global budget kills the cursor that currently holds the most buffered bytes, not the one that
+happened to receive the triggering event - the replication watch receives every event and is
+rarely the culprit, while a genuinely slow consumer is the largest holder. The per-cursor budget
+bounds a single slow consumer; the global budget bounds their sum, which the per-cursor bound alone
+cannot. A replication resume whose replay backlog would exceed either bound is answered
+ChangeStreamHistoryLost up front instead of being admitted and then killed mid-replay (see the
+resume-window discussion above). That comparison is deliberately conservative - a live consumer
+can drain while the replay runs, so a backlog that would in practice fit can still trigger a
+re-sync; the node is not electable while it syncs, which is the accepted price of never admitting
+a replay that would livelock instead.
 
 ### Persistence (Periodic Snapshots)
 

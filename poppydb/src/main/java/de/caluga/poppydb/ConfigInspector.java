@@ -62,6 +62,16 @@ class ConfigInspector {
         } catch (IllegalArgumentException e) {
             errors.add(e.getMessage());
         }
+        try {
+            opts.cursorQueueBudgetBytes();
+        } catch (IllegalArgumentException e) {
+            errors.add(e.getMessage());
+        }
+        try {
+            opts.globalCursorBudgetBytes();
+        } catch (IllegalArgumentException e) {
+            errors.add(e.getMessage());
+        }
         if (opts.maxConnections < 1) {
             errors.add("max-connections must be >= 1, got: " + opts.maxConnections);
         }
@@ -231,6 +241,14 @@ class ConfigInspector {
 
         try {
             sb.append("# cursor-queue-budget resolved: ").append(opts.cursorQueueBudgetBytes()).append(" bytes\n");
+        } catch (IllegalArgumentException e) {
+            // invalid value - validate() reports it, nothing to resolve here
+        }
+
+        appendKey(sb, opts, "global-cursor-budget", opts.globalCursorBudget);
+
+        try {
+            sb.append("# global-cursor-budget resolved: ").append(opts.globalCursorBudgetBytes()).append(" bytes\n");
         } catch (IllegalArgumentException e) {
             // invalid value - validate() reports it, nothing to resolve here
         }

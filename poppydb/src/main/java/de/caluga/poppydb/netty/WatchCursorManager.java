@@ -37,6 +37,20 @@ public class WatchCursorManager {
     private volatile long cursorQueueByteBudget = DEFAULT_CURSOR_QUEUE_BYTE_BUDGET;
     static final long DEFAULT_CURSOR_QUEUE_BYTE_BUDGET = 64L * 1024 * 1024;
 
+    // #321-addendum: GLOBAL byte budget across ALL live watch cursors' queued events. The
+    // per-cursor budget bounds any one slow consumer, but with N open cursors the total is
+    // unbounded (124 cursors x per-cursor budget on the acceptance bus's primary). Each queued
+    // event's bytes are shared with the replay buffer, so even replay-buffer eviction frees
+    // nothing while any cursor still references it; the only real bound is a global one. On
+    // overflow the NEWEST offending cursor is killed, the same overflow policy as the per-cursor
+    // budget (slow/absent consumer). 0 disables the global bound (default, opt-in to avoid
+    // changing behaviour for existing deployments).
+    private volatile long globalCursorByteBudget = DEFAULT_GLOBAL_CURSOR_BYTE_BUDGET;
+    static final long DEFAULT_GLOBAL_CURSOR_BYTE_BUDGET = 0L;
+    /** Sum of state.queuedBytes over every live watch cursor - kept exactly in lockstep with it. */
+    private final java.util.concurrent.atomic.AtomicLong totalQueuedBytes =
+        new java.util.concurrent.atomic.AtomicLong(0L);
+
     // #321/#322: injectable count cap - MAX_CURSOR_QUEUE_SIZE stays the default, but tests (and
     // the two-node scenarios of #322) need to shrink it without buffering 10,000 real events.
     private volatile int maxCursorQueueSize = MAX_CURSOR_QUEUE_SIZE;
@@ -52,6 +66,24 @@ public class WatchCursorManager {
 
     public long getCursorQueueByteBudget() {
         return cursorQueueByteBudget;
+    }
+
+    /** Global byte budget across all watch cursors' buffered events; 0 disables the global bound. */
+    public void setGlobalCursorByteBudget(long bytes) {
+        if (bytes < 0) {
+            throw new IllegalArgumentException("globalCursorByteBudget must be >= 0 (0 = disabled)");
+        }
+
+        this.globalCursorByteBudget = bytes;
+    }
+
+    public long getGlobalCursorByteBudget() {
+        return globalCursorByteBudget;
+    }
+
+    /** Estimated bytes buffered across all live watch cursors (diagnostic). */
+    public long getTotalQueuedBytes() {
+        return totalQueuedBytes.get();
     }
 
     /** Count cap for newly created cursors' event queues (existing cursors keep theirs). */
@@ -266,10 +298,29 @@ public class WatchCursorManager {
      * @return the removed state, or null if the cursor was already gone
      */
     private WatchCursorState removeWatchCursor(long cursorId) {
-        WatchCursorState removed = watchCursors.remove(cursorId);
+        WatchCursorState removed = watchCursors.get(cursorId);
 
-        if (removed != null) {
+        if (removed == null) {
+            return null;
+        }
+
+        // Serialize the whole teardown against this cursor's offer/drain accounting: the map
+        // removal, the release of its remaining bytes and the queue clear all happen under the
+        // cursor's own monitor. Offer and drainWatchEvents take the same monitor, so a remove can
+        // never interleave with a drain's subtract or an offer's add for this cursor. Without the
+        // clear, a drain that already held the state reference would poll events the removal has
+        // just released and subtract them a second time - an undercount that loosens the global
+        // cap; without the monitor, the offer/drain/remove interleavings drift the total in both
+        // directions (the acceptance bus performed ~1,000 cursor kills in 10 minutes, each one a
+        // removal racing live writers).
+        synchronized (removed) {
+            if (!watchCursors.remove(cursorId, removed)) {
+                return null; // lost the race to another remover - it owns the teardown
+            }
+
             unregisterMessagingCursor(cursorId, removed.db, removed.collection);
+            totalQueuedBytes.addAndGet(-removed.queuedBytes.getAndSet(0));
+            removed.events.clear();
         }
 
         return removed;
@@ -610,13 +661,22 @@ public class WatchCursorManager {
      */
     private List<Map<String, Object>> drainWatchEvents(WatchCursorState state) {
         List<Map<String, Object>> batch = new ArrayList<>();
-        QueuedEvent qe;
-        int count = 0;
-        while (count < 100 && (qe = state.events.poll()) != null) {
-            state.queuedBytes.addAndGet(-qe.bytes());
-            batch.add(qe.event());
-            count++;
+
+        // Same monitor as offerWatchEvent/removeWatchCursor: a drain and a remove/offer for this
+        // cursor can never interleave, so each subtracted byte was definitely added by a prior
+        // offer and is not also released by a concurrent remove. A drain of an already-removed
+        // cursor finds an emptied queue and subtracts nothing.
+        synchronized (state) {
+            QueuedEvent qe;
+            int count = 0;
+            while (count < 100 && (qe = state.events.poll()) != null) {
+                state.queuedBytes.addAndGet(-qe.bytes());
+                totalQueuedBytes.addAndGet(-qe.bytes());
+                batch.add(qe.event());
+                count++;
+            }
         }
+
         return batch;
     }
 
@@ -763,39 +823,98 @@ public class WatchCursorManager {
         event = withWireClusterTime(event);
         long bytes = InMemoryDriver.estimateBsonSize(event);
         long budget = cursorQueueByteBudget;
+        long globalBudget = globalCursorByteBudget;
 
-        // #321: byte bound on top of the count cap, same estimate the replay-buffer and
-        // replication-queue budgets use. Kill is the only viable overflow policy here: in
-        // server mode delivery runs synchronously on the WRITER thread, so blocking would
-        // stall the whole node's write path for one slow consumer, and dropping would
-        // silently lose events. A single event larger than the whole budget is still
-        // accepted while the queue is empty (newest-event-survives, like the replay buffer) -
-        // killing there would impose a document-size cap MongoDB does not have.
-        // check-then-add, not atomic: racing writers can overshoot by at most one in-flight
+        // #321-addendum: the global byte bound. Kill the cursor that actually holds the most
+        // buffered bytes, not the cursor that happened to receive this event: the replication watch
+        // receives every event and would otherwise be the most likely victim while rarely being the
+        // culprit. The victim selection and its removal happen WITHOUT holding this cursor's monitor
+        // (removeWatchCursor takes only the victim's), so two concurrent offers cannot deadlock.
+        // Trade-off, deliberately accepted: a legitimately large-but-not-slow cursor (e.g. a
+        // catching-up replication watch) can be the one killed when the fleet total is over budget.
+        // The fleet bound itself stays approximate - racing writers can overshoot by one in-flight
         // event each, which is noise against an estimated budget.
-        if (budget > 0 && !state.events.isEmpty() && state.queuedBytes.get() + bytes > budget) {
-            log.warn("Change stream cursor {} exceeded its byte budget ({} bytes buffered + {} incoming > {}) — killing cursor (slow/absent consumer)",
-                    state.cursorId, state.queuedBytes.get(), bytes, budget);
+        if (globalBudget > 0 && !state.events.isEmpty()
+                && totalQueuedBytes.get() + bytes > globalBudget) {
+            WatchCursorState victim = largestQueuedCursor();
+
+            if (victim != null) {
+                log.warn("Total queued change-stream bytes {} + {} exceed the global budget {} - killing the largest holder (cursor {}, {} bytes buffered, fleet-wide slow consumer)",
+                        totalQueuedBytes.get(), bytes, globalBudget, victim.cursorId, victim.queuedBytes.get());
+                WatchCursorState removedVictim = removeWatchCursor(victim.cursorId);
+
+                if (removedVictim != null) {
+                    failPending(removedVictim.pendingGetMores,
+                            "cursor killed: global event buffer budget exceeded (" + globalBudget + " bytes)");
+                }
+
+                if (victim == state) {
+                    return false; // the offering cursor was itself the largest holder - its event is not admitted
+                }
+                // otherwise space was freed; fall through and admit the current event below
+            }
+        }
+
+        synchronized (state) {
+            // A removal can race this offer: if this state is no longer the live cursor for its id,
+            // its bytes were already released by removeWatchCursor - refuse rather than add for a
+            // dead cursor nobody will drain.
+            if (watchCursors.get(state.cursorId) != state) {
+                return false;
+            }
+
+            // #321: byte bound on top of the count cap, same estimate the replay-buffer and
+            // replication-queue budgets use. Kill is the only viable overflow policy here: in
+            // server mode delivery runs synchronously on the WRITER thread, so blocking would
+            // stall the whole node's write path for one slow consumer, and dropping would
+            // silently lose events. A single event larger than the whole budget is still
+            // accepted while the queue is empty (newest-event-survives, like the replay buffer) -
+            // killing there would impose a document-size cap MongoDB does not have.
+            if (budget > 0 && !state.events.isEmpty() && state.queuedBytes.get() + bytes > budget) {
+                log.warn("Change stream cursor {} exceeded its byte budget ({} bytes buffered + {} incoming > {}) - killing cursor (slow/absent consumer)",
+                        state.cursorId, state.queuedBytes.get(), bytes, budget);
+                WatchCursorState removed = removeWatchCursor(state.cursorId);
+                if (removed != null) {
+                    failPending(removed.pendingGetMores,
+                            "cursor killed: event buffer byte budget exceeded (" + budget + " bytes)");
+                }
+                return false;
+            }
+
+            if (state.events.offer(new QueuedEvent(event, bytes))) {
+                state.queuedBytes.addAndGet(bytes);
+                totalQueuedBytes.addAndGet(bytes);
+                return true;
+            }
+            log.warn("Change stream cursor {} exceeded max buffer size {} - killing cursor (slow/absent consumer)",
+                    state.cursorId, maxCursorQueueSize);
             WatchCursorState removed = removeWatchCursor(state.cursorId);
             if (removed != null) {
                 failPending(removed.pendingGetMores,
-                        "cursor killed: event buffer byte budget exceeded (" + budget + " bytes)");
+                        "cursor killed: event buffer overflow (max " + maxCursorQueueSize + " buffered events)");
             }
             return false;
         }
+    }
 
-        if (state.events.offer(new QueuedEvent(event, bytes))) {
-            state.queuedBytes.addAndGet(bytes);
-            return true;
+    /**
+     * The live watch cursor holding the most buffered bytes, or null if none. Read-only snapshot
+     * (each queuedBytes is atomic) for the global budget's eviction choice - deliberately NOT the
+     * cursor that happened to receive the triggering event.
+     */
+    private WatchCursorState largestQueuedCursor() {
+        WatchCursorState worst = null;
+        long worstBytes = -1;
+
+        for (WatchCursorState s : watchCursors.values()) {
+            long b = s.queuedBytes.get();
+            if (b > worstBytes) {
+                worstBytes = b;
+                worst = s;
+            }
         }
-        log.warn("Change stream cursor {} exceeded max buffer size {} — killing cursor (slow/absent consumer)",
-                state.cursorId, maxCursorQueueSize);
-        WatchCursorState removed = removeWatchCursor(state.cursorId);
-        if (removed != null) {
-            failPending(removed.pendingGetMores,
-                    "cursor killed: event buffer overflow (max " + maxCursorQueueSize + " buffered events)");
-        }
-        return false;
+
+        return worst;
     }
 
     /**

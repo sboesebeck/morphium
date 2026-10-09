@@ -247,4 +247,41 @@ public class PoppyDBCLIParseTest {
         ConfigInspector.Result result = ConfigInspector.validate(opts);
         assertThat(result.errors()).anyMatch(e -> e.contains("plenty"));
     }
+
+    // --- global-cursor-budget (fleet-wide cap across all watch cursors) ---
+
+    @Test
+    void globalCursorBudgetDefaultsToZeroOffAndIsParsedFromCli() {
+        ServerOptions defaults = PoppyDBCLI.parse(new String[0], 0);
+        assertThat(defaults.globalCursorBudget).isEqualTo("0");
+        assertThat(defaults.sourceOf("global-cursor-budget")).isEqualTo(ServerOptions.Source.DEFAULT);
+
+        ServerOptions opts = PoppyDBCLI.parse(new String[] {"--global-cursor-budget", "256m"}, 0);
+        assertThat(opts.globalCursorBudget).isEqualTo("256m");
+        assertThat(opts.sourceOf("global-cursor-budget")).isEqualTo(ServerOptions.Source.CLI);
+    }
+
+    @Test
+    void globalCursorBudgetUsesTheSharedSizeParser() {
+        long heap = 1024L * 1024 * 1024; // pretend 1 GB max heap
+        assertThat(ServerOptions.parseByteSize("global-cursor-budget", "256m", heap))
+            .isEqualTo(256L * 1024 * 1024);
+        assertThat(ServerOptions.parseByteSize("global-cursor-budget", "5%", heap)).isEqualTo(heap / 20);
+        assertThat(ServerOptions.parseByteSize("global-cursor-budget", "0", heap)).isZero();
+        assertThatThrownBy(() -> ServerOptions.parseByteSize("global-cursor-budget", "lots", heap))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("global-cursor-budget")
+            .hasMessageContaining("lots");
+    }
+
+    @Test
+    void cursorBudgetsInvalidValuesAreReportedByValidate() {
+        ConfigInspector.Result global = ConfigInspector.validate(
+            PoppyDBCLI.parse(new String[] {"--global-cursor-budget", "plenty"}, 0));
+        assertThat(global.errors()).anyMatch(e -> e.contains("plenty"));
+
+        ConfigInspector.Result perCursor = ConfigInspector.validate(
+            PoppyDBCLI.parse(new String[] {"--cursor-queue-budget", "heaps"}, 0));
+        assertThat(perCursor.errors()).anyMatch(e -> e.contains("heaps"));
+    }
 }

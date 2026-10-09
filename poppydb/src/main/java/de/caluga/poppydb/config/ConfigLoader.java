@@ -82,6 +82,7 @@ public class ConfigLoader {
         define("replay-buffer", Type.STRING, "--replay-buffer");
         define("event-queue-budget", Type.STRING, "--event-queue-budget");
         define("cursor-queue-budget", Type.STRING, "--cursor-queue-budget");
+        define("global-cursor-budget", Type.STRING, "--global-cursor-budget");
         define("compressor", Type.COMPRESSOR, "--compressor");
         define("rs-name", Type.STRING, "--rs-name");
         define("rs-seed", Type.STRING, "--rs-seed");

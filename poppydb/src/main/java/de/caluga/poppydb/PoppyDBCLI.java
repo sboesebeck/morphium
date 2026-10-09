@@ -323,6 +323,12 @@ public class PoppyDBCLI {
                     idx += 2;
                     break;
 
+                case "--global-cursor-budget":
+                    opts.globalCursorBudget = value(effectiveArgs, idx);
+                    opts.sources.put("global-cursor-budget", src);
+                    idx += 2;
+                    break;
+
                 case "--log-level":
                     opts.logLevel = value(effectiveArgs, idx);
                     opts.sources.put("log-level", src);
@@ -549,6 +555,18 @@ public class PoppyDBCLI {
         log.info("Watch cursor queue byte budget (per cursor): {} ({} bytes{})", opts.cursorQueueBudget,
             cursorQueueBudgetBytes, cursorQueueBudgetBytes == 0 ? ", byte cap off" : "");
 
+        long globalCursorBudgetBytes;
+
+        try {
+            globalCursorBudgetBytes = opts.globalCursorBudgetBytes();
+        } catch (IllegalArgumentException e) {
+            throw new ConfigException(e.getMessage(), e);
+        }
+
+        srv.setGlobalCursorByteBudget(globalCursorBudgetBytes);
+        log.info("Watch cursor queue byte budget (all cursors): {} ({} bytes{})", opts.globalCursorBudget,
+            globalCursorBudgetBytes, globalCursorBudgetBytes == 0 ? ", global cap off" : "");
+
         // The dump directory has to be known BEFORE the replica set is configured: that is
         // where the election-state file path (next to the dumps) is derived and put into the
         // ElectionConfig the ElectionManager is built with (#306). Setting it later left the
@@ -706,6 +724,9 @@ public class PoppyDBCLI {
         System.out.println("  --cursor-queue-budget <size>: Per-cursor byte budget for a watch cursor's buffered events (same size syntax");
         System.out.println("                               as --replay-buffer, default 64m, 0 = byte cap off). A slow consumer whose");
         System.out.println("                               buffered events exceed the budget is killed, same policy as the count cap.");
+        System.out.println("  --global-cursor-budget <size>: Global byte budget across ALL watch cursors' buffered events (same size syntax");
+        System.out.println("                               as --replay-buffer, default 0 = disabled (global cap off)). Prevents the fleet");
+        System.out.println("                               from pinning unbounded memory across many cursors; overflow kills the newest cursor.");
         System.out.println("  --event-queue-budget <size>: Byte budget for a secondary's replication event queue (same size syntax as");
         System.out.println("                               --replay-buffer). Never drops events - the change-stream reader blocks until");
         System.out.println("                               the apply side frees budget (backpressure, like the queue's count capacity).");

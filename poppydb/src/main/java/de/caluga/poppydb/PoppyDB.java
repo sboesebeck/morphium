@@ -334,6 +334,14 @@ public class PoppyDB {
         cursorManager.setCursorQueueByteBudget(bytes);
     }
 
+    /**
+     * Global byte budget across ALL watch cursors' buffered events (estimated bytes, 0 = off) - see
+     * WatchCursorManager.setGlobalCursorByteBudget. Overflow kills the newest offending cursor.
+     */
+    public void setGlobalCursorByteBudget(long bytes) {
+        cursorManager.setGlobalCursorByteBudget(bytes);
+    }
+
     /** Test hook: the server's cursor manager, e.g. to observe cursor kills (#322 test). */
     de.caluga.poppydb.netty.WatchCursorManager getCursorManagerForTest() {
         return cursorManager;

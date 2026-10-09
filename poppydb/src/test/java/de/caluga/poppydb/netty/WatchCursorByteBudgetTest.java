@@ -136,4 +136,109 @@ public class WatchCursorByteBudgetTest {
         List<Map<String, Object>> batch = cursors.getMore(cursorId, 100).get(5, TimeUnit.SECONDS);
         assertThat(batch).as("the oversized event must reach the consumer").isNotEmpty();
     }
+
+    /**
+     * The global budget caps the fleet total even when every cursor is far under its own
+     * per-cursor budget - the per-cursor bound alone leaves the total over N cursors unbounded.
+     * On overflow the newest offending cursor is killed, and the global byte counter follows the
+     * live cursors exactly.
+     */
+    @Test
+    public void globalBudgetBoundsTheFleetTotalAcrossCursors() throws Exception {
+        cursors.setCursorQueueByteBudget(64 * 1024 * 1024); // generous per-cursor budget
+        cursors.setGlobalCursorByteBudget(4096);            // tiny fleet-wide cap
+        long c1 = watchCursor();
+        long c2 = watchCursor();
+
+        // no getMore ever - the consumer is parked; each cursor buffers the same events, and the
+        // fleet total crosses 4KB well before either cursor is anywhere near its 64MB budget.
+        for (int i = 0; i < 40 && (cursors.hasCursor(c1) || cursors.hasCursor(c2)); i++) {
+            insertLarge(i);
+        }
+
+        assertThat(cursors.hasCursor(c1) || cursors.hasCursor(c2))
+            .as("the fleet total must not be allowed to grow unbounded; at least one cursor gets "
+                + "killed by the global budget").isFalse();
+    }
+
+    /**
+     * The global budget evicts the cursor actually holding the most buffered bytes, not the cursor
+     * that happened to receive the triggering event. The replication watch receives every event and
+     * would otherwise be the most likely victim while rarely being the culprit; a drained cursor
+     * must survive while the parked one - the real fleet hog - is killed.
+     */
+    @Test
+    public void globalBudgetEvictsTheLargestHolderNotTheOfferingCursor() throws Exception {
+        cursors.setCursorQueueByteBudget(64 * 1024 * 1024);
+        cursors.setGlobalCursorByteBudget(8192);
+        long small = watchCursor();
+        long big = watchCursor();
+
+        // keep `small` drained so `big` is the clear largest holder
+        for (int i = 0; i < 5; i++) {
+            insertLarge(i);
+            awaitCondition(() -> cursors.bufferedEventCount(small) > 0);
+            while (cursors.bufferedEventCount(small) > 0) {
+                cursors.getMore(small, 100).get(5, TimeUnit.SECONDS);
+            }
+        }
+
+        // now let `big` grow past the global budget while `small` stays drained
+        for (int i = 5; i < 60 && cursors.hasCursor(big); i++) {
+            insertLarge(i);
+            // keep `small` drained so `big` remains the clear largest holder
+            while (cursors.bufferedEventCount(small) > 0) {
+                cursors.getMore(small, 100).get(5, TimeUnit.SECONDS);
+            }
+        }
+
+        assertThat(cursors.hasCursor(big))
+            .as("the largest holder must be the one evicted").isFalse();
+        assertThat(cursors.hasCursor(small))
+            .as("a drained cursor is not the largest holder and must survive").isTrue();
+    }
+
+    /**
+     * The global byte counter is kept exactly in lockstep with the sum of live cursors' queued
+     * bytes: after draining every cursor it is zero, and after killing every cursor (leaving
+     * unread bytes behind) it is zero again - a drifting counter would silently disable the
+     * global budget, the same rule as the per-cursor accounting.
+     */
+    @Test
+    public void globalByteCounterReturnsToZeroAfterKillAndDrain() throws Exception {
+        cursors.setCursorQueueByteBudget(64 * 1024 * 1024);
+        cursors.setGlobalCursorByteBudget(0); // don't kill here - we want to observe accounting
+        long c1 = watchCursor();
+        long c2 = watchCursor();
+
+        for (int i = 0; i < 5; i++) {
+            insertLarge(i);
+        }
+        awaitCondition(() -> cursors.getTotalQueuedBytes() > 5 * 1024L);
+        assertThat(cursors.getTotalQueuedBytes())
+            .as("both cursors' buffered bytes must be reflected in the global total")
+            .isGreaterThan(5 * 1024L);
+
+        // drain both fully => global total returns to zero
+        for (long id : new long[] {c1, c2}) {
+            while (cursors.bufferedEventCount(id) > 0) {
+                cursors.getMore(id, 100).get(5, TimeUnit.SECONDS);
+            }
+        }
+        assertThat(cursors.getTotalQueuedBytes())
+            .as("after draining every cursor the global total must be exactly zero")
+            .isEqualTo(0L);
+
+        // now kill both cursors while keying a fresh backlog: unread bytes must be released too
+        cursors.setGlobalCursorByteBudget(1024);
+        long c3 = watchCursor();
+        for (int i = 0; i < 30 && cursors.hasCursor(c3); i++) {
+            insertLarge(i);
+        }
+        assertThat(cursors.hasCursor(c3))
+            .as("the parked cursor must be killed by the global cap").isFalse();
+        assertThat(cursors.getTotalQueuedBytes())
+            .as("killing a cursor must release its unread bytes from the global total")
+            .isEqualTo(0L);
+    }
 }

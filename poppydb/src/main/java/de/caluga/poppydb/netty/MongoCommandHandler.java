@@ -1720,11 +1720,47 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 long resumeSeq = seqNum.longValue();
                 if (!driver.canResumeChangeStream(resumeSeq)) {
                     log.warn("Resume window lost for secondary (resume sequence {} no longer buffered) — signalling re-sync", resumeSeq);
-                    return Doc.of(
-                        "ok", 0.0,
-                        "code", 286,
-                        "codeName", "ChangeStreamHistoryLost",
-                        "errmsg", "resume window lost: sequence " + resumeSeq + " is no longer in the replay buffer");
+                    return historyLostReply("resume window lost: sequence " + resumeSeq
+                            + " is no longer in the replay buffer");
+                }
+                // The window is still replayable, but a replay backlog larger than the effective
+                // byte budget is doomed either way: the replay pushes every buffered event after
+                // the resume sequence into the cursor queue, the byte budget is exhausted mid-replay,
+                // and the cursor is killed with a "slow/absent consumer" error. The consumer then
+                // retries the same token, the window is still contiguous, and it loops - a seconds-
+                // long full re-sync is far cheaper than the minutes-long livelock. Answer HistoryLost
+                // up front so the secondary falls back to a full re-sync instead of admitting the
+                // oversized replay.
+                //
+                // The effective bound is the tighter of the per-cursor budget and the fleet headroom
+                // under the global budget (see WatchCursorManager): with `global-cursor-budget` the
+                // binding constraint is the headroom, and a replay that fits this cursor but pushes
+                // the fleet over the global cap would be admitted and then killed mid-replay by the
+                // global check - the same livelock, one layer up. Disabled budgets (0) contribute no
+                // bound; when both are 0 the estimate is skipped entirely (no O(backlog) scan).
+                long cursorBudget = cursorManager.getCursorQueueByteBudget();
+                long globalBudget = cursorManager.getGlobalCursorByteBudget();
+                long effective = cursorBudget;
+
+                if (globalBudget > 0) {
+                    long headroom = globalBudget - cursorManager.getTotalQueuedBytes();
+                    if (headroom <= 0) {
+                        log.warn("Resume window for secondary (seq {}) has no global-cursor-budget headroom ({} used of {}) - signalling re-sync instead of an oversized replay",
+                                resumeSeq, cursorManager.getTotalQueuedBytes(), globalBudget);
+                        return historyLostReply("resume has no global cursor budget headroom ("
+                                + cursorManager.getTotalQueuedBytes() + " of " + globalBudget + " bytes already queued)");
+                    }
+                    effective = cursorBudget == 0 ? headroom : Math.min(cursorBudget, headroom);
+                }
+
+                if (effective > 0) {
+                    long backlogBytes = driver.estimateReplayBacklogBytes(resumeSeq, effective);
+                    if (backlogBytes > effective) {
+                        log.warn("Resume window for secondary (seq {}) covers ~{} bytes of backlog > {} byte effective cursor budget - signalling re-sync instead of an oversized replay",
+                                resumeSeq, backlogBytes, effective);
+                        return historyLostReply("resume backlog " + backlogBytes
+                                + " bytes exceeds effective cursor budget " + effective);
+                    }
                 }
             }
 
@@ -1760,6 +1796,18 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             log.error("Error setting up change stream: {}", e.getMessage(), e);
             return Doc.of("ok", 0.0, "errmsg", e.getMessage());
         }
+    }
+
+    /**
+     * The single wire shape every replication-resume gate failure returns: ChangeStreamHistoryLost
+     * (286), the marker PoppyDB secondaries' {@code isResumeWindowLost} keys its re-sync fallback on.
+     */
+    private static Map<String, Object> historyLostReply(String errmsg) {
+        return Doc.of(
+                "ok", 0.0,
+                "code", 286,
+                "codeName", "ChangeStreamHistoryLost",
+                "errmsg", errmsg);
     }
 
     /**

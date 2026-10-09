@@ -280,8 +280,11 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
     @Test
     public void changeStreamDeleteTest() throws Exception {
         // Behavioral guard for the delete-path notification fix: a delete must still dispatch a
-        // "delete" change-stream event with the correct documentKey/fullDocument even though
-        // notifyWatchers is now invoked AFTER the collection write lock is released.
+        // "delete" change-stream event with the correct documentKey. As on mongod, the delete
+        // event carries NO fullDocument after-image (there is none - the document is gone); the
+        // identity travels in documentKey. This was a deliberate divergence before: the removed
+        // document was attached as fullDocument, doubling the byte weight of every delete event
+        // on delete-heavy workloads (messaging's delete-after-processing).
         morphium.dropCollection(UncachedObject.class);
         TestUtils.waitForCollectionToBeDeleted(morphium, UncachedObject.class);
 
@@ -318,10 +321,9 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
         assertEquals("delete", evt.getOperationType());
         assertNotNull(evt.getDocumentKey(), "documentKey missing on delete event");
 
-        Map<String, Object> fullDocument = evt.getFullDocument();
-        assertNotNull(fullDocument, "fullDocument missing on delete event");
-        assertEquals(55, ((Number) fullDocument.get("counter")).intValue());
-        assertEquals("to-delete", fullDocument.get("str_value"));
+        // mongod sends no fullDocument on delete - identity is the documentKey only.
+        assertTrue(evt.getFullDocument() == null,
+            "delete must not carry a fullDocument after-image (matches mongod)");
     }
 
     @Test

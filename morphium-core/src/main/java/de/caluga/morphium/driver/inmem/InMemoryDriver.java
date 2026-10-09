@@ -10741,7 +10741,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         // The after-image is ALWAYS the live, in-place-mutated stored document - it must be
         // deep-copied, no exceptions (see deepCopyAndNormalizeDocument's javadoc and cf3e9cace).
-        Map<String, Object> newDocument = deepCopyAndNormalizeDocument((Map<String, Object>) doc);
+        // A delete has no after-image: the removed document is only read for its identity -
+        // extractDocumentKey falls through to previousDocument below - so the deep copy on the
+        // write hot path is dead weight for deletes (the event no longer carries fullDocument).
+        // Skipping it halves the allocation of every delete on delete-heavy workloads.
+        Map<String, Object> newDocument = "delete".equals(op)
+                ? null
+                : deepCopyAndNormalizeDocument((Map<String, Object>) doc);
         // The pre-image is a SECOND complete copy of the document inside the same event, and it is
         // only ever delivered to a subscription that explicitly asked for it - every other one
         // strips it again before the callback (applyFullDocumentBeforeChange). Buffering and
@@ -10781,7 +10787,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         event.put("txnNumber", txn.incrementAndGet());
         event.put("lsid", Doc.of("id", new MorphiumId()));
 
-        if (newDocument != null) {
+        if (newDocument != null && !"delete".equals(op)) {
+            // fullDocument is the after-image; MongoDB only carries it on insert/replace/update and
+            // even then only when the consumer asked for it in the pipeline. A delete has no after-
+            // image. Previously the payload was always attached (the live document was handed in as
+            // the removed doc), so every delete carried a full copy of the deleted document - on a
+            // delete-heavy workload (messaging's delete-after-processing) that is a full duplicate
+            // of the bytes already buffered for the insert, inflating both the replay buffer and
+            // every watch cursor's queued bytes. Dropping it here matches the spec, halves the size
+            // of delete events, and is safe: documentKey (below) already carries the identity, and
+            // a precondition/fullDocumentBeforeChange is a separate field the consumer has to ask
+            // for (preImageWanted).
             event.put("fullDocument", newDocument);
         }
 
@@ -11085,6 +11101,48 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             return false; // nothing buffered but events exist after the token — window lost
         }
         return oldest.token <= resumeToken + 1;
+    }
+
+    /**
+     * Estimated BSON bytes of the replay backlog after {@code resumeToken} - the sum of every
+     * still-buffered event strictly after the token up to the newest. This is what a restart-resume
+     * would push into the consumer's cursor queue before the live stream takes over.
+     *
+     * <p>{@link #canResumeChangeStream} only checks that the window is <em>contiguously</em>
+     * replayable (oldest retained token {@code <= resumeToken+1}); it deliberately does not bound the
+     * <em>size</em> of the backlog. PoppyDB's watch-cursor byte budget is per-cursor, so a resume deep
+     * inside the window whose backlog exceeds that budget is doomed: the replay fills the cursor
+     * queue past its budget, the cursor is killed mid-replay, and the consumer retries the same token
+     * - a livelock that costs a minutes-long sand-hour per attempt while a full re-sync is a seconds-
+     * long snapshot. The wire gate (MongoCommandHandler's {@code poppyResumeSequence} handling) uses
+     * this size so it can answer HistoryLost up front instead of admitting the doomed replay.
+     *
+     * <p>Iterates the replay deque summing each entry's cached {@link ChangeStreamEventInfo#estimatedBytes},
+     * returning early once the running total crosses {@code stopAfter} (0 = no early stop) so an
+     * oversized backlog is cheaper to detect than to replay. Namespace-blind, like the replication
+     * watch that this gate serves.
+     *
+     * @return estimated bytes; {@code Long.MAX_VALUE} on counter overflow (caller treats as oversized).
+     */
+    public long estimateReplayBacklogBytes(long resumeToken, long stopAfter) {
+        long newest = changeStreamSequence.get();
+        if (resumeToken >= newest) {
+            return 0;
+        }
+        long sum = 0L;
+        for (ChangeStreamEventInfo info : changeStreamHistory) {
+            if (info.token <= resumeToken) {
+                continue;
+            }
+            sum += info.estimatedBytes;
+            if (sum < 0) {
+                return Long.MAX_VALUE; // overflow - caller treats as oversized, safe direction
+            }
+            if (stopAfter > 0 && sum > stopAfter) {
+                return sum; // early stop: already over the bound the caller cares about
+            }
+        }
+        return sum;
     }
 
     /**
