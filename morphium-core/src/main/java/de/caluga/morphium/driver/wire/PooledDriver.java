@@ -121,7 +121,7 @@ public class PooledDriver extends DriverBase {
     private volatile boolean poppyDB = false;
     private volatile boolean cosmosDB = false;
     private final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5,
-        Thread.ofPlatform().name("MCon-", 0).factory());
+        Thread.ofPlatform().name("MCon-", 0).daemon(true).factory());
 
     private final AtomicInteger lastSecondaryNode = new AtomicInteger(0);
     // Package-private: the heartbeat's per-host bookkeeping is asserted on directly by
@@ -787,7 +787,7 @@ public class PooledDriver extends DriverBase {
                 hostThreads.remove(hst, runningCheck);
             }
 
-            Thread t = Thread.ofPlatform().name("HeartbeatCheck-" + hst).unstarted(() -> {
+            Thread t = Thread.ofPlatform().name("HeartbeatCheck-" + hst).daemon(true).unstarted(() -> {
 
                 try {
                     ConnectionContainer container = null;
@@ -1012,7 +1012,7 @@ public class PooledDriver extends DriverBase {
 
         // thread to create new connections instantly if a thread is waiting
         // this thread pauses until waitCounterCondition.signalAll() is called
-        connectionWaiter = Thread.ofPlatform().name("ConnectionWaiter").start(() -> {
+        connectionWaiter = Thread.ofPlatform().name("ConnectionWaiter").daemon(true).start(() -> {
             long lastHeartbeatHealthCheck = 0;
             while (running) {
                 try {
@@ -1056,7 +1056,7 @@ public class PooledDriver extends DriverBase {
                                 final String host = normalizedHst;
 
                                 for (int i = 0; i < parallelCreators; i++) {
-                                    Thread.ofPlatform().name("ConnectionCreator-" + i).start(() -> {
+                                    Thread.ofPlatform().name("ConnectionCreator-" + i).daemon(true).start(() -> {
                                         try {
                                             // Each creator can create multiple connections
                                             while (running && hosts.containsKey(host)
@@ -1076,6 +1076,16 @@ public class PooledDriver extends DriverBase {
                             onConnectionError(normalizedHst);
                         }
                     }
+                } catch (InterruptedException ie) {
+                    // close() interrupts the waiter to bound its join; during shutdown running
+                    // is already false, so drop out quietly and let the while(running) loop end.
+                    // If we were interrupted mid-life for any other reason, re-assert the flag
+                    // and keep it visible instead of swallowing it.
+                    if (!running) {
+                        return;
+                    }
+                    Thread.currentThread().interrupt();
+                    log.warn("ConnectionWaiter interrupted while still running", ie);
                 } catch (Throwable e) {
                     log.error("error", e);
                     stats.get(DriverStatsKey.ERRORS).incrementAndGet();
@@ -2183,6 +2193,20 @@ public class PooledDriver extends DriverBase {
                 executor.awaitTermination(10, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 // Ignore
+            }
+        }
+
+        // Bounded join of the ConnectionWaiter: it exits its while(running) loop on its own, but
+        // may be up to ~1s into a waitCounterCondition await when running flips - joining here
+        // (it is the one long-lived worker we hold a reference to) makes close() deterministic
+        // for it, which is what the failed-construction governance test (IM-951) relies on. The
+        // one-shot HeartbeatCheck-/ConnectionCreator- threads are daemon and drain on their own.
+        if (connectionWaiter != null) {
+            connectionWaiter.interrupt();
+            try {
+                connectionWaiter.join(1000);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
             }
         }
 

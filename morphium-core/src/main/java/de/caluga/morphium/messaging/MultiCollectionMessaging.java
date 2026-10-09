@@ -285,18 +285,21 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
                     }
                     if (monitorsByTopic.containsKey(msg.getTopic())) {
-                        // For broadcast messages, use permanent tracking to prevent duplicate delivery
-                        if (!msg.isExclusive()) {
-                            if (locallyProcessedBroadcastIds.putIfAbsent(msg.getMsgId(), System.currentTimeMillis()) != null) {
-                                return true;  // Already processed this broadcast
-                            }
+                        // Claim first: only the claim holder may set the permanent broadcast marker.
+                        if (!processingMessages.add(msg.getMsgId())) {
+                            return true;  // Already processing (claim held elsewhere)
                         }
 
-                        // Use atomic add operation - if already present, skip processing
-                        // Note: Do NOT remove from locallyProcessedBroadcastIds here - the message
-                        // is still being processed by another thread that added it to processingMessages
-                        if (!processingMessages.add(msg.getMsgId())) {
-                            return true;
+                        // Then the permanent broadcast dedup marker - only now that we hold the claim.
+                        if (!msg.isExclusive()) {
+                            if (locallyProcessedBroadcastIds.putIfAbsent(msg.getMsgId(), System.currentTimeMillis()) != null) {
+                                // The marker is the permanent dedup authority: seeing one means this
+                                // broadcast was already fully processed on this instance, so the claim
+                                // we just took is released and the message is skipped here
+                                // (the marker, not the message's exclusive flag, decides).
+                                processingMessages.remove(msg.getMsgId());
+                                return true;  // Already processed this broadcast
+                            }
                         }
 
                         // Count how many listeners we're queueing for this message
@@ -717,23 +720,23 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             return;  // Skip - recently processed
         }
 
-        // For broadcast messages, use permanent tracking to prevent duplicate delivery
-        if (!m.isExclusive()) {
-            if (locallyProcessedBroadcastIds.putIfAbsent(m.getMsgId(), System.currentTimeMillis()) != null) {
-                if (alreadyTracked) {
-                    processingMessages.remove(m.getMsgId());
-                }
-                return;  // Already processed this broadcast
-            }
+        // Claim first: only the claim holder may set the permanent broadcast dedup marker.
+        // alreadyTracked=true means the caller (topic pollAndProcess) already holds the claim,
+        // so the add is skipped and the marker check below runs only on that one holder.
+        if (!alreadyTracked && !processingMessages.add(m.getMsgId())) {
+            return;  // Already being processed (claim held elsewhere)
         }
 
-        // Use atomic add operation - if already present, skip processing
-        // CRITICAL: Check BEFORE looping through listeners, not inside loop
-        // Note: Do NOT remove from locallyProcessedBroadcastIds here - the message
-        // is still being processed by another thread that added it to processingMessages
-        // Skip this check if caller already added to processingMessages (alreadyTracked=true)
-        if (!alreadyTracked && !processingMessages.add(m.getMsgId())) {
-            return;
+        // Then the permanent broadcast marker - only now that we hold the claim.
+        if (!m.isExclusive()) {
+            if (locallyProcessedBroadcastIds.putIfAbsent(m.getMsgId(), System.currentTimeMillis()) != null) {
+                // This broadcast was already fully processed on this instance. We hold the claim
+                // here in both call modes (taken by the caller with alreadyTracked, or just above),
+                // so the release is unconditional - a leftover would leak the msgId in
+                // processingMessages for ever, which every DM poll carries as a nin() entry.
+                processingMessages.remove(m.getMsgId());
+                return;  // Already processed this broadcast
+            }
         }
 
         // Count how many listeners we're queueing for this message
@@ -1463,21 +1466,23 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 return true;
             }
 
-            // For broadcast messages, use permanent tracking to prevent duplicate delivery
-            if (!doc.isExclusive()) {
-                if (locallyProcessedBroadcastIds.putIfAbsent(doc.getMsgId(), System.currentTimeMillis()) != null) {
-                    log.info("CSM: Broadcast {} already processed, skipping", doc.getMsgId());
-                    return true;  // Already processed this broadcast
-                }
-            }
-
-            // Use atomic add operation - if already present, skip processing
-            // CRITICAL: This must happen BEFORE queueing the Runnable to prevent duplicates
-            // Note: Do NOT remove from locallyProcessedBroadcastIds here - the message
-            // is still being processed by another thread that added it to processingMessages
+            // Claim first: only the claim holder may set the permanent broadcast marker.
             if (!processingMessages.add(doc.getMsgId())) {
                 log.info("CSM: could not add {} to processingMessages - already processing", doc.getMsgId());
                 return true;
+            }
+
+            // Then the permanent broadcast dedup marker - only now that we hold the claim.
+            if (!doc.isExclusive()) {
+                if (locallyProcessedBroadcastIds.putIfAbsent(doc.getMsgId(), System.currentTimeMillis()) != null) {
+                    // The marker is the permanent dedup authority: seeing one means this broadcast
+                    // was already fully processed on this instance, so the claim we just took is
+                    // released and the message is skipped here (the marker, not the message's
+                    // exclusive flag, decides).
+                    processingMessages.remove(doc.getMsgId());
+                    log.info("CSM: Broadcast {} already processed, skipping", doc.getMsgId());
+                    return true;  // Already processed this broadcast
+                }
             }
             log.info("CSM: Queueing message {} for processing", doc.getMsgId());
 
