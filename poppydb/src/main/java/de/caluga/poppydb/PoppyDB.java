@@ -342,6 +342,19 @@ public class PoppyDB {
         cursorManager.setGlobalCursorByteBudget(bytes);
     }
 
+    /**
+     * Replication flow control (brake writers while the slowest secondary's replication watch is
+     * backed up) - see WatchCursorManager.setReplicationFlowControlSettings. Call before
+     * {@link #start()}: the setter replaces the gate instance the command handlers register on.
+     */
+    public void setReplicationFlowControlSettings(de.caluga.poppydb.netty.ReplicationFlowControlSettings settings) {
+        cursorManager.setReplicationFlowControlSettings(settings);
+    }
+
+    public de.caluga.poppydb.netty.ReplicationFlowControlSettings getReplicationFlowControlSettings() {
+        return cursorManager.replicationFlowControlSettings();
+    }
+
     /** Test hook: the server's cursor manager, e.g. to observe cursor kills (#322 test). */
     de.caluga.poppydb.netty.WatchCursorManager getCursorManagerForTest() {
         return cursorManager;
@@ -1131,6 +1144,10 @@ public class PoppyDB {
 
             // Clean up replication coordinator
             replicationCoordinatorRef.set(null);
+
+            // Writes parked by replication flow control were never applied; answer them
+            // NotWritablePrimary so the client re-resolves the primary and retries there.
+            cursorManager.failParkedWritesNotPrimary();
 
             // Start replication from new primary (will be set by onLeaderDiscovered) - unless
             // ElectionManager already knows one. ElectionManager dispatches this callback and

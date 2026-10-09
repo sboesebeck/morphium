@@ -121,6 +121,33 @@ public class ConfigPrintTest {
     }
 
     @Test
+    void replicationFlowControlRendersResolvedLineAndSurvivesRoundTrip(@TempDir Path dir) throws Exception {
+        String defaults = ConfigInspector.render(PoppyDBCLI.parse(new String[0], 0), null);
+        assertThat(defaults).contains("replication-flow-control=true");
+        assertThat(defaults).contains("replication-flow-control-high-water=50");
+        assertThat(defaults).contains("replication-flow-control-low-water=25");
+        assertThat(defaults).contains("replication-flow-control-max-wait=10s");
+        assertThat(defaults).contains("# replication-flow-control resolved: on, brake at 50% of cursor-queue-budget, "
+            + "release below 25%, max-wait 10000 ms");
+        assertThat(defaults).doesNotContain("has no reference size");
+
+        // Without a per-cursor budget there is nothing to measure against - say so in the template.
+        String noBudget = ConfigInspector.render(PoppyDBCLI.parse(new String[] {"--cursor-queue-budget", "0"}, 0), null);
+        assertThat(noBudget).contains("has no reference size and is inactive");
+
+        // The off-switch travels as a value, so a printed config switches it off again when reloaded.
+        ServerOptions original = PoppyDBCLI.parse(new String[] {
+            "--replication-flow-control", "false", "--replication-flow-control-max-wait", "2m"}, 0);
+        Path cfg = dir.resolve("printed.conf");
+        Files.writeString(cfg, ConfigInspector.render(original, null), StandardCharsets.UTF_8);
+        de.caluga.poppydb.config.ConfigLoader loader = new de.caluga.poppydb.config.ConfigLoader();
+        java.util.List<String> tokens = loader.toArgs(loader.resolveFileRefs(loader.load(cfg)));
+        ServerOptions reloaded = PoppyDBCLI.parse(tokens.toArray(new String[0]), tokens.size());
+        assertThat(reloaded.replicationFlowControl).isFalse();
+        assertThat(reloaded.replicationFlowControlSettings().maxWaitMs()).isEqualTo(120_000L);
+    }
+
+    @Test
     void leadingSpaceInValueSurvivesRoundTrip(@TempDir Path dir) throws Exception {
         ServerOptions original = PoppyDBCLI.parse(new String[] {"--rs-name", " padded"}, 0);
         String rendered = ConfigInspector.render(original, null);
