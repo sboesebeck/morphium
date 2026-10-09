@@ -2759,6 +2759,20 @@ public class ReplicationManager {
                     }
 
                     @Override
+                    public void onIdleBatch() {
+                        // Empty getMore batch = the stream is alive and in sync, just idle. The
+                        // server answers within maxTimeMS even without events, so refresh the
+                        // staleness tracker here - otherwise a quiet cluster (no writes) would
+                        // trip the 30s staleness check and force a needless reconnect every ~30s
+                        // (seen on the testrunner: 80+ "Watch connection appears stale" on idle
+                        // secondaries, each followed by a watch teardown + re-registration).
+                        // A reader BLOCKED inside incomingData (byte-budget backpressure) never
+                        // reaches this callback, so its staleness timer keeps running and the
+                        // dead-watch guard still fires - this must NOT mask a blocked reader.
+                        lastWatchResponseTime.set(System.currentTimeMillis());
+                    }
+
+                    @Override
                     public boolean isContinued() {
                         if (!running.get()) {
                             return false;

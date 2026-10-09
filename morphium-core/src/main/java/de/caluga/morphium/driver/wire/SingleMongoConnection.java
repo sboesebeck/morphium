@@ -82,6 +82,12 @@ public class SingleMongoConnection implements MongoConnection {
     // connection exceeds it.
     static final int WATCH_READ_GRACE_MS = 10_000;
 
+    // How long a watch instance must be continuously stable (no restart) before an empty
+    // getMore batch is allowed to refresh the consumer's staleness timer via onIdleBatch().
+    // A quiet cluster's watch is stable for minutes; a kill/restart livelock restarts every
+    // ~100ms and never reaches this grace, so its 30s staleness backstop keeps working.
+    static final long STABLE_WATCH_HEARTBEAT_GRACE_MS = 10_000;
+
     //    private List<OpMsg> replies = Collections.synchronizedList(new ArrayList<>());
     // private Thread readerThread = null;
     // private Map<Integer, OpMsg> incoming = new HashMap<>();
@@ -856,6 +862,13 @@ public class SingleMongoConnection implements MongoConnection {
         // it ok:1 with a cursor id and dies on the first getMore
         int restartsInARow = 0;
         boolean firstReplyAfterStart = true;
+        // #412 (staleness/quiet-cluster): an idle watch must not be declared stale, but a
+        // kill/restart livelock must keep its 30s staleness backstop. Track how long the
+        // current watch instance has been stable (no restart); the empty-batch heartbeat
+        // (onIdleBatch) only refreshes the consumer's staleness timer once the watch has been
+        // continuously stable for STABLE_WATCH_HEARTBEAT_GRACE_MS. A quiet cluster's watch is
+        // stable for minutes; a livelock restarts every ~100ms and never reaches the grace.
+        long lastWatchRestartAt = System.currentTimeMillis();
         try {
             while (true) {
                 watchIterations++;
@@ -1005,6 +1018,21 @@ public class SingleMongoConnection implements MongoConnection {
                     }
                 }
 
+                // Empty-batch liveness heartbeat: a getMore answered with no events is still a
+                // server reply - the stream is alive and in sync, just idle. Deliver this fact to
+                // the callback so consumers can refresh their staleness timer without waiting for
+                // a real event (which on a quiet cluster may never come). Deliberately gated on a
+                // STABLE watch instance (STABLE_WATCH_HEARTBEAT_GRACE_MS since the last restart):
+                // a quiet cluster's watch is stable for minutes and this keeps it alive, while a
+                // kill/restart livelock (ReplicationDeadWatchGateTest) restarts every ~100ms and
+                // never reaches the grace - so its 30s staleness backstop still fires and ends
+                // the livelock. A blocked reader inside incomingData never reaches here either,
+                // so byte-budget backpressure is still correctly declared stale.
+                if ((result == null || result.isEmpty())
+                        && System.currentTimeMillis() - lastWatchRestartAt >= STABLE_WATCH_HEARTBEAT_GRACE_MS) {
+                    command.getCb().onIdleBatch();
+                }
+
                 if (shouldExit || !command.getCb().isContinued()) {
                     log.debug("WATCH: exiting loop - shouldExit={}, isContinued={}", shouldExit, command.getCb().isContinued());
                     String coll = command.getColl();
@@ -1060,6 +1088,9 @@ public class SingleMongoConnection implements MongoConnection {
 
                     restartsInARow++;
                     firstReplyAfterStart = true;
+                    // A restart resets the stable-watch clock: onIdleBatch must not refresh the
+                    // staleness timer until this new instance has been stable for the grace.
+                    lastWatchRestartAt = System.currentTimeMillis();
                     // Use resume token if available to prevent duplicate events
                     if (lastResumeToken[0] != null) {
                         command.setResumeAfter(lastResumeToken[0]);
