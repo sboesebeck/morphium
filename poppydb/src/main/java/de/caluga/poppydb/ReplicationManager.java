@@ -358,6 +358,15 @@ public class ReplicationManager {
     // The current watch session's command, for the #322 dead-watch guard (wire cursor id via
     // its "cursor" metadata). null while no session is between construction and its finally.
     private volatile WatchCommand activeWatchCommand;
+    // Set by discardDeadWatchSession() when a snapshot is thrown away because the primary
+    // reported its watch cursor dead. The watch CALLBACK reads it in isContinued() and ends
+    // the session, so the replication loop re-enters watchForChanges() and registers a FRESH
+    // watch (bumping watchGeneration) for the next sync attempt. Without this the reader would
+    // restart in place inside SingleMongoConnection on fresh cursor ids of the SAME generation
+    // and the sync thread - which waits on a new registration - would hang until the 30s
+    // staleness timeout forced the reconnect for it (the coupling this fixes). Cleared at the
+    // start of every watchForChanges() so a new session never inherits an old retire.
+    private final AtomicBoolean retireWatchSession = new AtomicBoolean(false);
     private final AtomicBoolean initialSyncStarted = new AtomicBoolean(false);
     private volatile Thread initialSyncThread;
     //   watchGeneration       - bumped every time a watch cursor registers on the primary (the
@@ -2062,7 +2071,7 @@ public class ReplicationManager {
     }
 
     /**
-     * #322: retire the current watch session after its cursor died on the primary. Three things,
+     * #322: retire the current watch session after its cursor died on the primary. Four things,
      * in one atomic step under {@code eventQueueByteLock}:
      * <ul>
      * <li>bump {@code replicationSessionEpoch}, so events of the dead session that the (possibly
@@ -2074,6 +2083,11 @@ public class ReplicationManager {
      * <li>flip {@code watchLive}, so the retry loop waits for the NEXT watch registration
      *     instead of re-snapshotting under the dead one (the reader's own finally confirms this
      *     shortly after).</li>
+     * <li>request the watch session to retire ({@code retireWatchSession}), so the reader ends
+     *     the session on its own and the replication loop registers a FRESH watch - with a new
+     *     {@code watchGeneration} - instead of restarting in place on fresh cursor ids of the
+     *     same generation. The sync thread waits on a new registration, so without this it would
+     *     depend on the 30s staleness timeout to make progress.</li>
      * </ul>
      */
     private void discardDeadWatchSession() {
@@ -2088,6 +2102,8 @@ public class ReplicationManager {
         }
 
         watchLive.set(false);
+        // End the current watch session so the loop re-registers; see the field javadoc.
+        retireWatchSession.set(true);
     }
 
     /** Test hook: force the watchLive flag. */
@@ -2678,6 +2694,8 @@ public class ReplicationManager {
 
         // Initialize staleness tracker
         lastWatchResponseTime.set(System.currentTimeMillis());
+        // A fresh session must not inherit a retire requested against the previous one.
+        retireWatchSession.set(false);
 
         MongoConnection con = primaryMorphium.getDriver().getPrimaryConnection(null);
         WatchCommand cmd = null;
@@ -2775,6 +2793,17 @@ public class ReplicationManager {
                     @Override
                     public boolean isContinued() {
                         if (!running.get()) {
+                            return false;
+                        }
+                        // The dead-watch guard (discardDeadWatchSession) threw this session's
+                        // snapshot away: end the session NOW so the replication loop registers a
+                        // FRESH watch (new generation) for the next attempt. Relying on the 30s
+                        // staleness timeout for this made the recovery depend on an unrelated
+                        // timer - and the idle-batch heartbeat that fixes the quiet-cluster false
+                        // positive removed exactly that timer, exposing the coupling.
+                        if (retireWatchSession.get()) {
+                            log.info("Retiring the watch session on request (dead-watch guard discarded "
+                                    + "this snapshot) - the loop will register a fresh watch");
                             return false;
                         }
                         // Check for staleness - if no response for too long, assume connection is broken
