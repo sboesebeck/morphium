@@ -523,3 +523,25 @@ public class MorphiumDiagnosticsController {
 - **Level 3**: Error rate > 10% - Full system investigation
 
 This monitoring guide provides comprehensive coverage of Morphium's DriverStats and ensures optimal connection pool performance and early issue detection.
+## PoppyDB serverStatus: replication flow control
+
+A PoppyDB primary reports its replication flow-control gate (see `docs/poppydb.md`, "Replication
+flow control") in the `poppyFlowControl` section of `serverStatus`:
+
+| Field | Meaning |
+|---|---|
+| `enabled` | the configured switch (`replication-flow-control`) |
+| `engaged` | true while writers are being braked |
+| `engagedSinceMs` | wall-clock millis of the current engagement, 0 when free |
+| `slowestMember` | the secondary whose replication-watch queue is fullest |
+| `slowestFillPercent` | that queue's fill as percent of `cursor-queue-budget` |
+| `parkedWrites` | writes currently held back |
+| `totalParked` | writes held back since start |
+| `totalWaitMs` | summed wait of all released writes |
+| `maxWaitMs` | longest single wait observed |
+| `releasedByTimeout` | writes released by `replication-flow-control-max-wait` instead of by drain |
+| `engagements` | how often the gate closed since start |
+
+Alert on `releasedByTimeout` growing (a secondary that does not drain) and on long `engaged`
+phases (sustained write load above what the slowest secondary applies). A short `engaged` burst
+during bulk loads is the mechanism working as intended.

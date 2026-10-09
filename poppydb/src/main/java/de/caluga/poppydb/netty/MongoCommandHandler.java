@@ -1,5 +1,6 @@
 package de.caluga.poppydb.netty;
 
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.AttributeKey;
@@ -61,6 +62,31 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             AttributeKey.valueOf("txContext");
     private static final AttributeKey<String> SESSION_ID_KEY =
             AttributeKey.valueOf("sessionId");
+
+    // -- replication flow control: write parking (spec 3.4/3.5) --
+    // The user-data write commands a current primary may hold back while the gate is engaged.
+    // Everything else - reads, admin/cluster commands, the replication commands of the
+    // secondaries themselves (reportProgress and friends), hello/heartbeat, election - runs
+    // without ever being parked.
+    private static final Set<String> GATED_WRITE_COMMANDS = Set.of(
+            "insert", "update", "delete", "findandmodify", "bulkwrite");
+
+    // Per-connection parked FIFO and its lookups: the channel maps to the queue, the handler
+    // instance and its context (used by the event-loop drains that run outside channelRead).
+    private static final AttributeKey<java.util.ArrayDeque<ParkedCommand>> PARKED_WRITES_KEY =
+            AttributeKey.valueOf("poppyParkedWrites");
+    private static final AttributeKey<MongoCommandHandler> PARKED_WRITES_HANDLER_KEY =
+            AttributeKey.valueOf("poppyParkedWritesHandler");
+    private static final AttributeKey<ChannelHandlerContext> PARKED_WRITES_CTX_KEY =
+            AttributeKey.valueOf("poppyParkedWritesCtx");
+
+    /** The gate's parking token: the channel whose writer is waiting. */
+    private static record ParkToken(Channel channel) {}
+
+    /** One command waiting in a connection's FIFO; parkedAtMs anchors its max-wait to the
+     *  FIRST park (spec 3.4 step 5: re-parking never restarts it). */
+    private static record ParkedCommand(Map<String, Object> doc, String cmd, int requestId, long parkedAtMs) {}
+
 
     private static final Set<String> WRITE_COMMANDS = Set.of(
             "insert", "update", "delete", "findandmodify",
@@ -242,6 +268,9 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         this.replicationCoordinatorSupplier = replicationCoordinatorSupplier;
         this.electionManager = electionManager;
         this.secondarySyncingSupplier = secondarySyncingSupplier == null ? () -> false : secondarySyncingSupplier;
+        // Replication flow control: register the shared parking hooks with the manager. The
+        // first handler to reach a manager wins; every later one is a no-op (spec 3.4).
+        registerFlowControlHooks();
     }
 
     @Override
@@ -495,6 +524,23 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
     private void dispatchOpMsg(ChannelHandlerContext ctx, Map<String, Object> doc, String cmd,
                                int requestId) throws Exception {
+
+        // Replication flow control (spec 3.4): park the write before anything of it runs. If the
+        // gate is engaged it waits; if this connection already has a parked write, EVERY command
+        // - this one and any read behind it - appends to its FIFO to keep wire order.
+        if (parkFlowControlledWrite(ctx, doc, cmd, requestId)) {
+            return;
+        }
+
+        dispatchOpMsgNow(ctx, doc, cmd, requestId);
+    }
+
+    /**
+     * The ordinary dispatch body. A released parked command re-enters HERE, bypassing the park
+     * check: it already waited its turn.
+     */
+    private void dispatchOpMsgNow(ChannelHandlerContext ctx, Map<String, Object> doc, String cmd,
+                                  int requestId) throws Exception {
 
         // Auth enforcement (--auth, strictly opt-in): until this connection completed a SCRAM
         // exchange, only the handshake/SASL/health commands may run. One handler instance
@@ -808,6 +854,247 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         }
 
         sendResponse(ctx, requestId, answer);
+    }
+
+    // -- replication flow control: write parking (spec 3.4/3.5) --
+
+    /**
+     * The gate's parking hooks, shared by every connection of a manager (registered once per
+     * manager). They only translate tokens into per-channel event-loop actions, so one
+     * stateless instance serves all channels.
+     */
+    private static final WatchCursorManager.FlowControlHooks FLOW_CONTROL_HOOKS =
+            new WatchCursorManager.FlowControlHooks() {
+        @Override
+        public void parkTokensReleased(List<Object> tokens) {
+            forEachParkedChannel(tokens);
+        }
+
+        @Override
+        public void parkedTokensTimedOut(List<Object> tokens) {
+            forEachParkedChannel(tokens);
+        }
+
+        @Override
+        public void parkedWritesNotPrimary(List<Object> tokens) {
+            for (Object token : tokens) {
+                if (!(token instanceof ParkToken parked)) {
+                    continue;
+                }
+
+                Channel channel = parked.channel();
+                MongoCommandHandler handler = channel.isActive()
+                        ? channel.attr(PARKED_WRITES_HANDLER_KEY).get() : null;
+
+                if (handler != null) {
+                    channel.eventLoop().execute(() -> handler.answerParkedWritesNotPrimary(channel));
+                }
+            }
+        }
+    };
+
+    private static void forEachParkedChannel(List<Object> tokens) {
+        for (Object token : tokens) {
+            if (!(token instanceof ParkToken parked)) {
+                continue;
+            }
+
+            Channel channel = parked.channel();
+
+            if (!channel.isActive()) {
+                continue; // a dropped connection discarded its FIFO already
+            }
+
+            MongoCommandHandler handler = channel.attr(PARKED_WRITES_HANDLER_KEY).get();
+
+            if (handler != null) {
+                channel.eventLoop().execute(() -> handler.drainParked(channel));
+            }
+        }
+    }
+
+    /** Registers the shared parking hooks with this connection's manager, once per manager. */
+    private void registerFlowControlHooks() {
+        if (cursorManager != null) {
+            cursorManager.registerFlowControlHooks(FLOW_CONTROL_HOOKS);
+        }
+    }
+
+    /**
+     * Parks a gated write while the gate is engaged, or appends ANY command that arrives behind
+     * an already parked one - per-connection wire order (a read-after-write must observe the
+     * write) leaves no other option. Returns true when the command must not execute now.
+     */
+    private boolean parkFlowControlledWrite(ChannelHandlerContext ctx, Map<String, Object> doc,
+                                            String cmd, int requestId) {
+        Channel channel = ctx.channel();
+        java.util.ArrayDeque<ParkedCommand> fifo = channel.attr(PARKED_WRITES_KEY).get();
+
+        if (fifo != null && !fifo.isEmpty()) {
+            fifo.addLast(new ParkedCommand(doc, cmd, requestId, cursorManager.flowControlNow()));
+            // Counted like the first park: the max-wait ticker must stay alive while ANY command
+            // of ANY connection is queued, and every queued command is decremented once when it
+            // is executed or dropped. Counting only the first park per connection let the count
+            // hit zero with commands still queued - the ticker stopped and max-wait silently
+            // died for the rest of the run.
+            cursorManager.noteFlowControlParkedWrite();
+            return true;
+        }
+
+        if (!GATED_WRITE_COMMANDS.contains(cmd.toLowerCase())) {
+            return false;
+        }
+
+        // Same guard as postWrite: only a current primary with a replication coordinator brakes.
+        // On a secondary or standalone no gate engages, and a replication-internal command never
+        // reaches this point (none of them is a gated command).
+        ReplicationCoordinator coordinator = replicationCoordinator();
+        WatchCursorManager manager = cursorManager;
+
+        if (coordinator == null || manager == null || !isCurrentPrimary()) {
+            return false;
+        }
+
+        ReplicationFlowControl gate = manager.replicationFlowControl();
+
+        // One gate token per channel, anchored to its oldest queued entry (see drainParked).
+        if (!gate.parkIfEngaged(new ParkToken(channel), manager.flowControlNow())) {
+            return false; // free gate: run right away, no race with a release
+        }
+
+        if (fifo == null) {
+            fifo = new java.util.ArrayDeque<>();
+            channel.attr(PARKED_WRITES_KEY).set(fifo);
+            channel.attr(PARKED_WRITES_HANDLER_KEY).set(this);
+            channel.attr(PARKED_WRITES_CTX_KEY).set(ctx);
+        }
+
+        fifo.addLast(new ParkedCommand(doc, cmd, requestId, manager.flowControlNow()));
+        manager.noteFlowControlParkedWrite();
+
+        // The real backpressure to the writer: stop reading from the socket. The kernel's TCP
+        // buffer fills, the client driver blocks in send, and this node buffers nothing beyond
+        // the events the write already produced.
+        channel.config().setAutoRead(false);
+        return true;
+    }
+
+    /**
+     * Release path (the gate opened), on the channel's event loop: run the FIFO in wire order
+     * through the normal dispatch, postWrite included. If the gate re-closes mid-way, the next
+     * command re-parks - keeping its original parkedAtMs, so max-wait still counts from the
+     * FIRST park (spec 3.4 step 5) - and everything behind it stays waiting. An empty FIFO
+     * turns auto-read back on.
+     */
+    private void drainParked(Channel channel) {
+        java.util.ArrayDeque<ParkedCommand> fifo = channel.attr(PARKED_WRITES_KEY).get();
+        ChannelHandlerContext ctx = channel.attr(PARKED_WRITES_CTX_KEY).get();
+
+        if (fifo == null || ctx == null) {
+            return;
+        }
+
+        if (fifo.isEmpty()) {
+            channel.config().setAutoRead(true);
+            return;
+        }
+
+        ReplicationFlowControl gate = flowControlGate();
+
+        while (true) {
+            ParkedCommand head = fifo.peek();
+
+            if (head == null) {
+                channel.config().setAutoRead(true);
+                return;
+            }
+
+            if (gate != null && gate.isEngaged()) {
+                // The gate is closed. The head runs only as a MAX-WAIT override - its entry time
+                // anchors the wait to the FIRST park (spec 3.4 step 5), so a command that has
+                // waited its full max-wait runs even though the gate is still engaged, while a
+                // younger command stops the drain (its own max-wait releases it later).
+                if (!parkedCommandExpiredByEntryTime(head)) {
+                    // Re-arm the channel's token, anchored to the OLDEST remaining entry's park
+                    // time - never a fresh clock reading, or a second write behind the first
+                    // would inherit a restarted max-wait window. The overload keeps one token
+                    // per channel: an already-armed token stays untouched. If the gate opened
+                    // between the check and the park, run the head instead - otherwise it would
+                    // sit unarmed under an open gate forever.
+                    if (gate.parkIfEngaged(new ParkToken(channel), head.parkedAtMs())) {
+                        return;
+                    }
+                    continue;
+                }
+
+                fifo.poll();
+                cursorManager.noteFlowControlUnparkedWrites(1);
+                executeParkedCommand(ctx, head);
+                continue; // keep evaluating: the next head may have expired too
+            }
+
+            fifo.poll();
+            cursorManager.noteFlowControlUnparkedWrites(1);
+            executeParkedCommand(ctx, head);
+        }
+    }
+
+    /**
+     * Role change (spec 3.5): answer every parked command on this connection with
+     * NotWritablePrimary (10107) and execute none of them. The client driver resolves the new
+     * primary and retries, exactly as it does for any other not-primary error.
+     */
+    private void answerParkedWritesNotPrimary(Channel channel) {
+        java.util.ArrayDeque<ParkedCommand> fifo = channel.attr(PARKED_WRITES_KEY).get();
+        ChannelHandlerContext ctx = channel.attr(PARKED_WRITES_CTX_KEY).get();
+
+        if (fifo == null || ctx == null || fifo.isEmpty()) {
+            return;
+        }
+
+        Map<String, Object> error = Doc.of(
+                "ok", 0.0,
+                "code", 10107,
+                "codeName", "NotWritablePrimary",
+                "errmsg", "node is not primary - the write was parked for replication flow control");
+        int dropped = 0;
+        ParkedCommand entry;
+
+        while ((entry = fifo.poll()) != null) {
+            dropped++;
+            sendResponse(ctx, entry.requestId(), error);
+        }
+
+        cursorManager.noteFlowControlUnparkedWrites(dropped);
+        channel.config().setAutoRead(true);
+    }
+
+    /** Runs one released parked command through the normal dispatch (postWrite included). */
+    private void executeParkedCommand(ChannelHandlerContext ctx, ParkedCommand entry) {
+        try {
+            dispatchOpMsgNow(ctx, entry.doc(), entry.cmd(), entry.requestId());
+        } catch (Exception e) {
+            log.error("Error executing parked command {}: {}", entry.cmd(), e.getMessage(), e);
+            sendError(ctx, entry.requestId(), e.getMessage());
+        } finally {
+            // Same rule as processOpMsg's finally: a replay runs on the event-loop thread
+            // OUTSIDE that wrapper, so the per-command transaction context must be cleared here
+            // too - otherwise the next command from another channel on this loop would inherit
+            // this client's open-transaction snapshot.
+            driver.setTransactionContext(null);
+        }
+    }
+
+    private ReplicationFlowControl flowControlGate() {
+        WatchCursorManager manager = cursorManager;
+        return manager == null ? null : manager.replicationFlowControl();
+    }
+
+    /** True when the entry's ORIGINAL max-wait elapsed (anchored to the first park, spec 3.4). */
+    private boolean parkedCommandExpiredByEntryTime(ParkedCommand entry) {
+        WatchCursorManager manager = cursorManager;
+        return manager != null
+                && entry.parkedAtMs() + manager.flowControlMaxWaitMs() <= manager.flowControlNow();
     }
 
     private void processGetMore(ChannelHandlerContext ctx, Map<String, Object> doc, int requestId) {
@@ -1358,6 +1645,9 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             // WatchCursorManager.changeStreamStats), so a client can read the rate on demand.
             if (cmd.equals("serverStatus") && cursorManager != null) {
                 answer.put("changeStreams", cursorManager.changeStreamStats());
+                // Replication flow control: whether writers are being braked right now, by which
+                // secondary, and the accumulated wait - the operator's view of the gate.
+                answer.put("poppyFlowControl", cursorManager.replicationFlowControl().statusSnapshot());
             }
 
             // Promote the pending user once the driver confirms the SCRAM exchange succeeded.
@@ -1708,6 +1998,17 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         try {
             WatchCommand wcmd = new WatchCommand(driver).fromMap(doc);
 
+            // The replication-watch marker: a PoppyDB secondary tags the aggregate that registers
+            // its replication watch with poppyReplicationWatch + poppyMember (its own host:port,
+            // the same address it reports via reportProgress). Both are read here at registration
+            // and stored on the cursor state, so the cursor manager can tell replication cursors
+            // apart from client change streams from the FIRST registration on - the resumeAfter's
+            // poppyResumeSequence marker only exists from the first resume, not for a fresh
+            // secondary. A client that forges the marker can slow the database; accepted in the
+            // auth-less deployment (documented in docs/poppydb.md).
+            boolean replication = Boolean.TRUE.equals(wcmd.getPoppyReplicationWatch());
+            String memberAddress = wcmd.getPoppyMember();
+
             // Resume-after-disconnect: a PoppyDB secondary resuming its replication watch tags its
             // resumeAfter token with "poppyResumeSequence" (its lastAppliedSequence). Only these
             // replication resumes are gated here — ordinary change streams (e.g. messaging) that use
@@ -1764,7 +2065,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 }
             }
 
-            long cursorId = cursorManager.createWatchCursor(driver, wcmd);
+            long cursorId = cursorManager.createWatchCursor(driver, wcmd, replication, memberAddress);
             channelCursors.add(cursorId);
 
             // Read the current sequence right after the subscription is registered (inside
@@ -2734,6 +3035,21 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         log.debug("Channel inactive, cleaning up ({} cursors to kill)", channelCursors.size());
+
+        // Replication flow control: a dropped connection discards its parked writes - nothing
+        // of them was executed and the client got no reply, the same as an abort before sending.
+        // The gate must forget their tokens too, or a later release would schedule a drain for a
+        // channel that no longer exists.
+        java.util.ArrayDeque<ParkedCommand> parkedWrites = ctx.channel().attr(PARKED_WRITES_KEY).getAndSet(null);
+
+        if (parkedWrites != null && !parkedWrites.isEmpty()) {
+            if (cursorManager != null) {
+                cursorManager.replicationFlowControl().unpark(new ParkToken(ctx.channel()));
+                cursorManager.noteFlowControlUnparkedWrites(parkedWrites.size());
+            }
+            parkedWrites.clear();
+        }
+
         // Kill all cursors owned by this channel to prevent thread/subscription leaks.
         // A cursor is either a watch/tailable cursor (owned by cursorManager) or a
         // server-side find cursor (in this instance's findCursorRegistry) — clean up both,

@@ -12,6 +12,8 @@ import de.caluga.morphium.driver.inmem.InMemoryDriver;
 
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -67,6 +69,191 @@ public class WatchCursorManager {
     public long getCursorQueueByteBudget() {
         return cursorQueueByteBudget;
     }
+
+    /**
+     * Replaces the flow-control gate with one running the given settings (the configuration
+     * step calls this with the server options). The reference size stays this manager's
+     * cursor-queue byte budget. Only expected while nothing is parked: configuration is applied
+     * before traffic.
+     */
+    public void setReplicationFlowControlSettings(ReplicationFlowControlSettings settings) {
+        this.flowControlSettings = settings;
+        java.util.function.LongSupplier clock = System::currentTimeMillis;
+        this.flowControlClock = clock;
+        installFlowControlGate(new ReplicationFlowControl(settings, this::getCursorQueueByteBudget, clock));
+    }
+
+    /** The active gate; serverStatus reads its statusSnapshot (spec 3.7). */
+    public ReplicationFlowControl replicationFlowControl() {
+        return flowControl;
+    }
+
+    public ReplicationFlowControlSettings replicationFlowControlSettings() {
+        return flowControlSettings;
+    }
+
+    /** The max-wait of the installed gate (spec 3.4): how long a parked write may wait at most. */
+    public long flowControlMaxWaitMs() {
+        return flowControlSettings.maxWaitMs();
+    }
+
+    /**
+     * The gate's clock. Parked-write entry times MUST be recorded with it, not with a separate
+     * wall clock: only then does the entry-time max-wait check agree with the gate's own
+     * expiry, which the injected test clock changes together.
+     */
+    public long flowControlNow() {
+        return flowControlClock.getAsLong();
+    }
+
+    /**
+     * Test hook: install a gate whose clock the test controls (wall-clock independent max-wait
+     * evaluation), with the currently active settings.
+     */
+    void setReplicationFlowControlForTest(java.util.function.LongSupplier clock) {
+        this.flowControlClock = clock;
+        installFlowControlGate(new ReplicationFlowControl(flowControlSettings, this::getCursorQueueByteBudget, clock));
+    }
+
+    /**
+     * Installs a gate instance and re-attaches the shared release listener when the handler
+     * hooks are already registered - releases of a REPLACED gate are still delivered to the
+     * same token sink. The old instance's listener is orphaned with it, which is harmless.
+     */
+    private void installFlowControlGate(ReplicationFlowControl gate) {
+        this.flowControl = gate;
+        if (flowControlHooks != null) {
+            gate.setReleaseListener(this::flowControlTokensReleased);
+        }
+    }
+
+    /**
+     * The handler-side parking hooks for this manager's gate: the handler turns released,
+     * timed-out and role-changed tokens into event-loop actions on the token's channel.
+     */
+    public interface FlowControlHooks {
+        /** The gate opened: the tokens' writes may run (schedule each channel's drain). */
+        void parkTokensReleased(List<Object> tokens);
+
+        /** The max-wait tick expired the tokens: run exactly the expired write of each channel. */
+        void parkedTokensTimedOut(List<Object> tokens);
+
+        /** The node lost the primary role: answer the tokens' writes with NotWritablePrimary. */
+        void parkedWritesNotPrimary(List<Object> tokens);
+    }
+
+    private final AtomicBoolean flowControlHooksRegistered = new AtomicBoolean(false);
+    private volatile FlowControlHooks flowControlHooks;
+
+    /**
+     * Registers the handler-side parking hooks exactly once per manager (the gate's
+     * setReleaseListener replaces, so every later caller must be a no-op). The hooks attach the
+     * gate's release listener; the max-wait expiry tick and the role-change path feed the same
+     * hooks. Returns true only for the call that performed the registration.
+     */
+    public boolean registerFlowControlHooks(FlowControlHooks hooks) {
+        if (hooks == null || !flowControlHooksRegistered.compareAndSet(false, true)) {
+            return false;
+        }
+        this.flowControlHooks = hooks;
+        flowControl.setReleaseListener(this::flowControlTokensReleased);
+        return true;
+    }
+
+    private void flowControlTokensReleased(List<Object> tokens) {
+        FlowControlHooks hooks = this.flowControlHooks;
+        if (hooks != null) {
+            hooks.parkTokensReleased(tokens);
+        }
+    }
+
+    /**
+     * Lifecycle hook for {@code PoppyDB.onLeadershipChange} (spec 3.5): the node is no longer
+     * primary. The gate is reset (opens, forgets all members) and every parked write is handed
+     * to the hooks to be answered NotWritablePrimary (10107) - nothing executes.
+     */
+    public void failParkedWritesNotPrimary() {
+        List<Object> tokens = flowControl.reset();
+        if (tokens.isEmpty()) {
+            return;
+        }
+        FlowControlHooks hooks = this.flowControlHooks;
+        if (hooks != null) {
+            hooks.parkedWritesNotPrimary(tokens);
+        }
+    }
+
+    // Max-wait expiry: one 100 ms task on this manager's scheduler, alive only while any write
+    // is parked (started/stopped on the parked-count transitions, guarded by the count itself -
+    // every start/stop pair is bracketed by a count change, so a missed stop is caught by the
+    // next tick's count check and a missed start by the next park).
+    private static final long FLOW_CONTROL_TICK_MS = 100;
+    private final AtomicInteger flowControlParkedWrites = new AtomicInteger(0);
+    private final Object flowControlExpiryLock = new Object();
+    private java.util.concurrent.ScheduledFuture<?> flowControlExpiryTask;
+
+    /** A parked write entered a connection FIFO (handler side). */
+    public void noteFlowControlParkedWrite() {
+        if (flowControlParkedWrites.getAndIncrement() == 0) {
+            ensureFlowControlExpiryTask();
+        }
+    }
+
+    /** n parked writes left their connection FIFOs (executed, dropped, or answered 10107). */
+    public void noteFlowControlUnparkedWrites(int n) {
+        if (n <= 0) {
+            return;
+        }
+        if (flowControlParkedWrites.addAndGet(-n) <= 0) {
+            cancelFlowControlExpiryTask();
+        }
+    }
+
+    private void ensureFlowControlExpiryTask() {
+        synchronized (flowControlExpiryLock) {
+            if (flowControlExpiryTask == null) {
+                flowControlExpiryTask = scheduler.scheduleWithFixedDelay(
+                        this::flowControlExpiryTick, FLOW_CONTROL_TICK_MS, FLOW_CONTROL_TICK_MS,
+                        TimeUnit.MILLISECONDS);
+            }
+        }
+    }
+
+    private void cancelFlowControlExpiryTask() {
+        synchronized (flowControlExpiryLock) {
+            if (flowControlExpiryTask != null) {
+                flowControlExpiryTask.cancel(false);
+                flowControlExpiryTask = null;
+            }
+        }
+    }
+
+    private void flowControlExpiryTick() {
+        if (flowControlParkedWrites.get() <= 0) {
+            return;
+        }
+        List<Object> due = flowControl.expireDue();
+        if (due.isEmpty()) {
+            return;
+        }
+        FlowControlHooks hooks = this.flowControlHooks;
+        if (hooks != null) {
+            hooks.parkedTokensTimedOut(due);
+        }
+    }
+
+    /** How many commands are queued across all connections' parked FIFOs (test observation). */
+    int flowControlParkedWriteCount() {
+        return flowControlParkedWrites.get();
+    }
+
+    /** Whether the max-wait ticker is currently scheduled (test observation). */
+    boolean isFlowControlExpiryScheduledForTest() {
+        synchronized (flowControlExpiryLock) {
+            return flowControlExpiryTask != null && !flowControlExpiryTask.isCancelled();
+        }
+    }
+
 
     /** Global byte budget across all watch cursors' buffered events; 0 disables the global bound. */
     public void setGlobalCursorByteBudget(long bytes) {
@@ -125,7 +312,24 @@ public class WatchCursorManager {
 
     private final AtomicLong cursorIdGenerator = new AtomicLong(1000);
     private final ConcurrentMap<Long, WatchCursorState> watchCursors = new ConcurrentHashMap<>();
+    // The subset of watchCursors whose registration carried the replication-watch marker
+    // (poppyReplicationWatch + poppyMember on the aggregate). Kept separate so the flow-control
+    // signal (largest queued backlog over the SECONDARIES) never has to scan the cursor map with
+    // its client change streams - and so a client stream, by design, can never be mistaken for a
+    // replication backlog. A handful of entries (one per secondary); maintained in lockstep with
+    // watchCursors: put on creation, removed in removeWatchCursor under the same monitor.
+    private final ConcurrentMap<Long, WatchCursorState> replicationCursors = new ConcurrentHashMap<>();
     private final ConcurrentMap<Long, TailableCursorState> tailableCursors = new ConcurrentHashMap<>();
+    // Replication flow control (spec 3.3): the hysteresis gate that closes past high water and
+    // brakes writers until the slowest replication cursor has drained below low water. volatile
+    // because the configuration step swaps the instance at runtime (setReplicationFlowControl
+    // Settings) - every event-loop thread offering, draining or removing a cursor must see the
+    // current gate, never a torn reference.
+    private volatile ReplicationFlowControl flowControl;
+    /** The settings of the installed gate, kept for the max-wait the drain loop anchors on. */
+    private volatile ReplicationFlowControlSettings flowControlSettings = ReplicationFlowControlSettings.defaults();
+    /** The clock the installed gate runs on; parked-write entry times are recorded with it. */
+    private volatile java.util.function.LongSupplier flowControlClock = System::currentTimeMillis;
     private final ScheduledExecutorService scheduler;
     private volatile boolean running = true;
 
@@ -134,6 +338,11 @@ public class WatchCursorManager {
     private final ConcurrentMap<String, Set<Long>> messagingCursors = new ConcurrentHashMap<>();
 
     public WatchCursorManager() {
+        // The gate's reference size is this manager's cursor-queue byte budget, read live via the
+        // supplier on every evaluation - changing the budget changes the flow-control water marks
+        // immediately, exactly as it changes the kill threshold.
+        this.flowControl = new ReplicationFlowControl(ReplicationFlowControlSettings.defaults(),
+                this::getCursorQueueByteBudget);
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "WatchCursorManager-Scheduler");
             t.setDaemon(true);
@@ -220,7 +429,7 @@ public class WatchCursorManager {
     }
 
     /**
-     * Create a new watch cursor for a change stream.
+     * Create a new watch cursor for a change stream that is not a replication watch.
      *
      * @return the id of a cursor that is registered and live
      * @throws IllegalStateException if the change stream could not be started - deliberately
@@ -230,9 +439,36 @@ public class WatchCursorManager {
      *         it is logged - this method does not log it a second time.
      */
     public long createWatchCursor(InMemoryDriver driver, WatchCommand wcmd) {
+        return createWatchCursor(driver, wcmd, false, null);
+    }
+
+    /**
+     * Create a new watch cursor for a change stream.
+     *
+     * @param replication marks a PoppyDB secondary's replication watch (the aggregate carried
+     *        {@code poppyReplicationWatch: true}); such a cursor enters the replication map the
+     *        flow-control signal reads
+     * @param memberAddress the secondary's own host:port as it reports it, or null for client streams
+     * @return the id of a cursor that is registered and live
+     * @throws IllegalStateException if the change stream could not be started - deliberately
+     *         unchecked and deliberately NOT swallowed: a caller must not hand a cursor id to a
+     *         client for a stream that does not exist. The caller answers this as a failed
+     *         command (see {@code MongoCommandHandler.processChangeStream}), which is also where
+     *         it is logged - this method does not log it a second time.
+     */
+    public long createWatchCursor(InMemoryDriver driver, WatchCommand wcmd, boolean replication, String memberAddress) {
         long cursorId = nextCursorId();
-        WatchCursorState state = new WatchCursorState(cursorId, wcmd.getDb(), wcmd.getColl(), maxCursorQueueSize);
+        WatchCursorState state = new WatchCursorState(cursorId, wcmd.getDb(), wcmd.getColl(), maxCursorQueueSize,
+                replication, memberAddress);
         watchCursors.put(cursorId, state);
+
+        if (replication) {
+            // Registered before the watch starts: only the startup-failure path below can remove
+            // the cursor before this put, and that path goes through removeWatchCursor, which
+            // removes from the replication map too. A start can never fail across a non-trivially
+            // live cursor, and the resulting id is a fresh one nobody else can know yet.
+            replicationCursors.put(cursorId, state);
+        }
 
         log.debug("Created watch cursor {} for {}.{}", cursorId, wcmd.getDb(), wcmd.getColl());
 
@@ -319,8 +555,21 @@ public class WatchCursorManager {
             }
 
             unregisterMessagingCursor(cursorId, removed.db, removed.collection);
+            // The flow-control signal must not keep braking on a dead secondary: a removed
+            // replication cursor leaves the replication map the instant it leaves the cursor map.
+            // Same monitor and CAS form as the watchCursors removal above; the state monitor
+            // serializes re-registration-of-the-same-id against this teardown (mirroring the
+            // messaging-registration rollback in registerMessagingCursor).
+            replicationCursors.remove(cursorId, removed);
             totalQueuedBytes.addAndGet(-removed.queuedBytes.getAndSet(0));
             removed.events.clear();
+        }
+
+        // Flow-control signal: the member disappears with the cursor, so a dead secondary can
+        // never hold the gate closed. Outside the monitor - the gate's release listener executes
+        // parked writes, same rule as the offer/drain feeds.
+        if (removed.replication) {
+            flowControl.onReplicationCursorRemoved(flowControlMemberKey(removed));
         }
 
         return removed;
@@ -661,6 +910,7 @@ public class WatchCursorManager {
      */
     private List<Map<String, Object>> drainWatchEvents(WatchCursorState state) {
         List<Map<String, Object>> batch = new ArrayList<>();
+        long queuedBytesAfterDrain = 0;
 
         // Same monitor as offerWatchEvent/removeWatchCursor: a drain and a remove/offer for this
         // cursor can never interleave, so each subtracted byte was definitely added by a prior
@@ -675,6 +925,17 @@ public class WatchCursorManager {
                 batch.add(qe.event());
                 count++;
             }
+            queuedBytesAfterDrain = state.queuedBytes.get();
+        }
+
+        // Flow-control signal: a replication cursor's fill shrank below the hysteresis band, or
+        // the buffer emptied entirely - the gate may open and release parked writes. Outside the
+        // cursor monitor, same rule as the offer feed. Fed only while the cursor is still live:
+        // a concurrent removal already reported the member gone through
+        // onReplicationCursorRemoved, and a Bytes feed re-adding its fill after that would
+        // re-close the gate round a member that no longer exists.
+        if (state.replication && watchCursors.get(state.cursorId) == state) {
+            flowControl.onReplicationCursorBytes(flowControlMemberKey(state), queuedBytesAfterDrain);
         }
 
         return batch;
@@ -686,6 +947,49 @@ public class WatchCursorManager {
     public boolean hasCursor(long cursorId) {
         return watchCursors.containsKey(cursorId) || tailableCursors.containsKey(cursorId);
     }
+
+    /**
+     * Whether the live watch cursor with this id was registered as a replication watch (its
+     * aggregate carried the {@code poppyReplicationWatch} marker). Such cursors are the signal
+     * source for replication flow control - client change streams never are.
+     */
+    public boolean isReplicationCursor(long cursorId) {
+        return replicationCursors.containsKey(cursorId);
+    }
+
+    /**
+     * A snapshot of the live replication cursors: cursor id to state. Read-only by convention -
+     * the state's {@code queuedBytes} is atomic and {@code memberAddress} is final - callers must
+     * not mutate. The flow-control gate reads its signal (best and worst cursor) from this view.
+     */
+    public Map<Long, WatchCursorState> replicationCursorStates() {
+        return new HashMap<>(replicationCursors);
+    }
+
+    /**
+     * The member holding the largest queued backlog over the live replication cursors, or empty
+     * when no replication cursor exists. This is the flow-control signal: the slowest secondary
+     * decides whether writers get braked, and it is the member address that gets reported.
+     */
+    public java.util.Optional<ReplicationCursorBacklog> maxReplicationQueuedBytes() {
+        WatchCursorState worst = null;
+        long worstBytes = -1;
+
+        for (WatchCursorState s : replicationCursors.values()) {
+            long b = s.queuedBytes.get();
+            if (b > worstBytes) {
+                worstBytes = b;
+                worst = s;
+            }
+        }
+
+        return worst == null ? java.util.Optional.empty()
+            : java.util.Optional.of(new ReplicationCursorBacklog(worstBytes, worst.memberAddress));
+    }
+
+    /** Largest queued backlog over the replication cursors, with the member holding it. */
+    public record ReplicationCursorBacklog(long queuedBytes, String memberAddress) {}
+
 
     /**
      * Whether this id belongs to a change stream that was ended and removed within the grace
@@ -811,6 +1115,16 @@ public class WatchCursorManager {
     }
 
     /**
+     * The flow-control member key of a replication cursor: its reported member address, or
+     * {@code cursor-<id>} when a secondary registered before knowing its address. The gate
+     * rejects null keys, and poppyMember can be absent at the first registration of a fresh
+     * secondary.
+     */
+    private static String flowControlMemberKey(WatchCursorState state) {
+        return state.memberAddress != null ? state.memberAddress : "cursor-" + state.cursorId;
+    }
+
+    /**
      * Enqueue a change stream event, killing the cursor if its buffer is full.
      *
      * @return true if the event was buffered, false if the cursor overflowed and was killed.
@@ -855,6 +1169,9 @@ public class WatchCursorManager {
             }
         }
 
+        long queuedBytesAfterOffer = 0;
+        boolean reportAfterOffer = false;
+
         synchronized (state) {
             // A removal can race this offer: if this state is no longer the live cursor for its id,
             // its bytes were already released by removeWatchCursor - refuse rather than add for a
@@ -884,17 +1201,31 @@ public class WatchCursorManager {
             if (state.events.offer(new QueuedEvent(event, bytes))) {
                 state.queuedBytes.addAndGet(bytes);
                 totalQueuedBytes.addAndGet(bytes);
-                return true;
+                reportAfterOffer = true;
+                queuedBytesAfterOffer = state.queuedBytes.get();
+            } else {
+                log.warn("Change stream cursor {} exceeded max buffer size {} - killing cursor (slow/absent consumer)",
+                        state.cursorId, maxCursorQueueSize);
+                WatchCursorState removed = removeWatchCursor(state.cursorId);
+                if (removed != null) {
+                    failPending(removed.pendingGetMores,
+                            "cursor killed: event buffer overflow (max " + maxCursorQueueSize + " buffered events)");
+                }
+                return false;
             }
-            log.warn("Change stream cursor {} exceeded max buffer size {} - killing cursor (slow/absent consumer)",
-                    state.cursorId, maxCursorQueueSize);
-            WatchCursorState removed = removeWatchCursor(state.cursorId);
-            if (removed != null) {
-                failPending(removed.pendingGetMores,
-                        "cursor killed: event buffer overflow (max " + maxCursorQueueSize + " buffered events)");
-            }
-            return false;
         }
+
+        // Flow-control signal: a replication cursor's fill grew. Deliberately OUTSIDE the
+        // cursor monitor - the gate has its own monitor and its release listener is what will
+        // execute parked writes, so nesting a cursor monitor around that is forbidden (same
+        // rule as the existing cross-cursor comment above the global-budget kill). The bytes
+        // were captured inside the monitor, so the reported fill is the exact post-offer value
+        // and never a torn read.
+        if (reportAfterOffer && state.replication) {
+            flowControl.onReplicationCursorBytes(flowControlMemberKey(state), queuedBytesAfterOffer);
+        }
+
+        return reportAfterOffer;
     }
 
     /**
@@ -1161,10 +1492,19 @@ public class WatchCursorManager {
      */
     private record QueuedEvent(Map<String, Object> event, long bytes) {}
 
-    private static class WatchCursorState {
+    // Package-visible (not private) so the flow-control gate and the marker tests in this package
+    // can read the replication signal; nothing outside the package ever touches it.
+    static class WatchCursorState {
         final long cursorId;
         final String db;
         final String collection;
+        // True when this cursor is a PoppyDB secondary's replication watch: the aggregate carried
+        // poppyReplicationWatch, so this cursor is a flow-control signal source. False for every
+        // client change stream - a hung client must never make the primary brake.
+        final boolean replication;
+        // The secondary's own host:port as it reported it (same address as reportProgress), null
+        // for client streams. Only ever read for reporting; never used to identify a cursor.
+        final String memberAddress;
         // The command the watch runs under: it carries the reason when the stream ended because
         // it could not be served, which getMore turns into an error instead of an empty batch.
         volatile WatchCommand wcmd;
@@ -1177,10 +1517,13 @@ public class WatchCursorManager {
         // For messaging fast-path: subscriber ID for sender filtering
         volatile String subscriberId;
 
-        WatchCursorState(long cursorId, String db, String collection, int queueCapacity) {
+        WatchCursorState(long cursorId, String db, String collection, int queueCapacity,
+                         boolean replication, String memberAddress) {
             this.cursorId = cursorId;
             this.db = db;
             this.collection = collection;
+            this.replication = replication;
+            this.memberAddress = memberAddress;
             this.events = new LinkedBlockingQueue<>(queueCapacity);
         }
     }

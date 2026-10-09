@@ -187,6 +187,10 @@ max-bson-size = 16777216
 #event-queue-budget = 256m
 #cursor-queue-budget = 64m
 #global-cursor-budget = 0
+#replication-flow-control = true
+#replication-flow-control-high-water = 50
+#replication-flow-control-low-water = 25
+#replication-flow-control-max-wait = 10s
 ```
 
 Load it explicitly, or drop it at one of the default search paths:
@@ -433,6 +437,49 @@ resume-window discussion above). That comparison is deliberately conservative - 
 can drain while the replay runs, so a backlog that would in practice fit can still trigger a
 re-sync; the node is not electable while it syncs, which is the accepted price of never admitting
 a replay that would livelock instead.
+
+### Replication flow control
+
+The budgets above are the last line of defence. Before a *replication* watch gets anywhere near
+its budget, a primary brakes the writers instead - the same idea as MongoDB's flow control (4.2+),
+which throttles a primary's writes while the majority-commit lag is above its target. Without it
+the chain on an overloaded bus was: the slowest secondary's cursor overflows and is killed, the
+secondary resumes, the replay gate answers `ChangeStreamHistoryLost`, a full re-sync runs, and
+every write with `w >= 2` times out meanwhile. The only back-pressure a writer ever felt was that
+timeout.
+
+| Option | Default | Meaning |
+|---|---|---|
+| `--replication-flow-control <true\|false>` | `true` | the switch (`--no-replication-flow-control` turns it off) |
+| `--replication-flow-control-high-water <percent>` | `50` | fill of the slowest replication-watch queue, as percent of `cursor-queue-budget`, at which braking starts |
+| `--replication-flow-control-low-water <percent>` | `25` | fill below which braking stops |
+| `--replication-flow-control-max-wait <duration>` | `10s` | longest a single write is held back (`500ms`, `10s`, `2m`) |
+
+How it works: the signal is the queued bytes of the replication watch cursors (the aggregates a
+secondary registers with the `poppyReplicationWatch` marker), relative to `cursor-queue-budget`;
+the slowest secondary decides. Above high-water the gate closes: data writes (`insert`, `update`,
+`delete`, `findAndModify`, `bulkWrite`) are parked before they are applied, the connection stops
+reading from its socket, and the client's driver simply sees a slower write. Everything behind a
+parked write on the same connection waits with it, reads included, so read-after-write on one
+connection stays intact. Below low-water the gate opens and parked writes run in order. A write is
+never held longer than max-wait: after that it runs, and if the secondary still does not drain,
+the usual cursor kill applies - flow control delays the kill for a live secondary, it does not
+protect a dead one. Losing the primary role answers parked writes `NotWritablePrimary` (10107) so
+the driver retries on the new primary.
+
+What never brakes: client change streams. A hung client must not stall the database, so for
+client cursors it stays at budget, kill, replay buffer and `ChangeStreamHistoryLost`, the oplog
+equivalent. Reads, admin commands and the secondaries' own replication commands are not gated
+either. With `cursor-queue-budget = 0` there is no reference size and the gate is inactive;
+`--check-config` says so.
+
+Trust: the marker on the replication aggregate is a plain command field. With RS-internal auth it
+is tied to the cluster identity; in an auth-less deployment any client could set it and slow the
+database, the same trust level the `poppyResumeSequence` resume marker already has.
+
+`serverStatus` exposes the gate under `poppyFlowControl` (`engaged`, `slowestMember`,
+`slowestFillPercent`, `parkedWrites`, `totalWaitMs`, `releasedByTimeout`, ...); see the
+monitoring guide for the full field list and what to alert on.
 
 ### Persistence (Periodic Snapshots)
 

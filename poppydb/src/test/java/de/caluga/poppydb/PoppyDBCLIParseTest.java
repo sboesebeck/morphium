@@ -261,6 +261,83 @@ public class PoppyDBCLIParseTest {
         assertThat(opts.sourceOf("global-cursor-budget")).isEqualTo(ServerOptions.Source.CLI);
     }
 
+    // --- replication flow control (brake writers while the slowest secondary is backed up) ---
+
+    @Test
+    void replicationFlowControlDefaultsAreOnFiftyTwentyFiveTenSeconds() {
+        ServerOptions defaults = PoppyDBCLI.parse(new String[0], 0);
+        assertThat(defaults.replicationFlowControl).isTrue();
+        assertThat(defaults.replicationFlowControlHighWater).isEqualTo(50);
+        assertThat(defaults.replicationFlowControlLowWater).isEqualTo(25);
+        assertThat(defaults.replicationFlowControlMaxWait).isEqualTo("10s");
+        assertThat(defaults.sourceOf("replication-flow-control")).isEqualTo(ServerOptions.Source.DEFAULT);
+
+        var settings = defaults.replicationFlowControlSettings();
+        assertThat(settings.enabled()).isTrue();
+        assertThat(settings.highWaterPercent()).isEqualTo(50);
+        assertThat(settings.lowWaterPercent()).isEqualTo(25);
+        assertThat(settings.maxWaitMs()).isEqualTo(10_000L);
+    }
+
+    @Test
+    void replicationFlowControlIsParsedFromCli() {
+        ServerOptions opts = PoppyDBCLI.parse(new String[] {
+            "--replication-flow-control", "false",
+            "--replication-flow-control-high-water", "70",
+            "--replication-flow-control-low-water", "40",
+            "--replication-flow-control-max-wait", "500ms"}, 0);
+        assertThat(opts.replicationFlowControl).isFalse();
+        assertThat(opts.replicationFlowControlHighWater).isEqualTo(70);
+        assertThat(opts.replicationFlowControlLowWater).isEqualTo(40);
+        assertThat(opts.replicationFlowControlMaxWait).isEqualTo("500ms");
+        assertThat(opts.sourceOf("replication-flow-control")).isEqualTo(ServerOptions.Source.CLI);
+        assertThat(opts.sourceOf("replication-flow-control-max-wait")).isEqualTo(ServerOptions.Source.CLI);
+        assertThat(opts.replicationFlowControlSettings().maxWaitMs()).isEqualTo(500L);
+
+        // The bare off-switch and the value forms mean the same thing.
+        assertThat(PoppyDBCLI.parse(new String[] {"--no-replication-flow-control"}, 0).replicationFlowControl).isFalse();
+        assertThat(PoppyDBCLI.parse(new String[] {"--replication-flow-control", "off"}, 0).replicationFlowControl).isFalse();
+        assertThat(PoppyDBCLI.parse(new String[] {"--replication-flow-control", "true"}, 0).replicationFlowControl).isTrue();
+    }
+
+    @Test
+    void replicationFlowControlRejectsNonBooleanValues() {
+        assertThatThrownBy(() -> PoppyDBCLI.parse(new String[] {"--replication-flow-control", "maybe"}, 0))
+            .isInstanceOf(ConfigException.class)
+            .hasMessageContaining("--replication-flow-control")
+            .hasMessageContaining("maybe");
+    }
+
+    @Test
+    void replicationFlowControlDurationParser() {
+        assertThat(ServerOptions.parseDurationMs("replication-flow-control-max-wait", "10s")).isEqualTo(10_000L);
+        assertThat(ServerOptions.parseDurationMs("replication-flow-control-max-wait", "500ms")).isEqualTo(500L);
+        assertThat(ServerOptions.parseDurationMs("replication-flow-control-max-wait", "2m")).isEqualTo(120_000L);
+        assertThat(ServerOptions.parseDurationMs("replication-flow-control-max-wait", "750")).isEqualTo(750L);
+        assertThatThrownBy(() -> ServerOptions.parseDurationMs("replication-flow-control-max-wait", "soon"))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("replication-flow-control-max-wait")
+            .hasMessageContaining("soon");
+        assertThatThrownBy(() -> ServerOptions.parseDurationMs("replication-flow-control-max-wait", "0"))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("positive");
+    }
+
+    @Test
+    void replicationFlowControlInvalidValuesAreReportedByValidate() {
+        ConfigInspector.Result unordered = ConfigInspector.validate(PoppyDBCLI.parse(new String[] {
+            "--replication-flow-control-high-water", "20", "--replication-flow-control-low-water", "30"}, 0));
+        assertThat(unordered.errors()).anySatisfy(e -> assertThat(e).contains("low-water").contains("high-water"));
+
+        ConfigInspector.Result range = ConfigInspector.validate(PoppyDBCLI.parse(new String[] {
+            "--replication-flow-control-high-water", "150"}, 0));
+        assertThat(range.errors()).anySatisfy(e -> assertThat(e).contains("high-water"));
+
+        ConfigInspector.Result duration = ConfigInspector.validate(PoppyDBCLI.parse(new String[] {
+            "--replication-flow-control-max-wait", "later"}, 0));
+        assertThat(duration.errors()).anySatisfy(e -> assertThat(e).contains("replication-flow-control-max-wait"));
+    }
+
     @Test
     void globalCursorBudgetUsesTheSharedSizeParser() {
         long heap = 1024L * 1024 * 1024; // pretend 1 GB max heap

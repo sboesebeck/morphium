@@ -65,6 +65,14 @@ class ServerOptions {
     // per-cursor budget bounds one slow consumer; the fleet total is otherwise unbounded. Same
     // size syntax; overflow kills the newest offending cursor. 0 = global cap off (default).
     String globalCursorBudget = "0";
+    // Replication flow control on a primary: brake writers while the slowest secondary's
+    // replication-watch queue is above high-water percent of cursor-queue-budget, release below
+    // low-water, never hold a single write longer than max-wait. Client change streams never
+    // trigger it. On by default like mongod's flow control.
+    boolean replicationFlowControl = true;
+    int replicationFlowControlHighWater = 50;
+    int replicationFlowControlLowWater = 25;
+    String replicationFlowControlMaxWait = "10s";
 
     /** canonical config key (see ConfigLoader) -> origin of the effective value. */
     final Map<String, Source> sources = new LinkedHashMap<>();
@@ -164,6 +172,59 @@ class ServerOptions {
      */
     long globalCursorBudgetBytes() {
         return parseByteSize("global-cursor-budget", globalCursorBudget, Runtime.getRuntime().maxMemory());
+    }
+
+    /**
+     * The replication flow-control settings as the server consumes them. Throws
+     * IllegalArgumentException with the offending key in the message when the water marks are
+     * not ordered percentages or max-wait does not parse, so ConfigInspector and the CLI report
+     * it the same way as a bad byte size.
+     */
+    de.caluga.poppydb.netty.ReplicationFlowControlSettings replicationFlowControlSettings() {
+        long maxWaitMs = parseDurationMs("replication-flow-control-max-wait", replicationFlowControlMaxWait);
+        try {
+            return new de.caluga.poppydb.netty.ReplicationFlowControlSettings(replicationFlowControl,
+                replicationFlowControlHighWater, replicationFlowControlLowWater, maxWaitMs);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("replication-flow-control-high-water/-low-water: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Parses a duration: a plain number is milliseconds, {@code 10s} seconds, {@code 2m} minutes,
+     * {@code 500ms} milliseconds. {@code key} names the config key in error messages.
+     */
+    static long parseDurationMs(String key, String input) {
+        String v = input == null ? "" : input.trim().toLowerCase(java.util.Locale.ROOT);
+
+        if (v.isEmpty()) {
+            throw new IllegalArgumentException(key + " must not be empty - use e.g. 10s, 500ms or 2m");
+        }
+
+        long factor = 1;
+        String num = v;
+
+        if (v.endsWith("ms")) {
+            num = v.substring(0, v.length() - 2);
+        } else if (v.endsWith("s")) {
+            factor = 1000;
+            num = v.substring(0, v.length() - 1);
+        } else if (v.endsWith("m")) {
+            factor = 60_000;
+            num = v.substring(0, v.length() - 1);
+        }
+
+        try {
+            long value = Long.parseLong(num.trim()) * factor;
+
+            if (value <= 0) {
+                throw new IllegalArgumentException(key + " must be a positive duration, got: " + input);
+            }
+
+            return value;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(key + " is not a duration (use e.g. 10s, 500ms or 2m), got: " + input);
+        }
     }
 
     /** Kept as a named entry point for the replay-buffer key (and its existing tests). */

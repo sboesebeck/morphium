@@ -2721,6 +2721,13 @@ public class ReplicationManager {
                 // window turned into a cluster-wide loss of the index.
                 .setShowExpandedEvents(true)
                 .setPipeline(List.of());  // Empty = watch everything
+            // The replication-watch marker (spec: replication flow control): tag this aggregate so
+            // the primary can tell the replication cursor from client change streams from the very
+            // first registration - the poppyResumeSequence resumeAfter marker only exists from the
+            // first resume on, so a fresh secondary was indistinguishable until now. The member
+            // address is the same one this manager reports via reportProgress.
+            watchCmd.setPoppyReplicationWatch(true);
+            watchCmd.setPoppyMember(myAddress);
             // Fires once the watch cursor is established on the primary. From that point the
             // stream captures every subsequent write, so the initial-sync snapshot can safely
             // start copying without losing writes that happen during the copy. Bump the

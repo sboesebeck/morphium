@@ -83,6 +83,12 @@ public class ConfigLoader {
         define("event-queue-budget", Type.STRING, "--event-queue-budget");
         define("cursor-queue-budget", Type.STRING, "--cursor-queue-budget");
         define("global-cursor-budget", Type.STRING, "--global-cursor-budget");
+        // A value-taking option, not a bare boolean flag: toArgs() emits bare flags for true
+        // only, which could never switch a default-on setting off from a config file.
+        define("replication-flow-control", Type.STRING, "--replication-flow-control");
+        define("replication-flow-control-high-water", Type.INT, "--replication-flow-control-high-water");
+        define("replication-flow-control-low-water", Type.INT, "--replication-flow-control-low-water");
+        define("replication-flow-control-max-wait", Type.STRING, "--replication-flow-control-max-wait");
         define("compressor", Type.COMPRESSOR, "--compressor");
         define("rs-name", Type.STRING, "--rs-name");
         define("rs-seed", Type.STRING, "--rs-seed");

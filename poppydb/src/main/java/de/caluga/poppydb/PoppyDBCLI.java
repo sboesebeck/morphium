@@ -329,6 +329,39 @@ public class PoppyDBCLI {
                     idx += 2;
                     break;
 
+                case "--replication-flow-control":
+                    // Takes a value (not a bare flag): the option defaults to ON, and a config
+                    // file can only switch it off if "false" travels as a value - ConfigLoader
+                    // emits bare boolean flags for true only.
+                    opts.replicationFlowControl = boolValue(effectiveArgs, idx, "--replication-flow-control");
+                    opts.sources.put("replication-flow-control", src);
+                    idx += 2;
+                    break;
+
+                case "--no-replication-flow-control":
+                    opts.replicationFlowControl = false;
+                    opts.sources.put("replication-flow-control", src);
+                    idx += 1;
+                    break;
+
+                case "--replication-flow-control-high-water":
+                    opts.replicationFlowControlHighWater = intValue(effectiveArgs, idx);
+                    opts.sources.put("replication-flow-control-high-water", src);
+                    idx += 2;
+                    break;
+
+                case "--replication-flow-control-low-water":
+                    opts.replicationFlowControlLowWater = intValue(effectiveArgs, idx);
+                    opts.sources.put("replication-flow-control-low-water", src);
+                    idx += 2;
+                    break;
+
+                case "--replication-flow-control-max-wait":
+                    opts.replicationFlowControlMaxWait = value(effectiveArgs, idx);
+                    opts.sources.put("replication-flow-control-max-wait", src);
+                    idx += 2;
+                    break;
+
                 case "--log-level":
                     opts.logLevel = value(effectiveArgs, idx);
                     opts.sources.put("log-level", src);
@@ -567,6 +600,21 @@ public class PoppyDBCLI {
         log.info("Watch cursor queue byte budget (all cursors): {} ({} bytes{})", opts.globalCursorBudget,
             globalCursorBudgetBytes, globalCursorBudgetBytes == 0 ? ", global cap off" : "");
 
+        de.caluga.poppydb.netty.ReplicationFlowControlSettings flowControl;
+
+        try {
+            flowControl = opts.replicationFlowControlSettings();
+        } catch (IllegalArgumentException e) {
+            throw new ConfigException(e.getMessage(), e);
+        }
+
+        // Must precede srv.start(): the setter replaces the cursor manager's gate, and the
+        // command handlers register on whichever gate they find once the port is bound.
+        srv.setReplicationFlowControlSettings(flowControl);
+        log.info("Replication flow control: {} (high-water {}%, low-water {}%, max-wait {} ms{})",
+            flowControl.enabled() ? "on" : "off", flowControl.highWaterPercent(), flowControl.lowWaterPercent(),
+            flowControl.maxWaitMs(), cursorQueueBudgetBytes == 0 ? "; inactive while cursor-queue-budget is 0" : "");
+
         // The dump directory has to be known BEFORE the replica set is configured: that is
         // where the election-state file path (next to the dumps) is derived and put into the
         // ElectionConfig the ElectionManager is built with (#306). Setting it later left the
@@ -689,6 +737,19 @@ public class PoppyDBCLI {
         return arr[idx + 1];
     }
 
+    private static boolean boolValue(String[] arr, int idx, String option) {
+        String v = value(arr, idx).trim().toLowerCase(java.util.Locale.ROOT);
+        switch (v) {
+            case "true", "on", "yes", "1" -> {
+                return true;
+            }
+            case "false", "off", "no", "0" -> {
+                return false;
+            }
+            default -> throw new ConfigException("Option " + option + " expects true or false, got: " + arr[idx + 1]);
+        }
+    }
+
     private static int intValue(String[] arr, int idx) {
         String v = value(arr, idx);
         try {
@@ -727,6 +788,15 @@ public class PoppyDBCLI {
         System.out.println("  --global-cursor-budget <size>: Global byte budget across ALL watch cursors' buffered events (same size syntax");
         System.out.println("                               as --replay-buffer, default 0 = disabled (global cap off)). Prevents the fleet");
         System.out.println("                               from pinning unbounded memory across many cursors; overflow kills the newest cursor.");
+        System.out.println("  --replication-flow-control <true|false>: Brake writers on a primary while the slowest secondary's");
+        System.out.println("                               replication watch is backed up, instead of letting its cursor overflow and");
+        System.out.println("                               die (default: true; --no-replication-flow-control switches it off). Client");
+        System.out.println("                               change streams never trigger it.");
+        System.out.println("  --replication-flow-control-high-water <percent>: Fill level of cursor-queue-budget at which braking");
+        System.out.println("                               starts (default 50)");
+        System.out.println("  --replication-flow-control-low-water <percent>: Fill level below which braking stops (default 25)");
+        System.out.println("  --replication-flow-control-max-wait <duration>: Longest a single write is held back, e.g. 10s, 500ms");
+        System.out.println("                               (default 10s); after that the write runs and the usual cursor kill applies");
         System.out.println("  --event-queue-budget <size>: Byte budget for a secondary's replication event queue (same size syntax as");
         System.out.println("                               --replay-buffer). Never drops events - the change-stream reader blocks until");
         System.out.println("                               the apply side frees budget (backpressure, like the queue's count capacity).");

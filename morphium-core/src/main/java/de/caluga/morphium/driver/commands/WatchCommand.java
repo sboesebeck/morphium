@@ -30,6 +30,34 @@ public class WatchCommand extends MongoCommand<WatchCommand> {
     private Boolean showExpandedEvents;
     private Map<String, Object> resumeAfter;
     private Map<String, Object> startAfter;
+
+    // The replication-watch marker: a PoppyDB secondary tags the aggregate that establishes its
+    // replication watch with these two top-level fields so the primary can tell replication
+    // cursors apart from client change streams from the very first registration (the
+    // poppyResumeSequence resumeAfter marker only exists from the first resume on). A real mongod
+    // would reject unknown fields in an aggregate, but the ReplicationManager only ever talks to
+    // PoppyDB. Plain non-transient fields ride the generic reflection serialization in
+    // MongoCommand.asMap()/fromMap(), which is exactly how they reach the wire and come back.
+    private Boolean poppyReplicationWatch;
+    private String poppyMember;
+
+    public Boolean getPoppyReplicationWatch() {
+        return poppyReplicationWatch;
+    }
+
+    public WatchCommand setPoppyReplicationWatch(Boolean poppyReplicationWatch) {
+        this.poppyReplicationWatch = poppyReplicationWatch;
+        return this;
+    }
+
+    public String getPoppyMember() {
+        return poppyMember;
+    }
+
+    public WatchCommand setPoppyMember(String poppyMember) {
+        this.poppyMember = poppyMember;
+        return this;
+    }
     @Transient
     private Runnable registrationCallback;
 

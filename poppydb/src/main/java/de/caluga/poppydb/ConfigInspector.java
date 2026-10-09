@@ -72,6 +72,11 @@ class ConfigInspector {
         } catch (IllegalArgumentException e) {
             errors.add(e.getMessage());
         }
+        try {
+            opts.replicationFlowControlSettings();
+        } catch (IllegalArgumentException e) {
+            errors.add(e.getMessage());
+        }
         if (opts.maxConnections < 1) {
             errors.add("max-connections must be >= 1, got: " + opts.maxConnections);
         }
@@ -249,6 +254,24 @@ class ConfigInspector {
 
         try {
             sb.append("# global-cursor-budget resolved: ").append(opts.globalCursorBudgetBytes()).append(" bytes\n");
+        } catch (IllegalArgumentException e) {
+            // invalid value - validate() reports it, nothing to resolve here
+        }
+
+        appendKey(sb, opts, "replication-flow-control", String.valueOf(opts.replicationFlowControl));
+        appendKey(sb, opts, "replication-flow-control-high-water", String.valueOf(opts.replicationFlowControlHighWater));
+        appendKey(sb, opts, "replication-flow-control-low-water", String.valueOf(opts.replicationFlowControlLowWater));
+        appendKey(sb, opts, "replication-flow-control-max-wait", opts.replicationFlowControlMaxWait);
+
+        try {
+            var fc = opts.replicationFlowControlSettings();
+            sb.append("# replication-flow-control resolved: ").append(fc.enabled() ? "on" : "off")
+                .append(", brake at ").append(fc.highWaterPercent()).append("% of cursor-queue-budget, release below ")
+                .append(fc.lowWaterPercent()).append("%, max-wait ").append(fc.maxWaitMs()).append(" ms\n");
+
+            if (fc.enabled() && opts.cursorQueueBudgetBytes() == 0) {
+                sb.append("# note: cursor-queue-budget is 0, so replication flow control has no reference size and is inactive\n");
+            }
         } catch (IllegalArgumentException e) {
             // invalid value - validate() reports it, nothing to resolve here
         }
