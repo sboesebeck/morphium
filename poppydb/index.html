@@ -2659,6 +2659,8 @@ non-POSIX filesystems (Windows) the check is skipped.</p>
 </span><span id="__span-3-49"><a id="__codelineno-3-49" name="__codelineno-3-49" href="#__codelineno-3-49"></a><span class="c1">#dump-interval = 300</span>
 </span><span id="__span-3-50"><a id="__codelineno-3-50" name="__codelineno-3-50" href="#__codelineno-3-50"></a><span class="c1">#replay-buffer = 256m</span>
 </span><span id="__span-3-51"><a id="__codelineno-3-51" name="__codelineno-3-51" href="#__codelineno-3-51"></a><span class="c1">#event-queue-budget = 256m</span>
+</span><span id="__span-3-52"><a id="__codelineno-3-52" name="__codelineno-3-52" href="#__codelineno-3-52"></a><span class="c1">#cursor-queue-budget = 64m</span>
+</span><span id="__span-3-53"><a id="__codelineno-3-53" name="__codelineno-3-53" href="#__codelineno-3-53"></a><span class="c1">#global-cursor-budget = 0</span>
 </span></code></pre></div>
 <p>Load it explicitly, or drop it at one of the default search paths:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>java<span class="w"> </span>-jar<span class="w"> </span>poppydb-cli.jar<span class="w"> </span>--cfg<span class="w"> </span>/etc/poppydb/config
@@ -3037,6 +3039,45 @@ watch this before it becomes an incident:</p>
 </tr>
 </tbody>
 </table>
+<h3 id="watch-cursor-buffering">Watch cursor buffering<a class="headerlink" href="#watch-cursor-buffering" title="Permanent link">&para;</a></h3>
+<p>A watch cursor's queued, undelivered change-stream events are bounded by bytes on two levels,
+because every queued event shares its payload with the replay-buffer entry - evicting from the
+replay buffer frees nothing while a cursor still references the payload:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Default</th>
+<th>Bounds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--cursor-queue-budget</code></td>
+<td><code>64m</code></td>
+<td>one watch cursor's buffered, undelivered events</td>
+</tr>
+<tr>
+<td><code>--global-cursor-budget</code></td>
+<td><code>0</code> (off)</td>
+<td>the fleet total across ALL watch cursors</td>
+</tr>
+</tbody>
+</table>
+<p><code>0</code> disables the bound. On overflow a cursor is killed (the client sees it die and re-establishes
+it) - the same policy as the per-cursor entry cap: in server mode delivery runs on the writer
+thread, so blocking one slow consumer would stall the whole node's write path, and dropping would
+silently lose events. The per-cursor budget kills the cursor whose own queue exceeded it; the
+global budget kills the cursor that currently holds the most buffered bytes, not the one that
+happened to receive the triggering event - the replication watch receives every event and is
+rarely the culprit, while a genuinely slow consumer is the largest holder. The per-cursor budget
+bounds a single slow consumer; the global budget bounds their sum, which the per-cursor bound alone
+cannot. A replication resume whose replay backlog would exceed either bound is answered
+ChangeStreamHistoryLost up front instead of being admitted and then killed mid-replay (see the
+resume-window discussion above). That comparison is deliberately conservative - a live consumer
+can drain while the replay runs, so a backlog that would in practice fit can still trigger a
+re-sync; the node is not electable while it syncs, which is the accepted price of never admitting
+a replay that would livelock instead.</p>
 <h3 id="persistence-periodic-snapshots">Persistence (Periodic Snapshots)<a class="headerlink" href="#persistence-periodic-snapshots" title="Permanent link">&para;</a></h3>
 <p>PoppyDB can periodically dump all databases to disk and restore them on startup. This provides basic persistence for development and testing scenarios.</p>
 <p><strong>How it works:</strong>
