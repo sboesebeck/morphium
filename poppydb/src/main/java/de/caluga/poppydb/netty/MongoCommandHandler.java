@@ -2016,9 +2016,26 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             // buffer can no longer cover the gap after that sequence, answer with an explicit
             // ChangeStreamHistoryLost error instead of a silently-truncated replay, so the secondary
             // distinguishes "window lost" and falls back to a full re-sync.
+            //
+            // A replication watch that restarts IN PLACE (SingleMongoConnection re-sends the
+            // aggregate after a cursor died, with the last event's token as resumeAfter) carries
+            // no poppyResumeSequence - only the _data token the primary itself minted, which IS
+            // the sequence. Those restarts used to bypass this gate entirely: the replay was
+            // admitted, blew the budget, the cursor died, the connection restarted - the kill storm
+            // seen on the testrunner (39 kills in 2.5 s). The replication marker now identifies
+            // them, so the gate reads the sequence from _data for marked watches. Unmarked client
+            // streams resuming by _data keep their previous, ungated behaviour.
             Map<String, Object> resumeAfter = wcmd.getResumeAfter();
-            if (resumeAfter != null && resumeAfter.get("poppyResumeSequence") instanceof Number seqNum) {
-                long resumeSeq = seqNum.longValue();
+            Long gatedResumeSeq = null;
+            if (resumeAfter != null) {
+                if (resumeAfter.get("poppyResumeSequence") instanceof Number seqNum) {
+                    gatedResumeSeq = seqNum.longValue();
+                } else if (replication) {
+                    gatedResumeSeq = sequenceOfDataToken(resumeAfter.get("_data"));
+                }
+            }
+            if (gatedResumeSeq != null) {
+                long resumeSeq = gatedResumeSeq;
                 if (!driver.canResumeChangeStream(resumeSeq)) {
                     log.warn("Resume window lost for secondary (resume sequence {} no longer buffered) — signalling re-sync", resumeSeq);
                     return historyLostReply("resume window lost: sequence " + resumeSeq
@@ -2103,6 +2120,22 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
      * The single wire shape every replication-resume gate failure returns: ChangeStreamHistoryLost
      * (286), the marker PoppyDB secondaries' {@code isResumeWindowLost} keys its re-sync fallback on.
      */
+    /**
+     * The sequence a PoppyDB-minted resume token stands for: the {@code _data} field is the
+     * change-stream sequence as 16 hex digits (see InMemoryDriver.createResumeToken). Anything
+     * else - a foreign token, a malformed one - yields null and leaves the resume ungated.
+     */
+    private static Long sequenceOfDataToken(Object data) {
+        if (data instanceof String str) {
+            try {
+                return Long.parseUnsignedLong(str, 16);
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return data instanceof Number num ? num.longValue() : null;
+    }
+
     private static Map<String, Object> historyLostReply(String errmsg) {
         return Doc.of(
                 "ok", 0.0,

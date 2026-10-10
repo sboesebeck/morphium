@@ -94,6 +94,76 @@ public class ReplayBacklogGateTest {
         return reply.get("code") instanceof Number n ? n.intValue() : -1;
     }
 
+    /** A resumeAfter as SingleMongoConnection re-sends it on an in-place restart: the _data token only. */
+    private static Map<String, Object> dataOnlyToken(long sequence) {
+        return Doc.of("_data", String.format(Locale.ROOT, "%016x", sequence));
+    }
+
+    /** The registration a replication watch sends: marked with poppyReplicationWatch and its member. */
+    private static Map<String, Object> markedRegistration(Map<String, Object> resumeAfter) {
+        Map<String, Object> cmd = changeStreamRegistration(resumeAfter);
+        cmd.put("poppyReplicationWatch", true);
+        cmd.put("poppyMember", "secondary-under-test:17018");
+        return cmd;
+    }
+
+    /**
+     * The in-place restart bypass: after a cursor kill, SingleMongoConnection re-sends the
+     * aggregate with the last event's _data token and no poppyResumeSequence. For a watch that
+     * carries the replication marker the gate must read the sequence from _data and answer 286
+     * for an oversized backlog - otherwise every restart is admitted, killed, restarted (the
+     * testrunner kill storm).
+     */
+    @Test
+    public void markedWatchResumingByDataTokenOnlyIsGatedLikeAMarkedSequence() throws Exception {
+        long resumeFrom = drv.getChangeStreamSequence();
+        for (int i = 0; i < 20; i++) {
+            drv.store(DB, COLL, List.of(Doc.of("_id", i, "payload", "x".repeat(1024))), null);
+        }
+        cursorManager.setCursorQueueByteBudget(2048);
+
+        Map<String, Object> reply = sendCommand(markedRegistration(dataOnlyToken(resumeFrom)));
+
+        assertThat(reply.get("ok")).as("full reply was: " + reply).isEqualTo(0.0);
+        assertThat(codeOf(reply))
+                .as("a marked watch resuming by _data over an oversized backlog must get 286: " + reply)
+                .isEqualTo(286);
+        assertThat(reply.get("codeName")).isEqualTo("ChangeStreamHistoryLost");
+    }
+
+    /**
+     * Client change streams (no marker) resuming by _data keep their previous behaviour: the
+     * gate stays out of their way, the resume is served.
+     */
+    @Test
+    public void unmarkedClientResumeByDataTokenIsNotGated() throws Exception {
+        long resumeFrom = drv.getChangeStreamSequence();
+        for (int i = 0; i < 20; i++) {
+            drv.store(DB, COLL, List.of(Doc.of("_id", i, "payload", "x".repeat(1024))), null);
+        }
+        cursorManager.setCursorQueueByteBudget(2048);
+
+        Map<String, Object> reply = sendCommand(changeStreamRegistration(dataOnlyToken(resumeFrom)));
+
+        assertThat(reply.get("ok")).as("a client resume must not be gated: " + reply).isEqualTo(1.0);
+        assertThat(reply).containsKey("cursor");
+    }
+
+    /** A marked watch that resumes at the newest sequence has no backlog and is served as before. */
+    @Test
+    public void markedWatchResumingByDataTokenAtNewestIsServed() throws Exception {
+        for (int i = 0; i < 3; i++) {
+            drv.store(DB, COLL, List.of(Doc.of("_id", i, "v", i)), null);
+        }
+        cursorManager.setCursorQueueByteBudget(2048);
+        long newest = drv.getChangeStreamSequence();
+
+        Map<String, Object> reply = sendCommand(markedRegistration(dataOnlyToken(newest)));
+
+        assertThat(reply.get("ok")).as("full reply was: " + reply).isEqualTo(1.0);
+        assertThat(reply).containsKey("cursor");
+    }
+
     /**
      * The gate turns a replay admission into 286 when the backlog to replay exceeds the cursor
      * budget, instead of admitting the resume and letting the replay blow the budget mid-way and
