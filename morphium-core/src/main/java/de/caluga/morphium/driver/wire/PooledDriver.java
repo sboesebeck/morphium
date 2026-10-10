@@ -121,7 +121,7 @@ public class PooledDriver extends DriverBase {
     private volatile boolean poppyDB = false;
     private volatile boolean cosmosDB = false;
     private final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5,
-        Thread.ofPlatform().name("MCon-", 0).daemon(true).factory());
+        Thread.ofPlatform().name("MCon-", 0).factory());
 
     private final AtomicInteger lastSecondaryNode = new AtomicInteger(0);
     // Package-private: the heartbeat's per-host bookkeeping is asserted on directly by
@@ -787,7 +787,7 @@ public class PooledDriver extends DriverBase {
                 hostThreads.remove(hst, runningCheck);
             }
 
-            Thread t = Thread.ofPlatform().name("HeartbeatCheck-" + hst).daemon(true).unstarted(() -> {
+            Thread t = Thread.ofPlatform().name("HeartbeatCheck-" + hst).unstarted(() -> {
 
                 try {
                     ConnectionContainer container = null;
@@ -1012,7 +1012,7 @@ public class PooledDriver extends DriverBase {
 
         // thread to create new connections instantly if a thread is waiting
         // this thread pauses until waitCounterCondition.signalAll() is called
-        connectionWaiter = Thread.ofPlatform().name("ConnectionWaiter").daemon(true).start(() -> {
+        connectionWaiter = Thread.ofPlatform().name("ConnectionWaiter").start(() -> {
             long lastHeartbeatHealthCheck = 0;
             while (running) {
                 try {
@@ -1056,7 +1056,7 @@ public class PooledDriver extends DriverBase {
                                 final String host = normalizedHst;
 
                                 for (int i = 0; i < parallelCreators; i++) {
-                                    Thread.ofPlatform().name("ConnectionCreator-" + i).daemon(true).start(() -> {
+                                    Thread.ofPlatform().name("ConnectionCreator-" + i).start(() -> {
                                         try {
                                             // Each creator can create multiple connections
                                             while (running && hosts.containsKey(host)
@@ -2200,7 +2200,7 @@ public class PooledDriver extends DriverBase {
         // may be up to ~1s into a waitCounterCondition await when running flips - joining here
         // (it is the one long-lived worker we hold a reference to) makes close() deterministic
         // for it, which is what the failed-construction governance test (IM-951) relies on. The
-        // one-shot HeartbeatCheck-/ConnectionCreator- threads are daemon and drain on their own.
+        // one-shot HeartbeatCheck-/ConnectionCreator- threads drain on their own within moments.
         if (connectionWaiter != null) {
             connectionWaiter.interrupt();
             try {
