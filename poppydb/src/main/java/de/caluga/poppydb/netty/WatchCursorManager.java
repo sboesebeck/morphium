@@ -204,7 +204,16 @@ public class WatchCursorManager {
         if (n <= 0) {
             return;
         }
-        if (flowControlParkedWrites.addAndGet(-n) <= 0) {
+        // Clamped at zero: every FIFO entry is counted once on entry and once on exit, so a
+        // negative count can only come from a double decrement - a bug, but one that must not
+        // disarm the expiry ticker for every later park (getAndIncrement() == 0 would never be
+        // seen again). Log it loudly and keep the counter honest.
+        int before = flowControlParkedWrites.getAndUpdate(current -> Math.max(0, current - n));
+        if (before < n) {
+            log.error("flow-control parked-write counter would go negative ({} - {}) - double decrement, clamped at 0",
+                    before, n);
+        }
+        if (before <= n) {
             cancelFlowControlExpiryTask();
         }
     }
@@ -1115,13 +1124,17 @@ public class WatchCursorManager {
     }
 
     /**
-     * The flow-control member key of a replication cursor: its reported member address, or
-     * {@code cursor-<id>} when a secondary registered before knowing its address. The gate
-     * rejects null keys, and poppyMember can be absent at the first registration of a fresh
-     * secondary.
+     * The flow-control key of a replication cursor: its reported member address plus the cursor
+     * id ({@code host:port/1042}), or {@code cursor-<id>} when a secondary registered before
+     * knowing its address (the gate rejects null keys, and poppyMember can be absent at the first
+     * registration of a fresh secondary). The cursor id is part of the key on purpose: during a
+     * secondary's reconnect its old and new cursor coexist for a moment, and with the bare member
+     * address the kill of the old one wiped the live one's fill out of the gate, which released
+     * the brake under full back-pressure. One key per cursor keeps each fill independent; the
+     * member stays readable in serverStatus.
      */
     private static String flowControlMemberKey(WatchCursorState state) {
-        return state.memberAddress != null ? state.memberAddress : "cursor-" + state.cursorId;
+        return state.memberAddress != null ? state.memberAddress + "/" + state.cursorId : "cursor-" + state.cursorId;
     }
 
     /**

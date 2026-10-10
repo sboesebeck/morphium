@@ -44,6 +44,7 @@ public class FlowControlParkingTest {
     private final AtomicInteger msgId = new AtomicInteger(1);
     private final AtomicBoolean syncing = new AtomicBoolean(false);
     private final AtomicLong gateClock = new AtomicLong(0);
+    private final AtomicInteger fillSeq = new AtomicInteger(0);
     private long replicationCursor = -1;
 
     @BeforeEach
@@ -98,8 +99,10 @@ public class FlowControlParkingTest {
     private long engageGate() throws Exception {
         WatchCommand wcmd = new WatchCommand(drv).setDb(DB).setColl(COLL).setMaxTimeMS(30000);
         replicationCursor = cursorManager.createWatchCursor(drv, wcmd, true, MEMBER);
+        // Unique ids per call: re-storing an existing id is an update event, which carries far
+        // fewer bytes than the insert and would leave a second engage below high water.
         for (int i = 0; i < 3; i++) {
-            drv.store(DB, COLL, List.of(Doc.of("_id", "fill-" + i, "payload", "x".repeat(1024))), null);
+            drv.store(DB, COLL, List.of(Doc.of("_id", "fill-" + fillSeq.incrementAndGet(), "payload", "x".repeat(1024))), null);
         }
         awaitCondition(() -> cursorManager.bufferedEventCount(replicationCursor) >= 3);
         awaitCondition(cursorManager.replicationFlowControl()::isEngaged);
@@ -323,6 +326,95 @@ public class FlowControlParkingTest {
         assertThat(countWithId(1)).as("a NotWritablePrimary answer must not execute the write").isZero();
         assertThat(countWithId(2)).as("a NotWritablePrimary answer must not execute the write").isZero();
         assertThat(ch.config().isAutoRead()).isTrue();
+    }
+
+    /**
+     * The expiry ticker is armed by the parked-write counter crossing 0 -> 1 and disarmed when it
+     * returns to 0. A double decrement would push it below zero and the next park would never see
+     * the 0 -> 1 transition, leaving max-wait unenforced until enough parks happened to climb back.
+     * The counter therefore clamps at zero: a stray decrement is absorbed, and the very next park
+     * arms the ticker again.
+     */
+    @Test
+    public void aDoubleDecrementCannotDisarmTheExpiryTicker() {
+        assertThat(cursorManager.flowControlParkedWriteCount()).isZero();
+
+        // The stray decrement: nothing is parked, yet an exit is reported.
+        cursorManager.noteFlowControlUnparkedWrites(1);
+        assertThat(cursorManager.flowControlParkedWriteCount())
+                .as("a decrement below zero must clamp, not go negative").isZero();
+
+        // The next park must still arm the ticker - the 0 -> 1 transition is intact.
+        cursorManager.noteFlowControlParkedWrite();
+        assertThat(cursorManager.flowControlParkedWriteCount()).isEqualTo(1);
+        assertThat(cursorManager.isFlowControlExpiryScheduledForTest())
+                .as("the first park after a clamped decrement must arm the expiry ticker").isTrue();
+
+        cursorManager.noteFlowControlUnparkedWrites(1);
+        assertThat(cursorManager.flowControlParkedWriteCount()).isZero();
+        assertThat(cursorManager.isFlowControlExpiryScheduledForTest()).isFalse();
+    }
+
+    /**
+     * Every path that empties a connection's FIFO decrements exactly once per entry: a step-down
+     * answers all entries 10107, the channel closing afterwards finds an empty FIFO and must not
+     * decrement again. The counter ends at zero, and a park on a fresh connection arms the ticker.
+     */
+    @Test
+    public void stepDownFollowedByChannelCloseDecrementsEachEntryOnce() throws Exception {
+        engageGate();
+        assertThat(sendCommand(insertDoc(1))).isNull();
+        assertThat(sendCommand(insertDoc(2))).isNull();
+        assertThat(sendCommand(findDoc())).as("a read behind a parked write waits with it").isNull();
+        assertThat(cursorManager.flowControlParkedWriteCount())
+                .as("every FIFO entry counts once on entry, reads behind a parked write included")
+                .isEqualTo(3);
+        assertThat(cursorManager.isFlowControlExpiryScheduledForTest()).isTrue();
+
+        cursorManager.failParkedWritesNotPrimary();
+        ch.runPendingTasks();
+        for (int i = 0; i < 3; i++) {
+            assertThat(awaitReply()).as("entry " + i + " answered on step-down").isNotNull();
+        }
+        assertThat(cursorManager.flowControlParkedWriteCount()).isZero();
+        assertThat(cursorManager.isFlowControlExpiryScheduledForTest()).isFalse();
+
+        // The connection goes away after the step-down: its FIFO is already empty.
+        ch.close().sync();
+        ch.runPendingTasks();
+        assertThat(cursorManager.flowControlParkedWriteCount())
+                .as("closing a channel whose FIFO was already emptied must not decrement again").isZero();
+
+        // A fresh connection parks under a re-engaged gate: the ticker must arm again.
+        MessagingOptimizer optimizer = new MessagingOptimizer(drv);
+        optimizer.setWatchCursorManager(cursorManager);
+        EmbeddedChannel fresh = new EmbeddedChannel(new MongoCommandHandler(drv, cursorManager, new FindCursorRegistry(),
+                optimizer, msgId, "0.0.0.0", 27017, "my-rs", List.of("localhost:27017"), true,
+                "localhost:27017", 0, () -> new ReplicationCoordinator(3), null, syncing::get));
+        try {
+            engageGate();
+            assertThat(cursorManager.replicationFlowControl().isEngaged())
+                    .as("precondition: the gate must re-engage after the step-down reset: "
+                            + cursorManager.replicationFlowControl().statusSnapshot()
+                            + " buffered on " + replicationCursor + ": " + cursorManager.bufferedEventCount(replicationCursor)
+                            + " replication cursors: " + cursorManager.replicationCursorStates().keySet()
+                            + " maxQueued: " + cursorManager.maxReplicationQueuedBytes())
+                    .isTrue();
+            OpMsg msg = new OpMsg();
+            msg.setMessageId(msgId.incrementAndGet());
+            msg.setFirstDoc(insertDoc(3));
+            fresh.writeInbound(msg);
+            fresh.runPendingTasks();
+            OpMsg unexpected = fresh.readOutbound();
+            assertThat(unexpected == null ? null : unexpected.getFirstDoc())
+                    .as("the write must be parked, gate: " + cursorManager.replicationFlowControl().statusSnapshot())
+                    .isNull();
+            assertThat(cursorManager.flowControlParkedWriteCount()).isEqualTo(1);
+            assertThat(cursorManager.isFlowControlExpiryScheduledForTest())
+                    .as("the first park after the counter returned to zero must arm the ticker").isTrue();
+        } finally {
+            fresh.finishAndReleaseAll();
+        }
     }
 
     /**

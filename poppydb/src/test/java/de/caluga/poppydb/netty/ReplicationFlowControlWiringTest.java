@@ -102,8 +102,9 @@ public class ReplicationFlowControlWiringTest {
         assertThat(gate.isEngaged())
                 .as("a replication cursor past high water must close the gate").isTrue();
         Map<String, Object> snap = gate.statusSnapshot();
-        assertThat(snap.get("slowestMember"))
-                .as("the snapshot must name the member whose backlog closed the gate").isEqualTo(MEMBER);
+        assertThat((String) snap.get("slowestMember"))
+                .as("the snapshot must name the member whose backlog closed the gate, keyed per cursor")
+                .startsWith(MEMBER + "/");
         assertThat((Long) snap.get("slowestFillPercent")).isGreaterThanOrEqualTo(50L);
     }
 

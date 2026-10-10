@@ -533,7 +533,7 @@ flow control") in the `poppyFlowControl` section of `serverStatus`:
 | `enabled` | the configured switch (`replication-flow-control`) |
 | `engaged` | true while writers are being braked |
 | `engagedSinceMs` | wall-clock millis of the current engagement, 0 when free |
-| `slowestMember` | the secondary whose replication-watch queue is fullest |
+| `slowestMember` | the secondary whose replication-watch queue is fullest, as `host:port/<cursor id>` (one entry per cursor, so a reconnecting secondary's old and new cursor are told apart) |
 | `slowestFillPercent` | that queue's fill as percent of `cursor-queue-budget` |
 | `parkedWrites` | writes currently held back |
 | `totalParked` | writes held back since start |
