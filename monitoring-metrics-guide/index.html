@@ -3461,7 +3461,7 @@ flow control") in the <code>poppyFlowControl</code> section of <code>serverStatu
 </tr>
 <tr>
 <td><code>slowestMember</code></td>
-<td>the secondary whose replication-watch queue is fullest</td>
+<td>the secondary whose replication-watch queue is fullest, as <code>host:port/&lt;cursor id&gt;</code> (one entry per cursor, so a reconnecting secondary's old and new cursor are told apart)</td>
 </tr>
 <tr>
 <td><code>slowestFillPercent</code></td>
