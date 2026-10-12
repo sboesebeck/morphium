@@ -42,6 +42,8 @@ set -eo pipefail
 #   --run-tests        Run tests before release (default: skip)
 #   --dry-run          Build & bundle everything but don't upload or tag
 #   --auto-publish     Automatically publish to Maven Central after validation
+#   --yes              Answer every confirmation prompt with "yes" (non-interactive
+#                      run; the GPG passphrase is still asked by pinentry)
 #   --deploy-docs      Deploy documentation to gh-pages after release
 #   --skip-to-upload   Skip to Step 8 (Upload) if previous run failed
 #   --rollback         Roll back the last release (renames tag, resets branches)
@@ -80,6 +82,14 @@ ROLLBACK=false
 RESET=false
 GITHUB_ASSETS=false
 GITHUB_ASSETS_VERSION=""
+# --yes / ASSUME_YES: alle confirm()-Abfragen automatisch mit "ja" beantworten.
+# Für den nicht-interaktiven Aufruf (Skript läuft ohne TTY, z.B. aus einem Agenten
+# heraus). Die GPG-Passphrase fragt weiterhin pinentry - die Signatur bleibt damit
+# beim Menschen, nur die Ja/Nein-Rückfragen des Skripts entfallen.
+ASSUME_YES=false
+if [[ "${RELEASE_ASSUME_YES:-}" == "1" || "${RELEASE_ASSUME_YES:-}" == "true" ]]; then
+  ASSUME_YES=true
+fi
 
 # Working dir for release-scoped scratch files (e.g. the test-results
 # report's markdown, read back later by the GitHub-release step). Created
@@ -107,6 +117,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   --dry-run)
     DRY_RUN=true
+    shift
+    ;;
+  --yes)
+    ASSUME_YES=true
     shift
     ;;
   --auto-publish)
@@ -238,6 +252,23 @@ log_success() {
 confirm() {
   local prompt="$1"
   local default="${2:-n}"
+
+  # Nicht-interaktiv: --yes (bzw. RELEASE_ASSUME_YES=1) beantwortet jede Rückfrage mit ja.
+  # Auch ohne TTY (kein read möglich) darf das Skript nicht als "cancelled" enden -
+  # dann entscheidet der Default, aber nur wenn er ausdrücklich "y" ist; sonst abbrechen
+  # mit klarer Meldung statt stillschweigend weiterzulaufen.
+  if [[ "$ASSUME_YES" == "true" ]]; then
+    echo "${prompt} -> ja (--yes)"
+    return 0
+  fi
+  if [[ ! -t 0 ]]; then
+    if [[ "$default" == "y" ]]; then
+      echo "${prompt} -> ja (Vorgabe, kein Terminal)"
+      return 0
+    fi
+    echo "${prompt} -> abgebrochen (kein Terminal und keine Bestätigung; mit --yes überspringen)" >&2
+    return 1
+  fi
 
   if [[ "$default" == "y" ]]; then
     prompt="$prompt [Y/n] "
