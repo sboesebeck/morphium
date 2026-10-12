@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 
-## [6.3.13] - 2026-10-12
+## [6.3.14] - 2026-10-12
 
 ### Added
 
@@ -85,6 +85,17 @@ The dead-watch guard (#322) throws a snapshot away when the primary reports its 
 
 #### PooledDriver: close() joins the ConnectionWaiter, and the failed-construction leak test waits for the teardown instead of sampling it (#406)
 The failed-construction cleanup (IM-951, above) runs the normal close path, but `close()` only flagged the workers for shutdown: it set `running = false`, signalled the waiter, cancelled the heartbeat and awaited the executor, yet never joined the `ConnectionWaiter` nor the per-cycle `HeartbeatCheck-*` / `ConnectionCreator-*` one-shots. They exit asynchronously after `close()` returns, so `MorphiumConstructionFailureLeakTest.failedConstructionDoesNotLeakDriverThreads` - which asserted the driver threads were gone the instant the constructor rethrew - flaked under load, when a `HeartbeatCheck-*` thread was still inside its dead-host hello/logging at that moment (inmem phase, 2026-10-09). `close()` now interrupts and bounds-joins the `ConnectionWaiter` (its interrupt is handled as a clean-shutdown signal, so a normal close no longer surfaces a spurious error log with an ERRORS-stat bump), and the test waits with a deadline for the thread count to return to its baseline. An intermediate version made the helper threads daemon and had the test count only non-daemon ones; that was backed out because it made the test unable to fail - a leaked heartbeat keeps connecting to dead hosts and holding memory whether or not it could pin the JVM, and that accumulation is the leak IM-951 was about - and because daemon driver threads would have been a visible change for applications that keep their JVM alive through Morphium's threads alone. Driver threads stay non-daemon.
+
+#### `ElectionManagerTest`: the leadership latches wait for the transition instead of assuming a fixed window
+`testGetStats` started the manager, slept a fixed 200 ms and asserted `LEADER`. Under the full module run (five phases, the gate and the extension tests in parallel) the election timer of the `ScheduledExecutorService` can fire well past the configured 50-100 ms, so the check saw `FOLLOWER` and the class went red - while running it alone it was green every time. Every latch in the class now waits up to 5 s on the leadership/discovery callback (the same pattern the neighbouring `testSingleNodeAutoElect` already used); the bound only matters when the transition never happens, a healthy run still finishes in milliseconds.
+
+#### `release.sh`: the signing step fails loudly instead of leaving a silent empty `.asc`
+`sign_file()` ran `gpg --armor --detach-sign` with its stderr discarded and never checked the exit code, then logged "Signed" unconditionally. When the passphrase cannot be asked (no reachable pinentry in an unattended run), gpg does not fail fast - it waits - so the release hung, was killed, and left a 0-byte `.asc` behind; because a signature "existed", the upload failed far from the cause. The step now checks the exit code and the `.asc` size, runs gpg under a timeout so a missing pinentry surfaces in minutes, and aborts with a message naming the real problem. `release.sh` also gained `--yes` (or `RELEASE_ASSUME_YES=1`), which answers every confirmation prompt automatically: without it the script could only be driven from an interactive terminal and an unattended run stalled at the first prompt. The GPG passphrase is deliberately not covered - pinentry still asks for it, so signing stays with a human.
+
+
+## [6.3.13]
+
+_Never published - the version was skipped and its content shipped as [6.3.14]. The tag `v6.3.13` exists for the record only._
 
 
 ## [6.3.12] - 2026-09-22
