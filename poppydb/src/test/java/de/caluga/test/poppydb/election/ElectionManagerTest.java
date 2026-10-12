@@ -451,8 +451,22 @@ public class ElectionManagerTest {
         ElectionManager manager = new ElectionManager("localhost:27017", hosts, config);
         managers.add(manager);
 
+        // Auf die Wahl WARTEN statt ein starres Fenster anzunehmen: ein 'Thread.sleep(200)'
+        // war unter Last (5 Phasen + Modul-Stage parallel) zu knapp - der Wahl-Timer des
+        // ScheduledExecutorService kann deutlich später feuern, und der Test sah dann
+        // FOLLOWER statt LEADER (Flake im Modul-Lauf 2026-10-12, isoliert immer grün).
+        // Der Latch im Nachbartest testSingleNodeAutoElect macht es genauso.
+        CountDownLatch leaderLatch = new CountDownLatch(1);
+        manager.setOnLeadershipChange(isLeader -> {
+            if (isLeader) {
+                leaderLatch.countDown();
+            }
+        });
+
         manager.start();
-        Thread.sleep(200);  // Allow time to become leader
+
+        assertTrue(leaderLatch.await(5, TimeUnit.SECONDS),
+                "single-node manager must become leader");
 
         var stats = manager.getStats();
 
