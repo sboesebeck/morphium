@@ -306,10 +306,30 @@ calc_sha1() {
 # Sign a file with GPG if not already signed
 sign_file() {
   local file="$1"
-  if [ -f "$file" ] && [ ! -f "${file}.asc" ]; then
-    gpg --armor --detach-sign "$file" 2>/dev/null
-    log_success "Signed $(basename "$file")"
+  if [ ! -f "$file" ]; then
+    return 0
   fi
+  if [ -f "${file}.asc" ] && [ -s "${file}.asc" ]; then
+    return 0
+  fi
+  rm -f "${file}.asc"   # eine leere/abgebrochene .asc darf nicht als "vorhanden" gelten
+  # Der Exit-Code MUSS geprüft werden: gpg 2>/dev/null verschluckte früher den Fehler,
+  # log_success meldete trotzdem "Signed", und eine 0-Byte-.asc blieb liegen - der Upload
+  # scheiterte dann später mit einem unklaren Fehler (Release am 2026-10-12).
+  # Ohne erreichbaren pinentry-Dialog WARTET gpg unbegrenzt (nicht nur auf stdin) -
+  # daher mit Zeitlimit laufen und bei Ausbleiben der Signatur klar abbrechen.
+  local sign_timeout="${RELEASE_GPG_TIMEOUT:-300}"
+  if ! timeout "$sign_timeout" gpg --armor --detach-sign "$file"; then
+    log_error "GPG-Signatur fehlgeschlagen oder Zeitlimit (${sign_timeout}s) für $(basename "$file")"
+    log_error "Ohne sichtbaren pinentry-Dialog kann die Passphrase nicht abgefragt werden -"
+    log_error "den Release aus einer GUI-/Terminalsitzung mit pinentry starten."
+    exit 1
+  fi
+  if [ ! -s "${file}.asc" ]; then
+    log_error "Signatur für $(basename "$file") ist leer - Upload abgebrochen"
+    exit 1
+  fi
+  log_success "Signed $(basename "$file")"
 }
 
 # Generate checksums for a file
