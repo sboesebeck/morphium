@@ -5433,7 +5433,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // client-side, exactly like against mongod; disabled limit → historical 128MB
         helloResponse.put("maxBsonObjectSize", maxBsonObjectSize > 0 ? maxBsonObjectSize : 128 * 1024 * 1024);
         helloResponse.put("maxWriteBatchSize", 100000);
-        helloResponse.put("maxWireVersion", 21);
+        helloResponse.put("maxWireVersion", 29); // MongoDB 9.0 (DRIVERS-3435)
         helloResponse.put("minWireVersion", 0);
         helloResponse.put("localTime", new Date());
         helloResponse.put("connectionId", connectionId.incrementAndGet());

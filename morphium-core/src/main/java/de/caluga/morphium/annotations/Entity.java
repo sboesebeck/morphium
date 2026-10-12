@@ -58,8 +58,9 @@ public @interface Entity {
         warn, error
     }
 
+    // strict + moderate existed before, constraint was added in MongoDB 9.0
     enum ValidationLevel {
-        off, strict, moderate
+        off, strict, moderate, constraint
     }
 
     enum ReadConcernLevel {
