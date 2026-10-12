@@ -1866,6 +1866,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#write-safety-writesafety" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Write Safety (@WriteSafety)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Write Safety (@WriteSafety)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#caveat-wait_for_all_slaves-and-member-loss" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Caveat: WAIT_FOR_ALL_SLAVES and member loss
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#caching" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2823,6 +2851,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#write-safety-writesafety" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Write Safety (@WriteSafety)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Write Safety (@WriteSafety)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#caveat-wait_for_all_slaves-and-member-loss" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Caveat: WAIT_FOR_ALL_SLAVES and member loss
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#caching" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3183,6 +3239,72 @@ Note: these test classes are intentionally technical and cover edge cases.</li>
 </span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="n">List</span><span class="o">&lt;</span><span class="n">Map</span><span class="o">&gt;</span><span class="w"> </span><span class="n">results</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">agg</span><span class="p">.</span><span class="na">aggregate</span><span class="p">();</span>
 </span></code></pre></div>
 See How‑To: <a href="../howtos/aggregation-examples/">Aggregation Examples</a> for more pipelines.</p>
+<h2 id="write-safety-writesafety">Write Safety (<code>@WriteSafety</code>)<a class="headerlink" href="#write-safety-writesafety" title="Permanent link">&para;</a></h2>
+<p><code>@WriteSafety</code> on an entity class sets the MongoDB write concern Morphium uses for every write of that type:</p>
+<table>
+<thead>
+<tr>
+<th><code>level</code></th>
+<th>Resulting <code>w</code></th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NORMAL</code> (default)</td>
+<td><code>0</code></td>
+<td>fire and forget, only socket errors surface</td>
+</tr>
+<tr>
+<td><code>BASIC</code></td>
+<td><code>1</code></td>
+<td>acknowledged by the primary</td>
+</tr>
+<tr>
+<td><code>WAIT_FOR_SLAVE</code></td>
+<td><code>2</code></td>
+<td>primary plus one secondary</td>
+</tr>
+<tr>
+<td><code>MAJORITY</code></td>
+<td><code>"majority"</code></td>
+<td>MongoDB majority commit, the recommended durable setting</td>
+</tr>
+<tr>
+<td><code>WAIT_FOR_ALL_SLAVES</code></td>
+<td>number of <strong>reachable</strong> members</td>
+<td>every member the driver can currently talk to (see caveat)</td>
+</tr>
+</tbody>
+</table>
+<p><code>timeout</code> is the <code>wtimeout</code> in ms (<code>0</code> = wait forever), <code>waitForJournalCommit</code> sets <code>j: true</code>. Against a
+standalone server everything above <code>w:1</code> is downgraded to <code>w:1</code>, because the server could never satisfy it.</p>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nd">@Entity</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="nd">@WriteSafety</span><span class="p">(</span><span class="n">level</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">SafetyLevel</span><span class="p">.</span><span class="na">MAJORITY</span><span class="p">,</span><span class="w"> </span><span class="n">timeout</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">5000</span><span class="p">,</span><span class="w"> </span><span class="n">waitForJournalCommit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">)</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">Order</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">}</span>
+</span></code></pre></div>
+<h3 id="caveat-wait_for_all_slaves-and-member-loss">Caveat: <code>WAIT_FOR_ALL_SLAVES</code> and member loss<a class="headerlink" href="#caveat-wait_for_all_slaves-and-member-loss" title="Permanent link">&para;</a></h3>
+<p><code>WAIT_FOR_ALL_SLAVES</code> is a Morphium feature, not a MongoDB write concern: there is no "all members" in
+MongoDB, so Morphium derives a numeric <code>w</code> on every write from the number of replica-set members the
+driver currently considers reachable. Reachable means the driver's heartbeat has talked to the member and
+its last contact did not fail. That is what makes the level survive a member loss at all: with a plain
+<code>w:3</code> on a three-member set, one member down means every write waits out <code>wtimeout</code> until the member is
+back. With <code>WAIT_FOR_ALL_SLAVES</code> the <code>w</code> drops to <code>2</code> as soon as the heartbeat has noticed the loss.</p>
+<p>The price is a <strong>detection window</strong>. Between the moment a member goes away and the first failed heartbeat
+against it (at most one <code>heartbeatFrequency</code>, default 1 s, plus the connect timeout), writes are still sent
+with the old <code>w</code> and block for their <code>wtimeout</code>. A member that was never reachable since the client
+started, or that comes and goes, keeps <code>w</code> low. Two consequences to plan for:</p>
+<ul>
+<li>Set a finite <code>timeout</code>. With <code>timeout = 0</code> a write issued inside the detection window waits forever.</li>
+<li>Treat a write that ran into <code>wtimeout</code> as "durability not confirmed", not as "failed": MongoDB (and
+  PoppyDB) apply the write on the primary and report the missed replication as a <code>writeConcernError</code> in
+  an otherwise successful reply. Morphium does not yet raise this as an exception (tracked as <a href="https://github.com/sboesebeck/morphium/issues/408">#408</a>),
+  so <code>store()</code> returns normally in that case.</li>
+</ul>
+<p>If you need a guarantee that does not depend on client-side topology detection, use <code>MAJORITY</code>: it is
+evaluated by the server against the actual replica-set configuration and tolerates a minority of members
+being down without any detection window. <code>WAIT_FOR_ALL_SLAVES</code> is for the case where you want every
+<em>available</em> copy written and accept the window as the cost.</p>
 <h2 id="caching">Caching<a class="headerlink" href="#caching" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Add <code>@Cache</code> to entities to enable read cache; TTL, max entries, and clear strategy are configurable.</li>
@@ -3200,15 +3322,15 @@ See How‑To: <a href="../howtos/caching-examples/">Caching Examples</a> and <a 
 <li>Two independent implementations both drive the same <code>@Cache.syncCache</code> policies — pick one, not both, per Morphium instance:</li>
 </ul>
 <p><strong><code>MessagingCacheSynchronizer</code></strong> — hooks into Morphium's own storage listener. Every <code>store</code>/<code>remove</code>/<code>update</code>/<code>drop</code> made <em>through this (or another) Morphium instance</em> triggers a <code>cacheSync</code> message over Morphium's own messaging, which every other node with a <code>MessagingCacheSynchronizer</code> attached picks up.
-  <div class="language-java highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kd">var</span><span class="w"> </span><span class="n">messaging</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">morphium</span><span class="p">.</span><span class="na">createMessaging</span><span class="p">();</span>
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="n">messaging</span><span class="p">.</span><span class="na">start</span><span class="p">();</span>
-</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="k">new</span><span class="w"> </span><span class="n">MessagingCacheSynchronizer</span><span class="p">(</span><span class="n">messaging</span><span class="p">,</span><span class="w"> </span><span class="n">morphium</span><span class="p">);</span><span class="w"> </span><span class="c1">// attach synchronizer</span>
+  <div class="language-java highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kd">var</span><span class="w"> </span><span class="n">messaging</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">morphium</span><span class="p">.</span><span class="na">createMessaging</span><span class="p">();</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="n">messaging</span><span class="p">.</span><span class="na">start</span><span class="p">();</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="k">new</span><span class="w"> </span><span class="n">MessagingCacheSynchronizer</span><span class="p">(</span><span class="n">messaging</span><span class="p">,</span><span class="w"> </span><span class="n">morphium</span><span class="p">);</span><span class="w"> </span><span class="c1">// attach synchronizer</span>
 </span></code></pre></div>
   - Requirements: messaging must be running (and healthy) on every node that should invalidate its cache. Works against any driver/backend — in‑memory, single MongoDB, PoppyDB, or a replica set — no change‑stream support needed.
   - Blind spot: it only ever sees writes that go through Morphium's storage listener. Changes made by another application, a raw driver/shell write, a restore, or an admin script are invisible to it and will <strong>not</strong> invalidate remote caches.
   - Extra strength: this is more than "just a watcher" — the invalidation travels as a regular message on the <code>cacheSyncType</code>/<code>cacheSyncRecord</code> topics of Morphium's general‑purpose messaging, not a raw DB event. Any node — including a non‑Java, non‑Morphium process that merely understands the message document format — can register its own listener on the same topic and trigger additional logic beyond the built‑in <code>@Cache.syncCache</code> handling (e.g. invalidate a different cache layer, fire a notification, write an audit trail). Worth it whenever the desired reaction to a cache‑relevant write is more involved than clear/remove/update.</p>
 <p><strong><code>WatchingCacheSynchronizer</code></strong> — opens a MongoDB Change Stream (<code>ChangeStreamMonitor</code>) directly on the watched collections and reacts to whatever it sees change at the database layer, no matter who wrote it.
-  <div class="language-java highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="k">new</span><span class="w"> </span><span class="n">WatchingCacheSynchronizer</span><span class="p">(</span><span class="n">morphium</span><span class="p">);</span><span class="w"> </span><span class="c1">// no messaging required</span>
+  <div class="language-java highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="k">new</span><span class="w"> </span><span class="n">WatchingCacheSynchronizer</span><span class="p">(</span><span class="n">morphium</span><span class="p">);</span><span class="w"> </span><span class="c1">// no messaging required</span>
 </span></code></pre></div>
   - Requirements: Change Streams need a replica set (same restriction as <code>messagingSettings().setUseChangeStream(true)</code>, see <a href="../messaging/">Messaging</a>) — it does <strong>not</strong> work against a standalone/single MongoDB node. Does not need Morphium's messaging running at all.
   - Strength: catches every change to the underlying collection regardless of the writer — other services, migrations, mongosh, etc. — because it watches the data, not Morphium's write path.</p>
@@ -3222,10 +3344,10 @@ See How‑To: <a href="../howtos/caching-examples/">Caching Examples</a> and <a 
 <h2 id="encryption">Encryption<a class="headerlink" href="#encryption" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Annotate sensitive fields with <code>@Encrypted</code> and configure providers/keys via <code>cfg.encryptionSettings()</code>.
-<div class="language-java highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">encryptionSettings</span><span class="p">().</span><span class="na">setCredentialsEncryptionKey</span><span class="p">(</span><span class="s">"secret"</span><span class="p">);</span>
-</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="c1">// Optional: custom providers</span>
-</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="c1">// cfg.encryptionSettings().setEncryptionKeyProviderClass(...);</span>
-</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="c1">// cfg.encryptionSettings().setValueEncryptionProviderClass(...);</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="n">cfg</span><span class="p">.</span><span class="na">encryptionSettings</span><span class="p">().</span><span class="na">setCredentialsEncryptionKey</span><span class="p">(</span><span class="s">"secret"</span><span class="p">);</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="c1">// Optional: custom providers</span>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="c1">// cfg.encryptionSettings().setEncryptionKeyProviderClass(...);</span>
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="c1">// cfg.encryptionSettings().setValueEncryptionProviderClass(...);</span>
 </span></code></pre></div></li>
 </ul>
 <h2 id="threading">Threading<a class="headerlink" href="#threading" title="Permanent link">&para;</a></h2>
@@ -3236,14 +3358,14 @@ See How‑To: <a href="../howtos/caching-examples/">Caching Examples</a> and <a 
 <h2 id="extension-points">Extension Points<a class="headerlink" href="#extension-points" title="Permanent link">&para;</a></h2>
 <ul>
 <li>NameProvider: dynamic collection naming
-<div class="language-java highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="n">morphium</span><span class="p">.</span><span class="na">setNameProviderForClass</span><span class="p">(</span><span class="n">MyEntity</span><span class="p">.</span><span class="na">class</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">m</span><span class="p">,</span><span class="w"> </span><span class="n">cls</span><span class="p">,</span><span class="w"> </span><span class="n">def</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">def</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">"_2025"</span><span class="p">);</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="n">morphium</span><span class="p">.</span><span class="na">setNameProviderForClass</span><span class="p">(</span><span class="n">MyEntity</span><span class="p">.</span><span class="na">class</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">m</span><span class="p">,</span><span class="w"> </span><span class="n">cls</span><span class="p">,</span><span class="w"> </span><span class="n">def</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">def</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">"_2025"</span><span class="p">);</span>
 </span></code></pre></div></li>
 <li>Storage listeners: audit/validation hooks
-<div class="language-java highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="n">morphium</span><span class="p">.</span><span class="na">addListener</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumStorageAdapter</span><span class="o">&lt;</span><span class="n">Object</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="nd">@Override</span><span class="w"> </span><span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">preStore</span><span class="p">(</span><span class="n">Morphium</span><span class="w"> </span><span class="n">m</span><span class="p">,</span><span class="w"> </span><span class="n">Object</span><span class="w"> </span><span class="n">entity</span><span class="p">,</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="n">isNew</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">    </span><span class="c1">// audit or validation</span>
-</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">  </span><span class="p">}</span>
-</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="p">});</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="n">morphium</span><span class="p">.</span><span class="na">addListener</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">MorphiumStorageAdapter</span><span class="o">&lt;</span><span class="n">Object</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">  </span><span class="nd">@Override</span><span class="w"> </span><span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">preStore</span><span class="p">(</span><span class="n">Morphium</span><span class="w"> </span><span class="n">m</span><span class="p">,</span><span class="w"> </span><span class="n">Object</span><span class="w"> </span><span class="n">entity</span><span class="p">,</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="n">isNew</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">    </span><span class="c1">// audit or validation</span>
+</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="p">});</span>
 </span></code></pre></div></li>
 <li>Custom cache/writer/type mappers: implement the respective interfaces and register via config or Morphium API.</li>
 </ul>
@@ -3255,29 +3377,29 @@ See How‑To: <a href="../howtos/caching-examples/">Caching Examples</a> and <a 
 <h2 id="building-and-testing">Building and Testing<a class="headerlink" href="#building-and-testing" title="Permanent link">&para;</a></h2>
 <h3 id="building-the-project">Building the Project<a class="headerlink" href="#building-the-project" title="Permanent link">&para;</a></h3>
 <p>To build the project, run the following command from the root of the project:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>mvn<span class="w"> </span>clean<span class="w"> </span>install
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>mvn<span class="w"> </span>clean<span class="w"> </span>install
 </span></code></pre></div>
 <p>This will compile the code, run the tests, and install the artifact to your local Maven repository.</p>
 <h3 id="running-tests">Running Tests<a class="headerlink" href="#running-tests" title="Permanent link">&para;</a></h3>
 <p>The <code>./runtests.sh</code> script is the primary entry point for running tests. It provides a rich set of features for running tests in different configurations.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="c1"># Default: in-memory driver (fast, no MongoDB required)</span>
-</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>./runtests.sh
-</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>
-</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="c1"># Run tagged suites</span>
-</span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>./runtests.sh<span class="w"> </span>--tags<span class="w"> </span>core,messaging
-</span><span id="__span-18-6"><a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>
-</span><span id="__span-18-7"><a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="c1"># Parallel runs</span>
-</span><span id="__span-18-8"><a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>./runtests.sh<span class="w"> </span>--parallel<span class="w"> </span><span class="m">8</span><span class="w"> </span>--tags<span class="w"> </span>core
-</span><span id="__span-18-9"><a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a>
-</span><span id="__span-18-10"><a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a><span class="c1"># Retry only failed methods</span>
-</span><span id="__span-18-11"><a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a>./runtests.sh<span class="w"> </span>--rerunfailed
-</span><span id="__span-18-12"><a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a>./runtests.sh<span class="w"> </span>--rerunfailed<span class="w"> </span>--retry<span class="w"> </span><span class="m">3</span>
-</span><span id="__span-18-13"><a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a>
-</span><span id="__span-18-14"><a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a><span class="c1"># Single test class</span>
-</span><span id="__span-18-15"><a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a>./runtests.sh<span class="w"> </span>CacheTests
-</span><span id="__span-18-16"><a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a>
-</span><span id="__span-18-17"><a id="__codelineno-18-17" name="__codelineno-18-17" href="#__codelineno-18-17"></a><span class="c1"># Statistics</span>
-</span><span id="__span-18-18"><a id="__codelineno-18-18" name="__codelineno-18-18" href="#__codelineno-18-18"></a>./runtests.sh<span class="w"> </span>--stats
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="c1"># Default: in-memory driver (fast, no MongoDB required)</span>
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>./runtests.sh
+</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>
+</span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="c1"># Run tagged suites</span>
+</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>./runtests.sh<span class="w"> </span>--tags<span class="w"> </span>core,messaging
+</span><span id="__span-19-6"><a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>
+</span><span id="__span-19-7"><a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a><span class="c1"># Parallel runs</span>
+</span><span id="__span-19-8"><a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>./runtests.sh<span class="w"> </span>--parallel<span class="w"> </span><span class="m">8</span><span class="w"> </span>--tags<span class="w"> </span>core
+</span><span id="__span-19-9"><a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>
+</span><span id="__span-19-10"><a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a><span class="c1"># Retry only failed methods</span>
+</span><span id="__span-19-11"><a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a>./runtests.sh<span class="w"> </span>--rerunfailed
+</span><span id="__span-19-12"><a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a>./runtests.sh<span class="w"> </span>--rerunfailed<span class="w"> </span>--retry<span class="w"> </span><span class="m">3</span>
+</span><span id="__span-19-13"><a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a>
+</span><span id="__span-19-14"><a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a><span class="c1"># Single test class</span>
+</span><span id="__span-19-15"><a id="__codelineno-19-15" name="__codelineno-19-15" href="#__codelineno-19-15"></a>./runtests.sh<span class="w"> </span>CacheTests
+</span><span id="__span-19-16"><a id="__codelineno-19-16" name="__codelineno-19-16" href="#__codelineno-19-16"></a>
+</span><span id="__span-19-17"><a id="__codelineno-19-17" name="__codelineno-19-17" href="#__codelineno-19-17"></a><span class="c1"># Statistics</span>
+</span><span id="__span-19-18"><a id="__codelineno-19-18" name="__codelineno-19-18" href="#__codelineno-19-18"></a>./runtests.sh<span class="w"> </span>--stats
 </span></code></pre></div>
 <p>Run <code>./runtests.sh --help</code> to see all available options.</p>
 <h3 id="developer-scripts">Developer Scripts<a class="headerlink" href="#developer-scripts" title="Permanent link">&para;</a></h3>

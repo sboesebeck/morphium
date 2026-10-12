@@ -2173,6 +2173,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#every-write-of-one-entity-type-takes-exactly-wtimeout-after-a-node-went-down" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Every write of one entity type takes exactly wtimeout after a node went down
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2572,6 +2583,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#every-write-of-one-entity-type-takes-exactly-wtimeout-after-a-node-went-down" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Every write of one entity type takes exactly wtimeout after a node went down
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2954,6 +2976,30 @@
 </span></code></pre></div></p>
 </li>
 </ol>
+<h3 id="every-write-of-one-entity-type-takes-exactly-wtimeout-after-a-node-went-down">Every write of one entity type takes exactly <code>wtimeout</code> after a node went down<a class="headerlink" href="#every-write-of-one-entity-type-takes-exactly-wtimeout-after-a-node-went-down" title="Permanent link">&para;</a></h3>
+<p><strong>Symptom:</strong> after a replica-set member crashed or was shut down, <code>store()</code> for one entity type (often a
+test entity such as <code>UncachedObject</code>) takes exactly its <code>@WriteSafety.timeout</code> (10 s by default in the
+test suite) on every call, while writes of other types are fast. The server logs
+<code>Write concern timeout ... w=3, acknowledged=1/2</code> or similar; the client logs nothing, because the
+write <em>did</em> succeed on the primary and the missed replication only arrives as a <code>writeConcernError</code>,
+which Morphium does not surface yet (#408).</p>
+<p><strong>Cause:</strong> the entity uses <code>@WriteSafety(level = WAIT_FOR_ALL_SLAVES)</code>. Morphium turns that into a
+numeric <code>w</code> equal to the number of replica-set members the driver can currently reach. Until the
+driver's heartbeat has failed against the dead member once (at most one <code>heartbeatFrequency</code> plus the
+connect timeout), <code>w</code> is still the full member count and cannot be satisfied.</p>
+<p><strong>What to check:</strong>
+- The hang should end by itself after the detection window. If it does not, the driver still counts the
+  dead member as reachable: enable debug logging for <code>de.caluga.morphium.Morphium</code> and watch
+  <code>Active nodes now: N</code> on each write, and <code>Could not create connection to host</code> /
+  <code>Still cannot connect to host</code> from the <code>PooledDriver</code> heartbeat.
+- <code>heartbeatFrequency</code> (<code>clusterSettings().setHeartbeatFrequency(ms)</code>) bounds the window; a lower value
+  shortens it at the cost of more hello traffic.
+- <code>timeout = 0</code> on the annotation means "wait forever": writes inside the window never return. Use a
+  finite <code>wtimeout</code>.
+- If you cannot afford the window, switch the entity to <code>SafetyLevel.MAJORITY</code>, which the server
+  evaluates against the real configuration and which tolerates a minority of members being down.</p>
+<p>See <a href="../developer-guide/#write-safety-writesafety">Write Safety</a> in the developer guide for the
+semantics of each level.</p>
 <h2 id="performance-issues">Performance Issues<a class="headerlink" href="#performance-issues" title="Permanent link">&para;</a></h2>
 <h3 id="slow-query-performance">Slow Query Performance<a class="headerlink" href="#slow-query-performance" title="Permanent link">&para;</a></h3>
 <p><strong>Symptoms:</strong>
