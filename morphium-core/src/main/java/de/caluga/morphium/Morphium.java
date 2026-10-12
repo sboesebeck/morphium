@@ -1814,13 +1814,21 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 w = 1;
             }
         } else if (w > 2) {
-            var hostSeed = getDriver().getHostSeed();
+            // WAIT_FOR_ALL_SLAVES: w follows the number of members the driver can currently
+            // reach, NOT the configured seed. The seed is never shrunk when a member dies
+            // (its address is needed to reconnect), so counting it would leave w at the full
+            // cluster size after a node loss - unsatisfiable, every write runs into wtimeout
+            // until the member returns. The driver's heartbeat marks a member unreachable on
+            // its first failed cycle; from then on w drops accordingly.
+            int activeNodes = getDriver().getNumReachableHosts();
 
             if (log.isDebugEnabled()) {
-                log.debug("Active nodes now: " + hostSeed.size());
+                log.debug("Active nodes now: " + activeNodes);
             }
 
-            int activeNodes = hostSeed.size();
+            if (activeNodes < 1) {
+                activeNodes = 1;
+            }
 
             if (activeNodes > 50) {
                 activeNodes = 50;

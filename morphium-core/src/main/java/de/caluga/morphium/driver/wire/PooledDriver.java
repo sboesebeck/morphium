@@ -827,7 +827,7 @@ public class PooledDriver extends DriverBase {
 
                                 PingStats newStats = host.getPingStats().updateWith(dur);
                                 host.setPingStats(newStats);
-                                host.resetFailures();
+                                host.markReachable();
 
                                 // Use record patterns to update fastest host
                                 updateFastestHost(hst, newStats);
@@ -1314,7 +1314,7 @@ public class PooledDriver extends DriverBase {
 
             PingStats newStats = host.getPingStats().updateWith(dur);
             host.setPingStats(newStats);
-            host.resetFailures();
+            host.markReachable();
             updateFastestHost(hst, newStats);
             handleHelloResult(result, String.format("%s:%d", getHost(hst), getPortFromHost(hst)));
         } finally {
@@ -2417,6 +2417,31 @@ public class PooledDriver extends DriverBase {
                 releaseConnection(con);
             }
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
+    }
+
+    /**
+     * Members the heartbeat can currently reach ({@link Host#isReachable()}): answered at least
+     * once and the last contact did not fail. Neither the seed list nor the {@code hosts} map size
+     * can serve as "live node count": the seed is kept complete on purpose (see the comments
+     * there), and every member's hello re-advertises the full configured topology, so a dead
+     * member evicted by {@link #onConnectionError(String)} is re-added with a fresh failure
+     * counter on the very next hello. Falls back to the seed size while no host has answered
+     * yet (before connect), so a {@code WAIT_FOR_ALL_SLAVES} write concern never degrades to
+     * {@code w:0} during startup.
+     */
+    @Override
+    public int getNumReachableHosts() {
+        int n = 0;
+        for (Host h : hosts.values()) {
+            if (h.isReachable()) {
+                n++;
+            }
+        }
+        if (n > 0) {
+            return n;
+        }
+        List<String> seed = getHostSeed();
+        return seed == null ? 0 : seed.size();
     }
 
     @Override

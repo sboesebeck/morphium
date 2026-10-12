@@ -21,6 +21,13 @@ import static java.lang.annotation.ElementType.TYPE;
  * <li>{@code NORMAL} None, network socket errors raised</li>
  * <li>{@code BASIC} Checks server for errors as well as network socket errors raised</li>
  * <li>{@code WAIT_FOR_SLAVE} Checks servers (at lease 2) for errors as well as network socket errors raised</li>
+ * <li>{@code MAJORITY} MongoDB {@code w: "majority"} - the recommended durable setting, evaluated server-side</li>
+ * <li>{@code WAIT_FOR_ALL_SLAVES} Morphium-specific: {@code w} is set on every write to the number of
+ * replica-set members the driver currently considers reachable ({@code MorphiumDriver#getNumReachableHosts()}),
+ * so the concern follows the live cluster after a member loss. Caveat: until the driver's heartbeat has
+ * noticed the loss (about one heartbeat frequency), writes still carry the old {@code w} and block for
+ * {@code timeout}; with {@code timeout = 0} they block indefinitely. Prefer {@code MAJORITY} unless you
+ * explicitly want "every available copy".</li>
  * </ul>
  */
 @Target({TYPE})

@@ -96,6 +96,7 @@ public class FailoverTests {
                         Thread.sleep(250);
                     } catch (Exception e) {
                         errors.incrementAndGet();
+                        log.warn("store #{} failed: {}", cnt, e.toString());
                     }
                 }
             });
@@ -128,6 +129,23 @@ public class FailoverTests {
             Thread.sleep(1000);
             assertTrue(err >= errors.get()); //no additional errors.
 
+            // UncachedObject is @WriteSafety(WAIT_FOR_ALL_SLAVES, timeout = 10s): w follows the number of
+            // members the driver can reach. The dead ex-primary stays in the seed (and is re-advertised
+            // by every hello), so this is the regression check that w is derived from reachability and
+            // not from the configured topology - with w=3 against 2 live nodes every store() would sit
+            // in the 10s wtimeout, and the client would never recover on its own.
+            TestUtils.waitForConditionToBecomeTrue(10000, "Driver still counts the dead member as reachable",
+                () -> m.getDriver().getNumReachableHosts() == 2);
+            assertEquals(2, m.getWriteConcernForClass(UncachedObject.class).getW(),
+                "WAIT_FOR_ALL_SLAVES must follow the reachable member count after a node loss");
+
+            long start = System.currentTimeMillis();
+            m.store(new UncachedObject("after failover", 4711));
+            long dur = System.currentTimeMillis() - start;
+            log.info("store() after failover took {}ms", dur);
+            assertTrue(dur < 5000, "store() with WAIT_FOR_ALL_SLAVES ran into wtimeout after failover: " + dur + "ms");
+
+            running.set(false);
             m.close();
         } finally {
             for (var srv : servers) {

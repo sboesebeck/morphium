@@ -71,6 +71,35 @@ Common issues and their solutions when using Morphium.
    cfg.clusterSettings().addHostToSeed("mongo3", 27017);
    ```
 
+### Every write of one entity type takes exactly `wtimeout` after a node went down
+
+**Symptom:** after a replica-set member crashed or was shut down, `store()` for one entity type (often a
+test entity such as `UncachedObject`) takes exactly its `@WriteSafety.timeout` (10 s by default in the
+test suite) on every call, while writes of other types are fast. The server logs
+`Write concern timeout ... w=3, acknowledged=1/2` or similar; the client logs nothing, because the
+write *did* succeed on the primary and the missed replication only arrives as a `writeConcernError`,
+which Morphium does not surface yet (#408).
+
+**Cause:** the entity uses `@WriteSafety(level = WAIT_FOR_ALL_SLAVES)`. Morphium turns that into a
+numeric `w` equal to the number of replica-set members the driver can currently reach. Until the
+driver's heartbeat has failed against the dead member once (at most one `heartbeatFrequency` plus the
+connect timeout), `w` is still the full member count and cannot be satisfied.
+
+**What to check:**
+- The hang should end by itself after the detection window. If it does not, the driver still counts the
+  dead member as reachable: enable debug logging for `de.caluga.morphium.Morphium` and watch
+  `Active nodes now: N` on each write, and `Could not create connection to host` /
+  `Still cannot connect to host` from the `PooledDriver` heartbeat.
+- `heartbeatFrequency` (`clusterSettings().setHeartbeatFrequency(ms)`) bounds the window; a lower value
+  shortens it at the cost of more hello traffic.
+- `timeout = 0` on the annotation means "wait forever": writes inside the window never return. Use a
+  finite `wtimeout`.
+- If you cannot afford the window, switch the entity to `SafetyLevel.MAJORITY`, which the server
+  evaluates against the real configuration and which tolerates a minority of members being down.
+
+See [Write Safety](./developer-guide.md#write-safety-writesafety) in the developer guide for the
+semantics of each level.
+
 ## Performance Issues
 
 ### Slow Query Performance

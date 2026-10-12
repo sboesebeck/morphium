@@ -20,6 +20,7 @@ public class Host {
     private final AtomicInteger internalInUseConnections = new AtomicInteger(0);
     private final AtomicInteger pendingConnectionCreations = new AtomicInteger(0);
     public static final int MAX_FAILURES = 5;
+    private volatile long lastSuccessfulContact = 0;
     private PooledDriver.PingStats pingStats = new PooledDriver.PingStats(0, 0, 0, 0, 0, 0);
 
     public Host(String host, int port) {
@@ -73,6 +74,29 @@ public class Host {
 
     public void resetFailures() {
         failures.set(0);
+    }
+
+    /**
+     * Records a successful contact (hello answered, connection established): resets the failure
+     * counter and remembers that this host has been reachable at least once.
+     */
+    public void markReachable() {
+        lastSuccessfulContact = System.currentTimeMillis();
+        failures.set(0);
+    }
+
+    /**
+     * A host counts as reachable once it has answered at least once and its last contact attempt
+     * did not fail. A member that is only known from a replica-set hello (every member advertises
+     * the full configured topology, dead members included) has never answered and is therefore
+     * not reachable, even though it sits in the hosts map with a fresh failure counter.
+     */
+    public boolean isReachable() {
+        return lastSuccessfulContact > 0 && failures.get() == 0;
+    }
+
+    public long getLastSuccessfulContact() {
+        return lastSuccessfulContact;
     }
 
     public String getHostName() {

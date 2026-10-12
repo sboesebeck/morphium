@@ -88,6 +88,24 @@ public interface MorphiumDriver extends Closeable {
 
     List<String> getHostSeed();
 
+    /**
+     * Number of replica-set members this driver currently considers reachable.
+     * <p>
+     * The seed list ({@link #getHostSeed()}) is the configured topology and is deliberately
+     * never shrunk when a member goes down (its address is needed to reconnect once the member
+     * comes back). Drivers that monitor member health - the {@code PooledDriver} heartbeat
+     * evicts a host after repeated connection failures - report only the members they can still
+     * talk to. {@code @WriteSafety(level = WAIT_FOR_ALL_SLAVES)} derives its {@code w} from this
+     * value, so a write concern "all nodes" follows the live cluster size instead of blocking
+     * forever on a member that is gone.
+     * <p>
+     * Default: the size of the seed list.
+     */
+    default int getNumReachableHosts() {
+        List<String> seed = getHostSeed();
+        return seed == null ? 0 : seed.size();
+    }
+
     void setHostSeed(List<String> hosts);
 
     void setHostSeed(String... host);

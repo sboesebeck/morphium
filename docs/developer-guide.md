@@ -231,6 +231,50 @@ List<Map> results = agg.aggregate();
 ```
 See How‑To: [Aggregation Examples](./howtos/aggregation-examples.md) for more pipelines.
 
+## Write Safety (`@WriteSafety`)
+`@WriteSafety` on an entity class sets the MongoDB write concern Morphium uses for every write of that type:
+
+| `level`               | Resulting `w`                         | Meaning                                                     |
+|-----------------------|---------------------------------------|-------------------------------------------------------------|
+| `NORMAL` (default)    | `0`                                   | fire and forget, only socket errors surface                  |
+| `BASIC`               | `1`                                   | acknowledged by the primary                                  |
+| `WAIT_FOR_SLAVE`      | `2`                                   | primary plus one secondary                                   |
+| `MAJORITY`            | `"majority"`                          | MongoDB majority commit, the recommended durable setting     |
+| `WAIT_FOR_ALL_SLAVES` | number of **reachable** members       | every member the driver can currently talk to (see caveat)   |
+
+`timeout` is the `wtimeout` in ms (`0` = wait forever), `waitForJournalCommit` sets `j: true`. Against a
+standalone server everything above `w:1` is downgraded to `w:1`, because the server could never satisfy it.
+
+```java
+@Entity
+@WriteSafety(level = SafetyLevel.MAJORITY, timeout = 5000, waitForJournalCommit = true)
+public class Order { ... }
+```
+
+### Caveat: `WAIT_FOR_ALL_SLAVES` and member loss
+`WAIT_FOR_ALL_SLAVES` is a Morphium feature, not a MongoDB write concern: there is no "all members" in
+MongoDB, so Morphium derives a numeric `w` on every write from the number of replica-set members the
+driver currently considers reachable. Reachable means the driver's heartbeat has talked to the member and
+its last contact did not fail. That is what makes the level survive a member loss at all: with a plain
+`w:3` on a three-member set, one member down means every write waits out `wtimeout` until the member is
+back. With `WAIT_FOR_ALL_SLAVES` the `w` drops to `2` as soon as the heartbeat has noticed the loss.
+
+The price is a **detection window**. Between the moment a member goes away and the first failed heartbeat
+against it (at most one `heartbeatFrequency`, default 1 s, plus the connect timeout), writes are still sent
+with the old `w` and block for their `wtimeout`. A member that was never reachable since the client
+started, or that comes and goes, keeps `w` low. Two consequences to plan for:
+
+- Set a finite `timeout`. With `timeout = 0` a write issued inside the detection window waits forever.
+- Treat a write that ran into `wtimeout` as "durability not confirmed", not as "failed": MongoDB (and
+  PoppyDB) apply the write on the primary and report the missed replication as a `writeConcernError` in
+  an otherwise successful reply. Morphium does not yet raise this as an exception (tracked as [#408](https://github.com/sboesebeck/morphium/issues/408)),
+  so `store()` returns normally in that case.
+
+If you need a guarantee that does not depend on client-side topology detection, use `MAJORITY`: it is
+evaluated by the server against the actual replica-set configuration and tolerates a minority of members
+being down without any detection window. `WAIT_FOR_ALL_SLAVES` is for the case where you want every
+*available* copy written and accept the window as the cost.
+
 ## Caching
 - Add `@Cache` to entities to enable read cache; TTL, max entries, and clear strategy are configurable.
 - Cluster‑wide cache synchronization comes in two flavors — messaging‑driven and watching (change‑stream‑driven); see below for which one to pick.
