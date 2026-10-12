@@ -2428,7 +2428,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         }
 
         res.setConnectionId(1);
-        res.setMaxWireVersion(17);
+        res.setMaxWireVersion(29); // MongoDB 9.0 (DRIVERS-3435), in step with InMemoryDriver
         res.setMinWireVersion(13);
         res.setMaxMessageSizeBytes(48 * 1024 * 1024); // 48MB, same as MongoDB
         // the driver enforces this limit on every write - advertise the real value so

@@ -62,7 +62,7 @@ public class ElectionManagerTest {
         manager.start();
 
         // Should become leader quickly (single node)
-        assertTrue(leaderLatch.await(500, TimeUnit.MILLISECONDS), "Should become leader within 500ms");
+        assertTrue(leaderLatch.await(5, TimeUnit.SECONDS), "Should become leader");
         assertEquals(ElectionState.LEADER, manager.getState());
         assertTrue(manager.isLeader());
         assertEquals("localhost:27017", manager.getCurrentLeader());
@@ -296,7 +296,7 @@ public class ElectionManagerTest {
         // path which also updates currentLeader - the callback must still fire,
         // otherwise a follower never learns about the leader and never replicates
         manager.handleAppendEntries(AppendEntriesRequest.heartbeat(1, "localhost:27018", 0, 0, 0));
-        assertTrue(discoveredLatch.await(1, TimeUnit.SECONDS),
+        assertTrue(discoveredLatch.await(5, TimeUnit.SECONDS),
                 "onLeaderDiscovered must fire on the first heartbeat from a new leader");
 
         // Repeated heartbeats from the same leader must NOT re-fire (anti-flapping)
@@ -318,7 +318,7 @@ public class ElectionManagerTest {
             newLeaderLatch.countDown();
         });
         manager.handleAppendEntries(AppendEntriesRequest.heartbeat(2, "localhost:27019", 0, 0, 0));
-        assertTrue(newLeaderLatch.await(1, TimeUnit.SECONDS),
+        assertTrue(newLeaderLatch.await(5, TimeUnit.SECONDS),
                 "onLeaderDiscovered must fire when the leader changes");
         synchronized (discovered) {
             assertEquals(List.of("localhost:27018", "localhost:27019"), discovered);
@@ -380,7 +380,7 @@ public class ElectionManagerTest {
         });
 
         manager.start();
-        assertTrue(leaderLatch.await(500, TimeUnit.MILLISECONDS));
+        assertTrue(leaderLatch.await(5, TimeUnit.SECONDS));
         assertEquals(ElectionState.LEADER, manager.getState());
 
         long originalTerm = manager.getCurrentTerm();
@@ -396,7 +396,7 @@ public class ElectionManagerTest {
         manager.handleAppendEntries(higherTermHeartbeat);
 
         // Wait for step down callback to confirm state transition
-        assertTrue(stepDownLatch.await(100, TimeUnit.MILLISECONDS), "Should step down from leader");
+        assertTrue(stepDownLatch.await(5, TimeUnit.SECONDS), "Should step down from leader");
 
         // Verify state was updated (check immediately after callback - state may change again due to re-election)
         assertEquals(originalTerm + 10, manager.getCurrentTerm(), "Term should be updated to higher term");
@@ -451,11 +451,12 @@ public class ElectionManagerTest {
         ElectionManager manager = new ElectionManager("localhost:27017", hosts, config);
         managers.add(manager);
 
-        // Auf die Wahl WARTEN statt ein starres Fenster anzunehmen: ein 'Thread.sleep(200)'
-        // war unter Last (5 Phasen + Modul-Stage parallel) zu knapp - der Wahl-Timer des
-        // ScheduledExecutorService kann deutlich später feuern, und der Test sah dann
-        // FOLLOWER statt LEADER (Flake im Modul-Lauf 2026-10-12, isoliert immer grün).
-        // Der Latch im Nachbartest testSingleNodeAutoElect macht es genauso.
+        // Wait for the election instead of assuming a fixed window: a Thread.sleep(200) was
+        // too short under load (5 phases + module stage in parallel) - the election timer of
+        // the ScheduledExecutorService can fire much later, and the test then saw FOLLOWER
+        // instead of LEADER (flaked in the module run on 2026-10-12, always green in isolation).
+        // Same latch pattern as testSingleNodeAutoElect; every latch in this class waits up to
+        // 5s for the same reason - the bound only matters when the transition never happens.
         CountDownLatch leaderLatch = new CountDownLatch(1);
         manager.setOnLeadershipChange(isLeader -> {
             if (isLeader) {
@@ -496,7 +497,7 @@ public class ElectionManagerTest {
         });
 
         manager.start();
-        assertTrue(leaderLatch.await(500, TimeUnit.MILLISECONDS));
+        assertTrue(leaderLatch.await(5, TimeUnit.SECONDS));
         assertEquals(ElectionState.LEADER, manager.getState());
 
         // Force step down
