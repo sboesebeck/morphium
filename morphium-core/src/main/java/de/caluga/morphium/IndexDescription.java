@@ -363,7 +363,7 @@ public class IndexDescription {
                 && Objects.equals(weights, that.weights) && Objects.equals(defaultLanguage, that.defaultLanguage)
                 && Objects.equals(languageOverride, that.languageOverride) && Objects.equals(textIndexVersion, that.textIndexVersion)
                 && Objects.equals(_2dsphereIndexVersion, that._2dsphereIndexVersion) && Objects.equals(bits, that.bits)
-                && Objects.equals(min, that.min) && Objects.equals(max, that.max) && Objects.equals(collation, that.collation)
+                && Objects.equals(min, that.min) && Objects.equals(max, that.max) && Objects.equals(normCollation(collation), normCollation(that.collation))
                 && Objects.equals(wildcardProjection, that.wildcardProjection);
     }
 
@@ -383,9 +383,16 @@ public class IndexDescription {
         return Objects.hash(key, normBool(background), normBool(unique), partialFilterExpression,
                 normBool(sparse), normInt(expireAfterSeconds),
                 normBool(hidden), storageEngine, weights, defaultLanguage, languageOverride, textIndexVersion,
-                _2dsphereIndexVersion, bits, min, max, collation, wildcardProjection);
+                _2dsphereIndexVersion, bits, min, max, normCollation(collation), wildcardProjection);
     }
 
     private static Boolean normBool(Boolean v) { return v != null && v ? Boolean.TRUE : null; }
     private static Integer normInt(Integer v) { return v != null && v != 0 ? v : null; }
+
+    // The simple collation is the default, so {locale: "simple"} means the same as no collation.
+    // MongoDB 9.0 reports it explicitly in listIndexes for every index without a collation
+    // (SERVER-89953), while the definition built from @Index leaves it null.
+    private static Map<String, Object> normCollation(Map<String, Object> c) {
+        return c == null || "simple".equals(c.get("locale")) ? null : c;
+    }
 }
