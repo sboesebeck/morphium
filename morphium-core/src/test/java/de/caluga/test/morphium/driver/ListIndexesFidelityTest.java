@@ -55,4 +55,35 @@ public class ListIndexesFidelityTest extends MultiDriverTestBase {
                 "partialFilterExpression must round-trip through listIndexes");
         }
     }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void listIndexesReportsCollation(Morphium morphium) throws Exception {
+        try (morphium) {
+            String db = morphium.getConfig().connectionSettings().getDatabase();
+            String coll = "list_indexes_fidelity_collation";
+
+            var conn = morphium.getDriver().getPrimaryConnection(null);
+            try {
+                new CreateIndexesCommand(conn).setDb(db).setColl(coll)
+                    .addIndex(Doc.of("name", 1),
+                              Doc.of("name", "collation_idx",
+                                     "collation", Doc.of("locale", "de", "strength", 2)))
+                    .execute();
+            } finally {
+                morphium.getDriver().releaseConnection(conn);
+            }
+
+            conn = morphium.getDriver().getPrimaryConnection(null);
+            List<IndexDescription> indexes = new ListIndexesCommand(conn).setDb(db).setColl(coll).execute();
+
+            IndexDescription idx = indexes.stream()
+                .filter(i -> "collation_idx".equals(i.getName()))
+                .findFirst().orElse(null);
+            assertNotNull(idx, "created index must appear in listIndexes: " + indexes);
+            assertNotNull(idx.getCollation(), "collation must round-trip through listIndexes");
+            assertEquals("de", idx.getCollation().get("locale"));
+            assertEquals(2, ((Number) idx.getCollation().get("strength")).intValue());
+        }
+    }
 }

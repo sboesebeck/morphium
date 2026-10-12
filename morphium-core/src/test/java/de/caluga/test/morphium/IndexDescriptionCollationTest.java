@@ -54,6 +54,16 @@ public class IndexDescriptionCollationTest {
     }
 
     @Test
+    void serverAddedVersionAndDefaultNormalizationAreIgnored() {
+        var fromAnnotation = fromServer(Doc.of("locale", "de", "strength", 2));
+        var server = fromServer(Doc.of("locale", "de", "strength", 2, "normalization", false, "version", "57.1"));
+
+        assertEquals(fromAnnotation, server);
+        assertEquals(fromAnnotation.hashCode(), server.hashCode());
+        assertNotEquals(fromAnnotation, fromServer(Doc.of("locale", "de", "strength", 2, "normalization", true)));
+    }
+
+    @Test
     void sameRealCollationStillEqual() {
         var a = fromServer(Doc.of("locale", "de", "strength", 2));
         var b = fromServer(Doc.of("locale", "de", "strength", 2));

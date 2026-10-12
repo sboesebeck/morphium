@@ -4416,6 +4416,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     index.put("partialFilterExpression", opt.get("partialFilterExpression"));
                 }
 
+                // same for collation: without it the index check reports every index with a
+                // locale as missing, and PoppyDB secondaries recreate it without collation
+                if (opt != null && opt.get("collation") != null) {
+                    index.put("collation", opt.get("collation"));
+                }
+
                 if (opt != null && opt.get("bachground") != null) {
                     index.put("background", opt.get("background"));
                 }

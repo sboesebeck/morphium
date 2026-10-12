@@ -2378,17 +2378,6 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                         options = createIndexKeyMapFrom(i.options());
                     }
 
-                    if (!i.locale().equals("")) {
-                        Map<String, Object> collation = UtilsMap.of("locale", i.locale());
-                        collation.put("alternate", i.alternate().mongoText);
-                        collation.put("backwards", i.backwards());
-                        collation.put("caseFirst", i.caseFirst().mongoText);
-                        collation.put("caseLevel", i.caseLevel());
-                        collation.put("maxVariable", i.maxVariable().mongoText);
-                        collation.put("strength", i.strength().mongoValue);
-                        options.add(UtilsMap.of("collation", collation));
-                    }
-
                     List<Map<String, Object >> idx = createIndexKeyMapFrom(i.value());
                     int cnt = 0;
                     for (Map<String, Object> m : idx) {
@@ -2401,6 +2390,8 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                         if (optionsMap != null && optionsMap.containsKey("")) {
                             optionsMap = null;
                         }
+
+                        optionsMap = withCollation(optionsMap, i);
 
                         try {
                             wr.createIndex(type, onCollection, IndexDescription.fromMaps(m, optionsMap), callback);
@@ -2436,6 +2427,8 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 if (createIndexKeyMapFrom(i.options()) != null) {
                     optionsMap = createIndexKeyMapFrom(i.options()).get(0);
                 }
+
+                optionsMap = withCollation(optionsMap, i);
 
                 try {
                     wr.createIndex(type, onCollection, IndexDescription.fromMaps(idx, optionsMap), callback);
@@ -2623,17 +2616,6 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                         options = createIndexKeyMapFrom(i.options());
                     }
 
-                    if (!i.locale().equals("")) {
-                        Map<String, Object> collation = UtilsMap.of("locale", i.locale());
-                        collation.put("alternate", i.alternate().mongoText);
-                        collation.put("backwards", i.backwards());
-                        collation.put("caseFirst", i.caseFirst().mongoText);
-                        collation.put("caseLevel", i.caseLevel());
-                        collation.put("maxVariable", i.maxVariable().mongoText);
-                        collation.put("strength", i.strength().mongoValue);
-                        options.add(UtilsMap.of("collation", collation));
-                    }
-
                     List<Map<String, Object >> idx = createIndexKeyMapFrom(i.value());
                     int cnt = 0;
                     for (Map<String, Object> m : idx) {
@@ -2646,6 +2628,8 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                         if (optionsMap != null && optionsMap.containsKey("")) {
                             optionsMap = null;
                         }
+
+                        optionsMap = withCollation(optionsMap, i);
 
                         if (optionsMap == null || !optionsMap.containsKey("weights")) {
                             if (m.containsValue("text")) {
@@ -2691,6 +2675,8 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                     optionsMap = createIndexKeyMapFrom(i.options()).get(0);
                 }
 
+                optionsMap = withCollation(optionsMap, i);
+
                 ret.add(IndexDescription.fromMaps(idx, optionsMap));
             }
         }
@@ -2710,6 +2696,29 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         }
 
         getWriterForClass(lst.get(0).getClass()).store(lst, collectionName, callback);
+    }
+
+    /**
+     * adds the collation defined by the locale of an {@link Index} annotation to the options of
+     * every index the annotation declares. Returns the options unchanged if no locale is set.
+     */
+    private static Map<String, Object> withCollation(Map<String, Object> options, Index i) {
+        if (i.locale().equals("")) {
+            return options;
+        }
+
+        Map<String, Object> collation = new LinkedHashMap<>();
+        collation.put("locale", i.locale());
+        collation.put("caseLevel", i.caseLevel());
+        collation.put("caseFirst", i.caseFirst().mongoText);
+        collation.put("strength", i.strength().mongoValue);
+        collation.put("numericOrdering", i.numericOrdering());
+        collation.put("alternate", i.alternate().mongoText);
+        collation.put("maxVariable", i.maxVariable().mongoText);
+        collation.put("backwards", i.backwards());
+        Map<String, Object> ret = options == null ? new LinkedHashMap<>() : new LinkedHashMap<>(options);
+        ret.put("collation", collation);
+        return ret;
     }
 
     public List<Map<String, Object >> createIndexKeyMapFrom(String[] fldStr) {

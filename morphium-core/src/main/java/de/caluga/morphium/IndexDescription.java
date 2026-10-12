@@ -4,6 +4,7 @@ import de.caluga.morphium.driver.Doc;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import org.slf4j.LoggerFactory;
@@ -392,7 +393,24 @@ public class IndexDescription {
     // The simple collation is the default, so {locale: "simple"} means the same as no collation.
     // MongoDB 9.0 reports it explicitly in listIndexes for every index without a collation
     // (SERVER-89953), while the definition built from @Index leaves it null.
+    // listIndexes also adds the ICU "version" and normalization: false (the default) to every
+    // other collation, neither of which the definition from @Index carries.
     private static Map<String, Object> normCollation(Map<String, Object> c) {
-        return c == null || "simple".equals(c.get("locale")) ? null : c;
+        if (c == null || "simple".equals(c.get("locale"))) {
+            return null;
+        }
+
+        if (!c.containsKey("version") && !Boolean.FALSE.equals(c.get("normalization"))) {
+            return c;
+        }
+
+        Map<String, Object> ret = new LinkedHashMap<>(c);
+        ret.remove("version");
+
+        if (Boolean.FALSE.equals(ret.get("normalization"))) {
+            ret.remove("normalization");
+        }
+
+        return ret;
     }
 }
