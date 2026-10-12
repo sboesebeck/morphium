@@ -165,7 +165,13 @@ public class DropIndexesCommandTest extends MultiDriverTestBase {
                 new CreateIndexesCommand(conn).setDb(db).setColl(coll)
                 .addIndex(Doc.of("field1", 1), Doc.of("name", "field1_1")).execute();
 
-                // Try to drop a non-existent index - should throw exception or return error
+                // Try to drop a non-existent index.
+                // MongoDB <= 8.x: the server answers with an error (ok: 0 + "index not found"),
+                // and the driver may surface that as a MorphiumDriverException.
+                // MongoDB >= 9.0: dropping a non-existent index is idempotent and SUCCEEDS
+                // (ok: 1, no errmsg) - verified against 9.0.2. So both outcomes are valid here;
+                // what must NOT happen is a silent success with a malformed/absent "ok" field,
+                // or dropping the collection's own indexes.
                 var dropCmd = new DropIndexesCommand(conn)
                 .setDb(db)
                 .setColl(coll)
@@ -173,11 +179,25 @@ public class DropIndexesCommandTest extends MultiDriverTestBase {
                 int msgId = conn.sendCommand(new GenericCommand(conn).fromMap(dropCmd.asMap()));
                 try {
                     var result = conn.readSingleAnswer(msgId);
-                    // If we get here without exception, verify error response
-                    assertThat(result.get("ok")).isIn(0, 0.0);
-                    assertThat(result.get("errmsg")).isNotNull();
+                    Object ok = result.get("ok");
+                    assertThat(ok).as("dropIndexes must report an explicit ok").isNotNull();
+                    double okVal = ((Number) ok).doubleValue();
+                    if (okVal == 0.0) {
+                        // <= 8.x: refused, must carry an error message.
+                        assertThat(result.get("errmsg")).isNotNull();
+                    } else {
+                        // >= 9.0: idempotent success - the pre-existing field1_1 index must survive.
+                        assertThat(okVal).isEqualTo(1.0);
+                        var idx = new ListIndexesCommand(conn).setDb(db).setColl(coll).execute();
+                        var names = new java.util.ArrayList<String>();
+                        for (var d : idx) {
+                            if (d.getName() != null) names.add(d.getName());
+                        }
+                        assertThat(names).as("dropping a non-existent index must not remove real ones")
+                        .contains("field1_1");
+                    }
                 } catch (MorphiumDriverException e) {
-                    // Driver throws exception for error responses - this is also acceptable
+                    // <= 8.x driver-side surfacing of the error response - also acceptable.
                     assertThat(e.getMessage()).contains("index not found");
                 }
             } finally {
