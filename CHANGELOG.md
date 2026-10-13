@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [6.3.14] - 2026-10-12
 
+> There is no 6.3.13 - it was Halloween, and we didn't want to take any risks with a 13. 😉
+
 ### Added
 
 #### `@Entity.validationLevel()` supports the MongoDB 9.0 `constraint` level
