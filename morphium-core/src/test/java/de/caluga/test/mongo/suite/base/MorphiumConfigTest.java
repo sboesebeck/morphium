@@ -375,4 +375,24 @@ public class MorphiumConfigTest {
     }
 
 
+    @Test
+    public void translateUpdateFieldNamesIsOnByDefaultAndSurvivesPropertiesAndCopy() {
+        MorphiumConfig cfg = getConfig();
+        assertTrue(cfg.objectMappingSettings().isTranslateUpdateFieldNames());
+        assertTrue(cfg.asProperties().keySet().stream().noneMatch(k -> k.toString().endsWith("translateUpdateFieldNames")), "default values are not written to properties");
+
+        cfg.objectMappingSettings().setTranslateUpdateFieldNames(false);
+        Properties p = cfg.asProperties();
+        assertEquals(1, p.keySet().stream().filter(k -> k.toString().endsWith("translateUpdateFieldNames")).count(), String.valueOf(p.keySet()));
+        assertTrue(p.entrySet().stream().anyMatch(e -> e.getKey().toString().endsWith("translateUpdateFieldNames") && "false".equals(e.getValue())));
+        // compare through the getter: Settings.equals() answers at the first identical field
+        assertFalse(MorphiumConfig.fromProperties(p).objectMappingSettings().isTranslateUpdateFieldNames());
+        de.caluga.morphium.config.ObjectMappingSettings copy = cfg.objectMappingSettings().copy();
+        assertFalse(copy.isTranslateUpdateFieldNames());
+        cfg.objectMappingSettings().enableTranslateUpdateFieldNames();
+        assertTrue(cfg.objectMappingSettings().isTranslateUpdateFieldNames());
+        cfg.objectMappingSettings().disableTranslateUpdateFieldNames();
+        assertFalse(cfg.objectMappingSettings().isTranslateUpdateFieldNames());
+    }
+
 }

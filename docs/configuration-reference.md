@@ -241,6 +241,8 @@ cfg.objectMappingSettings()
 | `setCamelCaseConversionEnabled(boolean)` | true | Convert camelCase to snake_case in MongoDB |
 | `setWarnOnNoEntitySerialization(boolean)` | false | Warn if no entity serialization is available |
 | `setUseBsonDateForJavaTime(boolean)` | false | Store `Instant`, `LocalDate`, `LocalTime` and `LocalDateTime` as native BSON Date instead of Morphium's legacy formats. Mapper path only, see below |
+| `setTranslateAggregationFieldNames(boolean)` | false | Translate Java property names in aggregation stages to stored field names (overridable per aggregator) |
+| `setTranslateUpdateFieldNames(boolean)` | true | Translate the field names in the operator maps of `Query.findOneAndUpdate` (`$set`, `$unset`, `$rename`, ... incl. dotted keys through single embedded fields) to the names the fields are stored under. Kill switch: `false` writes the keys exactly as given. Overridable per query with `Query.setTranslateUpdateFieldNames(Boolean)`. Aliases, unknown, positional and `$`-prefixed keys are never translated |
 
 ### `useBsonDateForJavaTime`: where it applies
 

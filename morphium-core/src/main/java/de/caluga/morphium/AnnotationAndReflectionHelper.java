@@ -60,7 +60,8 @@ public class AnnotationAndReflectionHelper {
     private boolean ccc;
 
     public AnnotationAndReflectionHelper(boolean convertCamelCase) {
-        this(convertCamelCase, new HashMap<>());
+        // getRealClass() writes this map on first use of a class, from any thread
+        this(convertCamelCase, new ConcurrentHashMap<>());
     }
 
     public AnnotationAndReflectionHelper(boolean convertCamelCase, Map < Class<?>, Class<? >> realClassCache) {
@@ -1047,6 +1048,239 @@ public class AnnotationAndReflectionHelper {
         fa.put(stringBuilder.toString(), ret);
         fieldAnnotationListCache = fa;
         return ret;
+    }
+
+    // ---------------------------------------------------------------------------------------------------------------------------
+    // stored field names for update documents (MOR-041)
+    // ---------------------------------------------------------------------------------------------------------------------------
+
+    /** the names a class is stored under, see {@link #resolveStoredFieldName(Class, String)} */
+    private static final class StoredNames {
+        static final StoredNames NONE = new StoredNames(Set.of(), Map.of(), Map.of());
+        /** the names serialize() writes, with _id for the @Id field */
+        final Set<String> mongoNames;
+        /** Java name (and snake_case form of it) -> stored name; never contains a key that is a stored name itself */
+        final Map<String, String> javaToMongo;
+        /** stored name -> declared type, only for fields holding a single @Embedded/@Entity value that is not a @Reference */
+        final Map<String, Class<?>> embeddedTypes;
+
+        StoredNames(Set<String> mongoNames, Map<String, String> javaToMongo, Map<String, Class<?>> embeddedTypes) {
+            this.mongoNames = mongoNames;
+            this.javaToMongo = javaToMongo;
+            this.embeddedTypes = embeddedTypes;
+        }
+    }
+
+    private final Map<Class<?>, StoredNames> storedNamesCache = new ConcurrentHashMap<>();
+
+    /**
+     * Name under which {@code serialize()} stores the persistent field denoted by {@code key}. {@code key} may be the Java name of the
+     * field ({@code expiresAt}, {@code id}) or the name it is stored under ({@code expires_at}, {@code _id}); for fields with
+     * {@code @Property(fieldName=...)} or {@code @Reference(fieldName=...)} that name is used. The naming rules of the class itself apply
+     * (the {@code translateCamelCase} flag of its {@code @Entity} or {@code @Embedded} annotation and the global camel case setting).
+     * <p>
+     * Every other key is returned unchanged: unknown keys, {@code @Aliases} names (an alias is a name of old documents), dotted keys
+     * (see {@link #resolveFieldPath(Class, String)}), positional keys, keys starting with {@code $}, {@code null} and empty keys. The method
+     * never throws and is idempotent: {@code f(f(k)) == f(k)}, because a stored name always resolves to itself and a Java name never
+     * equals a stored name of the class.
+     * <p>
+     * Unlike {@link #getMongoFieldName(Class, String, boolean)} it neither throws for unknown fields nor resolves aliases, and it does not
+     * rewrite a snake_case key back to a Java name. The aggregation field name translation resolves aliases on purpose; the two differ.
+     *
+     * @param type the entity or embedded class the key belongs to
+     * @param key  the field name as given by the caller
+     * @return the stored name, or {@code key}
+     */
+    public String resolveStoredFieldName(Class<?> type, String key) {
+        if (key == null || key.isEmpty() || key.indexOf('.') >= 0 || key.charAt(0) == '$') {
+            return key;
+        }
+
+        try {
+            StoredNames sn = storedNames(type);
+
+            if (sn == null || sn.mongoNames.contains(key)) {
+                return key;
+            }
+
+            return sn.javaToMongo.getOrDefault(key, key);
+        } catch (RuntimeException e) {
+            logger.debug("Could not resolve stored field name of {} in {}", key, type, e);
+            return key;
+        }
+    }
+
+    /**
+     * Resolves a dotted key like {@code childEntry.fileName} segment by segment. Each segment is resolved with
+     * {@link #resolveStoredFieldName(Class, String)} for the class it belongs to, so an embedded class applies its own naming rules. The walk
+     * continues only through fields holding a single {@code @Embedded}/{@code @Entity} value; at a collection, array, map, {@code Object},
+     * {@code @Reference} or unknown field, at a positional segment ({@code $}, {@code $[]}, {@code $[x]}, digits) and at an empty segment the
+     * remaining segments are appended unchanged. Fields of a subclass of a polymorphic embedded type are not known and pass through.
+     * Never throws; a key without a dot is resolved like {@link #resolveStoredFieldName(Class, String)}.
+     * <p>
+     * {@code Query.f(String)} falls back to the raw string after a collection or map segment (and for entities with
+     * {@code @AdditionalData}); this method translates the leading segments it can know.
+     */
+    public String resolveFieldPath(Class<?> type, String path) {
+        if (path == null || path.isEmpty()) {
+            return path;
+        }
+
+        if (path.indexOf('.') < 0) {
+            return resolveStoredFieldName(type, path);
+        }
+
+        try {
+            String[] segments = path.split("\\.", -1);
+            StringBuilder out = new StringBuilder(path.length() + 8);
+            Class<?> clz = type;
+            boolean walking = true;
+
+            for (int i = 0; i < segments.length; i++) {
+                String s = segments[i];
+
+                if (i > 0) {
+                    out.append('.');
+                }
+
+                StoredNames sn = walking && clz != null && !s.isEmpty() && s.charAt(0) != '$' && !isDigits(s) ? storedNames(clz) : null;
+
+                if (sn == null) {
+                    out.append(s);
+                    walking = false;
+                    continue;
+                }
+
+                String resolved = sn.mongoNames.contains(s) ? s : sn.javaToMongo.getOrDefault(s, s);
+                out.append(resolved);
+                clz = sn.embeddedTypes.get(resolved);
+                walking = clz != null;
+            }
+
+            return out.toString();
+        } catch (RuntimeException e) {
+            logger.debug("Could not resolve field path {} in {}", path, type, e);
+            return path;
+        }
+    }
+
+    private static boolean isDigits(String s) {
+        for (int i = 0; i < s.length(); i++) {
+            if (!Character.isDigit(s.charAt(i))) {
+                return false;
+            }
+        }
+
+        return !s.isEmpty();
+    }
+
+    private StoredNames storedNames(Class<?> type) {
+        if (type == null) {
+            return null;
+        }
+
+        Class<?> real = getRealClass(type);
+
+        if (real.isInterface() || real.isPrimitive() || real.isArray() || real.isEnum() || Map.class.isAssignableFrom(real) || Collection.class.isAssignableFrom(real)) {
+            return StoredNames.NONE;
+        }
+
+        return storedNamesCache.computeIfAbsent(real, this::buildStoredNames);
+    }
+
+    /**
+     * Mirrors what {@code serialize()} does: it iterates {@code getFields(cls)} and looks every name up with {@code getField}. The Java names
+     * of the fields are collected in a second pass, restricted to fields whose stored name {@code getFields} lists. Nothing of
+     * {@code getFields} is changed; {@code StoredFieldNameResolverTest} compares the result with {@code serialize()}.
+     */
+    private StoredNames buildStoredNames(Class<?> cls) {
+        try {
+            Set<String> listed = new HashSet<>(getFields(cls));
+            Set<String> names = new HashSet<>();
+
+            for (String n : listed) {
+                Field fld = getField(cls, n);
+
+                if (fld == null || Modifier.isStatic(fld.getModifiers()) || fld.isAnnotationPresent(AdditionalData.class)) {
+                    continue;
+                }
+
+                names.add(fld.isAnnotationPresent(Id.class) ? "_id" : n);
+            }
+
+            Entity entity = getAnnotationFromHierarchy(cls, Entity.class);
+            Embedded embedded = getAnnotationFromHierarchy(cls, Embedded.class);
+            boolean tcc = true;
+
+            if (embedded != null) {
+                tcc = embedded.translateCamelCase();
+            }
+
+            if (entity != null) {
+                tcc = entity.translateCamelCase();
+            }
+
+            Map<String, String> javaToMongo = new HashMap<>();
+            Map<String, Class<?>> embeddedTypes = new HashMap<>();
+
+            for (Field f : getAllFields(cls)) {
+                if (Modifier.isStatic(f.getModifiers()) || f.isAnnotationPresent(AdditionalData.class)) {
+                    continue;
+                }
+
+                String stored = storedNameOf(f, tcc);
+
+                if (!listed.contains(stored)) {
+                    continue;
+                }
+
+                if (f.isAnnotationPresent(Id.class)) {
+                    stored = "_id";
+                }
+
+                if (!names.contains(stored)) {
+                    continue;
+                }
+
+                javaToMongo.putIfAbsent(f.getName(), stored);
+
+                if (tcc && ccc) {
+                    javaToMongo.putIfAbsent(convertCamelCase(f.getName()), stored);
+                }
+
+                Class<?> t = f.getType();
+
+                if (!f.isAnnotationPresent(Reference.class) && !t.isInterface() && !t.isPrimitive() && !t.isArray() && !t.isEnum() && t != Object.class
+                    && !Collection.class.isAssignableFrom(t) && !Map.class.isAssignableFrom(t) && isEntity(t)) {
+                    embeddedTypes.putIfAbsent(stored, t);
+                }
+            }
+
+            javaToMongo.keySet().removeAll(names); // a stored name always beats a foreign Java name
+            return new StoredNames(Set.copyOf(names), Map.copyOf(javaToMongo), Map.copyOf(embeddedTypes));
+        } catch (RuntimeException e) {
+            logger.warn("Could not build the stored field names of {}, update keys of this class are not translated", cls, e);
+            return StoredNames.NONE;
+        }
+    }
+
+    /** same naming as {@link #getFields(Class, boolean, Class[])} */
+    private String storedNameOf(Field f, boolean tcc) {
+        if (f.isAnnotationPresent(Reference.class) && !".".equals(f.getAnnotation(Reference.class).fieldName())) {
+            return f.getAnnotation(Reference.class).fieldName();
+        }
+
+        if (f.isAnnotationPresent(Property.class) && !".".equals(f.getAnnotation(Property.class).fieldName())) {
+            return f.getAnnotation(Property.class).fieldName();
+        }
+
+        String conv = f.getName().replaceAll("\\$", "");
+
+        if (tcc && ccc) {
+            conv = convertCamelCase(f.getName());
+        }
+
+        return conv;
     }
 
     @SuppressWarnings("unchecked")

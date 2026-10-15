@@ -429,6 +429,27 @@ public class Query<T> implements Cloneable {
 
     @SuppressWarnings("ConstantConditions")
 
+    private Boolean translateUpdateFieldNames;
+
+    /**
+     * Overrides {@code ObjectMappingSettings.translateUpdateFieldNames} for the update documents of this query:
+     * {@code true} translates the keys of the operator maps to the stored field names, {@code false} writes them as given (for example to
+     * remove a stray field that an earlier version created), {@code null} (default) follows the configuration.
+     */
+    public Query<T> setTranslateUpdateFieldNames(Boolean translate) {
+        this.translateUpdateFieldNames = translate;
+        return this;
+    }
+
+    public Boolean getTranslateUpdateFieldNames() {
+        return translateUpdateFieldNames;
+    }
+
+    private UpdateDocumentMapper newUpdateMapper() {
+        boolean translate = translateUpdateFieldNames != null ? translateUpdateFieldNames : morphium.getConfig().objectMappingSettings().isTranslateUpdateFieldNames();
+        return new UpdateDocumentMapper(morphium, type, translate);
+    }
+
     /**
      * Atomic find-and-update (no upsert), returns the document as it was BEFORE the update.
      * <p>
@@ -440,7 +461,7 @@ public class Query<T> implements Cloneable {
         // from the read cache (see #214)
         morphium.inc(StatisticKeys.NO_CACHED_READS);
         // mapped before a connection is acquired: an invalid update must not leak one
-        update = new UpdateDocumentMapper(morphium, type).map(update);
+        update = newUpdateMapper().map(update);
         Map<String, Object> ret = null;
         MongoConnection con = null;
         FindAndModifyMongoCommand settings = null;
@@ -496,9 +517,17 @@ public class Query<T> implements Cloneable {
      * marshalled: entities and embedded objects become documents (elements inside a List, Set, array or Map carry
      * {@code class_name}, a single embedded value does not, like {@code store()}), enums become their constant name,
      * {@code AtomicLong}/{@code BigInteger} and the like are written by their type mapper, everything else is passed
-     * through. Documents which are already serialised are not changed again. Field names are <em>not</em> translated,
-     * keys are used as given; an update document without any {@code $}-operator (a replacement document) is sent as it is.
-     * An entity for a {@code @Reference} field is rejected with an {@link IllegalArgumentException}. The caller's map is
+     * through. Documents which are already serialised are not changed again.
+     * <p>
+     * The keys of the operator maps are translated to the names the fields are stored under (Java name {@code expiresAt} to
+     * {@code expires_at}, {@code id} to {@code _id}, {@code @Property}/{@code @Reference} names, dotted keys through single embedded
+     * fields), for every operator including the key of {@code $unset} and key and target of {@code $rename}; stored names, {@code @Aliases},
+     * unknown, positional and {@code $}-prefixed keys stay as they are, see
+     * {@link de.caluga.morphium.AnnotationAndReflectionHelper#resolveFieldPath(Class, String)}. The configuration
+     * {@code ObjectMappingSettings.translateUpdateFieldNames} (default true) is the kill switch, {@link #setTranslateUpdateFieldNames(Boolean)}
+     * overrides it for this query. Two keys that denote the same field are merged if their values are equal and rejected otherwise.
+     * An update document without any {@code $}-operator (a replacement document) is sent as it is.
+     * An entity for a {@code @Reference} field and a write to an {@code @Encrypted} field are rejected with an {@link IllegalArgumentException}. The caller's map is
      * not modified. {@code @LastChange}, {@code @CreationTime}, {@code @Version} and the store events are NOT applied.
      *
      * @param update    the update document (may contain $set, $setOnInsert, $inc, ...)
@@ -509,7 +538,7 @@ public class Query<T> implements Cloneable {
      */
     public T findOneAndUpdate(Map<String, Object> update, boolean upsert, boolean returnNew) {
         // mapped before a connection is acquired: an invalid update must not leak one
-        return findOneAndUpdateMapped(new UpdateDocumentMapper(morphium, type).map(update), upsert, returnNew);
+        return findOneAndUpdateMapped(newUpdateMapper().map(update), upsert, returnNew);
     }
 
     /**
