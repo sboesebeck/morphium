@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 42, done 7
+Status: open 41, done 8
 
 ## Overview
 
@@ -13,7 +13,6 @@ Status: open 42, done 7
 | MOR-006 | open | 1 | implementation | Option A core: mapper-aware update builder (set, setOnInsert, inc, unset) | L |  | MOR-001, MOR-002 |
 | MOR-027 | open | 1 | documentation | Documentation page: raw commands, embedded objects and lifecycle contract | S |  |  |
 | MOR-028 | open | 1 | infrastructure | Contract tests InMem vs real MongoDB for all update paths | M |  |  |
-| MOR-030 | open | 1 | defect | InMemoryDriver: honour the filter in conditional upsert and raise E11000 | M |  |  |
 | MOR-005 | open | 2 | verification | Audit Query.set/inc/push write paths for swallowed writeErrors and missing name translation | S |  |  |
 | MOR-007 | open | 2 | implementation | Option A extension: min, max, mul, rename, currentDate, addToSet/push with each | M |  | MOR-006 |
 | MOR-008 | open | 2 | implementation | Options object for findAndModify and a defined result for upsert without returnNew | S |  | MOR-006 |
@@ -56,6 +55,7 @@ Status: open 42, done 7
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
 | MOR-004 | done | 1 | defect | MorphiumBase.currentDate sends $set: {$currentDate: ...} and fails silently | S |  |  |
+| MOR-030 | done | 1 | defect | InMemoryDriver: honour the filter in conditional upsert and raise E11000 | M |  |  |
 | MOR-040 | done | 2 | defect | fieldNameCache: inner HashMap is not thread safe | S |  |  |
 | MOR-041 | done | 2 | implementation | Key translation for operator maps in findOneAndUpdate | M |  | MOR-002 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
@@ -514,9 +514,11 @@ Source: docs/research/reproduction-results.md hypothesis 4, GitHub #336
 
 ### MOR-030 InMemoryDriver: honour the filter in conditional upsert and raise E11000
 
-Status **open**, priority 1, type defect, effort M
+Status **done**, priority 1, type defect, effort M
 
 On an existing document whose conditional filter does not match, MongoDB throws E11000 (held lease). The InMemoryDriver silently overwrites the document, so contender B steals the lease of A; with a compound filter it also inserts a new document per call (see MOR-003). Fix the upsert semantics and the error. Related to GitHub #399 (InMemoryDriver update documents); link it.
+
+Evidence: InMemUpsertDuplicateKeyTest 9 tests (findAndModify path, update command path, id pinned by $setOnInsert, matching filter, filter without id, store() still replaces, 8 racing threads with exactly one winner); the pins that documented the overwrite were flipped to the duplicate key expectation (ConditionalUpsertReproductionTest, FindOneAndUpdateCompoundFilterUpsertTest, UpdateKeyTranslationTest) and now hold for PooledDriver (mongo:8) and InMemoryDriver alike. Before the fix 11 of these tests failed on the InMemoryDriver only. Regression: inmem package suite and the writer/mapper/messaging subset, 778 tests, 0 failures, 2 ReferenceCascadeTest errors (Byte Buddy does not support Java 25, the JDK of the run; unrelated). Remaining divergence: the update command path throws on the InMemoryDriver while a real MongoDB returns writeErrors code 11000 (MOR-005).
 
 Acceptance:
 
@@ -524,6 +526,8 @@ Acceptance:
 - ConditionalUpsertReproductionTest conditionalUpsertOnHeldLease asserts the same outcome for both drivers
 
 Source: docs/research/reproduction-results.md hypothesis 5, GitHub #399
+
+Commits: 88ae60b4b
 
 ### MOR-031 Quarkus: Micrometer / OpenTelemetry metrics for pool and update paths
 

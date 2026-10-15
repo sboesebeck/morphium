@@ -580,7 +580,7 @@ tasks:
 - id: MOR-030
   title: 'InMemoryDriver: honour the filter in conditional upsert and raise E11000'
   type: defect
-  status: open
+  status: done
   priority: 1
   effort: M
   description: 'On an existing document whose conditional filter does not match, MongoDB throws E11000 (held lease).
@@ -593,6 +593,16 @@ tasks:
   source:
   - docs/research/reproduction-results.md hypothesis 5
   - 'GitHub #399'
+  evidence: 'InMemUpsertDuplicateKeyTest 9 tests (findAndModify path, update command path, id pinned by $setOnInsert,
+    matching filter, filter without id, store() still replaces, 8 racing threads with exactly one winner); the pins
+    that documented the overwrite were flipped to the duplicate key expectation (ConditionalUpsertReproductionTest,
+    FindOneAndUpdateCompoundFilterUpsertTest, UpdateKeyTranslationTest) and now hold for PooledDriver (mongo:8)
+    and InMemoryDriver alike. Before the fix 11 of these tests failed on the InMemoryDriver only. Regression: inmem
+    package suite and the writer/mapper/messaging subset, 778 tests, 0 failures, 2 ReferenceCascadeTest errors (Byte
+    Buddy does not support Java 25, the JDK of the run; unrelated). Remaining divergence: the update command path
+    throws on the InMemoryDriver while a real MongoDB returns writeErrors code 11000 (MOR-005).'
+  commits:
+  - 88ae60b4b
 - id: MOR-031
   title: 'Quarkus: Micrometer / OpenTelemetry metrics for pool and update paths'
   type: implementation
