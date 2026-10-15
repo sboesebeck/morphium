@@ -4784,7 +4784,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             addResult(ret, prepareResult(valueDoc));
         } else {
             var res = findAndOneAndUpdate(cmd.getDb(), cmd.getColl(), cmd.getQuery(), cmd.getUpdate(), cmd.getSort(),
-                                          cmd.getCollation(), cmd.isUpsert(), cmd.isNewFlag());
+                                          cmd.getCollation(), cmd.isUpsert(), cmd.isNewFlag(), cmd.getArrayFilters());
             addResult(ret, prepareResult(Doc.of("value", res)));
         }
 
@@ -12880,6 +12880,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             Map<String, Object> update, Map<String, Object> sort, Map<String, Object> collation,
             boolean upsert, boolean newFlag)
     throws MorphiumDriverException {
+        return findAndOneAndUpdate(db, col, query, update, sort, collation, upsert, newFlag, null);
+    }
+
+    /** as above, with the {@code arrayFilters} of the update statement for {@code $[<identifier>]} paths */
+    public Map<String, Object> findAndOneAndUpdate(String db, String col, Map<String, Object> query,
+            Map<String, Object> update, Map<String, Object> sort, Map<String, Object> collation,
+            boolean upsert, boolean newFlag, List<Map<String, Object>> arrayFilters)
+    throws MorphiumDriverException {
         // NOTE: In MongoDB, findAndModify is atomic. We implement this by holding the
         // write lock for both find and update.
         java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, col);
@@ -12908,7 +12916,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // Pass the caller's original query as positionalQuery: the pinned _id query carries no
             // array predicate, so positional-$ updates would otherwise fail to find their match.
             var updateResult = updateInternal(db, col, updateQuery, null, update, false, upsert, collation, null,
-                                              null, query, pendingNotifications);
+                                              arrayFilters, query, pendingNotifications);
 
             // Determine which document to return. Every branch returns a deepClone (or null) so a
             // caller mutating the result cannot corrupt the stored map.

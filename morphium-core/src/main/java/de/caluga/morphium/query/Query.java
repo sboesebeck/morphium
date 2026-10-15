@@ -470,6 +470,10 @@ public class Query<T> implements Cloneable {
             var wc = getMorphium().getWriteConcernForClass(getType());
             con = morphium.getDriver().getPrimaryConnection(wc);
             settings = new FindAndModifyMongoCommand(con).setDb(getDB()).setColl(getCollectionName()).setQuery(Doc.of(toQueryObject())).setUpdate(Doc.of(update));
+            if (arrayFilters != null && !arrayFilters.isEmpty()) {
+                settings.setArrayFilters(arrayFilters);
+            }
+
             if (wc != null) {
                 settings.setWriteConcern(wc.asMap());
             }
@@ -573,6 +577,10 @@ public class Query<T> implements Cloneable {
             settings = new FindAndModifyMongoCommand(con).setDb(getDB()).setColl(getCollectionName()).setQuery(Doc.of(queryObject)).setUpdate(Doc.of(effectiveUpdate)).setUpsert(upsert).setNewFlag(returnNew);
             if (getSort() != null && !getSort().isEmpty()) {
                 settings.setSort(new Doc(getSort()));
+            }
+
+            if (arrayFilters != null && !arrayFilters.isEmpty()) {
+                settings.setArrayFilters(arrayFilters);
             }
             if (wc != null) {
                 settings.setWriteConcern(wc.asMap());
