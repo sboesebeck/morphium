@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 36
+Status: open 42
 
 ## Overview
 
@@ -35,6 +35,9 @@ Status: open 36
 | MOR-031 | open | 2 | implementation | Quarkus: Micrometer / OpenTelemetry metrics for pool and update paths | M |  |  |
 | MOR-034 | open | 2 | implementation | Quarkus testing module: real MongoDB test resource, data reset and fixtures | M |  |  |
 | MOR-036 | open | 2 | verification | Re-run the reproduction on other topologies and server versions | S |  |  |
+| MOR-037 | open | 2 | defect | Morphium.simplifyQueryObject loses predicates for repeated operator keys | S |  |  |
+| MOR-040 | open | 2 | defect | fieldNameCache: inner HashMap is not thread safe | S |  |  |
+| MOR-041 | open | 2 | implementation | Key translation for operator maps in findOneAndUpdate | M |  | MOR-002 |
 | MOR-011 | open | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
@@ -46,6 +49,9 @@ Status: open 36
 | MOR-032 | open | 3 | implementation | Quarkus: named Morphium instances | M |  |  |
 | MOR-033 | open | 3 | implementation | Quarkus: CDI integration for Morphium messaging | M |  |  |
 | MOR-035 | open | 3 | implementation | Records and value objects in the mapper | L |  |  |
+| MOR-038 | open | 3 | defect | Replacement documents, findOneAndUpdateEnums and Expr values still fail with POJOs in update maps | M |  | MOR-002 |
+| MOR-039 | open | 3 | documentation | Document pitfalls of update maps: $pull condition keys and mixed element shapes | S |  | MOR-027 |
+| MOR-042 | open | 3 | implementation | Writer path: delegate marshallIfNecessary to the shared update-value walk | M |  | MOR-002 |
 
 ## Details
 
@@ -66,7 +72,7 @@ Source: docs/research/reproduction-results.md, docs/research/other-clients.md, d
 
 Status **open**, priority 1, type defect, effort M
 
-Query.findOneAndUpdate(Map, upsert, returnNew) hands the raw map to FindAndModifyMongoCommand; an @Embedded POJO in a List, Set, array, single value, Map or Map-in-Map fails client-side with 'Unhandled Data type' (hypothesis 1 confirmed). Marshal the values of every operator map ($set, $setOnInsert, $inc, $addToSet, $push, ...) through the mapper and translate field names. Make MorphiumWriterImpl.marshallIfNecessary handle any Iterable, array and nested Map; this also fixes Query.set with a Set, an array or a Map-in-Map (same hole, reproduced). Expose ObjectMapperImpl.marshallIfNecessary on MorphiumObjectMapper if that is the clean way. Marshalling must be idempotent for already serialised documents (Spring UpdateMapper pattern); watch class_name on non-polymorphic embeddeds.
+Query.findOneAndUpdate(Map, upsert, returnNew) hands the raw map to FindAndModifyMongoCommand; an @Embedded POJO in a List, Set, array, single value, Map or Map-in-Map fails client-side with 'Unhandled Data type' (hypothesis 1 confirmed). Marshal the values of every operator map ($set, $setOnInsert, $inc, $addToSet, $push, ...) through the mapper and translate field names. Make MorphiumWriterImpl.marshallIfNecessary handle any Iterable, array and nested Map; this also fixes Query.set with a Set, an array or a Map-in-Map (same hole, reproduced). Expose ObjectMapperImpl.marshallIfNecessary on MorphiumObjectMapper if that is the clean way. Marshalling must be idempotent for already serialised documents (Spring UpdateMapper pattern); watch class_name on non-polymorphic embeddeds. Scope of this task is values only (PR 1 of 3): key translation is MOR-041 and the writer path is MOR-042. The new mapper method is abstract on the interface, @Reference targets are not serialised inline, and the fieldNameCache inner map is made thread safe (MOR-040).
 
 Acceptance:
 
@@ -84,16 +90,15 @@ Source: docs/research/reproduction-results.md hypothesis 1, docs/research/reprod
 
 Status **open**, priority 1, type defect, effort S
 
-addGeneratedIdOnInsertIfNeeded only looks for _id at the top level of the filter. A compound filter (_id = X AND (a OR b)) is wrapped in $and, so a generated _id is added via $setOnInsert and MongoDB rejects the first insert with code 66 ('would modify the immutable field _id'). The InMemoryDriver silently stores the document under the generated id and inserts another document on every call. Found by the reproduction.
+addGeneratedIdOnInsertIfNeeded only looks for _id at the top level of the filter. A compound filter (_id = X AND (a OR b)) is wrapped in $and, so a generated _id is added via $setOnInsert and MongoDB rejects the first insert with code 66 ('would modify the immutable field _id'). The InMemoryDriver silently stores the document under the generated id and inserts another document on every call. Found by the reproduction. A probe on a real MongoDB showed that the server seeds _id from an equality on _id reachable through $and and single-branch $or, from a one-element $in, and from a dotted _id.x key.
 
 Acceptance:
 
-- Upsert with a filter that contains _id inside $and / $or inserts the document with the _id from the filter, on a real MongoDB
-- The InMemoryDriver behaves identically (one document, no generated id)
+- An upsert whose filter contains an equality on _id reachable through $and or a single-branch $or, a one-element $in, or a dotted _id.x key inserts the document with the _id from the filter, on a real MongoDB
+- Filters that the server does not seed from (multi-valued $in, multi-branch $or, range operators, regex, $nor) still receive the generated _id and insert without error
 - ConditionalUpsertReproductionTest.conditionalUpsertViaQueryGeneratesConflictingId is flipped accordingly
-- Verified against a real MongoDB (not only the InMemoryDriver).
 
-Source: docs/research/reproduction-results.md hypothesis 5
+Source: docs/research/reproduction-results.md hypothesis 5, docs/research/upsert-id-seeding-probe.md
 
 ### MOR-004 MorphiumBase.currentDate sends $set: {$currentDate: ...} and fails silently
 
@@ -127,7 +132,7 @@ Source: docs/research/reproduction-results.md hypothesis 3, docs/research/jakart
 
 Status **open**, priority 1, type implementation, effort L
 
-Introduce Query.update() (or similar) returning a builder that stores Java field names and raw values and, at execute(), resolves Mongo names via getMongoFieldName (incl. nested a.b and positional $ / $[x]) and values via the mapper (entities, embeddeds, collections, Instant/Date, enums). Unresolved keys pass through unchanged (Spring behaviour). Same-operator calls merge into one operator document (two set calls give one $set). Executes through findOneAndUpdate (document) and updateMany/updateOne (count). Relates to GitHub #221 (Expr translateFields).
+Introduce Query.update() (or similar) returning a builder that stores Java field names and raw values and, at execute(), resolves Mongo names via getMongoFieldName (incl. nested a.b and positional $ / $[x]) and values via the mapper (entities, embeddeds, collections, Instant/Date, enums). Unresolved keys pass through unchanged (Spring behaviour). Same-operator calls merge into one operator document (two set calls give one $set). Executes through findOneAndUpdate (document) and updateMany/updateOne (count). Relates to GitHub #221 (Expr translateFields). MOR-002 introduces the package-private UpdateDocumentMapper and Query.findOneAndUpdateMapped; this task reuses them instead of building a second mapping path.
 
 Acceptance:
 
@@ -476,7 +481,7 @@ Source: docs/research/reproduction-results.md, update-path research, 2026-10-15
 
 Status **open**, priority 2, type defect, effort M
 
-The InMemoryDriver stores POJOs in $set as live Java objects (List, array, Map, Map-in-Map) and, for a Set or a single POJO, stores them and then fails with a ClassCastException wrapped in RuntimeException, leaving a half-written document. A real MongoDB fails with 'Unhandled Data type' up front. Make the InMemoryDriver fail the same way before changing anything. Related to GitHub #336 (unmapped values stored verbatim); link it.
+The InMemoryDriver stores POJOs in $set as live Java objects (List, array, Map, Map-in-Map) and, for a Set or a single POJO, stores them and then fails with a ClassCastException wrapped in RuntimeException, leaving a half-written document. A real MongoDB fails with 'Unhandled Data type' up front. Make the InMemoryDriver fail the same way before changing anything. Related to GitHub #336 (unmapped values stored verbatim); link it. After MOR-002 only hand-built commands reach the encoder or the InMemoryDriver with POJOs.
 
 Acceptance:
 
@@ -572,4 +577,80 @@ Acceptance:
 - reproduction-results.md has a matrix of topology x result
 
 Source: docs/research/reproduction-results.md 'could not verify'
+
+### MOR-037 Morphium.simplifyQueryObject loses predicates for repeated operator keys
+
+Status **open**, priority 2, type defect, effort S
+
+Morphium.java simplifyQueryObject merges the operator maps of a query with putAll, so a repeated key such as $or or $and overwrites an earlier predicate and the query silently matches too much. The merge has to combine repeated keys instead of replacing them.
+
+Acceptance:
+
+- A query that adds two $or conditions returns only documents matching both, shown by a test on a real MongoDB
+
+Source: docs/research/plan-mor-001-002-003.md
+
+### MOR-038 Replacement documents, findOneAndUpdateEnums and Expr values still fail with POJOs in update maps
+
+Status **open**, priority 3, type defect, effort M
+
+After MOR-002 the operator maps are marshalled, but a replacement document, the values passed to findOneAndUpdateEnums and the values inside an Expr still reach the encoder with POJOs. Route these three paths through the same value walk.
+
+Acceptance:
+
+- A replacement document, a findOneAndUpdateEnums call and an Expr containing an @Embedded POJO store the serialised value on a real MongoDB
+
+Depends on: MOR-002
+
+Source: docs/research/plan-mor-001-002-003.md
+
+### MOR-039 Document pitfalls of update maps: $pull condition keys and mixed element shapes
+
+Status **open**, priority 3, type documentation, effort S
+
+Document that the keys inside a $pull condition are raw field names and are not translated, and what happens with mixed element shapes in $addToSet and $push, including when class_name is added to elements.
+
+Depends on: MOR-027
+
+Source: docs/research/plan-mor-001-002-003.md
+
+### MOR-040 fieldNameCache: inner HashMap is not thread safe
+
+Status **open**, priority 2, type defect, effort S
+
+AnnotationAndReflectionHelper keeps the fieldNameCache as a map of plain HashMap instances that is read and filled from several threads. Replace the inner map with a ConcurrentHashMap.
+
+Acceptance:
+
+- A concurrent test resolving field names for the same class from many threads passes without exceptions
+
+Source: docs/research/plan-mor-001-002-003.md
+
+### MOR-041 Key translation for operator maps in findOneAndUpdate
+
+Status **open**, priority 2, type implementation, effort M
+
+Translate the keys of operator maps in findOneAndUpdate to the Mongo field names, including @Aliases, and cover the operands of $rename and $unset. Because this changes the stored keys for raw maps, it is guarded by a configuration switch.
+
+Acceptance:
+
+- With the configuration switch on, a $set, $rename and $unset on a field with @Aliases or a translated name use the Mongo field name on a real MongoDB
+
+Depends on: MOR-002
+
+Source: docs/research/plan-mor-001-002-003.md
+
+### MOR-042 Writer path: delegate marshallIfNecessary to the shared update-value walk
+
+Status **open**, priority 3, type implementation, effort M
+
+Make the marshallIfNecessary of the writer delegate to the shared update-value walk introduced by MOR-002, so that Query.set, MorphiumMigrationRunner and other writer callers handle any Iterable, array, nested Map and Enum the same way.
+
+Acceptance:
+
+- Query.set with a Set, an array, a Map-in-Map and an Enum value stores the serialised value on a real MongoDB
+
+Depends on: MOR-002
+
+Source: docs/research/plan-mor-001-002-003.md
 
