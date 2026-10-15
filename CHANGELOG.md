@@ -63,6 +63,12 @@ Behaviour changes: `BigDecimal` is written as a double and `Character` as an int
 for a `List<LocalDate>` and friends changes from flat elements to wrapped ones. Documents written flat by an earlier version are not read back typed until they are stored once with `store()`
 (a flat element reaches a `List<LocalDate>` as a raw number), and `$addToSet` does not recognise a flat element as equal to a wrapped one. `useBsonDateForJavaTime` now reaches `findOneAndUpdate(Map)` and the builder, which
 supersedes the note "Documented: `useBsonDateForJavaTime` does not reach maps you build yourself" of 6.3.14 for these two methods (a map handed to a driver command is still not mapped).
+#### `Morphium.currentDate` sets the date (MOR-004)
+`currentDate(query, field, ...)` delegated to `set(query, {"$currentDate": {field: 1}})`, so the operator ended up INSIDE a `$set` (`{"$set": {"$currentDate": {...}}}`).
+A real MongoDB rejected that with code 52 in `writeErrors` of the returned map (no exception, the field stayed unchanged), and the InMemoryDriver reported
+`n=1, nModified=1` without changing anything. `Query.set` now treats a map entry whose key starts with `$` and whose value is a map as an update operator of its own
+(it can be mixed with plain fields and is not sent as an empty `$set` if it is the only entry), and `currentDate` sends `true` instead of `1` (MongoDB rejects an int).
+The InMemoryDriver now rejects a `$`-prefixed field name under `$set` with code 52 like MongoDB (it counts the matched document in `n`, MongoDB reports `n=0`).
 
 #### Writer path: `Query.set`, `push`, `pushAll`, `addToSet`, `addAllToSet`, `pull`, `pullAll` marshal nested values (MOR-042)
 A `Set`, an array, a `Map` inside a `Map` or a `List` inside a `List` that contained `@Embedded`/`@Entity` values failed on a real MongoDB with
