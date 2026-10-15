@@ -144,7 +144,8 @@ tasks:
     unchanged (Spring behaviour). Same-operator calls merge into one operator document (two set calls give one $set).
     Executes through findOneAndUpdate (document) and updateMany/updateOne (count). Relates to GitHub #221 (Expr
     translateFields). MOR-002 introduces the package-private UpdateDocumentMapper and Query.findOneAndUpdateMapped;
-    this task reuses them instead of building a second mapping path.'
+    this task reuses them instead of building a second mapping path. Keys are resolved with resolveFieldPath (MOR-041)
+    and the builder always translates, independent of the translateUpdateFieldNames switch.'
   acceptance:
   - Builder set/setOnInsert/inc/unset produce one atomic command with translated names and marshalled values, shown
     by tests on a real MongoDB
@@ -724,16 +725,29 @@ tasks:
   status: open
   priority: 2
   effort: M
-  description: Translate the keys of operator maps in findOneAndUpdate to the Mongo field names, including @Aliases,
-    and cover the operands of $rename and $unset. Because this changes the stored keys for raw maps, it is guarded
-    by a configuration switch.
+  description: Translate the keys of operator maps in findOneAndUpdate to the Mongo field names for every operator,
+    including the key of $unset and the key and target of $rename, dotted keys through a lenient resolveFieldPath
+    and the single-segment resolver, never through @Aliases. The translation is always on, with a kill switch (translateUpdateFieldNames,
+    default true) and a per-query override. Two keys that resolve to the same name throw only if their values differ.
+    An update that would write a plaintext value into an @Encrypted field is rejected. The one-argument AnnotationAndReflectionHelper
+    constructor gets a thread safe realClassCache.
   acceptance:
-  - With the configuration switch on, a $set, $rename and $unset on a field with @Aliases or a translated name use
-    the Mongo field name on a real MongoDB
+  - $set, $inc, $push and the other value operators with a Java-named key (translateCamelCase entity) are stored
+    under the Mongo name, on a real MongoDB and on the InMemoryDriver, without a stray field
+  - $unset of a Java name removes the real field and $rename translates key and target
+  - A dotted key through a single embedded field uses the embedded class's own naming; positional, $-prefixed, unknown
+    and @Aliases keys pass through verbatim
+  - With translateUpdateFieldNames=false, or the per-query override false, keys are written verbatim as in the previous
+    release
+  - A collision of two keys with equal values is merged and with differing values rejected; an update of an @Encrypted
+    field is rejected
+  - Resolver names match serialize() for a corpus of entities and the resolver is idempotent
+  - Verified against a real MongoDB (not only the InMemoryDriver).
   depends_on:
   - MOR-002
   source:
   - docs/research/plan-mor-001-002-003.md
+  - docs/research/plan-mor-041.md
 - id: MOR-042
   title: 'Writer path: delegate marshallIfNecessary to the shared update-value walk'
   type: implementation
@@ -751,3 +765,48 @@ tasks:
   - MOR-002
   source:
   - docs/research/plan-mor-001-002-003.md
+- id: MOR-043
+  title: Query.f should resolve field paths with resolveFieldPath
+  type: defect
+  status: open
+  priority: 2
+  effort: M
+  description: Query.f returns the raw whole path after a List or Map segment (even the first segment) and the raw
+    string for entities with @AdditionalData, so a filter on a dotted path can miss the stored name while the update,
+    which translates the leading segments, hits it. Use resolveFieldPath for the dotted branch and decide the AdditionalData
+    behaviour.
+  acceptance:
+  - A filter and an update on the same dotted path address the same stored field, on a real MongoDB
+  - Existing Query field tests stay green
+  depends_on:
+  - MOR-041
+  source: &id001
+  - docs/research/plan-mor-041.md
+- id: MOR-044
+  title: 'Version annotation with fieldName: store and filter disagree on the stored name'
+  type: defect
+  status: open
+  priority: 3
+  effort: S
+  description: getFields honours only @Reference and @Property field names, so serialize writes a @Version(fieldName=...)
+    field under its Java name, while getMongoFieldName honours the annotation. This was read in the code but not
+    reproduced.
+  acceptance:
+  - A test shows the stored name and the filter name of an @Version(fieldName=...) field, and one of the two is
+    changed so that they agree
+  source: *id001
+- id: MOR-045
+  title: 'Update documents: a String value for _id of a MorphiumId entity is not coerced'
+  type: defect
+  status: open
+  priority: 3
+  effort: S
+  description: With key translation an id key of the update becomes _id and pins the id; a String value for an entity
+    whose @Id is a MorphiumId is written as a String _id that the mapper cannot read back. Coerce the value or reject
+    it.
+  acceptance:
+  - An upsert with $setOnInsert id as a String for a MorphiumId entity either stores an ObjectId _id that reads
+    back or fails with a clear message, on a real MongoDB
+  depends_on:
+  - MOR-041
+  source: *id001

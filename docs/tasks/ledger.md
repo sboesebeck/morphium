@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 38, done 4
+Status: open 41, done 4
 
 ## Overview
 
@@ -34,6 +34,7 @@ Status: open 38, done 4
 | MOR-036 | open | 2 | verification | Re-run the reproduction on other topologies and server versions | S |  |  |
 | MOR-037 | open | 2 | defect | Morphium.simplifyQueryObject loses predicates for repeated operator keys | S |  |  |
 | MOR-041 | open | 2 | implementation | Key translation for operator maps in findOneAndUpdate | M |  | MOR-002 |
+| MOR-043 | open | 2 | defect | Query.f should resolve field paths with resolveFieldPath | M |  | MOR-041 |
 | MOR-011 | open | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
@@ -48,6 +49,8 @@ Status: open 38, done 4
 | MOR-038 | open | 3 | defect | Replacement documents, findOneAndUpdateEnums and Expr values still fail with POJOs in update maps | M |  | MOR-002 |
 | MOR-039 | open | 3 | documentation | Document pitfalls of update maps: $pull condition keys and mixed element shapes | S |  | MOR-027 |
 | MOR-042 | open | 3 | implementation | Writer path: delegate marshallIfNecessary to the shared update-value walk | M |  | MOR-002 |
+| MOR-044 | open | 3 | defect | Version annotation with fieldName: store and filter disagree on the stored name | S |  |  |
+| MOR-045 | open | 3 | defect | Update documents: a String value for _id of a MorphiumId entity is not coerced | S |  | MOR-041 |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -143,7 +146,7 @@ Source: docs/research/reproduction-results.md hypothesis 3, docs/research/jakart
 
 Status **open**, priority 1, type implementation, effort L
 
-Introduce Query.update() (or similar) returning a builder that stores Java field names and raw values and, at execute(), resolves Mongo names via getMongoFieldName (incl. nested a.b and positional $ / $[x]) and values via the mapper (entities, embeddeds, collections, Instant/Date, enums). Unresolved keys pass through unchanged (Spring behaviour). Same-operator calls merge into one operator document (two set calls give one $set). Executes through findOneAndUpdate (document) and updateMany/updateOne (count). Relates to GitHub #221 (Expr translateFields). MOR-002 introduces the package-private UpdateDocumentMapper and Query.findOneAndUpdateMapped; this task reuses them instead of building a second mapping path.
+Introduce Query.update() (or similar) returning a builder that stores Java field names and raw values and, at execute(), resolves Mongo names via getMongoFieldName (incl. nested a.b and positional $ / $[x]) and values via the mapper (entities, embeddeds, collections, Instant/Date, enums). Unresolved keys pass through unchanged (Spring behaviour). Same-operator calls merge into one operator document (two set calls give one $set). Executes through findOneAndUpdate (document) and updateMany/updateOne (count). Relates to GitHub #221 (Expr translateFields). MOR-002 introduces the package-private UpdateDocumentMapper and Query.findOneAndUpdateMapped; this task reuses them instead of building a second mapping path. Keys are resolved with resolveFieldPath (MOR-041) and the builder always translates, independent of the translateUpdateFieldNames switch.
 
 Acceptance:
 
@@ -645,15 +648,21 @@ Commits: 491945d60
 
 Status **open**, priority 2, type implementation, effort M
 
-Translate the keys of operator maps in findOneAndUpdate to the Mongo field names, including @Aliases, and cover the operands of $rename and $unset. Because this changes the stored keys for raw maps, it is guarded by a configuration switch.
+Translate the keys of operator maps in findOneAndUpdate to the Mongo field names for every operator, including the key of $unset and the key and target of $rename, dotted keys through a lenient resolveFieldPath and the single-segment resolver, never through @Aliases. The translation is always on, with a kill switch (translateUpdateFieldNames, default true) and a per-query override. Two keys that resolve to the same name throw only if their values differ. An update that would write a plaintext value into an @Encrypted field is rejected. The one-argument AnnotationAndReflectionHelper constructor gets a thread safe realClassCache.
 
 Acceptance:
 
-- With the configuration switch on, a $set, $rename and $unset on a field with @Aliases or a translated name use the Mongo field name on a real MongoDB
+- $set, $inc, $push and the other value operators with a Java-named key (translateCamelCase entity) are stored under the Mongo name, on a real MongoDB and on the InMemoryDriver, without a stray field
+- $unset of a Java name removes the real field and $rename translates key and target
+- A dotted key through a single embedded field uses the embedded class's own naming; positional, $-prefixed, unknown and @Aliases keys pass through verbatim
+- With translateUpdateFieldNames=false, or the per-query override false, keys are written verbatim as in the previous release
+- A collision of two keys with equal values is merged and with differing values rejected; an update of an @Encrypted field is rejected
+- Resolver names match serialize() for a corpus of entities and the resolver is idempotent
+- Verified against a real MongoDB (not only the InMemoryDriver).
 
 Depends on: MOR-002
 
-Source: docs/research/plan-mor-001-002-003.md
+Source: docs/research/plan-mor-001-002-003.md, docs/research/plan-mor-041.md
 
 ### MOR-042 Writer path: delegate marshallIfNecessary to the shared update-value walk
 
@@ -669,4 +678,45 @@ Acceptance:
 Depends on: MOR-002
 
 Source: docs/research/plan-mor-001-002-003.md
+
+### MOR-043 Query.f should resolve field paths with resolveFieldPath
+
+Status **open**, priority 2, type defect, effort M
+
+Query.f returns the raw whole path after a List or Map segment (even the first segment) and the raw string for entities with @AdditionalData, so a filter on a dotted path can miss the stored name while the update, which translates the leading segments, hits it. Use resolveFieldPath for the dotted branch and decide the AdditionalData behaviour.
+
+Acceptance:
+
+- A filter and an update on the same dotted path address the same stored field, on a real MongoDB
+- Existing Query field tests stay green
+
+Depends on: MOR-041
+
+Source: docs/research/plan-mor-041.md
+
+### MOR-044 Version annotation with fieldName: store and filter disagree on the stored name
+
+Status **open**, priority 3, type defect, effort S
+
+getFields honours only @Reference and @Property field names, so serialize writes a @Version(fieldName=...) field under its Java name, while getMongoFieldName honours the annotation. This was read in the code but not reproduced.
+
+Acceptance:
+
+- A test shows the stored name and the filter name of an @Version(fieldName=...) field, and one of the two is changed so that they agree
+
+Source: docs/research/plan-mor-041.md
+
+### MOR-045 Update documents: a String value for _id of a MorphiumId entity is not coerced
+
+Status **open**, priority 3, type defect, effort S
+
+With key translation an id key of the update becomes _id and pins the id; a String value for an entity whose @Id is a MorphiumId is written as a String _id that the mapper cannot read back. Coerce the value or reject it.
+
+Acceptance:
+
+- An upsert with $setOnInsert id as a String for a MorphiumId entity either stores an ObjectId _id that reads back or fails with a clear message, on a real MongoDB
+
+Depends on: MOR-041
+
+Source: docs/research/plan-mor-041.md
 
