@@ -204,3 +204,62 @@ Both reviews ran on a Sonnet-class model (the default model of the architect and
 3. Fix `pullAll`, the `Query.set(..., null)` NPE, the `Query.set(Enum...)` `toString()` and the `Class` value in PR 3 (recommended).
 4. Converge on the writer convention: single values always tagged also in `findOneAndUpdate`, and optionally always the element form in the writer (recommended for both).
 5. Two commits (tests green on old code, then implementation) (recommended).
+
+---
+
+# Plan v2: decisions of the maintainer applied (supersedes the matching parts above)
+
+Maintainer decisions (2026-10-15): all five recommendations of the review are taken: eager marshalling of values, differential test plus wiring tests instead of golden files, fix `pullAll`, `Query.set(..., null)`, `Query.set(Enum ...)` and the `Class` value in this PR, one convention (`class_name` for single values also in `findOneAndUpdate`, element form in the writer), two commits.
+PR 1 and PR 2 are unreleased, so their single-value rule can still change. Everything not mentioned here stays as in the plan above after the corrections of the review outcome.
+
+## E1. Eager marshalling of values (replaces Q6, row 18 and the async test)
+
+In `MorphiumWriterImpl` the values are marshalled on the caller thread, before the `WriterTask` is created, in `set(Query, Map, ...)` (`:2352`), `pushPull` (`:2650-2700`) and `pushPullAll` (`:2860`): a local `LinkedHashMap`/`List` of marshalled values is built outside the task and the task only reads that copy.
+Keys (`getMongoFieldName`), `firePreUpdateEvent`, `handleLastChange`, `handleCreationTimeOnUpsert` and the command stay in `run()`.
+Consequences, all stated in the CHANGELOG ("Changed"): (a) an invalid value (non-String map key, ...) throws an `IllegalArgumentException` directly to the caller, not `RuntimeException(IAE)` out of `submitAndBlockIfNecessary`; with a callback it is thrown, not delivered to `onOperationError`; (b) no retry of a deterministic error, no `firePreUpdateEvent` without a matching post event;
+(c) a collection the caller mutates after the call (also with `AsyncWriterImpl` and callbacks) is not seen by the write; (d) `@WriteBuffer` entities use `BufferedMorphiumWriterImpl`, which does not marshal values at all (selected on a real MongoDB only, `Morphium.java:1289`): the holes remain there (ledger item B).
+Test: `mutationAfterCallDoesNotLeakIntoAsyncWrite` becomes valid (callback overload, executor delayed with a latch); `invalidValueThrowsDirectlyAndFiresNoEvent`.
+
+## E2. Test strategy (replaces the golden files)
+
+No golden files, no record mode. Defect pins stay in `repro/` (`CurrentDateReproductionTest` is not edited).
+- `WriterMarshallingDifferentialTest` (`MT/base`, pure InMem Morphium, no Docker): a verbatim copy of the legacy `marshallIfNecessary` (`MorphiumWriterImpl.java:2733-2783` at `092f264dd`) as a private static method of the test. Input matrix: String, int, Date, Enum, null, single `@Embedded` Item, polymorphic Dog, single `@Entity`, `List<Item>`, `List<String>`, `Map<String,Item>`, `MorphiumReference`, `@AdditionalData` Item, a `List` of Maps and a `List` of Lists one level deep (the `pushAll` per-element case), `Expr` result. KEEP rows are asserted equal to the legacy copy; SWITCH rows (enum in containers, null elements, Set, array, nested containers, MorphiumId in containers, `AtomicLong`/`BigInteger`, Enum map key, nested non-String key, `Class` value) are asserted explicitly with the new expectation.
+- `WriterPathWiringTest` (`MT/base`, both drivers, raw-document read-back without the projection as `UpdateKeyTranslationTest.rawDocs`, expectations written out as Java maps): one test per entry point with the value types it can receive: `Query.set` (scalar, single Item, `List<Item>`, `Set<Item>`, array, Map-in-Map, enum list, null element), `set` with upsert on a non-`_id` filter, `push` (scalar, Item, Dog, `$each` map), `addToSet` (equal Item does not duplicate), `pushAll` (nested lists of Items), `addAllToSet`, `pull` (scalar, Item, `$gt` condition, `Query.pull(Enum, Expr)`), `pullAll` 2-arg and 6-arg (two elements, embedded elements, the `multiple` default), `setEnum`, `setInEntity` with a single embedded in an `@AdditionalData` map (`TypeIdTests` stays green), `MorphiumMigrationRunner`-shaped upsert (`Map.of(String, Date)`, `@Property(fieldName)` entity, held lease `assumeFalse(InMem)`), type ids of custom `typeId` classes, `AtomicLong`/`BigInteger` via `Query.set`, `Class` value, `Query.set(field, null, ...)`.
+- Expectations that depend on the driver: MorphiumId in containers is `ObjectId` on the InMemoryDriver only; on Pooled the decoder (`BsonDecoder.java:122`) returns `MorphiumId`: read back typed or assert per driver.
+- Async/error cases: `invalidValueThrowsDirectly...`, callback overload, `AsyncWriterImpl`, and `retriesOnNetworkError > 1` does not retry a deterministic error.
+
+## E3. Fixes included in PR 3
+
+1. `MorphiumBase.pullAll(Query, String/Enum, List<Object>, upsert, multiple)` (`MorphiumBase.java:1301-1303`) calls the 6-argument `pullAll(..., null)`, i.e. `pushPullAll`, instead of `pull` (`$pull` of a list); `Query.pullAll(String, List)` (`Query.java:2160-2162`) follows. The 2-arg form keeps `multiple=false`.
+2. `Query.set(String/Enum, value, ...)` (`Query.java:2024`, `2028`) builds the map with a `HashMap` so `null` is a valid value (the showcase `AddArchivedFlagMigration.java:62` calls `query.set(archived, null, false, true, null)`).
+3. `Query.set(Enum field, ...)` (`Query.java:2028`) uses `name()` like the other overloads.
+4. `Class` values: `isEntity(o.getClass())` in `ObjectMapperImpl.marshallUpdateValue` (the walk, `:318`) and in the writer, so `Query.set("type", SomeEntity.class)` stays a raw `Class`/leaf as before (a PR 1 latent bug).
+
+## E4. One convention (replaces rows 1, 2, 4, 22 handling and item F)
+
+- `marshallUpdateElement(Object)` is a default method of `MorphiumObjectMapper` (derived from the abstract `marshallUpdateValue`; the walk needs the mapper instance, the callers live in `writer`, `query` and `objectmapping`).
+- The writer always uses the element form: `marshallIfNecessary(value)` = `marshallUpdateElement(value)`; the `isEntity` conditional disappears. Legacy outputs are preserved (single `@Embedded`/`@Entity`: `serialize` + `class_name`, `_id` kept); a top-level `MorphiumId` in `Query.set` becomes `ObjectId` (wire-identical on MongoDB; InMemoryDriver comparison is tolerant: `QueryHelper` 1503, 2422).
+  `marshallIfNecessary` stays a public, overridable hook; `pushPull`/`pushPullAll` keep calling an overridable `protected` method (`marshallElement`) so a subclass override is not lost silently.
+- `UpdateDocumentMapper.mapValue` (PR 1/2) uses `marshallUpdateElement` for every value of every operator; the single-value guard disappears (element form equals field form for Map, Collection and array). Therefore `findOneAndUpdate` of a single `@Embedded`/`@Entity` value now carries `class_name`, and a single `@Entity` keeps its `_id` (PR 1 stripped both). This closes item F (unknown, `@AdditionalData` and `Object`-typed keys). Tests that flip: `PojoInSetOperatorReproductionTest.rawPojoShapesInSet` (single: with `class_name`), `UpdateValueMarshallingTest` (where it asserts a single value), `writerPathShapes`; the CHANGELOG entry of MOR-002 is rewritten (single values carry `class_name`).
+- Documented in the Javadoc and CHANGELOG: a read-back of a single embedded `@Entity` populates the nested entity's `@Id` (store() strips it); `$addToSet` equality on MongoDB is order- and field-sensitive.
+- `store()` remains the third convention (minimal tags, `_id` stripped); not changed.
+
+## E5. Commits
+
+C1 (green on the old code): `WriterMarshallingDifferentialTest` with the KEEP rows only, plus the wiring tests for the paths that work today. C2: implementation (E1, E3, E4), the SWITCH rows of the differential test, the new wiring tests for the holes and fixes, flips of the repro/PR 1 expectations, docs, CHANGELOG, ledger. No standalone red commit (bisect-safe with `--merge`).
+
+## E6. Table corrections applied
+
+Row 6: typed enums only (`serializeEnum`, `ObjectMapperImpl.java:1001-1020`, writes `{class_name, name}` for `Object`/`List<Object>`/`Map<String,Object>`/`@AdditionalData`; the walk gives a String there, like the legacy top-level enum); on the InMemoryDriver a raw Enum object becomes a String. Row 7: only a null element inside a List value NPEs today; `pushAll(field, [null])` returns null today (no change). Row 9: nested non-String keys passed through on InMem and failed in `BsonEncoder.encodeDocument` on MongoDB; they now throw IAE on both drivers (CHANGELOG). Row 12: for `pushAll` the legacy helper recursed one level per element; sub-row added to the differential matrix.
+
+## E7. Work packages (revised)
+
+WP0 reviewer-run: JDK 21, docker `mongo:8` on a free port, baseline subset incl. the Quarkus modules built in the reactor (`-am`) so they do not use a stale `morphium-core` from `~/.m2` (`pom.xml:503-505`). WP1 (C1): differential test KEEP part + wiring tests green on the old code. WP2 (C2, JUDGEMENT): `ObjectMapperImpl` (`Class` value), `MorphiumObjectMapper` (default method), `MorphiumWriterImpl` (eager values, `marshallElement` hook, `pushPullAll` null check kept), `UpdateDocumentMapper`, `MorphiumBase.pullAll`, `Query.set`. WP3: tests of the SWITCH/hole rows and fixes, flips. WP4 (MECHANICAL with prose, stronger model): Javadoc, CHANGELOG (Fixed: holes; Changed: enum names, null elements, Enum map keys, ObjectId in containers, Set/array as List on InMem, nested non-String keys throw, eager errors, single values tagged in `findOneAndUpdate`; Added: `marshallUpdateElement`; Unchanged: writer keys, no guards, `currentDate`), ledger. WP5 verification: subset + new classes on `--driver all`, `core` tag on inmem, `ledger_md.py --check`, `git diff --stat`.
+
+## E8. Ledger and Haiku
+
+MOR-042 is rewritten with the decisions above (see ledger). Reserved new items, filed in WP4 as the Haiku experiment: MOR-046 `BufferedMorphiumWriterImpl` does not marshal values in `set`/`pushPull`/`pushPullAll` (`:631-658`, `:944-985`, `:988-1030`) and `pushPullAll` for PULL emits `$push` (about `:1010-1012`); MOR-047 `MorphiumBulkContext.createUpdateRequest` does not marshal values (`bulk/MorphiumBulkContext.java:56-64`); MOR-048 `MorphiumBase.setEnum` uses `values.get(est.getValue())` (`:1215`); MOR-049 the writer path has no `@Reference`/`@Encrypted` guard (breaking for callers who embed entities today). The `inc(Query, Map)` finding (`MorphiumWriterImpl.java:2025`, keys untranslated) goes into MOR-005. Haiku experiment (instead of the `writerPathShapes` flip): the bookkeeping of MOR-046..049 and the MOR-005 note, a rerun of WP7a with every title and sentence pre-quoted in the spec, scored with `docs/research/haiku-trial/score.py`-style checks; the CHANGELOG and any prose stay with the stronger model.
+
+## E9. Risks and not verified (additions)
+
+Eager errors change the error surface for callers who catch `RuntimeException` around async calls; a subclass of `MorphiumWriterImpl` that overrides `marshallIfNecessary` keeps working for `set` and, through the protected `marshallElement`, for push/pull. `findOneAndUpdate` single values now differ from PR 1 (class_name, `_id`). Not verified: `Expr.toQueryObject` key types, the Buffered writer beyond the cited lines, Quarkus modules, `SingleMongoConnectDriver`, replica sets, PoppyDB, whether a test reads raw InMemoryDriver Sets/arrays from `$set` (grep by shape only).
