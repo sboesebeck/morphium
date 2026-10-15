@@ -63,6 +63,15 @@ Behaviour changes: `BigDecimal` is written as a double and `Character` as an int
 for a `List<LocalDate>` and friends changes from flat elements to wrapped ones. Documents written flat by an earlier version are not read back typed until they are stored once with `store()`
 (a flat element reaches a `List<LocalDate>` as a raw number), and `$addToSet` does not recognise a flat element as equal to a wrapped one. `useBsonDateForJavaTime` now reaches `findOneAndUpdate(Map)` and the builder, which
 supersedes the note "Documented: `useBsonDateForJavaTime` does not reach maps you build yourself" of 6.3.14 for these two methods (a map handed to a driver command is still not mapped).
+#### InMemoryDriver: an upsert that matches nothing raises E11000 instead of replacing an existing document (MOR-030)
+The document of an upsert whose filter matched nothing is inserted. The InMemoryDriver did that with the `store()` logic, which replaces a document with the same `_id`: when the
+`_id` came from the filter (an equality on `_id`) or from `$setOnInsert`, a conditional upsert such as `_id = X AND (expiresAt < now OR owner = me)` silently took over a document
+that the filter did not match, so a second contender "stole" a held lease in every InMemoryDriver test. It now throws a `MorphiumDriverException` with the numeric Mongo code 11000
+(`E11000 duplicate key error collection: db.coll index: _id_ dup key: { _id: ... }`) before anything is written, exactly like `findAndModify` on a real MongoDB, and the
+existing document is untouched. A filter that matches updates in place, a filter that seeds no `_id` still inserts a new document with a generated id, and `store()` of an existing
+`_id` still replaces. Divergence that remains: the update command path (`Query.set` with `upsert`) throws on the InMemoryDriver (as it already did for unique index violations),
+a real MongoDB reports `writeErrors` with code 11000 in the returned map there.
+
 #### `Morphium.currentDate` sets the date (MOR-004)
 `currentDate(query, field, ...)` delegated to `set(query, {"$currentDate": {field: 1}})`, so the operator ended up INSIDE a `$set` (`{"$set": {"$currentDate": {...}}}`).
 A real MongoDB rejected that with code 52 in `writeErrors` of the returned map (no exception, the field stayed unchanged), and the InMemoryDriver reported
@@ -104,8 +113,7 @@ that is added for upserts without a pinned id then contradicted the `_id` the se
 rejected the insert with code 66 (immutable field `_id`). The id now counts as pinned if it is reachable by an equality
 (plain value, `$eq`, one-element `$in`) through `$and` or a single-branch `$or`, or by a dotted `_id.x` key; shapes the
 server does not seed from (multi-valued `$in`, several `$or` branches, range operators, regex, `$nor`) still get the
-generated id. A top-level `_id` key is pinned as before. The InMemoryDriver still replaces a held document instead of
-raising a duplicate key error (MOR-030).
+generated id. A top-level `_id` key is pinned as before. A held document now raises a duplicate key error on the InMemoryDriver, too (MOR-030, see below).
 
 #### `AnnotationAndReflectionHelper`: field-name cache is thread safe (MOR-040)
 The per-class inner map of the field-name cache was a plain `HashMap` inside a `ConcurrentHashMap`.
