@@ -4,13 +4,12 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 44, done 8
+Status: open 43, done 9
 
 ## Overview
 
 | ID | Status | Prio | Type | Title | Effort | Ticket | Depends on |
 |---|---|---|---|---|---|---|---|
-| MOR-006 | open | 1 | implementation | Option A core: mapper-aware update builder (set, setOnInsert, inc, unset) with findOneAndUpdate terminal | L |  | MOR-001, MOR-002 |
 | MOR-027 | open | 1 | documentation | Documentation page: raw commands, embedded objects and lifecycle contract | S |  |  |
 | MOR-028 | open | 1 | infrastructure | Contract tests InMem vs real MongoDB for all update paths | M |  |  |
 | MOR-005 | open | 2 | verification | Audit Query.set/inc/push write paths for swallowed writeErrors and missing name translation | S |  |  |
@@ -58,6 +57,7 @@ Status: open 44, done 8
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
 | MOR-004 | done | 1 | defect | MorphiumBase.currentDate sends $set: {$currentDate: ...} and fails silently | S |  |  |
+| MOR-006 | done | 1 | implementation | Option A core: mapper-aware update builder (set, setOnInsert, inc, unset) with findOneAndUpdate terminal | L |  | MOR-001, MOR-002 |
 | MOR-030 | done | 1 | defect | InMemoryDriver: honour the filter in conditional upsert and raise E11000 | M |  |  |
 | MOR-040 | done | 2 | defect | fieldNameCache: inner HashMap is not thread safe | S |  |  |
 | MOR-041 | done | 2 | implementation | Key translation for operator maps in findOneAndUpdate | M |  | MOR-002 |
@@ -155,9 +155,11 @@ Source: docs/research/reproduction-results.md hypothesis 3, docs/research/jakart
 
 ### MOR-006 Option A core: mapper-aware update builder (set, setOnInsert, inc, unset) with findOneAndUpdate terminal
 
-Status **open**, priority 1, type implementation, effort L
+Status **done**, priority 1, type implementation, effort L
 
 Query.modify() returns an UpdateBuilder with set, setOnInsert, inc, unset and upsert and the terminal findOneAndUpdate(ReturnDocument). Each call is mapped immediately through the UpdateDocumentMapper (keys always translated with resolveFieldPath, values in the element form, @Reference and @Encrypted guards), merged per operator and checked for path conflicts. The terminal injects the @Version field (inc when the update modifies, setOnInsert when it only creates; an explicit touch wins; honours isAutoValuesEnabled), rejects an empty builder, setOnInsert without upsert, skip, limit, hint and projection, and runs the existing findOneAndUpdateMapped. Also in this task: arrayFilters support in FindAndModifyMongoCommand and InMemoryDriver.findAndOneAndUpdate, MorphiumDriverException.isDuplicateKey(), and an Instant spike for update documents on the InMemoryDriver. @LastChange and @CreationTime are not applied (MOR-009); updateOne, updateMany and UpdateResult are MOR-050.
+
+Evidence: New: JavaTimeInUpdateDocumentTest 6 (the spike: an Instant in an update document was not readable on the InMemoryDriver, fixed by routing the java.time types through their mappers, shapes equal store() on both drivers), FindOneAndUpdateArrayFiltersAndSortTest 8 (6 failed before the arrayFilters wiring), UpdateOperationsTest 16, MorphiumDriverExceptionDuplicateKeyTest 4, ModifyLeaseAndCounterTest 32, ModifyValuesAndKeysTest 26, ModifyValidationTest 34; all green on PooledDriver (mongo:8, v8.3.11) and InMemoryDriver. Lease: first acquire under the filter _id, held lease isDuplicateKey on both drivers with the document untouched, 8 racing threads on a fresh and on an expired lease have exactly one winner, store() after a builder upsert works and a stale store() is rejected. Mutation check: with the version injection disabled 10 of the new tests fail. Regression subset (63 classes): 851 tests on the InMemoryDriver with 2 errors (ReferenceCascadeTest, Byte Buddy does not support Java 25, the JDK of the run); on a real MongoDB plus InMem 992 tests with ReferenceCascadeTest (4), ExclusiveMessageTests.exclusiveTest/exclusivityTest (fail identically on the commit before PR 3, see MOR-042), CoreFunctionalityTests.cachedObjectOperationsTest (timing, passes when repeated, see MOR-042) and WriterPathWiringTest.currentDateStillDoesNotSetTheField, which pinned the MOR-004 defect and was turned into the positive expectation. Not covered: updateOne/updateMany (MOR-050), @LastChange/@CreationTime (MOR-009), PoppyDB, SingleMongoConnectDriver, replica sets, the Quarkus and Spring modules.
 
 Acceptance:
 
@@ -173,6 +175,8 @@ Acceptance:
 Depends on: MOR-001, MOR-002
 
 Source: docs/research/plan-mor-001-002-003.md, docs/research/plan-mor-006.md
+
+Commits: 29c154343, 22b58f60b, 8d89c0770, cdeba478e
 
 ### MOR-007 Option A extension: min, max, mul, rename, currentDate, addToSet/push with each
 
