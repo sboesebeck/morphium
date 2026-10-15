@@ -22,6 +22,7 @@ public class FindAndModifyMongoCommand extends WriteMongoCommand<FindAndModifyMo
     private Map<String, Object> collation;
     private Object hint;
     private Map<String, Object> let;
+    private List<Map<String, Object>> arrayFilters;
 
     public FindAndModifyMongoCommand(MongoConnection d) {
         super(d);
@@ -105,6 +106,16 @@ public class FindAndModifyMongoCommand extends WriteMongoCommand<FindAndModifyMo
 
     public FindAndModifyMongoCommand setBypassDocumentValidation(boolean bypassDocumentValidation) {
         this.bypassDocumentValidation = bypassDocumentValidation;
+        return this;
+    }
+
+    public List<Map<String, Object>> getArrayFilters() {
+        return arrayFilters;
+    }
+
+    /** the {@code arrayFilters} of the update, for {@code $[<identifier>]} paths; findAndModify supports them since MongoDB 3.6 */
+    public FindAndModifyMongoCommand setArrayFilters(List<Map<String, Object>> arrayFilters) {
+        this.arrayFilters = arrayFilters;
         return this;
     }
 
