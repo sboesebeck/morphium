@@ -15,6 +15,7 @@ public class ObjectMappingSettings extends Settings {
     // already-constructed mapper instances (see ObjectMapperImpl's java.time mapper registration),
     // so a runtime setUseBsonDateForJavaTime(...) from another thread has to be visible to them.
     private volatile boolean useBsonDateForJavaTime = false;
+    private boolean translateUpdateFieldNames = true;
     public boolean isCheckForNew() {
         return checkForNew;
     }
@@ -183,6 +184,36 @@ public class ObjectMappingSettings extends Settings {
 
     public ObjectMappingSettings disableBsonDateForJavaTime() {
         useBsonDateForJavaTime = false;
+        return this;
+    }
+
+    /**
+     * If enabled (default), the field names in the operator maps of {@code Query.findOneAndUpdate} are translated to the names the
+     * fields are stored under: a Java name like {@code expiresAt} becomes {@code expires_at} (entity with camel case translation),
+     * {@code id} becomes {@code _id}, {@code @Property}/{@code @Reference} names are honoured, and dotted keys are resolved segment
+     * by segment through single embedded fields. This applies to all operators including the key of {@code $unset} and the key
+     * and target of {@code $rename}. Never translated: {@code @Aliases}, unknown keys, positional keys, keys starting with
+     * {@code $}. Names that are already stored names stay unchanged, so correct callers see no difference.
+     * <p>
+     * This is the kill switch: with {@code false} the keys are written exactly as given (the behaviour before the translation
+     * existed); values are marshalled in both cases. Overridable per query, see {@code Query.setTranslateUpdateFieldNames}.
+     */
+    public boolean isTranslateUpdateFieldNames() {
+        return translateUpdateFieldNames;
+    }
+
+    public ObjectMappingSettings setTranslateUpdateFieldNames(boolean translateUpdateFieldNames) {
+        this.translateUpdateFieldNames = translateUpdateFieldNames;
+        return this;
+    }
+
+    public ObjectMappingSettings enableTranslateUpdateFieldNames() {
+        translateUpdateFieldNames = true;
+        return this;
+    }
+
+    public ObjectMappingSettings disableTranslateUpdateFieldNames() {
+        translateUpdateFieldNames = false;
         return this;
     }
 }
