@@ -220,3 +220,118 @@ the traps (`Settings.equals` returns true at the first identical field, `asPrope
 3. Dotted paths: lenient `resolveFieldPath` shared with `Query.f` (N4) or N1 with a WARN.
 4. Collision policy: merge on equal values, throw on differing values.
 5. Whether PR 2 also carries the `realClassCache` fix and the `@Encrypted` rejection (both recommended).
+
+---
+
+# Plan v2: decisions of the maintainer applied (supersedes the matching parts above)
+
+Maintainer decisions (2026-10-15): always translate with a kill switch; translate `$unset` and `$rename`; `resolveFieldPath` for dotted keys; collision throws only for differing values; the `realClassCache` fix and the
+rejection of encrypted fields are part of the PR. Everything not mentioned here stays as in the plan above after the corrections of the review outcome. PR 1 is still unreleased, so PR 1 and PR 2 ship together under `[Unreleased]`.
+
+## D1. Scope and switch
+
+- PR 2 always translates keys of operator maps (all operators, see D2). Kill switch: `ObjectMappingSettings.translateUpdateFieldNames`, **default `true`**; `false` restores the PR 1 behaviour (keys verbatim, values marshalled).
+  Properties/JSON: because `asProperties` omits default values, the round-trip test sets `false`.
+- Per-query override `Query#setTranslateUpdateFieldNames(Boolean)` stays (null = config): it is the escape for cleaning stray fields, since `$unset` is now translated too. The WP5 dry-run diagnostic is dropped (nothing to flip).
+- The builder (MOR-006) calls the mapper with `translateKeys=true` regardless of the switch.
+- PR 1's Javadoc ("Field names are not translated"), its CHANGELOG entry and its class comment in `UpdateDocumentMapper` are rewritten in WP6; a CHANGELOG "Changed" note says Java-named keys now reach the real field.
+
+## D2. Operator semantics (switch on)
+
+| Operator | Key | Value |
+|---|---|---|
+| `$set`, `$setOnInsert`, `$inc`, `$mul`, `$min`, `$max`, `$push`, `$addToSet`, `$pull`, `$pullAll`, `$pop`, `$currentDate`, `$bit`, `$unset` | `resolveFieldPath` | PR 1 walk (`$unset` value passed through) |
+| `$rename` | `resolveFieldPath` for the key AND for the target string value (non-String targets pass through) | - |
+| replacement document | untouched (auto-`$set` is MOR-013) | PR 1 |
+
+Aliases are never resolved. Keys of Map values and `$pull` condition maps are data and are not translated (MOR-039). Enum keys in operator maps are accepted (`name()`), consistent with value maps.
+A document that sets and unsets the same Java name in one update (`$set:{ownerName}` + `$unset:{ownerName}`) now maps both to `owner_name` and the server rejects it with a path conflict, as it did before for the identical raw keys.
+
+## D3. Resolver (revised: no `getFields` refactor)
+
+`ARH.resolveStoredFieldName(Class<?> type, String key)` (single segment) and `ARH.resolveFieldPath(Class<?> type, String path)` (dotted), both public, never throw (a catch-all returns the input; interface types and
+`getAllFields` NPE, `ARH:489-492`).
+
+Index per class (`ConcurrentHashMap<Class<?>, StoredNames>`, immutable value, `computeIfAbsent` on `getRealClass`), derived the way `serialize` iterates: for each name `n` in `getFields(C)` take `fld = getField(C, n)`
+(`ObjectMapperImpl:536,564`), skip null, static and `@AdditionalData` fields, `stored = fld has @Id ? "_id" : n`, `mongoNames.add(stored)`, `storedType.put(stored, fld.getType())`,
+`javaToMongo.putIfAbsent(fld.getName(), stored)`, and when the class translates camelCase also `javaToMongo.putIfAbsent(convertCamelCase(fld.getName()), stored)` (parity with `getField` rule 6, `ARH:576`, so the filter and
+the update agree on the snake form). Afterwards `javaToMongo.keySet().removeAll(mongoNames)` (a Mongo name always beats a foreign Java name). `@ReadOnly` fields are included (an explicit update may write them; `serialize` does not);
+`getFields` is NOT refactored. Index construction is wrapped in a try/catch that falls back to identity.
+
+`resolveStoredFieldName`: null, empty, containing `.`, or starting with `$` -> unchanged; `mongoNames.contains(key)` -> key; else `javaToMongo.getOrDefault(key, key)`. Idempotency by construction as before (invariants asserted
+at index build). Aliases never resolve.
+
+`resolveFieldPath(type, path)` (lenient version of the segment walk in `Query.f`, `Query.java:1007-1047`):
+- no `.` -> `resolveStoredFieldName`;
+- otherwise split on `.`; `clz = type`; for each segment: if `clz` is null/`Object`/unknown, or the segment is positional or numeric (`$`, `$[]`, `$[x]`, digits) or starts with `$`, or empty, append the segment and all remaining
+  segments verbatim and stop; else resolve the segment with the index of `clz`, append the result, and set `clz` to the declared type of that stored name only if it is a single `@Embedded`/`@Entity` type (not a
+  Collection/array/Map/`Object`, not a `@Reference` field, not an interface/abstract polymorphic base without index); otherwise stop and append the remaining segments verbatim;
+- the embedded class's own `translateCamelCase` flag applies per segment automatically because each segment is resolved with the index of the class it belongs to (hypothesis 2 behaviour for nested keys is kept);
+- it differs from `Query.f` on purpose where `f` falls back to the raw whole string (after a List/Map segment `f` returns the raw path, also the first segment; with `@AdditionalData` `f` returns the raw string): the update translates
+  the leading segments it can know. A new ledger task (MOR-043) makes `Query.f` use `resolveFieldPath`; until then filter and update disagree for List/Map-leading paths and the test documents it.
+- polymorphic embedded subclasses: fields of a subclass are not in the base class index and pass through verbatim (documented).
+
+## D4. Collisions and conflicts
+
+After resolving all keys of one operator map: if two input keys map to the same output key and `Objects.deepEquals` holds for their (marshalled) values, one entry is kept; otherwise `IllegalArgumentException` naming both keys.
+Conflicts across operators (e.g. `$set:{ownerName}` + `$inc:{owner_name}`) are left to the server (path conflict, code 40); the test runs on a real MongoDB only because the InMemoryDriver may accept it.
+
+## D5. Guards
+
+- `@Encrypted`: for the value-writing operators (`$set`, `$setOnInsert`, `$push`, `$addToSet`, `$pull`, `$pullAll`, `$inc`, `$mul`, `$min`, `$max`, `$bit`) a key that resolves (via `getField` on the raw key or via the resolver) to an `@Encrypted`
+  field is rejected with `IllegalArgumentException` (a plaintext value would bypass encryption and break every read, `ObjectMapperImpl:1280-1300`); `$unset`, `$rename`, `$currentDate` are allowed. The check does not depend on the switch.
+  `@ReadOnly` is documented, not rejected.
+- `@Reference` rejection of PR 1 keeps using the raw key.
+- `$setOnInsert:{id:X}` becomes `_id` and pins the id; a String X for a `MorphiumId` `@Id` is not coerced (new ledger task MOR-045); the CHANGELOG states it.
+
+## D6. Cache fix
+
+`new AnnotationAndReflectionHelper(boolean)` passes `new ConcurrentHashMap<>()` as `realClassCache` (`ARH:63`, written by `getRealClass` `ARH:288-301`; production path `Morphium.java:195`).
+
+## D7. Work packages (revised)
+
+| WP | Content | Rating |
+|---|---|---|
+| WP0 | docker mongo:8 on a free port, JDK 21 (Byte Buddy), baseline of the PR 1 classes + `AliasesTest`, `AnnotationAndReflectionHelperTest`, `ObjectMapperTest`, `AggregatorFieldNameTranslationTest`, `MorphiumConfigTest`, `EncryptedObjectMappingTests` | MECHANICAL |
+| WP1 | `realClassCache` fix + test (concurrent first use with a barrier on one class, fresh helper instances) | MECHANICAL, do directly |
+| WP2 | config setting (default `true`) + docs row + `MorphiumConfigTest` (default true; properties and JSON round trip with `false`; `copy()`) | MECHANICAL |
+| WP3 | tests first (D8), red until WP4/WP5 | JUDGEMENT |
+| WP4 | resolver and index in `ARH` (D3), Javadoc contrasting it with `getMongoFieldName`, `getField` and `FieldNameTranslation` | JUDGEMENT |
+| WP5 | wiring: `UpdateDocumentMapper(morphium, type, translateKeys)`, key resolution for all operators incl. `$unset`/`$rename` key and target, enum keys, collision rule (D4), `@Encrypted` guard (D5); `Query` field/getter/setter + helper at the two call sites | JUDGEMENT |
+| WP6 | Javadoc, CHANGELOG ("Changed" + rewrite of PR 1's entry), ledger (below) | MECHANICAL with prose, stronger model |
+| WP7 | verification: new classes + baseline on `--driver all` against docker mongo:8, `core` subset on inmem, `git diff --stat` | MECHANICAL, reviewer-run |
+
+No Haiku package in PR 2: the only mechanical candidates are WP1 (one line) and WP2 (copy of `ObjectMappingSettings.java:95-112`), too small to measure; the trial gives no evidence for test matrices or prose.
+
+## D8. Tests (concrete, replaces WP2 of the plan above)
+
+- `StoredFieldNameResolverTest` (pure JUnit, `@Tag("core")`): java name -> snake_case; stored name unchanged; `id` -> `_id`; snake form of `@Id`/`@Property` fields resolves like `getField` rule 6; `@Property`/`@Reference` both directions; alias not resolved; non-translating
+  entity keeps Java names; pass-through keys (unknown, `$`, `$[x]`, `$[]`, `$set`, "", null); transient/additional-data/static pass through; `@ReadOnly` resolves; idempotency over `mongoNames` + javaNames + pseudo-random strings; duplicate
+  `owner_name`/`ownerName`; Mongo name of one field equals the Java name of another; alias equal to another field's name follows `serialize`; global camelCase off; interface type returns identity; parity corpus: every `@Entity`/`@Embedded`
+  class under `suite/data` plus fixtures for `@ReadOnly`, `@Transient`, inherited/shadowed fields, `@IgnoreFields`/`@LimitToFields`, `@AdditionalData`, `@Id`+`@Property`: keys of `serialize(populated)` minus `class_name` are a subset of the
+  index names and equal it except for `@ReadOnly`.
+- `ResolveFieldPathTest`: single embedded `child.fileName` (default-naming embedded under a non-translating entity -> `child.file_name`; embedded with its own flag false -> `child.fileName`); two-level embedded; List/Set/array/Map leading segment
+  (`tagList.0.x` -> `tag_list.0.x`, rest verbatim); positional (`items.$.name`, `items.$[x].name`, `items.$[].name`); `@Reference` leading segment; `Object`-typed segment; unknown first segment; polymorphic subclass field verbatim; idempotent.
+- `UpdateDocumentMapperKeyTest` (package `de.caluga.morphium.query`): operator table over all 14 operators with exact output (`$push` keeps `$each/$sort/$position`, `$pull` keeps condition keys, `$rename` key and target, `$unset` key), enum keys, `translateKeys=false`
+  equals PR 1 output, replacement document untouched, collision with equal values merges, with differing values throws, idempotent, caller's map not mutated, `@Encrypted` rejected for `$set` and allowed for `$unset`.
+- `UpdateKeyTranslationTest` (`MultiDriverTestBase`, both drivers; fixtures `Lease` default `@Entity` and `RawLease` non-translating with default `@Embedded Child`): set camelCase key writes the mapped field (no stray);
+  stored name unchanged; kill switch false writes the raw key verbatim (switch set explicitly); per-query override wins over config (true/false/null); non-translating entity keeps keys; dotted embedded key `defaultChild.fileName`
+  writes the same field as `defaultChild` value does; `@Property` honoured; `$setOnInsert:{id}` -> `_id` and `countAll()==1`; unknown key passes through; positional keys pass through; alias key not resolved; `$unset` of a Java name removes
+  the real field (the lease-release scenario) and with the override false removes the stray; `$rename` key and target translated; `$inc/$mul/$min/$max/$bit/$pop/$pullAll/$currentDate` keys translated (InMem labels exist,
+  `InMemoryDriver.java:9181-9588`); `$push/$addToSet/$pull` keys translated; `@Embedded` elements inside a List; Map value with field-name-like keys is data; both `ownerName` and `owner_name` with equal values merge, differing values throw; cross-operator
+  conflict rejected by a real MongoDB; `@Encrypted` rejected; one-argument overload translates; runtime toggle between calls; Morphium instance with `ccc=false`; lease scenario with Java-named keys (first acquire, renewal, held lease E11000 on a real
+  MongoDB, release via `$unset` leaves the lease free); filter and update agree on every persistent top-level field (carving out aliases, unknown keys and polymorphic subclasses explicitly); value shape identical with the switch on and off.
+- `MorphiumConfigTest`: default true, properties/JSON round trip with `false`, `copy()`; do not assert through `Settings.equals` (returns true at the first identical field).
+
+## D9. Ledger changes (applied together with this plan update)
+
+- MOR-041 is rewritten: always translate with kill switch and per-query override, all operators including `$unset` and `$rename` (key and target), `resolveFieldPath`, collision rule, `@Encrypted` guard, `realClassCache` fix; aliases never resolved.
+- MOR-006 acceptance/description: the builder uses `resolveFieldPath` and always translates.
+- New: MOR-043 `Query.f` should use `resolveFieldPath` (raw whole-path fallback after List/Map segments and with `@AdditionalData`); MOR-044 `@Version(fieldName=...)` store/filter mismatch (`getFields` honours only `@Reference`/`@Property`,
+  `getMongoFieldName` also `@Version.fieldName`); MOR-045 coerce or reject a String `_id` value for a `MorphiumId` `@Id` in update documents.
+
+## D10. Risks and not verified (additions)
+
+Default-true changes where Java-named raw keys land: stray fields that earlier raw writes created stay and need `$unset` (override false) or a migration; `@AdditionalData` readers of strays are affected. Other write paths
+(`Query.set`, bulk) keep their strict semantics (`getMongoFieldName`), so the three paths differ on aliases and unknown keys until MOR-042/MOR-043 are done. Not verified: that the InMemoryDriver's `findAndModify` path reaches
+the `$bit`/`$pop`/`$mul`/`$min`/`$max`/`$pullAll` labels (the repro test only covers `$currentDate`), `@Encrypted` write behaviour end to end, JSON round trip of the new setting, `SingleMongoConnectDriver`, replica sets, PoppyDB.
