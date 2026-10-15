@@ -66,8 +66,11 @@ markdown_extensions:
       title: On this page
 
 # Internal design/planning documents - not part of the published site at all.
+# tasks/ is the generated task ledger (see "Task ledger" in contributing.md), research/ holds internal research notes.
 exclude_docs: |
   superpowers/
+  tasks/
+  research/
 
 # Historical release notes are kept as plain files, deliberately not part of the nav
 # (CHANGELOG.md in the repo root is the maintained changelog).

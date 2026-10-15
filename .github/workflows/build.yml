@@ -26,6 +26,13 @@ jobs:
           java-version: 21
           cache: maven
 
+      # Task ledger (docs/tasks): generated markdown must match the yaml, generator tests must pass.
+      - name: Check task ledger
+        run: |
+          python3 -m pip install pyyaml
+          python3 scripts/ledger/ledger_md.py --check
+          python3 -m unittest scripts/ledger/test_ledger_md.py
+
       # Full reactor: morphium-core, poppydb, and all three optional extension
       # modules (morphium-jakarta-data, quarkus-morphium, spring-boot-morphium).
       # No -DskipExtensions here on purpose -- this is the only automated place

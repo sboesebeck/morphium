@@ -90,3 +90,31 @@ The `./scripts` directory contains several helpful scripts for developers. These
 *   `./scripts/rerunSingleFailed.sh`: Interactively select and rerun a single failed test from the logs using `fzf`.
 *   `./scripts/showlog.sh`: Interactively view test logs using `fzf` and `bat`.
 *   `./scripts/viewTestlogs.sh`: View the logs of currently running tests in parallel using `multitail`.
+
+## Task ledger
+
+Planned work (defects, API gaps, analyses, documentation) is tracked in a small file-based ledger:
+
+*   `docs/tasks/ledger.yaml` is the **single source of truth**. Add, change and close tasks there.
+*   `docs/tasks/ledger.md` is the readable view. It is **generated** from the YAML file; **never edit it by hand**.
+*   Task ids have the form `MOR-NNN` and are never reused. Get the next free one with
+    `python3 scripts/ledger/ledger_md.py --next-id`.
+*   A task has `id`, `title`, `type`, `priority` (1 first, 3 later), `status` (`open`, `in_progress`, `blocked`,
+    `done`) and usually `effort` (S/M/L), `description`, `acceptance`, `depends_on` and `source`. A `done` task needs
+    `evidence`, a `blocked` task needs `blocked_by`; the generator refuses the ledger otherwise.
+
+```bash
+# Regenerate docs/tasks/ledger.md after editing ledger.yaml
+python3 scripts/ledger/ledger_md.py
+
+# Verify that ledger.md is up to date (exit code 1 if not), writes nothing
+python3 scripts/ledger/ledger_md.py --check
+
+# Unit tests of the generator
+python3 -m unittest scripts/ledger/test_ledger_md.py
+```
+
+The scripts need Python 3 and **PyYAML** (`python3 -m pip install pyyaml`). The `--check` command and the unit tests
+also run in the GitHub `Build` workflow. With Claude Code, use the `ledger` skill or the `/ledger` command; they keep
+YAML and Markdown in sync. The tooling (file formats, status and type vocabularies, validation rules) is shared with
+other projects, so keep it compatible. `docs/tasks/` and `docs/research/` are excluded from the published MkDocs site.
