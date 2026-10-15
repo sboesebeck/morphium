@@ -128,3 +128,11 @@ When adding new documentation:
 3. Use consistent heading levels (H1 for title, H2 for sections)
 4. Add code examples where applicable
 5. Test locally before committing
+
+## Task ledger
+
+Planned work is tracked in `docs/tasks/ledger.yaml` (single source of truth). The Markdown view
+`docs/tasks/ledger.md` is generated with `python3 scripts/ledger/ledger_md.py`, verified with
+`python3 scripts/ledger/ledger_md.py --check`, and must never be edited by hand. See the "Task ledger" section of
+`DEVELOPMENT_README.md` for the task format and the PyYAML requirement. The ledger itself is not part of the
+published site.
