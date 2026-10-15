@@ -30,7 +30,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 /**
  * MOR-003: an upsert whose filter reaches an equality on {@code _id} through {@code $and} (the shape of a lease filter
  * {@code _id = X AND (expiresAt < now OR owner = me)}) must keep the {@code _id} from the filter, not add a generated one.
- * The held-lease outcome (duplicate key) is a property of a real MongoDB; the InMemoryDriver overwrites (MOR-030).
+ * The held lease raises a duplicate key error on both drivers (MOR-030: the InMemoryDriver used to overwrite the held document).
  */
 @Tag("core")
 public class FindOneAndUpdateCompoundFilterUpsertTest extends MultiDriverTestBase {
@@ -87,10 +87,8 @@ public class FindOneAndUpdateCompoundFilterUpsertTest extends MultiDriverTestBas
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
-    public void heldLeaseRaisesDuplicateKeyOnARealMongoDb(Morphium m) throws Exception {
+    public void heldLeaseRaisesDuplicateKey(Morphium m) throws Exception {
         try (m) {
-            // MOR-030: the InMemoryDriver overwrites instead of raising E11000
-            assumeFalse(isInMem(m));
             acquire(m, "job", "A", 60_000);
             Throwable t = null;
             try {
@@ -118,9 +116,8 @@ public class FindOneAndUpdateCompoundFilterUpsertTest extends MultiDriverTestBas
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
-    public void contendersRaceForOneLeaseOnARealMongoDb(Morphium m) throws Exception {
+    public void contendersRaceForOneLease(Morphium m) throws Exception {
         try (m) {
-            assumeFalse(isInMem(m));
             int contenders = 8;
             ExecutorService pool = Executors.newFixedThreadPool(contenders);
             CountDownLatch go = new CountDownLatch(1);

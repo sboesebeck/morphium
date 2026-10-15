@@ -10509,6 +10509,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
             }
             if (insert) {
+                // The document of an upsert that matched nothing is INSERTED. storeInternal() has save() semantics - it replaces a document with the same
+                // _id - which silently overwrote a document that the filter did not match (a held lease taken over by a second contender, MOR-030). A real MongoDB
+                // answers with E11000, so do we; nothing has been written at this point.
+                for (Map<String, Object> d : lst) {
+                    Object newId = d.get("_id");
+
+                    if (newId != null && !indexStore.equalityLookup(CollectionIndexStore.ID_INDEX_NAME, IndexKey.of(java.util.Collections.singletonList(newId))).isEmpty()) {
+                        MorphiumDriverException dup = new MorphiumDriverException("E11000 duplicate key error collection: " + db + "." + collection
+                                + " index: _id_ dup key: { _id: " + newId + " }");
+                        dup.setMongoCode(11000);
+                        throw dup;
+                    }
+                }
+
                 storeInternal(db, collection, lst, wc, pendingNotifications);
                 // collect upserted ids (single upsert typical)
                 for (Map<String, Object> d : lst) {
