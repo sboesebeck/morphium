@@ -145,32 +145,40 @@ tasks:
   - docs/research/jakarta-data-1.1.md section 4
   - 'GitHub #408'
 - id: MOR-006
-  title: 'Option A core: mapper-aware update builder (set, setOnInsert, inc, unset)'
+  title: 'Option A core: mapper-aware update builder (set, setOnInsert, inc, unset) with findOneAndUpdate terminal'
   type: implementation
   status: open
   priority: 1
   effort: L
-  description: 'Introduce Query.update() (or similar) returning a builder that stores Java field names and raw values
-    and, at execute(), resolves Mongo names via getMongoFieldName (incl. nested a.b and positional $ / $[x]) and
-    values via the mapper (entities, embeddeds, collections, Instant/Date, enums). Unresolved keys pass through
-    unchanged (Spring behaviour). Same-operator calls merge into one operator document (two set calls give one $set).
-    Executes through findOneAndUpdate (document) and updateMany/updateOne (count). Relates to GitHub #221 (Expr
-    translateFields). MOR-002 introduces the package-private UpdateDocumentMapper and Query.findOneAndUpdateMapped;
-    this task reuses them instead of building a second mapping path. Keys are resolved with resolveFieldPath (MOR-041)
-    and the builder always translates, independent of the translateUpdateFieldNames switch.'
+  description: 'Query.modify() returns an UpdateBuilder with set, setOnInsert, inc, unset and upsert and the terminal
+    findOneAndUpdate(ReturnDocument). Each call is mapped immediately through the UpdateDocumentMapper (keys always
+    translated with resolveFieldPath, values in the element form, @Reference and @Encrypted guards), merged per
+    operator and checked for path conflicts. The terminal injects the @Version field (inc when the update modifies,
+    setOnInsert when it only creates; an explicit touch wins; honours isAutoValuesEnabled), rejects an empty builder,
+    setOnInsert without upsert, skip, limit, hint and projection, and runs the existing findOneAndUpdateMapped.
+    Also in this task: arrayFilters support in FindAndModifyMongoCommand and InMemoryDriver.findAndOneAndUpdate,
+    MorphiumDriverException.isDuplicateKey(), and an Instant spike for update documents on the InMemoryDriver. @LastChange
+    and @CreationTime are not applied (MOR-009); updateOne, updateMany and UpdateResult are MOR-050.'
   acceptance:
-  - Builder set/setOnInsert/inc/unset produce one atomic command with translated names and marshalled values, shown
-    by tests on a real MongoDB
-  - A List/Set of @Embedded values and an Instant need no manual conversion by the caller
-  - Entities with @Entity(translateCamelCase=false) and with default naming both store the expected raw key names
-  - The raw Map overloads keep working unchanged (raw by contract, documented)
+  - 'A lease acquisition (conditional upsert) with Java field names, an Instant field and an @Version Long field
+    works on a real MongoDB and on the InMemoryDriver: first acquire inserts under the filter _id, a held lease
+    raises an exception for which isDuplicateKey() is true and leaves the document untouched, 8 racing threads have
+    exactly one winner'
+  - A counter with inc and upsert creates on insert and adds on update, 8 x 50 concurrent increments give 400
+  - Create-if-absent with setOnInsert never overwrites an existing document and does not bump its version
+  - A store() after a builder upsert does not hit a duplicate key, and a store() with a stale version after a builder
+    update is rejected
+  - Embedded lists, sets, single values, maps, enums and Instant values need no manual conversion
+  - An empty builder, setOnInsert without upsert, conflicting paths, skip, limit, hint and projection are rejected
+    before any command is sent and the document stays intact
+  - arrayFilters work with findOneAndUpdate on both drivers
   - Verified against a real MongoDB (not only the InMemoryDriver).
   depends_on:
   - MOR-001
   - MOR-002
   source:
-  - docs/research/other-clients.md patterns 2, 5
-  - docs/research/reproduction-results.md (option A)
+  - docs/research/plan-mor-001-002-003.md
+  - docs/research/plan-mor-006.md
 - id: MOR-007
   title: 'Option A extension: min, max, mul, rename, currentDate, addToSet/push with each'
   type: implementation
@@ -199,7 +207,9 @@ tasks:
   description: Replace findOneAndUpdate(Map, boolean upsert, boolean returnNew) by findOneAndUpdate(update, FindAndModifyOptions)
     with upsert, returnDocument(BEFORE/AFTER), sort, projection, arrayFilters, hint, collation, maxTime. Keep the
     old signature as a delegating overload. Document and define the result for an upsert that inserts with returnDocument
-    BEFORE (null today, reproduced on both drivers).
+    BEFORE (null today, reproduced on both drivers). The arrayFilters wiring of FindAndModifyMongoCommand and InMemoryDriver.findAndOneAndUpdate
+    is done by MOR-006; this task keeps the options object, projection and hint, which the InMemoryDriver currently
+    drops in findAndModify (InMemoryDriver.java around line 4129).
   acceptance:
   - The options object is available for the builder and the raw Map path
   - The null result of an inserting upsert with BEFORE is documented in the Javadoc and covered by a test on a real
@@ -217,17 +227,14 @@ tasks:
   status: open
   priority: 2
   effort: M
-  description: 'findOneAndUpdate skips pre/post update events, @LastChange, @CreationTime and @Version. Decide and
-    implement which automatic values the builder applies (@LastChange via $set, @CreationTime via $setOnInsert,
-    @Version via $inc unless the update touches it). This also removes the @Version trap: a $setOnInsert without
-    version leaves 0 and a later store() fails with E11000 (confirmed on both drivers; Spring inc-version pattern,
-    to be proven on a real MongoDB). State the event contract (no @PreStore/@PostStore) in the Javadoc and in MOR-027.'
+  description: '@LastChange and @CreationTime in the builder: findOneAndUpdate through the builder (MOR-006) skips
+    pre/post update events, @LastChange and @CreationTime; Query.set applies them. Add them to the builder on the
+    mapped document, honouring isAutoValuesEnabled. The @Version injection is done by MOR-006. State the event contract
+    in the Javadoc.'
   acceptance:
-  - An upsert through the builder on an @Version entity followed by store() of the loaded entity succeeds on a real
-    MongoDB
-  - '@LastChange and @CreationTime values are set by the builder when the entity declares them, shown by tests'
-  - ConditionalUpsertReproductionTest version-trap assertions are flipped
-  - Verified against a real MongoDB (not only the InMemoryDriver).
+  - A builder write on an entity with @LastChange sets the field, and an upsert on an entity with @CreationTime
+    sets it only on insert, on a real MongoDB
+  - isAutoValuesEnabled false skips both
   depends_on:
   - MOR-006
   source:
@@ -243,7 +250,9 @@ tasks:
     mongoCode 11000 (Integer, writeErrors null); a store() duplicate reports the code inside writeErrors with mongoCode
     null. Add a typed exception or flag for duplicate key independent of the path, and a typed outcome (acquired
     / held) for the conditional upsert so callers need not parse getMongoCode(). Align with the exception model
-    work in GitHub #210 and #211.'
+    work in GitHub #210 and #211. MorphiumDriverException.isDuplicateKey() is added by MOR-006; this task adds the
+    lastErrorObject to the findAndModify result (FindAndModifyMongoCommand.execute drops it today) and the typed
+    outcome.'
   acceptance:
   - A single predicate/exception recognises duplicate key for both the findAndModify path and the writeErrors path,
     tested on a real MongoDB
@@ -931,3 +940,50 @@ tasks:
   depends_on:
   - MOR-042
   source: *id002
+- id: MOR-050
+  title: 'Update builder: updateOne, updateMany and UpdateResult'
+  type: implementation
+  status: open
+  priority: 2
+  effort: M
+  description: 'Add the count terminals to the update builder: updateOne and updateMany through the update command,
+    with a package-private Query.updateMapped that turns writeErrors into a MorphiumDriverException (counts in the
+    message, writeConcernError handled, no int cast of n). UpdateResult is a final class with getMatchedCount (n
+    minus upserted), getModifiedCount, getUpsertedId converted to the @Id type, and isAcknowledged. Sort on updateOne
+    is rejected until the InMemoryDriver honours it and the server capability is checked. Serves the Jakarta Data
+    UPDATE count (MOR-018).'
+  acceptance:
+  - updateMany reports matched and modified counts, a second identical call reports modified 0, on a real MongoDB
+    and on the InMemoryDriver
+  - An upsert reports the upserted id and matched 0
+  - A duplicate key raises an exception with isDuplicateKey() true on both drivers
+  - arrayFilters work with updateMany
+  depends_on:
+  - MOR-006
+  source: &id003
+  - docs/research/plan-mor-006.md
+- id: MOR-051
+  title: 'InMemoryDriver: reject path conflicts in update documents like MongoDB'
+  type: defect
+  status: open
+  priority: 3
+  effort: S
+  description: A real MongoDB rejects an update document that touches the same path twice or a path and its child
+    (set a and set a.b, set and inc on one field) with code 40. The InMemoryDriver accepts them, so raw-map users
+    get a different result per driver.
+  acceptance:
+  - The InMemoryDriver rejects set a plus set a.b and set plus inc on one path with code 40, like mongo:8
+  source: *id003
+- id: MOR-052
+  title: updateLastAccess writes the untranslated Java field name
+  type: defect
+  status: open
+  priority: 3
+  effort: S
+  description: Query.findOneAndUpdateMapped ends with updateLastAccess, a second non-atomic update command for @LastAccess
+    entities that sets the Java field name with a Long. With camel case translation the real field is not updated.
+    Read in the code, not reproduced.
+  acceptance:
+  - After a findOneAndUpdate on an @LastAccess entity the stored last-access field is updated under its stored name,
+    on a real MongoDB
+  source: *id003

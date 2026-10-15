@@ -212,3 +212,88 @@ The recommendation stands (no Haiku in the production path; only optional script
 5. Entry method name (`update()` vs. `updates()`/`modify()`), incubating marker.
 6. `Instant` spike in WP0 and, if confirmed, add `Instant` to the mapped types.
 7. `isDuplicateKey()` helper, `arrayFilters` wiring instead of the guard, reject sort/hint/projection instead of ignoring.
+
+---
+
+# Plan v2: decisions of the maintainer applied (supersedes the matching parts above)
+
+Maintainer decisions (2026-10-15): all recommendations of the review are taken: automatic `@Version` injection, `findOneAndUpdate` first (count terminals later), eager mapping per call, an entry method that is not called `update()`, an `Instant` spike, `isDuplicateKey()`, `arrayFilters` wired into `findAndModify`, sort/hint/projection rejected instead of ignored.
+Everything not mentioned here stays as in the plan above after the corrections of the review outcome. Nothing is implemented yet.
+
+## F1. Scope of this task (replaces sections 1.2 and 4 where they contradict)
+
+In scope: the builder with `set`, `setOnInsert`, `inc`, `unset`, `upsert`, the terminal `findOneAndUpdate(ReturnDocument)`, `ReturnDocument`, `Query.<entry>()`, `@Version` injection, the `arrayFilters` wiring in `FindAndModifyMongoCommand` and `InMemoryDriver.findAndOneAndUpdate`, `MorphiumDriverException.isDuplicateKey()`, and the `Instant` fix if the spike confirms the defect.
+Out of scope, new ledger task MOR-050: `updateOne()`, `updateMany()`, `Query.updateMapped`, the `writeErrors` normalisation for the update command, `UpdateResult` (final class with `getMatchedCount()`, `getModifiedCount()`, `getUpsertedId()` converted to the entity's `@Id` type, `isAcknowledged()`), the sort question on `updateOne`, partial-failure counts, `writeConcernError`.
+The builder surface is designed so that MOR-050 only adds terminals (`UpdateBuilder` keeps its operations in `UpdateOperations`; the terminal helper is one private method).
+
+## F2. Names and API status
+
+- Entry method on `Query<T>`: `modify()` returns `UpdateBuilder<T>` (not `update()`, which reads like the eager verbs `set()`, `delete()`, `inc()`). The Javadoc says that nothing is written until a terminal is called and carries a `@CheckReturnValue`-style note.
+- `UpdateBuilder`, `ReturnDocument` (and later `UpdateResult`) are marked incubating with an `@apiNote` until 6.3: MOR-021 will generate code that references them. `ReturnDocument { BEFORE, AFTER }` is reused by MOR-008.
+- `MorphiumDriverException.isDuplicateKey()` returns true if `getMongoCode()` is 11000 (any `Number`) or any entry of `getWriteErrors()` has code 11000. The lease snippet uses it. Tested on both drivers.
+
+## F3. Eager mapping per call (replaces the late-mapping part of section 3, resolves Challenge 2 and 7)
+
+Each builder call (`set`, `setOnInsert`, `inc`, `unset`) maps its one-entry operator document through `UpdateDocumentMapper(morphium, type, true)` immediately and stores the mapped key and the marshalled value in `UpdateOperations`. Consequences:
+- Errors are raised at the offending call (`@Reference` entity, `@Encrypted` write, non-String map key, differing duplicate, `null` amount for `inc`), not at the terminal.
+- The caller's collections are copied at the call (no aliasing), which matches plan-mor-042 E1.
+- `UpdateOperations` is no longer "pure" in the sense of having no Morphium dependency at construction: the entity-aware part is the call into UDM; the merge and conflict logic (`UpdateOperations.add(operator, mappedKey, marshalledValue)`) stays a pure class and is unit-tested without a database on mapped keys and values.
+- Merge rule: a second entry for the same mapped key and operator merges if `Objects.deepEquals` holds for the marshalled values (so two equal-content entity instances without `equals()` merge), otherwise `IllegalArgumentException` naming key and operator.
+- Conflict rule: all pairs, on mapped keys, segment-based prefix matching, within one operator and across operators (`set("a")` + `set("a.b")`, `set` + `inc`, `set` + `unset`, `set` + `setOnInsert`, `inc` + `setOnInsert` on one path); pairs with a `$` segment are skipped; case-sensitive; `a.0` and `a.1` are siblings. The server rejects these with code 40; the InMemoryDriver accepts them. The InMemoryDriver parity fix (reject path conflicts for raw maps, too) is filed as MOR-051.
+- The terminal pass through UDM stays as an idempotent safety net before the command is built; it is not the first line of defence.
+- `inc(Number)`: `Integer`, `Long` and `Double` pass through, `Short`/`Byte`/`Float` are widened, `BigDecimal`/`BigInteger`/others are rejected with `IllegalArgumentException` (the InMemoryDriver `$inc` silently ignores them, `InMemoryDriver.java:9133-9173`).
+- A builder that contains only `setOnInsert` operations and no `upsert()` is rejected at the terminal (it can never do anything). An empty builder is rejected (`IllegalStateException`), as before.
+
+## F4. `@Version` injection (replaces the guard of section 2; resolves the BLOCKER)
+
+After the call-time mapping, at the terminal, on the mapped document:
+1. Find the `@Version` fields: `getFields(type, Version.class)`, stored name through `resolveStoredFieldName`. No `@Version`: nothing happens.
+2. If `Query.isAutoValuesEnabled()` (`Q:216`) is false: nothing happens.
+3. If any operator already holds the stored name of the version field (an explicit touch of the caller wins): nothing happens.
+4. If the update has a modifying operator (`$set`, `$inc`, `$unset`): add `$inc {version: 1}`. On an insert `$inc` on a missing field yields 1, which equals `initVersionFieldForInsert` (1L); on an update it is the +1 that `store()` does.
+5. If the update has only `$setOnInsert` operations: add `$setOnInsert {version: 1}` instead (create-if-absent must stay a no-op for an existing document); never `$inc` and `$setOnInsert` on one path (server code 40).
+6. `@Version(fieldName=...)`: until MOR-044 is fixed `serialize` and `getMongoFieldName` disagree about the stored name; the terminal throws `IllegalStateException` explaining this instead of guessing.
+MOR-009 then only adds `@LastChange` and `@CreationTime` (the ledger text of MOR-009 is amended). `@LastChange`/`@CreationTime` are NOT applied in this task: stated prominently in the Javadoc of `modify()` and in the CHANGELOG (no log noise; the WARN-once of the plan above is dropped).
+Tests (both drivers): `versionIncrementedOnUpdate`, `versionInitialisedToOneOnInsert`, `createIfAbsentDoesNotBumpAnExistingVersion`, `explicitVersionTouchWins`, `unsetOfVersionIsNotInjectedOver`, `autoValuesDisabledSkipsInjection`, `storeAfterBuilderUpsertDoesNotHitDuplicateKey` (the hypothesis 5c trap), `staleStoreAfterBuilderUpdateFailsOptimistically` (a `store()` with the old version is rejected after a builder write), `versionFieldNameAnnotationRejectedWithMessage`, entity without `@Version` unaffected.
+
+## F5. Rejections instead of silent ignores (resolves Challenge 9 and the "silently ignored options" point)
+
+The terminal rejects with `UnsupportedOperationException` (message names the option and the reason): `skip != 0`, `limit > 1`, `hint`, field list/projection. `sort` is honoured for `findOneAndUpdate` (`FindAndModifyMongoCommand` supports it; the InMemoryDriver passes it, `InMemoryDriver.java:4117-4131`, to be verified by a test). Honoured: filter, sort, collation, `overrideDB`, collection name, class write concern, arrayFilters.
+`arrayFilters`: `FindAndModifyMongoCommand` gets an `arrayFilters` field (it is put on the wire by `MongoCommand.asMap()` reflection, `:240-285`), `Query.findOneAndUpdateMapped` sets it from `getArrayFilters()`, and `InMemoryDriver.findAndOneAndUpdate` passes it to `updateInternal` (`:11884` passes `null` today; `updateInternal` supports it, `:8881-8884`). This also fixes the raw-Map `findOneAndUpdate` for array filters. MOR-008 keeps projection/hint wiring (amended: the `arrayFilters` part is done here).
+Tests: `arrayFiltersWorkOnFindOneAndUpdate` (positional `$[x]` with filters, both drivers), `skipLimitHintProjectionRejected`, `sortPicksTheDocument` (both drivers).
+
+## F6. Entities with write buffering, `@LastAccess`, natural keys (resolves the MINOR hazards)
+
+- `modify()` throws `IllegalStateException` for an entity with `@WriteBuffer` when the buffered writer is active on a real MongoDB (`isBufferedWrite(type)`, `Morphium.getWriterForClass`): a still-buffered `store()` could flush later and overwrite the atomic update.
+- `@LastAccess` entities: `findOneAndUpdateMapped` ends with `updateLastAccess` (`Q:618`, body `Q:1707-1750`), a second, non-atomic update command that `$set`s the untranslated Java field name with a Long. The builder documents that the "one atomic command" statement does not hold for `@LastAccess` entities; fixing the untranslated name is filed as MOR-052 (small defect).
+- Javadoc and tests for natural-key leases: a lease keyed by a natural key (not `_id`) gets a generated `_id` and its uniqueness needs a unique index (the default `IndexCheck.WARN_ON_STARTUP` creates none); the builder does not call `checkIndexAndCaps` (same as `findOneAndUpdateMapped`). Test `naturalKeyLeaseWithUniqueIndexHasOneWinner`.
+- Documented: `$inc` retries after a network error are at-least-once (`WriteMongoCommand:239-257`); a duplicate key inside a real transaction aborts it, so "held == catch duplicate key" cannot be control flow inside a transaction; the cache is cleared before commit inside a transaction; the builder ignores `Query.setTranslateUpdateFieldNames` on purpose (the Javadoc of that setter says so).
+
+## F7. `Instant` spike (WP0) and the `UPDATE_VALUE_MAPPED_TYPES` decision
+
+Before the design is frozen a spike test (`InstantUpdateSpikeTest`, both drivers) answers: does `findOneAndUpdate(Map.of("$set", Map.of("at", Instant)))` read back as the same `Instant` through `get()` on the InMemoryDriver and on a real MongoDB, and what does the raw document look like?
+The challenger's reading: the InMemoryDriver stores a live `Instant` while `store()` stores the `InstantMapper` Map form, and `InstantMapper.unmarshall` casts to `Map` (ClassCastException). If the spike confirms it, `Instant` is added to `ObjectMapperImpl.UPDATE_VALUE_MAPPED_TYPES` (mapper output is identical to the encoder's `{type, seconds, nanos}` shape, so Pooled is unchanged) and a differential test pins that the stored shapes of `store()` and the update agree. If the spike refutes it, the spike test stays as a regression test. The same spike covers `LocalDateTime`, `LocalDate`, `LocalTime` (the other java.time mappers) and `Date`.
+
+## F8. Work packages (revised)
+
+Commits: C1 (green on the old code): `InstantUpdateSpikeTest` (documents or fixes), `isDuplicateKey()` + test, `UpdateOperationsTest` (pure) + `UpdateOperations`/`ReturnDocument`. C2: `arrayFilters` wiring (command, `findOneAndUpdateMapped`, `InMemoryDriver.findAndOneAndUpdate`) with its tests. C3: `UpdateBuilder`, `Query.modify()`, version injection, rejections, integration tests, docs, CHANGELOG, ledger. Each commit is green on its own; red tests are written first inside the commit that makes them green.
+- WP0 (reviewer-run): JDK 21; `docker run -d --rm --name morphium-mor006 --tmpfs /data/db -p 127.0.0.1::27017 mongo:8` (a single node: no transactions; the transaction test runs on the InMemoryDriver only); baseline of the update test classes; the `Instant` spike.
+- WP1 (J): `UpdateOperationsTest` (pure, on mapped keys and marshalled values): the cases of the plan above plus all-pairs conflicts within one operator, `deepEquals` on equal-content maps, `inc` number normalisation, `setOnInsert`-only detection, `isModifying()`.
+- WP2 (J): `UpdateOperations`, `ReturnDocument`; `MorphiumDriverException.isDuplicateKey()`.
+- WP3 (J): `arrayFilters` wiring; tests as in F5.
+- WP4 (J): `UpdateBuilder`, `Query.modify()`, integration tests: `ModifyLeaseTest` (first acquire inserts under the filter `_id`, renewal, held lease -> `isDuplicateKey()` on both drivers and document untouched, takeover after expiry, release with `unset` of a Java name, races with 8 threads on a fresh and an expired lease (deterministic: compound filter does not qualify for the server's automatic duplicate key retry), natural-key lease with unique index, `store()` afterwards with `@Version Long entityVersion` and `Instant` fields, mix with `Query.set` on the same collection), `ModifyCounterTest` (`inc` creates on insert and adds on update, negative/double, 8 x 50 concurrent increments equal 400 - note: relies on the server's automatic retry for `{_id: key}` equality on 4.2+ - before/after values, `null` amount and unsupported number types rejected), `ModifyCreateIfAbsentTest` (setOnInsert creates only when absent and never overwrites; upsert + BEFORE returns null on create and the old document otherwise - the trap pin; no match without upsert returns null; `setOnInsert` without upsert rejected), `ModifyValuesTest` (embedded list/set/single/map values carry `class_name`, `Set<Child>`, polymorphic and `@Embedded` inside lists, `Instant` and java.time round trip, enum values by name, `@Reference` entity and `@Encrypted` write rejected also for dotted keys through UDM where possible, `id` -> `_id`), `ModifyKeysTest` (the translation cases of the plan above), `ModifyValidationTest` (empty builder leaves the document intact, version injection tests F4, rejections F5, `WriteBuffer` entity, conflicts rejected before any command, cache cleared, collation, `overrideDB`, `@LastAccess` second write documented, `autoValues` not applied for `@LastChange`/`@CreationTime` - pinned as the documented behaviour). `toUpdateDocument()` (package-private or public per Q9) is asserted instead of server `opcounters`; the transaction test runs on the InMemoryDriver only and asserts the builder adds nothing of its own.
+- WP5 (M with prose, stronger model): Javadoc incl. result table and event contract, fix the stale lines `Q:518-519` and `MorphiumObjectMapper.java:66-67`, `docs/api-reference.md` section, CHANGELOG ("Added": builder, `isDuplicateKey()`, `arrayFilters` for `findAndModify`; "Fixed": `Instant` in update documents if confirmed; "Changed": the two Javadoc corrections), ledger.
+- WP6 (reviewer-run): WP0 baseline + new classes on `--driver all`, `core` tag on `--driver inmem`, `ledger_md.py --check`, `git diff --stat`; a PIT run scoped to `UpdateOperations`.
+- Haiku: unchanged recommendation (no production package; optional scripted ledger-bookkeeping rerun with pre-quoted titles for the ledger edits below; no evidence for test matrices).
+
+## F9. Ledger changes (applied with this plan update)
+
+- MOR-006 is rewritten to the narrower scope (entry method `modify()`, `findOneAndUpdate` terminal, eager mapping, `@Version` injection, rejections, `isDuplicateKey()`, `arrayFilters` wiring, `Instant` spike).
+- MOR-009 is narrowed: `@Version` is done by MOR-006; MOR-009 adds `@LastChange` and `@CreationTime` (honouring `isAutoValuesEnabled`).
+- MOR-008 is amended: `arrayFilters` is done by MOR-006; MOR-008 keeps the options object, projection and hint (and the missing `FindAndModifyMongoCommand`/`InMemoryDriver` wiring of those).
+- MOR-010 is amended: `isDuplicateKey()` exists (MOR-006); MOR-010 adds `lastErrorObject` to the command result and the typed outcome.
+- New: MOR-050 count terminals (`updateOne`, `updateMany`, `UpdateResult`, `writeErrors` normalisation, sort on `updateOne`); MOR-051 InMemoryDriver rejects path conflicts in update documents like MongoDB (code 40); MOR-052 `updateLastAccess` writes the untranslated Java field name.
+
+## F10. Risks and not verified (additions)
+
+Public names are semver commitments (incubating marker mitigates); `modify()` shares its name with nothing else on `Query` but is a new verb; version injection changes the stored version for builder writes (intended, documented); an entity with `@Version(fieldName)` cannot use the builder until MOR-044; eager mapping calls UDM per call (cost is small). Not verified: the `Instant` behaviour (spike), sort in `findAndModify` on the InMemoryDriver, `arrayFilters` in `findAndModify` on the server (documented since 3.6, to be confirmed by the test), PoppyDB (shares the InMemoryDriver `runCommand`), `SingleMongoConnectDriver`, replica sets, the Quarkus and Spring modules.
