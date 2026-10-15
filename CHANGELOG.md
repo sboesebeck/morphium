@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+#### `Query.modify()`: a mapper-aware builder for one atomic update (MOR-006, incubating)
+`query.modify().set("ownerName", me).set("expiresAt", at).inc("hits", 1).setOnInsert(...).unset(...).upsert().findOneAndUpdate(ReturnDocument.AFTER)` replaces the hand-built
+`FindAndModifyMongoCommand` with raw `Map` updates for leases, counters and create-if-absent. New public types in `de.caluga.morphium.query`: `UpdateBuilder`, `ReturnDocument`.
+**Nothing is written until the terminal `findOneAndUpdate(ReturnDocument)` is called.** Field names (Java names, stored names, dotted paths through single embedded fields) are always translated
+to the stored names, independent of `translateUpdateFieldNames`; values are marshalled at the call (embedded objects and entities with `class_name`, enums by name, java.time by its mapper, collections copied);
+an entity for a `@Reference` field and a write to an `@Encrypted` field are rejected at the call. The same field twice is merged if the values are equal and rejected otherwise, a path and its child
+or one path in two operators are rejected (MongoDB answers such a document with error 40), `inc` of a field twice is rejected. An `@Version` field is incremented (an insert starts at 1; a `setOnInsert`-only update
+sets it to 1 on insert and leaves an existing document alone) unless the update touches it, so a `store()` of an entity loaded before a builder write is rejected with a `VersionMismatchException`
+and a `store()` after a builder upsert does not hit a duplicate key; `Query.disableAutoValues()` turns that off; an `@Version(fieldName=...)` is rejected (MOR-044).
+An empty builder (it would replace the document), `setOnInsert` without `upsert()`, skip, a limit above 1, a hint, a projection and entities with `@WriteBuffer` are rejected.
+`@LastChange` and `@CreationTime` are NOT applied and no update events are fired (MOR-009); an upsert that inserts returns `null` for `ReturnDocument.BEFORE`.
+`MorphiumDriverException.isDuplicateKey()` tells a lost conditional upsert (a held lease) from other errors on both drivers.
+`updateOne`/`updateMany` and a typed result are MOR-050.
+
+#### `arrayFilters` for `findAndModify`
+`FindAndModifyMongoCommand` has an `arrayFilters` field, both `Query.findOneAndUpdate` overloads pass the array filters of the query, and the InMemoryDriver applies them. An update with a
+`$[identifier]` path used to fail with "No array filter found" (the one-argument overload returned `null`).
+
 ### Changed
 
 #### Writer path and `findOneAndUpdate`: one convention for values (MOR-042)
@@ -63,6 +83,11 @@ Behaviour changes: `BigDecimal` is written as a double and `Character` as an int
 for a `List<LocalDate>` and friends changes from flat elements to wrapped ones. Documents written flat by an earlier version are not read back typed until they are stored once with `store()`
 (a flat element reaches a `List<LocalDate>` as a raw number), and `$addToSet` does not recognise a flat element as equal to a wrapped one. `useBsonDateForJavaTime` now reaches `findOneAndUpdate(Map)` and the builder, which
 supersedes the note "Documented: `useBsonDateForJavaTime` does not reach maps you build yourself" of 6.3.14 for these two methods (a map handed to a driver command is still not mapped).
+#### java.time values in update documents (MOR-006)
+An `Instant`, `LocalDateTime`, `LocalDate` or `LocalTime` in a `findOneAndUpdate` or `Query.set` document was stored as the live object by the InMemoryDriver, which then could not read it back
+(the mapper expects the Map shape `store()` writes). They are now written by their registered type mapper. On a real MongoDB with the default configuration the stored shape is unchanged; with a
+mapper configured with `useBsonDate` the update now stores what `store()` stores.
+
 #### InMemoryDriver: an upsert that matches nothing raises E11000 instead of replacing an existing document (MOR-030)
 The document of an upsert whose filter matched nothing is inserted. The InMemoryDriver did that with the `store()` logic, which replaces a document with the same `_id`: when the
 `_id` came from the filter (an equality on `_id`) or from `$setOnInsert`, a conditional upsert such as `_id = X AND (expiresAt < now OR owner = me)` silently took over a document
