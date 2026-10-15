@@ -1363,11 +1363,12 @@ public abstract class MorphiumBase {
      * @param <T>
      */
     public <T> Map<String, Object> currentDate(final Query<?> query, String field, boolean upsert, boolean multiple) {
-        return set(query, UtilsMap.of("$currentDate", UtilsMap.of(field, 1)), upsert, multiple);
+        // MongoDB wants a boolean (or {$type: ...}) here, an int is rejected ("int is not valid type for $currentDate")
+        return set(query, UtilsMap.of("$currentDate", UtilsMap.of(field, true)), upsert, multiple);
     }
 
     public <T> Map<String, Object> currentDate(final Query<?> query, Enum field, boolean upsert, boolean multiple) {
-        return set(query, UtilsMap.of("$currentDate", UtilsMap.of(field.name(), 1)), upsert, multiple);
+        return set(query, UtilsMap.of("$currentDate", UtilsMap.of(field.name(), true)), upsert, multiple);
     }
 
     public <T> Map<String, Object> pull(final T entity, final String field, final Expr value, final boolean upsert, final boolean multiple) {

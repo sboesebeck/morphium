@@ -8882,6 +8882,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         for (Map.Entry<String, Object> entry : cmd.entrySet()) {
             var v = entry.getValue();
 
+            if (entry.getKey().startsWith("$")) {
+                // MongoDB: "The dollar ($) prefixed field '$x' in '$x' is not valid for storage." (code 52). An operator nested under $set
+                // ({$set: {$currentDate: ...}}) used to be stored as a field of that name, reporting success.
+                writeErrors.add(Doc.of("index", 0, "code", 52, "errmsg",
+                                       "The dollar ($) prefixed field '" + entry.getKey() + "' in '" + entry.getKey() + "' is not valid for storage."));
+                continue;
+            }
+
             if (v instanceof Map) {
                 try {
                     v = Expr.parse(v).evaluate(obj);
