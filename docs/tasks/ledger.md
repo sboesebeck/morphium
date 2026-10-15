@@ -47,7 +47,7 @@ Status: open 40, done 5
 | MOR-035 | open | 3 | implementation | Records and value objects in the mapper | L |  |  |
 | MOR-038 | open | 3 | defect | Replacement documents, findOneAndUpdateEnums and Expr values still fail with POJOs in update maps | M |  | MOR-002 |
 | MOR-039 | open | 3 | documentation | Document pitfalls of update maps: $pull condition keys and mixed element shapes | S |  | MOR-027 |
-| MOR-042 | open | 3 | implementation | Writer path: delegate marshallIfNecessary to the shared update-value walk | M |  | MOR-002 |
+| MOR-042 | open | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-044 | open | 3 | defect | Version annotation with fieldName: store and filter disagree on the stored name | S |  |  |
 | MOR-045 | open | 3 | defect | Update documents: a String value for _id of a MorphiumId entity is not coerced | S |  | MOR-041 |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
@@ -668,20 +668,26 @@ Source: docs/research/plan-mor-001-002-003.md, docs/research/plan-mor-041.md
 
 Commits: 0ec3a9562
 
-### MOR-042 Writer path: delegate marshallIfNecessary to the shared update-value walk
+### MOR-042 Writer path: marshal values with the shared update-value walk and use one convention for single values
 
-Status **open**, priority 3, type implementation, effort M
+Status **open**, priority 3, type implementation, effort L
 
-Make the marshallIfNecessary of the writer delegate to the shared update-value walk introduced by MOR-002, so that Query.set, MorphiumMigrationRunner and other writer callers handle any Iterable, array, nested Map and Enum the same way.
+Query.set, push, pushAll, pull, pullAll, addToSet and addAllToSet marshal their values with the shared update-value walk, eagerly on the caller thread, in the element form, so Set, array, Map-in-Map and nested containers of @Embedded/@Entity values no longer fail on a real MongoDB or get stored as live objects by the InMemoryDriver. Output that works today stays identical (single embedded values keep class_name, a single entity keeps its _id); enum constants inside containers become name(), null list elements are kept and Enum map keys are accepted. The same PR changes findOneAndUpdate so that single values also carry class_name (one convention for update paths), fixes pullAll sending $pull, Query.set with a null value (NPE) and Query.set(Enum, ...) using toString(), and stops treating a Class value as an entity. Keys keep the strict getMongoFieldName semantics of the writer; currentDate (MOR-004), inc keys and swallowed write errors (MOR-005) are not part of this task. The marshalling covers Collection, not every Iterable.
 
 Acceptance:
 
-- Query.set with a Set, an array, a Map-in-Map and an Enum value stores the serialised value on a real MongoDB
-- Query.set with a Set of @Embedded values works against a real MongoDB (moved here from MOR-002, whose scope is values only)
+- Query.set with a Set, an array, a Map-in-Map, nested lists and an enum list of @Embedded/Enum values stores the serialised value on a real MongoDB and on the InMemoryDriver
+- A differential test shows that the new writer function equals a verbatim copy of the previous one for every input whose output must not change
+- push, addToSet, pushAll, addAllToSet, pull and pullAll store documents with class_name for embedded elements, and pullAll with a list sends $pullAll, on a real MongoDB
+- Query.set(field, null, ...) and Query.set(Enum, ...) work and use the constant name
+- An invalid value throws an IllegalArgumentException directly from the call, fires no store event, and a collection mutated after the call does not change the write
+- findOneAndUpdate of a single embedded value carries class_name
+- The MorphiumMigrationRunner shaped upsert (Map.of(String, Date) with a @Property entity) behaves as before on a real MongoDB
+- Verified against a real MongoDB (not only the InMemoryDriver).
 
 Depends on: MOR-002
 
-Source: docs/research/plan-mor-001-002-003.md
+Source: docs/research/plan-mor-001-002-003.md, docs/research/plan-mor-042.md
 
 ### MOR-043 Query.f should resolve field paths with resolveFieldPath
 
