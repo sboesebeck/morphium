@@ -97,7 +97,7 @@ tasks:
 - id: MOR-004
   title: 'MorphiumBase.currentDate sends $set: {$currentDate: ...} and fails silently'
   type: defect
-  status: open
+  status: done
   priority: 1
   effort: S
   description: 'currentDate(query, field, upsert, multiple) delegates to set(...), so the wire command is {"$set":{"$currentDate":{"lastSeen":1}}}.
@@ -113,6 +113,16 @@ tasks:
   - Verified against a real MongoDB (not only the InMemoryDriver).
   source:
   - docs/research/reproduction-results.md hypothesis 3
+  evidence: 'CurrentDateReproductionTest flipped and extended (12 invocations: field name, enum, upsert that inserts,
+    operator mixed with a plain field, operator only, $-prefixed field under $set), green on PooledDriver (mongo:8)
+    and InMemoryDriver. Cause was twofold: the operator was nested under $set, and the value was the int 1, which
+    MongoDB rejects for $currentDate; both fixed. The InMemoryDriver now rejects a $-prefixed field name under $set
+    with code 52 (it still counts the matched document in n, MongoDB reports n=0). Regression: inmem package suite
+    and the writer/mapper subset, 769 tests on the InMemoryDriver, 0 failures and 2 ReferenceCascadeTest errors
+    (Byte Buddy does not support Java 25, the JDK of the run; unrelated); WriterPathWiringTest, WriterPathMarshallingTest
+    and WriterMarshallingDifferentialTest green on a real MongoDB.'
+  commits:
+  - 38b5f81d8
 - id: MOR-005
   title: Audit Query.set/inc/push write paths for swallowed writeErrors and missing name translation
   type: verification
