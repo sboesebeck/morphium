@@ -95,6 +95,27 @@ public class MorphiumDriverException extends RuntimeException {
         this.query = query;
     }
 
+    /**
+     * true if this exception reports a duplicate key (MongoDB error 11000): either the exception itself carries the code, as a failed
+     * {@code findAndModify} or the InMemoryDriver do, or one of the {@link #getWriteErrors() write errors} does, as an update or insert command reports it.
+     * The cause chain is not searched.
+     */
+    public boolean isDuplicateKey() {
+        if (mongoCode instanceof Number && ((Number) mongoCode).intValue() == 11000) {
+            return true;
+        }
+
+        if (writeErrors != null) {
+            for (Map<String, Object> err : writeErrors) {
+                if (err != null && err.get("code") instanceof Number && ((Number) err.get("code")).intValue() == 11000) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     public List<Map<String, Object>> getWriteErrors() {
         return writeErrors;
     }
