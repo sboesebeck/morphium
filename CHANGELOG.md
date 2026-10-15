@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+#### `Query.findOneAndUpdate`: embedded objects, entities and enums in update documents (MOR-002)
+The update document was handed to the driver as it was, so an `@Embedded`/`@Entity` object in a `List`, `Set`, array,
+single value or `Map` of a `$set`, `$setOnInsert`, `$push` or `$addToSet` failed on a real MongoDB with
+`Unhandled Data type` (and the legacy one-argument overload swallowed the error and returned `null`), while the
+InMemoryDriver stored live Java objects or failed with a `ClassCastException` after a partial write. Both overloads now
+marshal the values of every operator map (new `MorphiumObjectMapper.marshallUpdateValue(Object)`): entities and embedded
+objects become documents (with `class_name` inside a container, without it as a single value, as `store()` writes
+them), enums become their constant name (`name()`, not `toString()`), a `MorphiumId` inside a container becomes an
+`ObjectId`, and `AtomicBoolean`/`AtomicInteger`/`AtomicLong`/`BigInteger` are written by their type mapper. Sets and
+non-primitive arrays reach the InMemoryDriver as lists, like on a real MongoDB. Documents which are already serialised
+are not changed again, the caller's map is never modified, field names are not translated and an update document without
+a `$`-operator (a replacement document) is sent as it is. An entity for a `@Reference` field is rejected with an
+`IllegalArgumentException` instead of being embedded. A map key that is neither a `String` nor an enum is rejected.
+Not covered: `Query.set`/`push`/`pushAll` (writer path), `Expr` values, `findOneAndUpdateEnums`.
+
+#### `Query.findOneAndUpdate` upsert: `_id` inside `$and` no longer collides with a generated id (MOR-003)
+A filter such as `_id = X AND (expiresAt < now OR owner = me)` is wrapped in `$and`; the generated `$setOnInsert._id`
+that is added for upserts without a pinned id then contradicted the `_id` the server seeds from the filter, and MongoDB
+rejected the insert with code 66 (immutable field `_id`). The id now counts as pinned if it is reachable by an equality
+(plain value, `$eq`, one-element `$in`) through `$and` or a single-branch `$or`, or by a dotted `_id.x` key; shapes the
+server does not seed from (multi-valued `$in`, several `$or` branches, range operators, regex, `$nor`) still get the
+generated id. A top-level `_id` key is pinned as before. The InMemoryDriver still replaces a held document instead of
+raising a duplicate key error (MOR-030).
+
+#### `AnnotationAndReflectionHelper`: field-name cache is thread safe (MOR-040)
+The per-class inner map of the field-name cache was a plain `HashMap` inside a `ConcurrentHashMap`.
+
 
 ## [6.3.14] - 2026-10-12
 

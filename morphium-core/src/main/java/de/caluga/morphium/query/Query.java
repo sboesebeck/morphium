@@ -429,10 +429,18 @@ public class Query<T> implements Cloneable {
 
     @SuppressWarnings("ConstantConditions")
 
+    /**
+     * Atomic find-and-update (no upsert), returns the document as it was BEFORE the update.
+     * <p>
+     * The values of the operator maps in {@code update} are marshalled, see
+     * {@link #findOneAndUpdate(Map, boolean, boolean)}.
+     */
     public T findOneAndUpdate(Map<String, Object> update) {
         // find-and-update always has a write side-effect - it must never be served
         // from the read cache (see #214)
         morphium.inc(StatisticKeys.NO_CACHED_READS);
+        // mapped before a connection is acquired: an invalid update must not leak one
+        update = new UpdateDocumentMapper(morphium, type).map(update);
         Map<String, Object> ret = null;
         MongoConnection con = null;
         FindAndModifyMongoCommand settings = null;
@@ -483,14 +491,33 @@ public class Query<T> implements Cloneable {
     /**
      * Atomic find-and-update with optional upsert semantics.
      *
+     * <p>
+     * The values of the operator maps ({@code $set}, {@code $setOnInsert}, {@code $push}, {@code $addToSet}, ...) are
+     * marshalled: entities and embedded objects become documents (elements inside a List, Set, array or Map carry
+     * {@code class_name}, a single embedded value does not, like {@code store()}), enums become their constant name,
+     * {@code AtomicLong}/{@code BigInteger} and the like are written by their type mapper, everything else is passed
+     * through. Documents which are already serialised are not changed again. Field names are <em>not</em> translated,
+     * keys are used as given; an update document without any {@code $}-operator (a replacement document) is sent as it is.
+     * An entity for a {@code @Reference} field is rejected with an {@link IllegalArgumentException}. The caller's map is
+     * not modified. {@code @LastChange}, {@code @CreationTime}, {@code @Version} and the store events are NOT applied.
+     *
      * @param update    the update document (may contain $set, $setOnInsert, $inc, ...)
      * @param upsert    if true, a new document is inserted when no document matches the query
      * @param returnNew if true, the document AFTER applying the update is returned; if false,
      *                  the document as it was BEFORE the update is returned (matches the
-     *                  behaviour of {@link #findOneAndUpdate(Map)})
+     *                  behaviour of {@link #findOneAndUpdate(Map)}); with {@code upsert} and no match this is {@code null}
+     */
+    public T findOneAndUpdate(Map<String, Object> update, boolean upsert, boolean returnNew) {
+        // mapped before a connection is acquired: an invalid update must not leak one
+        return findOneAndUpdateMapped(new UpdateDocumentMapper(morphium, type).map(update), upsert, returnNew);
+    }
+
+    /**
+     * The part of {@link #findOneAndUpdate(Map, boolean, boolean)} after the update document has been mapped. Package-private
+     * so that the update builder planned in MOR-006 can call it with an already mapped document.
      */
     @SuppressWarnings("ConstantConditions")
-    public T findOneAndUpdate(Map<String, Object> update, boolean upsert, boolean returnNew) {
+    T findOneAndUpdateMapped(Map<String, Object> update, boolean upsert, boolean returnNew) {
         // NOTE: unlike the legacy findOneAndUpdate(Map), this method NEVER serves from / writes to
         // the read cache. findOneAndUpdate always has a write side-effect (and, with upsert=true,
         // can insert a new document), so satisfying it from a stale read cache is never correct -
@@ -572,11 +599,12 @@ public class Query<T> implements Cloneable {
      * fields end up with a MorphiumId-based UUID string rather than an ObjectId. This helper
      * mirrors that behaviour for the upsert-insert case by adding a generated id via
      * $setOnInsert - but ONLY if the caller has not already pinned down the id explicitly
-     * (via the query filter or via $set/$setOnInsert in the update document).
+     * (via the query filter or via $set/$setOnInsert in the update document). The filter pins the id if it has an
+     * {@code _id} key at top level or if the server seeds the id from it, see {@link UpsertFilterInspector}.
      */
     @SuppressWarnings("unchecked")
     private Map<String, Object> addGeneratedIdOnInsertIfNeeded(Map<String, Object> queryObject, Map<String, Object> update) {
-        if (queryObject.containsKey("_id")) {
+        if (UpsertFilterInspector.pinsId(queryObject)) {
             return update;
         }
 

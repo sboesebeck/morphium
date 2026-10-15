@@ -261,6 +261,102 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         return value;
     }
 
+    /**
+     * Types the wire encoder cannot write but for which a type mapper is registered. Types that the encoder writes
+     * natively (java.time, BigDecimal, Character, Date including java.sql.Timestamp) are deliberately NOT listed:
+     * they work in update documents today and their mappers produce a different shape than the encoder.
+     */
+    private static final Set<Class<?>> UPDATE_VALUE_MAPPED_TYPES = Set.of(AtomicBoolean.class, AtomicInteger.class, AtomicLong.class, BigInteger.class);
+
+    @Override
+    public Object marshallUpdateValue(Object value) {
+        return marshallUpdateValue(value, false);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private Object marshallUpdateValue(Object o, boolean inContainer) {
+        if (o == null) {
+            return null;
+        }
+
+        if (o instanceof Enum) {
+            return ((Enum) o).name();
+        }
+
+        if (inContainer && o instanceof MorphiumId) {
+            // same as serializeIterable/serializeMap: elements are stored as ObjectId, and the InMemoryDriver compares them as such
+            return new ObjectId(((MorphiumId) o).getBytes());
+        }
+
+        if (o instanceof Map) {
+            Map<String, Object> ret = new LinkedHashMap<>();
+
+            for (Map.Entry<Object, Object> e : ((Map<Object, Object>) o).entrySet()) {
+                Object k = e.getKey();
+
+                if (k instanceof Enum) {
+                    k = ((Enum) k).name();
+                } else if (!(k instanceof String)) {
+                    throw new IllegalArgumentException("Can't use maps with a key that is not of type String in an update document: " + k);
+                }
+
+                ret.put((String) k, marshallUpdateValue(e.getValue(), true));
+            }
+
+            return ret;
+        }
+
+        if (o instanceof Collection) {
+            List<Object> ret = new ArrayList<>(((Collection) o).size());
+
+            for (Object e : (Collection) o) {
+                ret.add(marshallUpdateValue(e, true));
+            }
+
+            return ret;
+        }
+
+        Class<?> cls = o.getClass();
+
+        if (cls.isArray()) {
+            if (cls.getComponentType().isPrimitive()) {
+                return o;
+            }
+
+            int length = Array.getLength(o);
+            List<Object> ret = new ArrayList<>(length);
+
+            for (int i = 0; i < length; i++) {
+                ret.add(marshallUpdateValue(Array.get(o, i), true));
+            }
+
+            return ret;
+        }
+
+        if (annotationHelper.isEntity(o)) {
+            Class<?> realClass = annotationHelper.getRealClass(cls);
+            Entity entity = annotationHelper.getAnnotationFromHierarchy(realClass, Entity.class);
+            Embedded embedded = annotationHelper.getAnnotationFromHierarchy(realClass, Embedded.class);
+            Map<String, Object> doc = serialize(o);
+
+            if (inContainer) {
+                doc.put("class_name", getTypeId(realClass, entity, embedded));
+            } else if (entity != null) {
+                doc.remove("_id"); // not stored embedded, same as store() does for a single @Entity field
+            }
+
+            return doc;
+        }
+
+        MorphiumTypeMapper mapper = UPDATE_VALUE_MAPPED_TYPES.contains(cls) ? customMappers.get(cls) : null;
+
+        if (mapper != null) {
+            return mapper.marshall(o);
+        }
+
+        return o;
+    }
+
     public NameProvider getNameProviderForClass(Class<?> cls) {
         Entity e = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class);
 

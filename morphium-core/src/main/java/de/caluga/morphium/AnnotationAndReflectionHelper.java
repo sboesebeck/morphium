@@ -408,7 +408,7 @@ public class AnnotationAndReflectionHelper {
             }
         }
 
-        fieldNameCache.computeIfAbsent(cls, k->new HashMap<>()).put(field, ret);
+        fieldNameCache.computeIfAbsent(cls, k -> new ConcurrentHashMap<>()).put(field, ret);
         return ret;
     }
 
