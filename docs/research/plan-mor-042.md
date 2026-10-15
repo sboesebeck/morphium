@@ -263,3 +263,8 @@ MOR-042 is rewritten with the decisions above (see ledger). Reserved new items, 
 ## E9. Risks and not verified (additions)
 
 Eager errors change the error surface for callers who catch `RuntimeException` around async calls; a subclass of `MorphiumWriterImpl` that overrides `marshallIfNecessary` keeps working for `set` and, through the protected `marshallElement`, for push/pull. `findOneAndUpdate` single values now differ from PR 1 (class_name, `_id`). Not verified: `Expr.toQueryObject` key types, the Buffered writer beyond the cited lines, Quarkus modules, `SingleMongoConnectDriver`, replica sets, PoppyDB, whether a test reads raw InMemoryDriver Sets/arrays from `$set` (grep by shape only).
+
+
+---
+
+> **Superseded in part (reconciliation with upstream #335, see plan-reconcile-335.md):** the decision "BigDecimal, Character and Timestamp stay as they are" (row 16) was reversed; the writer path marshals whole-field values with `marshallUpdateValue` and elements with `marshallUpdateElement`/`marshallUpdatePullOperand`.

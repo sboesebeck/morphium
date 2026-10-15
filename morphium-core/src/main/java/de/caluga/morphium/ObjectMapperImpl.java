@@ -261,20 +261,24 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         return value;
     }
 
-    /**
-     * Types the wire encoder cannot write but for which a type mapper is registered. Types that the encoder writes
-     * natively (java.time, BigDecimal, Character, Date including java.sql.Timestamp) are deliberately NOT listed:
-     * they work in update documents today and their mappers produce a different shape than the encoder.
-     */
-    private static final Set<Class<?>> UPDATE_VALUE_MAPPED_TYPES = Set.of(AtomicBoolean.class, AtomicInteger.class, AtomicLong.class, BigInteger.class);
-
     @Override
     public Object marshallUpdateValue(Object value) {
         return marshallUpdateValue(value, false);
     }
 
+    @Override
+    public Object marshallUpdateElement(Object value) {
+        return marshallUpdateValue(value, true);
+    }
+
+    /**
+     * The update-value walk. {@code element} is false for the value of a whole field and true for a member of a container (and for the element of
+     * {@code $push}/{@code $addToSet}/{@code $pull}): the two positions only differ for custom-mapped values, which {@code store()} writes as the bare mapper
+     * output for a field and as {@code serialize()} output ({@code {"value": scalar}} or a map with {@code class_name}) for a container member
+     * (ObjectMapperImpl#serializeIterable / #serializeMap), and for a {@code MorphiumId}, which is an {@code ObjectId} in a container.
+     */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private Object marshallUpdateValue(Object o, boolean inContainer) {
+    private Object marshallUpdateValue(Object o, boolean element) {
         if (o == null) {
             return null;
         }
@@ -283,7 +287,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             return ((Enum) o).name();
         }
 
-        if (inContainer && o instanceof MorphiumId) {
+        if (element && o instanceof MorphiumId) {
             // same as serializeIterable/serializeMap: elements are stored as ObjectId, and the InMemoryDriver compares them as such
             return new ObjectId(((MorphiumId) o).getBytes());
         }
@@ -333,28 +337,96 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             return ret;
         }
 
-        if (annotationHelper.isEntity(o)) {
+        // Entity/Embedded BEFORE custom-mapped, as in serialize(): Geo and friends are both, and store() writes them as documents with class_name.
+        // isEntity(Class) tests the class itself: ask for the class of the value, a Class value is data and not an entity.
+        // An update does not know the declared type of the field, so the document always carries class_name (store() omits it for a non-polymorphic single value)
+        // and an entity keeps its _id.
+        if (annotationHelper.isEntity(cls)) {
             Class<?> realClass = annotationHelper.getRealClass(cls);
             Entity entity = annotationHelper.getAnnotationFromHierarchy(realClass, Entity.class);
             Embedded embedded = annotationHelper.getAnnotationFromHierarchy(realClass, Embedded.class);
             Map<String, Object> doc = serialize(o);
-
-            if (inContainer) {
-                doc.put("class_name", getTypeId(realClass, entity, embedded));
-            } else if (entity != null) {
-                doc.remove("_id"); // not stored embedded, same as store() does for a single @Entity field
-            }
-
+            doc.put("class_name", getTypeId(realClass, entity, embedded));
             return doc;
         }
 
-        MorphiumTypeMapper mapper = UPDATE_VALUE_MAPPED_TYPES.contains(cls) ? customMappers.get(cls) : null;
+        if (element) {
+            // serializeIterable/serializeMap leave the types of the wire format alone before they ask for a custom mapper
+            if (!mongoTypes.contains(cls) && customMappers.containsKey(cls)) {
+                return serialize(o);
+            }
 
-        if (mapper != null) {
-            return mapper.marshall(o);
+            return o;
         }
 
-        return o;
+        MorphiumTypeMapper mapper = customMappers.get(cls);
+        return mapper != null ? mapper.marshall(o) : o;
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    @Override
+    public Object marshallUpdatePullOperand(Object operand) {
+        if (operand != null && !(operand instanceof Map) && !(operand instanceof Collection) && !operand.getClass().isArray() && !annotationHelper.isEntity(operand.getClass())
+                && !mongoTypes.contains(operand.getClass()) && customMappers.containsKey(operand.getClass())) {
+            MorphiumTypeMapper mapper = customMappers.get(operand.getClass());
+            Object flat = mapper.marshall(operand);
+
+            if (!(flat instanceof Map)) {
+                // an element that a scalar mapper writes: arrays written by an older version (or by an update path before 6.4) hold it flat, arrays written
+                // by store() or by the update paths of today hold it wrapped. Remove both.
+                Map<String, Object> either = new LinkedHashMap<>();
+                either.put("$in", new ArrayList<>(List.of(serialize(operand), flat)));
+                return either;
+            }
+        }
+
+        if (!(operand instanceof Map) || ((Map) operand).isEmpty()) {
+            return marshallUpdateElement(operand);
+        }
+
+        Map<String, Object> condition = new LinkedHashMap<>();
+        boolean operators = false;
+        Object sample = null;
+
+        for (Map.Entry<Object, Object> e : ((Map<Object, Object>) operand).entrySet()) {
+            Object k = e.getKey();
+
+            if (k instanceof Enum) {
+                k = ((Enum) k).name();
+            } else if (!(k instanceof String)) {
+                throw new IllegalArgumentException("Can't use maps with a key that is not of type String in an update document: " + k);
+            }
+
+            operators |= ((String) k).startsWith("$");
+            Object v = e.getValue();
+
+            if (sample == null) {
+                sample = v instanceof Collection && !((Collection) v).isEmpty() ? ((Collection) v).iterator().next() : v;
+            }
+
+            // the operands of a condition ($gte: d, $in: [a, b]) are field values, not container members
+            if (v instanceof Collection) {
+                List<Object> members = new ArrayList<>();
+
+                for (Object member : (Collection) v) {
+                    members.add(marshallUpdateValue(member, false));
+                }
+
+                condition.put((String) k, members);
+            } else {
+                condition.put((String) k, marshallUpdateValue(v, false));
+            }
+        }
+
+        if (operators && sample != null && customMappers.containsKey(sample.getClass()) && !mongoTypes.contains(sample.getClass())
+                && !(customMappers.get(sample.getClass()).marshall(sample) instanceof Map)) {
+            // the elements are stored as {"value": scalar}: the condition has to look into the wrapper
+            Map<String, Object> wrapper = new LinkedHashMap<>();
+            wrapper.put("value", condition);
+            return wrapper;
+        }
+
+        return condition;
     }
 
     public NameProvider getNameProviderForClass(Class<?> cls) {

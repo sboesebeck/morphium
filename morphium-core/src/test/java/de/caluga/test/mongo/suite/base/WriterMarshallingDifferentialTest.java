@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -195,6 +197,65 @@ public class WriterMarshallingDifferentialTest extends MultiDriverTestBase {
             assertTrue(legacy(morphium, new ArrayList<>(List.of(Color.RED))) instanceof List<?> l && l.get(0) == Color.RED, "enum inside a list is untouched");
             Object set = legacy(morphium, new java.util.LinkedHashSet<>(List.of("a")));
             assertTrue(set instanceof java.util.Set, "a Set is untouched");
+        }
+    }
+
+    /** the rows that change on purpose (MOR-042); the new expectation is written out, the previous behaviour is shown by the legacy copy */
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesInMemOnly")
+    public void theSwitchRowsChangeOnPurpose(Morphium morphium) throws Exception {
+        try (morphium) {
+            MorphiumWriterImpl writer = (MorphiumWriterImpl) morphium.getConfig().writerSettings().getWriter();
+            String itemType = Item.class.getName();
+
+            // enum constants inside a container are written by name (the encoder wrote toString(), and failed for constants with a body)
+            assertTrue(legacy(morphium, new ArrayList<>(List.of(Color.RED))) instanceof List<?> l && l.get(0) == Color.RED);
+            assertEquals(List.of("RED"), writer.marshallIfNecessary(new ArrayList<>(List.of(Color.RED))));
+
+            // a Set and an array reach the driver as a list; the elements are marshalled
+            assertEquals(List.of("a"), writer.marshallIfNecessary(new java.util.LinkedHashSet<>(List.of("a"))));
+            assertEquals(List.of("a", "b"), writer.marshallIfNecessary(new String[] {"a", "b"}));
+            Object items = writer.marshallIfNecessary(new Item[] {new Item("a", 1)});
+            assertEquals(itemType, ((Map<?, ?>) ((List<?>) items).get(0)).get("class_name"));
+
+            // nested containers are recursed
+            Object nested = writer.marshallIfNecessary(new ArrayList<>(List.of(new ArrayList<>(List.of(new Item("a", 1))))));
+            assertEquals(itemType, ((Map<?, ?>) ((List<?>) ((List<?>) nested).get(0)).get(0)).get("class_name"));
+            Map<String, Object> inner = new LinkedHashMap<>();
+            inner.put("x", new Item("a", 1));
+            Map<String, Object> outer = new LinkedHashMap<>();
+            outer.put("o", inner);
+            Object mapInMap = writer.marshallIfNecessary(outer);
+            assertEquals(itemType, ((Map<?, ?>) ((Map<?, ?>) ((Map<?, ?>) mapInMap).get("o")).get("x")).get("class_name"));
+
+            // a null element is kept (it was a NullPointerException)
+            List<Object> withNull = new ArrayList<>();
+            withNull.add(null);
+            assertEquals(withNull, writer.marshallIfNecessary(withNull));
+            assertThrows(NullPointerException.class, () -> legacy(morphium, withNull));
+
+            // an enum map key is accepted, other keys are rejected also in nested maps
+            Map<Object, Object> enumKey = new LinkedHashMap<>();
+            enumKey.put(Color.GREEN, 1);
+            assertEquals(Map.of("GREEN", 1), writer.marshallIfNecessary(enumKey));
+            assertThrows(IllegalArgumentException.class, () -> legacy(morphium, enumKey));
+            Map<Object, Object> nestedBadKey = new LinkedHashMap<>();
+            nestedBadKey.put("a", new LinkedHashMap<>(Map.of(1, "x")));
+            assertThrows(IllegalArgumentException.class, () -> writer.marshallIfNecessary(nestedBadKey));
+
+            // MorphiumId becomes an ObjectId inside a container and as an element; a whole-field value stays as it is (the wire encoder writes it as an ObjectId)
+            MorphiumId id = new MorphiumId();
+            assertTrue(legacy(morphium, id) instanceof MorphiumId);
+            assertTrue(writer.marshallIfNecessary(id) instanceof MorphiumId);
+            assertTrue(morphium.getMapper().marshallUpdateElement(id) instanceof org.bson.types.ObjectId);
+            assertTrue(((List<?>) writer.marshallIfNecessary(new ArrayList<>(List.of(id)))).get(0) instanceof org.bson.types.ObjectId);
+
+            // types the encoder cannot write
+            assertEquals(5L, writer.marshallIfNecessary(new java.util.concurrent.atomic.AtomicLong(5)));
+            assertEquals(java.math.BigInteger.TEN.toString().length() > 0, writer.marshallIfNecessary(java.math.BigInteger.TEN) != null);
+
+            // a Class value is data, not an entity
+            assertSame(Target.class, writer.marshallIfNecessary(Target.class));
         }
     }
 

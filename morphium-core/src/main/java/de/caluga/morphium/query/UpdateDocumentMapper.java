@@ -25,9 +25,11 @@ import java.util.Set;
  * stored names, {@code @Aliases}, unknown, positional and {@code $}-prefixed keys stay as they are. Without it the keys are used as given.</li>
  * <li>Two keys that resolve to the same name are merged if their values are equal and rejected otherwise.</li>
  * <li>The mapping is idempotent and never modifies the caller's map; containers are copied.</li>
- * <li>A single value for {@code $push}, {@code $addToSet}, {@code $pull} and {@code $pullAll} is an array element and is
- * marshalled like one: an entity/embedded value carries {@code class_name} like the elements {@code store()} writes,
- * a {@code MorphiumId} becomes an {@code ObjectId}.</li>
+ * <li>The values are marshalled in the shape {@code store()} writes at their position: the elements of {@code $push}, {@code $addToSet} and {@code $pullAll}
+ * and the value of a positional target ({@code list.$}, {@code list.0}, {@code list.$[x]}) with {@link de.caluga.morphium.objectmapping.MorphiumObjectMapper#marshallUpdateElement(Object)},
+ * the operand of {@code $pull} with {@link de.caluga.morphium.objectmapping.MorphiumObjectMapper#marshallUpdatePullOperand(Object)}, every other value as a whole field
+ * with {@link de.caluga.morphium.objectmapping.MorphiumObjectMapper#marshallUpdateValue(Object)}. An update does not know the declared type of the field, so an entity/embedded
+ * value always carries {@code class_name} (an entity keeps its {@code _id}), and a {@code MorphiumId} in a container becomes an {@code ObjectId}.</li>
  * <li>An entity for a field that is a {@code @Reference} is rejected: it would be embedded as a full document into a field that
  * the mapper expects to hold an id.</li>
  * <li>A write to an {@code @Encrypted} field is rejected (independent of {@code translateKeys}): the plaintext value would bypass the
@@ -36,7 +38,6 @@ import java.util.Set;
  * Package-private on purpose: the later update builder (MOR-006) calls it from {@code Query}.
  */
 final class UpdateDocumentMapper {
-    private static final Set<String> ELEMENT_OPERATORS = Set.of("$push", "$addToSet", "$pull", "$pullAll");
     private static final Set<String> REFERENCE_CHECKED_OPERATORS = Set.of("$set", "$setOnInsert", "$push", "$addToSet");
     private static final Set<String> ENCRYPTION_CHECKED_OPERATORS = Set.of("$set", "$setOnInsert", "$push", "$addToSet", "$pull", "$pullAll", "$inc", "$mul", "$min", "$max", "$bit");
 
@@ -79,7 +80,7 @@ final class UpdateDocumentMapper {
                 }
 
                 String key = translateKeys ? morphium.getARHelper().resolveFieldPath(type, given) : given;
-                Object value = operator.equals("$rename") ? renameTarget(f.getValue()) : mapValue(operator, f.getValue());
+                Object value = operator.equals("$rename") ? renameTarget(f.getValue()) : mapValue(operator, given, f.getValue());
 
                 if (mapped.containsKey(key)) {
                     if (!Objects.deepEquals(mapped.get(key), value)) {
@@ -120,15 +121,33 @@ final class UpdateDocumentMapper {
         return target;
     }
 
-    private Object mapValue(String operator, Object value) {
-        if (ELEMENT_OPERATORS.contains(operator) && value != null && !(value instanceof Collection) && !(value instanceof Map)
-                && !value.getClass().isArray()) {
-            // a single array element: marshal it as a one element list to get the element form (class_name for entities,
-            // ObjectId for a MorphiumId)
-            return ((List<?>) morphium.getMapper().marshallUpdateValue(java.util.Collections.singletonList(value))).get(0);
+    private static final Set<String> ELEMENT_OPERATORS = Set.of("$push", "$addToSet", "$pullAll");
+
+    private Object mapValue(String operator, String key, Object value) {
+        // an update does not know the declared type of the field. The position of a value follows the operator: the elements of $push/$addToSet/$pullAll and the
+        // operand of $pull are container members (store() writes them with serialize(): {"value": scalar} for a custom-mapped scalar), every other operator
+        // sets a whole field. A positional target (list.$, list.0, list.$[x], list.$[]) addresses one element, whatever the operator is.
+        if (operator.equals("$pull")) {
+            return morphium.getMapper().marshallUpdatePullOperand(value);
+        }
+
+        if (ELEMENT_OPERATORS.contains(operator) || isElementTarget(key)) {
+            return morphium.getMapper().marshallUpdateElement(value);
         }
 
         return morphium.getMapper().marshallUpdateValue(value);
+    }
+
+    /** true if the path ends in a positional segment: {@code $}, {@code $[]}, {@code $[x]} or an array index */
+    static boolean isElementTarget(String key) {
+        int dot = key.lastIndexOf('.');
+        String last = dot < 0 ? key : key.substring(dot + 1);
+
+        if (last.equals("$") || last.equals("$[]") || (last.startsWith("$[") && last.endsWith("]"))) {
+            return true;
+        }
+
+        return !last.isEmpty() && dot >= 0 && last.chars().allMatch(Character::isDigit);
     }
 
     private Field fieldOf(String key) {

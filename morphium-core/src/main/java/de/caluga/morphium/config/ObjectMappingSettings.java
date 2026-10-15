@@ -154,10 +154,7 @@ public class ObjectMappingSettings extends Settings {
      * {@code LocalDate}/{@code LocalTime} as longs). This includes:
      * <ul>
      *   <li>the query and update maps of driver commands used directly, e.g.
-     *       {@code FindAndModifyMongoCommand#setQuery}/{@code #setUpdate};</li>
-     *   <li>the update map of {@code Query#findOneAndUpdate(Map)} and
-     *       {@code Query#findOneAndUpdate(Map, boolean, boolean)} -- only the filter built via
-     *       {@code f(...)} is mapped, the update map is passed through as given;</li>
+     *       {@code FindAndModifyMongoCommand#setQuery}/{@code #setUpdate} (the update map of {@code Query#findOneAndUpdate(Map)} and of the update builder IS mapped);</li>
      *   <li>a filter set via {@code Query#rawQuery(Map)}, which {@code toQueryObject()} returns
      *       unchanged.</li>
      * </ul>

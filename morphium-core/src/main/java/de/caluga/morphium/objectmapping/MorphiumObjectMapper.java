@@ -69,22 +69,43 @@ public interface MorphiumObjectMapper {
     }
 
     /**
-     * Prepares a value that is part of an update document ({@code $set}, {@code $push}, ...) for the wire encoder.
-     * Only what the encoder cannot write is rewritten: entities and embedded objects become documents, enums become
-     * their constant name, and types without native encoder support that have a registered type mapper
-     * ({@code AtomicBoolean}, {@code AtomicInteger}, {@code AtomicLong}, {@code BigInteger}) are marshalled by that mapper.
-     * Collections and arrays become lists, maps become maps with String keys, a {@code MorphiumId} inside a container becomes an
-     * {@code ObjectId} (as {@code store()} writes list elements); everything else is passed through.
+     * Prepares the value of a WHOLE FIELD of an update document ({@code $set}, {@code $setOnInsert}, {@code $inc}, {@code $min}, ...) for the wire encoder, in the
+     * shape {@code store()} writes for a field of that value (#335): a custom-mapped value ({@code LocalDate}, {@code Instant}, {@code BigDecimal},
+     * {@code AtomicInteger}, ...) is the bare output of its type mapper, entities and embedded objects become documents with {@code class_name} (an entity keeps its
+     * {@code _id}), enums become their constant name. The members of Lists, Sets, arrays and Maps are marshalled with {@link #marshallUpdateElement(Object)}; the
+     * containers are copied (Maps with String keys, an enum key is written by name), a {@code MorphiumId} inside a container becomes an {@code ObjectId}. Everything
+     * else is passed through.
      * <p>
-     * Documents inside a container carry {@code class_name} like the elements {@code store()} writes; a single embedded
-     * value does not (single {@code @Entity} values lose their {@code _id}, as in {@code store()}). The method is
-     * idempotent and never modifies its argument: containers are copied.
+     * The method is idempotent and never modifies its argument.
      *
      * @param value the value, may be null
      * @return the value as it can be handed to the driver
      * @throws IllegalArgumentException for a map with a key that is neither a String nor an enum
      */
     Object marshallUpdateValue(Object value);
+
+    /**
+     * As {@link #marshallUpdateValue(Object)}, for a value that is ONE ELEMENT of a container ({@code $push}, {@code $addToSet}, {@code $pull}, {@code $each} members,
+     * and the target of a positional path such as {@code list.$}): it has the shape {@code store()} gives the elements of a container. A custom-mapped scalar
+     * is wrapped as {@code {"value": scalar}}, a map-returning mapper gets {@code class_name}, a {@code MorphiumId} becomes an {@code ObjectId}; types that
+     * the mapper writes natively ({@code String}, numbers, {@code Date}, ...) are not mapped.
+     *
+     * @param value the element, may be null
+     * @return the element as it can be handed to the driver
+     */
+    default Object marshallUpdateElement(Object value) {
+        return ((java.util.List<?>) marshallUpdateValue(java.util.Collections.singletonList(value))).get(0);
+    }
+
+    /**
+     * The operand of a {@code $pull}: either an element (equal to the elements to remove, {@link #marshallUpdateElement(Object)}) or a CONDITION. A map without
+     * {@code $}-keys is a condition on the fields of embedded documents, its values are fields ({@link #marshallUpdateValue(Object)}); a map with
+     * {@code $}-keys ({@code {$gte: date}}) is a condition on the elements themselves: its operands are marshalled as fields and, if the elements are stored wrapped
+     * ({@code {"value": scalar}}, i.e. the operands are custom-mapped scalars), the condition is rewritten to {@code {"value": {$gte: ...}}} so that it matches.
+     */
+    default Object marshallUpdatePullOperand(Object operand) {
+        return marshallUpdateElement(operand);
+    }
 
     void setAnnotationHelper(AnnotationAndReflectionHelper an);
 

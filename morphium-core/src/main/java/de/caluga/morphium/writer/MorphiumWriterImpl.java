@@ -2350,6 +2350,14 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
      */
     @Override
     public <T> Map<String, Object> set(final Query<T> query, final Map<String, Object> values, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
+        // the values are marshalled on the calling thread: an invalid value is thrown to the caller, and a collection the caller changes after
+        // the call is not seen by the (possibly asynchronous) write
+        final Map<String, Object> marshalled = new LinkedHashMap<>();
+
+        for (Map.Entry<String, Object> ef : values.entrySet()) {
+            marshalled.put(ef.getKey(), marshallIfNecessary(ef.getValue()));
+        }
+
         return submitAndBlockIfNecessary(callback, new WriterTask() {
             private AsyncOperationCallback<T> callback;
             private Map<String, Object> ret = new HashMap<>();
@@ -2369,9 +2377,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(cls), MorphiumStorageListener.UpdateTypes.SET);
                 Map<String, Object> toSet = new HashMap<>();
 
-                for (Map.Entry<String, Object> ef : values.entrySet()) {
+                for (Map.Entry<String, Object> ef : marshalled.entrySet()) {
                     String fieldName = morphium.getARHelper().getMongoFieldName(cls, ef.getKey());
-                    toSet.put(fieldName, marshallIfNecessary(ef.getValue()));
+                    toSet.put(fieldName, ef.getValue());
                 }
 
                 Map<String, Object> update = UtilsMap.of("$set", toSet);
@@ -2649,6 +2657,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     @Override
     public <T> Map<String, Object> pushPull(final MorphiumStorageListener.UpdateTypes type, final Query<T> query, final String field, final Object value, final boolean upsert, final boolean multiple,
                                             AsyncOperationCallback<T> callback) {
+        // marshalled on the calling thread, see set()
+        final Object marshalledValue = type == MorphiumStorageListener.UpdateTypes.PULL ? marshallPullOperand(value) : marshallElement(value);
         WriterTask r = new WriterTask() {
             private AsyncOperationCallback<T> callback;
             private Map<String, Object> ret = new HashMap<>();
@@ -2670,12 +2680,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 if (upsert) {
                     qobj = morphium.simplifyQueryObject(qobj);
                 }
-                // push/pull/addToSet address a single ARRAY ELEMENT - it must carry the exact
-                // shape store() writes for elements of that position (#335), not the whole-field
-                // shape a scalar field would get
-                Object v = marshallElement(value);
+
                 String fieldName = morphium.getARHelper().getMongoFieldName(cls, field);
-                Map<String, Object> set = Doc.of(fieldName, v instanceof Enum ? ((Enum) v).name() : v);
+                Map<String, Object> set = Doc.of(fieldName, marshalledValue);
                 Map<String, Object> update = null;
 
                 switch (type) {
@@ -2733,119 +2740,29 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     }
 
     /**
-     * Marshalls a WHOLE-FIELD value for the update APIs ({@code set()}): the result must have
-     * exactly the on-disk shape {@code store()} writes for that field (#335) - a custom-mapped
-     * scalar field stores the bare mapper output, a container field routes its elements through
-     * {@link #marshallElement}, entities/enums as before.
+     * Marshals the value of a WHOLE FIELD for the update APIs ({@code set()}, and the operators {@code $set}, {@code $setOnInsert}, {@code $inc}, {@code $min}, ...)
+     * with the update-value walk of the mapper: the result has the shape {@code store()} writes for a field of that value. An entity or embedded value is a document
+     * with {@code class_name} (an entity keeps its {@code _id}), a custom-mapped scalar the bare mapper output, enums are written by name, Lists, Sets, arrays and
+     * Maps are copied and marshalled recursively (their members in the element form, see {@link #marshallElement}), a {@code MorphiumId} inside a container becomes
+     * an {@code ObjectId}. Called on the calling thread before the write is submitted; a Map with a key that is not a String or an enum is rejected with an
+     * {@link IllegalArgumentException}. Overridable.
      */
     public Object marshallIfNecessary(Object value) {
-        if (value != null) {
-            if (value instanceof Enum) {
-                return ((Enum) value).name();
-            }
-
-            // Order matters and mirrors ObjectMapperImpl's field serializer: Entity/Embedded
-            // BEFORE custom-mapper. Geo and friends are BOTH (@Embedded + BsonGeoMapper), and
-            // store() runs them through serialize(), whose map-shaped output carries class_name -
-            // the exact thing a polymorphic field declaration needs to pick the subclass. Taking
-            // the bare-mapper path for them would re-open the very shape split #335 fixes.
-            if (morphium.getARHelper().isAnnotationPresentInHierarchy(value.getClass(), Entity.class) || morphium.getARHelper().isAnnotationPresentInHierarchy(value.getClass(), Embedded.class)) {
-                // need to serialize...
-                Map<String, Object> marshall = morphium.getMapper().serialize(value);
-                marshall.put("class_name", morphium.getARHelper().getTypeIdForClass(value.getClass()));
-                value = marshall;
-            } else if (morphium.getMapper().isCustomMapped(value.getClass())) {
-                // #335: a custom-mapped FIELD stores the bare mapper output - no {"value"}
-                // wrapper, no class_name (ObjectMapperImpl's entity-field serializer calls
-                // marshall() directly). The mappers honor useBsonDateForJavaTime dynamically,
-                // so this also keeps set() agreeing with store() when the flag is on.
-                return morphium.getMapper().marshallIfCustomMapped(value);
-            } else if (List.class.isAssignableFrom(value.getClass())) {
-                List lst = new ArrayList();
-
-                for (Object o : (List) value) {
-                    lst.add(marshallElement(o));
-                }
-
-                value = lst;
-            } else if (Map.class.isAssignableFrom(value.getClass())) {
-                value = new LinkedHashMap((Map) value);
-
-                for (Object e : ((Map) value).entrySet()) {
-                    Map.Entry en = (Map.Entry) e;
-
-                    if (!String.class.isAssignableFrom(((Map.Entry) e).getKey().getClass())) {
-                        throw new IllegalArgumentException("Can't push maps with Key not of type String!");
-                    }
-
-                    ((Map) value).put(en.getKey(), marshallElement(en.getValue()));
-                }
-            }
-        }
-
-        return value;
+        return morphium.getMapper().marshallUpdateValue(value);
     }
 
     /**
-     * Marshalls a single CONTAINER ELEMENT for the update APIs ({@code push()} /
-     * {@code addToSet()} / {@code pull()} / {@code $each}): it must land in the array with
-     * exactly the shape {@code store()} gives elements of that position (#335), or queries
-     * matching store()-written documents will miss update-written ones.
-     *
-     * <p>For custom-mapped types that shape is what {@code serialize()} produces: a
-     * scalar-returning mapper is wrapped as {@code {"value": scalar}}, a map-returning one gets
-     * class_name added to its map - identical to ObjectMapperImpl#serializeIterable's routing.
+     * Marshals a CONTAINER ELEMENT for the update APIs ({@code push()}, {@code addToSet()}, {@code pull()}, {@code pullAll()} and the {@code $each} members): the
+     * element form of the update-value walk, i.e. the shape {@code store()} gives elements of an array. A custom-mapped scalar is wrapped as {@code {"value": scalar}},
+     * a map-returning mapper gets {@code class_name}, entities and embedded values carry {@code class_name}. Called on the calling thread. Overridable.
      */
-    private Object marshallElement(Object o) {
-        if (o == null) {
-            return null;
-        }
+    protected Object marshallElement(Object o) {
+        return morphium.getMapper().marshallUpdateElement(o);
+    }
 
-        if (o instanceof Enum) {
-            return ((Enum) o).name();
-        }
-
-        if (morphium.getARHelper().isAnnotationPresentInHierarchy(o.getClass(), Entity.class)
-                || morphium.getARHelper().isAnnotationPresentInHierarchy(o.getClass(), Embedded.class)) {
-            Map<String, Object> marshall = morphium.getMapper().serialize(o);
-            marshall.put("class_name", morphium.getARHelper().getTypeIdForClass(o.getClass()));
-            return marshall;
-        }
-
-        if (morphium.getMapper().isCustomMapped(o.getClass())) {
-            // serialize() produces exactly store()'s element shape (scalar-returning mappers
-            // wrapped as {"value": scalar}, map-shaped output gets class_name) and invokes the
-            // mapper exactly once - unlike marshall-then-serialize, which would run it twice.
-            return morphium.getMapper().serialize(o);
-        }
-
-        if (List.class.isAssignableFrom(o.getClass())) {
-            List lst = new ArrayList();
-
-            for (Object el : (List) o) {
-                lst.add(marshallElement(el));
-            }
-
-            return lst;
-        }
-
-        if (Map.class.isAssignableFrom(o.getClass())) {
-            Map out = new LinkedHashMap((Map) o);
-
-            for (Object e : out.entrySet()) {
-                Map.Entry en = (Map.Entry) e;
-
-                if (!String.class.isAssignableFrom(en.getKey().getClass())) {
-                    throw new IllegalArgumentException("Can't push maps with Key not of type String!");
-                }
-
-                out.put(en.getKey(), marshallElement(en.getValue()));
-            }
-
-            return out;
-        }
-
-        return o;
+    /** the operand of {@code pull()}: an element, or a condition on the elements or on the fields of embedded documents, see {@code MorphiumObjectMapper#marshallUpdatePullOperand} */
+    protected Object marshallPullOperand(Object o) {
+        return morphium.getMapper().marshallUpdatePullOperand(o);
     }
 
     @SuppressWarnings("CommentedOutCode")
@@ -2903,6 +2820,17 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     @Override
     public <T> Map<String, Object> pushPullAll(final MorphiumStorageListener.UpdateTypes type, final Query<T> query, final String f, final List<?> v, final boolean upsert, final boolean multiple,
             AsyncOperationCallback<T> callback) {
+        if (v == null) {
+            throw new IllegalArgumentException("The list of values to " + type.name().toLowerCase() + " must not be null");
+        }
+
+        // marshalled on the calling thread, see set()
+        final List<Object> marshalledValues = new ArrayList<>(v.size());
+
+        for (Object o : v) {
+            marshalledValues.add(marshallElement(o));
+        }
+
         WriterTask r = new WriterTask() {
             private AsyncOperationCallback<T> callback;
             private Map<String, Object> ret = new HashMap<>();
@@ -2917,13 +2845,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             @SuppressWarnings("CommentedOutCode")
             @Override
             public void run() {
-                List<?> value = v;
+                List<?> value = marshalledValues;
                 String field = f;
                 Class<?> cls = query.getType();
                 String coll = query.getCollectionName();
                 morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(cls), type);
                 long start = System.currentTimeMillis();
-                value = value.stream().map(o -> marshallElement(o)).collect(Collectors.toList());
 
                 try {
                     Map<String, Object> qobj = query.toQueryObject();

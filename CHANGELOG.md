@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+#### Writer path and `findOneAndUpdate`: one convention for values (MOR-042)
+- A single `@Embedded` value in `findOneAndUpdate` now carries `class_name` and a single `@Entity` keeps its `_id`, like on the writer path (the first version of the
+  update-value walk left both out); the declared type of the field is not known to an update, and `class_name` is what lets an `Object` or `@AdditionalData` value be read back.
+- Values are marshalled on the calling thread, before the write is submitted. An invalid value (a map key that is neither a `String` nor an enum, at any depth) throws an `IllegalArgumentException` from
+  the call itself (it used to arrive wrapped in a `RuntimeException` from the writer task, or at the callback), fires no update event and is not retried; a collection the caller changes after
+  the call (also with a callback or the async writer) is not seen by the write. `@WriteBuffer` entities use the buffered writer on a real MongoDB, which still does not marshal values.
+- Enum constants inside Lists and Maps are written by `name()` (they were written by `toString()`, constants with a body failed); this differs only if `toString()` is overridden.
+  Typed enum fields are unaffected; for `Object`-typed and `@AdditionalData` values the walk writes the plain name like the top-level enum did before, `store()` writes `{class_name, name}`.
+- `null` elements in a list are kept (a `NullPointerException` before), Enum map keys are accepted, nested map keys that are not Strings are rejected on both drivers
+  (the InMemoryDriver accepted them, a real MongoDB failed in the encoder).
+- A `MorphiumId` inside a container, or as a single value, becomes an `ObjectId` (wire-identical on MongoDB; visible on the InMemoryDriver, where `$addToSet`/`$pull` now match the elements `store()` writes).
+- `Set`, other collections and non-primitive arrays reach the InMemoryDriver as lists. `AtomicBoolean`/`AtomicInteger`/`AtomicLong`/`BigInteger` are written by their type mapper.
+- `MorphiumWriterImpl.marshallIfNecessary` stays public and overridable and is used by `set`, `pushPull` and `pushPullAll`.
+
 #### `Query.findOneAndUpdate`: the keys of the operator maps are translated to the stored field names (MOR-041)
 `Query.f(...)` has always translated Java names, but the update side wrote the key as given: `{"$set": {"expiresAt": d}}` on an entity with
 camel case translation created a stray field `expiresAt` next to the real `expires_at`, which is never read back, and `$unset` or `$rename`
@@ -34,20 +48,49 @@ context keep their own key handling.
 
 ### Fixed
 
+#### Update values take the shape `store()` writes at their position (reconciles #335)
+Upstream 6.3.10 made `Query.set/push/addToSet` write custom-mapped values (`java.time`, `BigDecimal`, `Character`, `Timestamp`, `Atomic*`, `BigInteger`) in the shape `store()` writes: the bare
+mapper output for a whole field, `serialize()`'s shape for a member of a container (`{"value": scalar}` for a scalar mapper, a map with `class_name` for a map-returning one). The update paths
+of this release (`Query.findOneAndUpdate(Map)`, the update builder, the writer path) use that rule through ONE update-value walk of the mapper
+(`MorphiumObjectMapper.marshallUpdateValue` for a whole field, `marshallUpdateElement` for an element, `marshallUpdatePullOperand` for the operand of `$pull`):
+- the position follows the operator (`$push`, `$addToSet`, `$pullAll`: element; `$set`, `$setOnInsert`, `$inc`, `$min`, `$max`, ...: whole field) and a positional target (`list.$`, `list.0`, `list.$[x]`: element);
+- the members of Lists, Sets, arrays and Maps are elements; types the mapper writes natively (`String`, numbers, `Date`, `UUID`, ...) are not mapped, an entity/embedded value is a document with `class_name`
+  (an entity keeps its `_id`): an update does not know the declared type of the field, so - unlike `store()` - a non-polymorphic single embedded value carries `class_name` too;
+- `$pull` of an element removes it in the flat shape that older versions and update paths before this release wrote AND in the wrapped shape; a `$pull` condition on the elements of a container of mapped scalars
+  (`{$gte: date}`) is rewritten to `{"value": {$gte: ...}}` so that it matches, a condition on the fields of embedded documents keeps its values as fields.
+
+Behaviour changes: `BigDecimal` is written as a double and `Character` as an int, as `store()` does (the wire encoder wrote Decimal128 and a string), `Timestamp` as a long; the output of `findOneAndUpdate(Map)`
+for a `List<LocalDate>` and friends changes from flat elements to wrapped ones. Documents written flat by an earlier version are not read back typed until they are stored once with `store()`
+(a flat element reaches a `List<LocalDate>` as a raw number), and `$addToSet` does not recognise a flat element as equal to a wrapped one. `useBsonDateForJavaTime` now reaches `findOneAndUpdate(Map)` and the builder, which
+supersedes the note "Documented: `useBsonDateForJavaTime` does not reach maps you build yourself" of 6.3.14 for these two methods (a map handed to a driver command is still not mapped).
+
+#### Writer path: `Query.set`, `push`, `pushAll`, `addToSet`, `addAllToSet`, `pull`, `pullAll` marshal nested values (MOR-042)
+A `Set`, an array, a `Map` inside a `Map` or a `List` inside a `List` that contained `@Embedded`/`@Entity` values failed on a real MongoDB with
+`Unhandled Data type`, and the InMemoryDriver stored the live Java objects or failed with a `ClassCastException` after a partial write; a `$each`
+map with embedded values failed the same way. The writer now uses the update-value walk of `findOneAndUpdate`
+(`MorphiumObjectMapper.marshallUpdateElement(Object)`, new default method; `push`/`addToSet`/`pull`/`pullAll` marshal their elements, `set` the whole field). Output that worked before is unchanged (verified by a differential test
+against the previous implementation): a single embedded value and a single entity still carry `class_name` (an entity keeps its `_id`), keys keep the strict
+`getMongoFieldName` handling, `currentDate` is unchanged.
+
+Also fixed in the same change: `Query.pullAll(String, List)` (and the `Enum` and `Morphium.pullAll(Query, String/Enum, List, upsert, multiple)` variants) sent `$pull`
+of the list as ONE element instead of `$pullAll`; `Query.set(String, null, ...)` threw a `NullPointerException`; `Query.set(Enum, ...)` used `toString()` of the constant as the field name
+instead of `name()`; a `Class` value was treated as an entity by the update-value walk.
+
 #### `Query.findOneAndUpdate`: embedded objects, entities and enums in update documents (MOR-002)
 The update document was handed to the driver as it was, so an `@Embedded`/`@Entity` object in a `List`, `Set`, array,
 single value or `Map` of a `$set`, `$setOnInsert`, `$push` or `$addToSet` failed on a real MongoDB with
 `Unhandled Data type` (and the legacy one-argument overload swallowed the error and returned `null`), while the
 InMemoryDriver stored live Java objects or failed with a `ClassCastException` after a partial write. Both overloads now
-marshal the values of every operator map (new `MorphiumObjectMapper.marshallUpdateValue(Object)`): entities and embedded
-objects become documents (with `class_name` inside a container, without it as a single value, as `store()` writes
-them), enums become their constant name (`name()`, not `toString()`), a `MorphiumId` inside a container becomes an
-`ObjectId`, and `AtomicBoolean`/`AtomicInteger`/`AtomicLong`/`BigInteger` are written by their type mapper. Sets and
+marshal the values of every operator map (new `MorphiumObjectMapper.marshallUpdateValue(Object)` and `marshallUpdateElement(Object)`):
+entities and embedded objects become documents carrying `class_name` (an update does not know the declared type of the field; a single
+entity keeps its `_id`), enums become their constant name (`name()`, not `toString()`), a `MorphiumId` becomes an `ObjectId`,
+and custom-mapped values (`java.time`, `BigDecimal`, `Character`, `Timestamp`, `AtomicBoolean`/`AtomicInteger`/`AtomicLong`, `BigInteger`) take the shape `store()` writes at their position, see
+"Update values take the shape `store()` writes" below. Sets and
 non-primitive arrays reach the InMemoryDriver as lists, like on a real MongoDB. Documents which are already serialised
 are not changed again, the caller's map is never modified and an update document without a `$`-operator (a replacement
 document) is sent as it is. An entity for a `@Reference` field is rejected with an
 `IllegalArgumentException` instead of being embedded. A map key that is neither a `String` nor an enum is rejected.
-Not covered: `Query.set`/`push`/`pushAll` (writer path), `Expr` values, `findOneAndUpdateEnums`.
+Not covered: `Expr` values and `findOneAndUpdateEnums` (a replacement document). The writer path (`Query.set`, `push`, ...) is covered by the next entry.
 
 #### `Query.findOneAndUpdate` upsert: `_id` inside `$and` no longer collides with a generated id (MOR-003)
 A filter such as `_id = X AND (expiresAt < now OR owner = me)` is wrapped in `$and`; the generated `$setOnInsert._id`
