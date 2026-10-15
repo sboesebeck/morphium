@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 40, done 5
+Status: open 43, done 6
 
 ## Overview
 
@@ -34,6 +34,7 @@ Status: open 40, done 5
 | MOR-036 | open | 2 | verification | Re-run the reproduction on other topologies and server versions | S |  |  |
 | MOR-037 | open | 2 | defect | Morphium.simplifyQueryObject loses predicates for repeated operator keys | S |  |  |
 | MOR-043 | open | 2 | defect | Query.f should resolve field paths with resolveFieldPath | M |  | MOR-041 |
+| MOR-046 | open | 2 | defect | BufferedMorphiumWriterImpl does not marshal update values and emits push for a pull of a list | M |  | MOR-042 |
 | MOR-011 | open | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
@@ -47,14 +48,17 @@ Status: open 40, done 5
 | MOR-035 | open | 3 | implementation | Records and value objects in the mapper | L |  |  |
 | MOR-038 | open | 3 | defect | Replacement documents, findOneAndUpdateEnums and Expr values still fail with POJOs in update maps | M |  | MOR-002 |
 | MOR-039 | open | 3 | documentation | Document pitfalls of update maps: $pull condition keys and mixed element shapes | S |  | MOR-027 |
-| MOR-042 | open | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-044 | open | 3 | defect | Version annotation with fieldName: store and filter disagree on the stored name | S |  |  |
 | MOR-045 | open | 3 | defect | Update documents: a String value for _id of a MorphiumId entity is not coerced | S |  | MOR-041 |
+| MOR-047 | open | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
+| MOR-048 | open | 3 | defect | MorphiumBase.setEnum looks the value up by the map value instead of the key | S |  |  |
+| MOR-049 | open | 3 | implementation | Writer path has no guard for @Reference and @Encrypted fields | M |  | MOR-042 |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
 | MOR-040 | done | 2 | defect | fieldNameCache: inner HashMap is not thread safe | S |  |  |
 | MOR-041 | done | 2 | implementation | Key translation for operator maps in findOneAndUpdate | M |  | MOR-002 |
+| MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 
 ## Details
 
@@ -133,7 +137,7 @@ Source: docs/research/reproduction-results.md hypothesis 3
 
 Status **open**, priority 2, type verification, effort S
 
-The currentDate reproduction shows that a writeErrors entry (code 52) does not raise an exception on the Query.set path. Check which update paths (set, inc, dec, push, pull, addToSet, unset, bulk) ignore writeErrors, and fix or file the confirmed ones. Also verify the unconfirmed claim that MorphiumWriter.inc(Query, Map) puts keys into $inc without field-name translation (MorphiumWriterImpl ~line 2025). Do not duplicate GitHub #408 (writeConcernError ignored); link it.
+The currentDate reproduction shows that a writeErrors entry (code 52) does not raise an exception on the Query.set path. Check which update paths (set, inc, dec, push, pull, addToSet, unset, bulk) ignore writeErrors, and fix or file the confirmed ones. Also verify the unconfirmed claim that MorphiumWriter.inc(Query, Map) puts keys into $inc without field-name translation (MorphiumWriterImpl ~line 2025). Do not duplicate GitHub #408 (writeConcernError ignored); link it. Finding from MOR-042: MorphiumWriterImpl.inc(Query, Map) puts the keys of the map into $inc without name translation (around line 2025), unlike the single-field inc; verify with a test on a real MongoDB.
 
 Acceptance:
 
@@ -670,9 +674,11 @@ Commits: 0ec3a9562
 
 ### MOR-042 Writer path: marshal values with the shared update-value walk and use one convention for single values
 
-Status **open**, priority 3, type implementation, effort L
+Status **done**, priority 3, type implementation, effort L
 
 Query.set, push, pushAll, pull, pullAll, addToSet and addAllToSet marshal their values with the shared update-value walk, eagerly on the caller thread, in the element form, so Set, array, Map-in-Map and nested containers of @Embedded/@Entity values no longer fail on a real MongoDB or get stored as live objects by the InMemoryDriver. Output that works today stays identical (single embedded values keep class_name, a single entity keeps its _id); enum constants inside containers become name(), null list elements are kept and Enum map keys are accepted. The same PR changes findOneAndUpdate so that single values also carry class_name (one convention for update paths), fixes pullAll sending $pull, Query.set with a null value (NPE) and Query.set(Enum, ...) using toString(), and stops treating a Class value as an entity. Keys keep the strict getMongoFieldName semantics of the writer; currentDate (MOR-004), inc keys and swallowed write errors (MOR-005) are not part of this task. The marshalling covers Collection, not every Iterable.
+
+Evidence: New: WriterMarshallingDifferentialTest 4 (KEEP rows equal a verbatim copy of the previous function, SWITCH rows asserted), WriterPathWiringTest 34 (1 skipped), WriterPathMarshallingTest 30, the repro pins of PojoInSetOperatorReproductionTest flipped (6); all green on PooledDriver (mongo:8) and InMemoryDriver. With the writer, Query and MorphiumBase changes reverted, 25 of the 34 new tests of the last two classes fail, so they test real behaviour. Regression subset of 52 classes: 564 tests on the InMemoryDriver with 2 errors (ReferenceCascadeTest: Byte Buddy does not support Java 25, the JDK of the run); on a real MongoDB plus InMem 853 tests, the failures were environmental: the Docker VM disk was full (Mongo refused writes, 14031), and after moving the data directory to tmpfs ExclusiveMessageTests.exclusiveTest and exclusivityTest still fail identically on the commit before the change (4e378f261), CoreFunctionalityTests.cachedObjectOperationsTest passed in 3 of 3 repetitions and on the baseline. Follow-ups filed: MOR-046 to MOR-049; the inc(Query, Map) finding is noted in MOR-005.
 
 Acceptance:
 
@@ -688,6 +694,8 @@ Acceptance:
 Depends on: MOR-002
 
 Source: docs/research/plan-mor-001-002-003.md, docs/research/plan-mor-042.md
+
+Commits: 4e378f261, 39ac39ac3
 
 ### MOR-043 Query.f should resolve field paths with resolveFieldPath
 
@@ -729,4 +737,59 @@ Acceptance:
 Depends on: MOR-041
 
 Source: docs/research/plan-mor-041.md
+
+### MOR-046 BufferedMorphiumWriterImpl does not marshal update values and emits push for a pull of a list
+
+Status **open**, priority 2, type defect, effort M
+
+For entities with @WriteBuffer on a real MongoDB the buffered writer passes the values of set, pushPull and pushPullAll to the driver raw, so embedded values, Sets and enums fail or are stored differently from the synchronous writer, and pushPullAll for PULL emits $push (BufferedMorphiumWriterImpl around lines 631-658, 944-985 and 988-1030). It is selected on a real MongoDB only, so the InMemoryDriver tests never see it.
+
+Acceptance:
+
+- Query.set, push, pushAll and pull on a @WriteBuffer entity store the same documents as on a synchronous entity, on a real MongoDB
+- pullAll on a @WriteBuffer entity removes the elements
+
+Depends on: MOR-042
+
+Source: docs/research/plan-mor-042.md
+
+### MOR-047 MorphiumBulkContext.createUpdateRequest does not marshal update values
+
+Status **open**, priority 3, type defect, effort S
+
+The bulk context hands the values of its update requests to the driver as given (bulk/MorphiumBulkContext.java around lines 56-64), so embedded values, Sets and enums in a bulk update fail on a real MongoDB or are stored as live objects by the InMemoryDriver.
+
+Acceptance:
+
+- A bulk update with an embedded value, a Set and an enum stores the same documents as Query.set, on a real MongoDB
+
+Depends on: MOR-042
+
+Source: docs/research/plan-mor-042.md
+
+### MOR-048 MorphiumBase.setEnum looks the value up by the map value instead of the key
+
+Status **open**, priority 3, type defect, effort S
+
+MorphiumBase.setEnum builds the field map with values.get(est.getValue()) around line 1215, which looks up the value as if it were a key, so the value written is null unless a value equals a key. Read in the code, not reproduced.
+
+Acceptance:
+
+- setEnum with a map of constants and values stores each value under the name of its constant, on a real MongoDB
+
+Source: docs/research/plan-mor-042.md
+
+### MOR-049 Writer path has no guard for @Reference and @Encrypted fields
+
+Status **open**, priority 3, type implementation, effort M
+
+UpdateDocumentMapper rejects an entity for a @Reference field and any write to an @Encrypted field in findOneAndUpdate; Query.set, push and pull accept both and embed the entity or store a plaintext value. Adding the guard would be a breaking change for callers who rely on it, so it needs a decision and a CHANGELOG entry.
+
+Acceptance:
+
+- Query.set of an entity into a @Reference field and of a plaintext value into an @Encrypted field fail with a clear message, or the decision to keep the behaviour is documented in the Javadoc and the CHANGELOG
+
+Depends on: MOR-042
+
+Source: docs/research/plan-mor-042.md
 
