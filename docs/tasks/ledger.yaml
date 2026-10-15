@@ -722,7 +722,7 @@ tasks:
 - id: MOR-041
   title: Key translation for operator maps in findOneAndUpdate
   type: implementation
-  status: open
+  status: done
   priority: 2
   effort: M
   description: Translate the keys of operator maps in findOneAndUpdate to the Mongo field names for every operator,
@@ -748,6 +748,15 @@ tasks:
   source:
   - docs/research/plan-mor-001-002-003.md
   - docs/research/plan-mor-041.md
+  evidence: 'New tests: StoredFieldNameResolverTest 19, ResolveFieldPathTest 8, UpdateDocumentMapperKeyTest 12,
+    UpdateKeyTranslationTest 48 invocations (1 skipped: cross-operator path conflict on InMem), MorphiumConfigTest
+    16; all green on PooledDriver (mongo:8, v8.3.11) and InMemoryDriver. The raw-document reads of UpdateKeyTranslationTest
+    bypass the projection to known fields that Query adds, so stray fields are really detected (the first run with
+    asMapList was vacuous for strays). Regression subset of 38 classes: 672 tests on Mongo + InMem and 470 on InMem,
+    0 failures, only ReferenceCascadeTest errors (Byte Buddy does not support Java 25, the JDK of the run; unrelated).
+    Scope kept to the decisions in docs/research/plan-mor-041.md; Query.f is unchanged (MOR-043).'
+  commits:
+  - 0ec3a9562
 - id: MOR-042
   title: 'Writer path: delegate marshallIfNecessary to the shared update-value walk'
   type: implementation

@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 41, done 4
+Status: open 40, done 5
 
 ## Overview
 
@@ -33,7 +33,6 @@ Status: open 41, done 4
 | MOR-034 | open | 2 | implementation | Quarkus testing module: real MongoDB test resource, data reset and fixtures | M |  |  |
 | MOR-036 | open | 2 | verification | Re-run the reproduction on other topologies and server versions | S |  |  |
 | MOR-037 | open | 2 | defect | Morphium.simplifyQueryObject loses predicates for repeated operator keys | S |  |  |
-| MOR-041 | open | 2 | implementation | Key translation for operator maps in findOneAndUpdate | M |  | MOR-002 |
 | MOR-043 | open | 2 | defect | Query.f should resolve field paths with resolveFieldPath | M |  | MOR-041 |
 | MOR-011 | open | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
@@ -55,6 +54,7 @@ Status: open 41, done 4
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
 | MOR-040 | done | 2 | defect | fieldNameCache: inner HashMap is not thread safe | S |  |  |
+| MOR-041 | done | 2 | implementation | Key translation for operator maps in findOneAndUpdate | M |  | MOR-002 |
 
 ## Details
 
@@ -646,9 +646,11 @@ Commits: 491945d60
 
 ### MOR-041 Key translation for operator maps in findOneAndUpdate
 
-Status **open**, priority 2, type implementation, effort M
+Status **done**, priority 2, type implementation, effort M
 
 Translate the keys of operator maps in findOneAndUpdate to the Mongo field names for every operator, including the key of $unset and the key and target of $rename, dotted keys through a lenient resolveFieldPath and the single-segment resolver, never through @Aliases. The translation is always on, with a kill switch (translateUpdateFieldNames, default true) and a per-query override. Two keys that resolve to the same name throw only if their values differ. An update that would write a plaintext value into an @Encrypted field is rejected. The one-argument AnnotationAndReflectionHelper constructor gets a thread safe realClassCache.
+
+Evidence: New tests: StoredFieldNameResolverTest 19, ResolveFieldPathTest 8, UpdateDocumentMapperKeyTest 12, UpdateKeyTranslationTest 48 invocations (1 skipped: cross-operator path conflict on InMem), MorphiumConfigTest 16; all green on PooledDriver (mongo:8, v8.3.11) and InMemoryDriver. The raw-document reads of UpdateKeyTranslationTest bypass the projection to known fields that Query adds, so stray fields are really detected (the first run with asMapList was vacuous for strays). Regression subset of 38 classes: 672 tests on Mongo + InMem and 470 on InMem, 0 failures, only ReferenceCascadeTest errors (Byte Buddy does not support Java 25, the JDK of the run; unrelated). Scope kept to the decisions in docs/research/plan-mor-041.md; Query.f is unchanged (MOR-043).
 
 Acceptance:
 
@@ -663,6 +665,8 @@ Acceptance:
 Depends on: MOR-002
 
 Source: docs/research/plan-mor-001-002-003.md, docs/research/plan-mor-041.md
+
+Commits: 0ec3a9562
 
 ### MOR-042 Writer path: delegate marshallIfNecessary to the shared update-value walk
 
