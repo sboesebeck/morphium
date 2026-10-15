@@ -8,7 +8,6 @@ import de.caluga.morphium.annotations.Property;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.commands.FindCommand;
-import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.query.Query;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -25,7 +24,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
  * MOR-042: one test per entry point of the writer path ({@code Query.set}, {@code push}, {@code pushAll}, {@code addToSet},
@@ -387,13 +385,13 @@ public class WriterPathWiringTest extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
-    public void currentDateStillDoesNotSetTheField(Morphium m) throws Exception {
+    public void currentDateSetsTheField(Morphium m) throws Exception {
         try (m) {
-            // pinned defect MOR-004, see CurrentDateReproductionTest; the value function must not change it
-            assumeFalse(m.getDriver() instanceof InMemoryDriver, "the InMemoryDriver reports a success");
+            // MOR-004: this used to be a pinned defect ({$set: {$currentDate: ...}} is rejected by the server)
             store(m, "c1");
             m.currentDate(q(m, "c1"), "when", false, false);
-            assertFalse(raw(m, "c1").get("when") instanceof Date);
+            Object when = raw(m, "c1").get("when");
+            assertTrue(when instanceof Date && ((Date) when).getTime() > 1_000_000_000_000L, String.valueOf(when));
         }
     }
 }

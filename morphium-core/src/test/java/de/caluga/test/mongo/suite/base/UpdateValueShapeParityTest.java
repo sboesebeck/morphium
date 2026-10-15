@@ -221,6 +221,28 @@ public class UpdateValueShapeParityTest extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
+    public void theBuilderWritesTheShapeOfStore(Morphium m) throws Exception {
+        try (m) {
+            for (boolean flag : new boolean[] {false, true}) {
+                withFlag(m, flag, () -> {
+                    try {
+                        Shaped stored = full();
+                        m.store(stored);
+                        Shaped target = blank(m);
+                        var b = m.createQueryFor(Shaped.class).f("_id").eq(target.id).modify();
+                        values().forEach(b::set);
+                        b.findOneAndUpdate(de.caluga.morphium.query.ReturnDocument.AFTER);
+                        assertSameShape(m, stored.id, target.id, "builder set (flag " + flag + ")");
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
     public void queryPushAndAddToSetWriteTheElementShapeOfStore(Morphium m) throws Exception {
         try (m) {
             for (boolean flag : new boolean[] {false, true}) {

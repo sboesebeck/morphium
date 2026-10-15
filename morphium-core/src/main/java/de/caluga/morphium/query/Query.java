@@ -429,12 +429,29 @@ public class Query<T> implements Cloneable {
 
     @SuppressWarnings("ConstantConditions")
 
+    /**
+     * Starts an atomic, mapper-aware update of the document this query selects: {@code query.modify().set("ownerName", me).inc("hits", 1).upsert()
+     * .findOneAndUpdate(ReturnDocument.AFTER)}. <b>Nothing is written until the terminal is called.</b> The query is captured now: changing it afterwards does not
+     * change the update. See {@link UpdateBuilder} for what is translated, merged, versioned and rejected.
+     *
+     * @apiNote incubating until 6.3
+     */
+    public UpdateBuilder<T> modify() {
+        return new UpdateBuilder<>(morphium, clone());
+    }
+
+    /** true if a projection (field list) is set; the update builder rejects it */
+    boolean hasProjection() {
+        return fieldList != null && !fieldList.isEmpty();
+    }
+
     private Boolean translateUpdateFieldNames;
 
     /**
      * Overrides {@code ObjectMappingSettings.translateUpdateFieldNames} for the update documents of this query:
      * {@code true} translates the keys of the operator maps to the stored field names, {@code false} writes them as given (for example to
-     * remove a stray field that an earlier version created), {@code null} (default) follows the configuration.
+     * remove a stray field that an earlier version created), {@code null} (default) follows the configuration. The update builder ({@link #modify()}) ignores this
+     * setting and always translates.
      */
     public Query<T> setTranslateUpdateFieldNames(Boolean translate) {
         this.translateUpdateFieldNames = translate;
@@ -518,9 +535,9 @@ public class Query<T> implements Cloneable {
      *
      * <p>
      * The values of the operator maps ({@code $set}, {@code $setOnInsert}, {@code $push}, {@code $addToSet}, ...) are
-     * marshalled: entities and embedded objects become documents (elements inside a List, Set, array or Map carry
-     * {@code class_name}, a single embedded value does not, like {@code store()}), enums become their constant name,
-     * {@code AtomicLong}/{@code BigInteger} and the like are written by their type mapper, everything else is passed
+     * marshalled: entities and embedded objects become documents with {@code class_name} (an update does not know the declared type
+     * of the field; a single entity keeps its {@code _id}), enums become their constant name,
+     * {@code AtomicLong}/{@code BigInteger} and the java.time types are written by their type mapper, everything else is passed
      * through. Documents which are already serialised are not changed again.
      * <p>
      * The keys of the operator maps are translated to the names the fields are stored under (Java name {@code expiresAt} to
