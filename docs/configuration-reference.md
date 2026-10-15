@@ -251,17 +251,14 @@ through the object mapper:
 
 - entity persistence (`store()`),
 - filters built with the type-safe query API (`query.f("field").lt(instant)`),
-- the update APIs (`set()`, `push()`, `addToSet()` and friends).
+- the update APIs (`set()`, `push()`, `addToSet()` and friends, `Query#findOneAndUpdate(Map)` and the update builder `Query#modify()`).
 
 It does **not** apply to maps you build yourself. Those reach `BsonEncoder` without passing a
 mapper, and the encoder writes `java.time` values in the legacy format regardless of the flag
 (`Instant` and `LocalDateTime` as sub-documents, `LocalDate`/`LocalTime` as longs). This affects:
 
 - query and update maps passed to driver commands directly, e.g.
-  `FindAndModifyMongoCommand#setQuery` / `#setUpdate`,
-- the update map of `Query#findOneAndUpdate(Map)` and
-  `Query#findOneAndUpdate(Map, boolean, boolean)` (the filter built via `f(...)` is mapped, the
-  update map is not),
+  `FindAndModifyMongoCommand#setQuery` / `#setUpdate` (the update map of `Query#findOneAndUpdate(Map)` is mapped),
 - a filter set via `Query#rawQuery(Map)`.
 
 A `$lt`/`$lte` against such a value compares a sub-document, not a date, and does not match

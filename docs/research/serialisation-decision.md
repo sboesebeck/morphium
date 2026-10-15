@@ -32,3 +32,8 @@ The existing `ObjectMapperImpl.marshallIfNecessary(Object)` must NOT be exposed 
 3. PR 3: writer path delegation - MOR-042.
 
 The `_id` pin rule is based on the measurements in docs/research/upsert-id-seeding-probe.md.
+
+
+---
+
+> **Superseded in part (reconciliation with upstream #335, see plan-reconcile-335.md):** the update-value walk has two positions (whole field / element) and follows `store()` for custom-mapped values; `BigDecimal`, `Character` and `Timestamp` are no longer left as they are, and a single embedded value carries `class_name` in both positions.

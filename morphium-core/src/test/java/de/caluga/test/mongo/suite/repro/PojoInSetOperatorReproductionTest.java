@@ -37,10 +37,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * connection rejects.</li>
  * </ol>
  * MOR-002 fixed hypotheses 1 and 4 for {@code Query.findOneAndUpdate}: {@code rawPojoShapesInSet} now asserts the positive
- * expectation. {@code writerPathShapes} still pins the CURRENT behaviour of the writer path (MOR-042). It runs
+ * expectation; MOR-042 did the same for the writer path ({@code writerPathShapes}). It runs
  * against the InMemoryDriver by default and, in addition, against a real MongoDB when one is configured
  * (e.g. {@code ./runtests.sh --uri mongodb://127.0.0.1:27099/repro --driver pooled,inmem --test PojoInSetOperatorReproductionTest}).
- * If a defect gets fixed, the matching assertion fails and must be turned into the positive expectation.
+ * (The remaining pinned defects of this research are in the other classes of this package.)
  */
 @Tag("core")
 public class PojoInSetOperatorReproductionTest extends MultiDriverTestBase {
@@ -106,8 +106,8 @@ public class PojoInSetOperatorReproductionTest extends MultiDriverTestBase {
 
     /**
      * Hypothesis 1 / MOR-002 (fixed): every shape is marshalled by {@code Query.findOneAndUpdate} on both drivers.
-     * Elements inside a container (List, Set, array, Map value, Map in Map) carry {@code class_name}, a single
-     * value does not (same convention as {@code store()}). The same test was a pinned defect before MOR-002 (a real
+     * Elements inside a container (List, Set, array, Map value, Map in Map) and a single value carry {@code class_name}
+     * (MOR-042: one convention for the update paths, the same as the writer path, the declared type of the field is not known to an update). The same test was a pinned defect before MOR-002 (a real
      * MongoDB failed with "Unhandled Data type", the InMemoryDriver stored live Java objects or failed with a
      * ClassCastException after a partial write).
      */
@@ -145,7 +145,7 @@ public class PojoInSetOperatorReproductionTest extends MultiDriverTestBase {
                     case "list" -> assertTwoItems((List<?>) raw.get("items"));
                     case "set" -> assertTwoItems((List<?>) raw.get("itemSet"));
                     case "array" -> assertTwoItems((List<?>) raw.get("itemArray"));
-                    case "single" -> assertItem(raw.get("single"), "a", 1, false);
+                    case "single" -> assertItem(raw.get("single"), "a", 1, true);
                     case "map" -> assertXY((Map<?, ?>) raw.get("itemMap"));
                     default -> assertXY((Map<?, ?>) ((Map<?, ?>) raw.get("itemMap")).get("outer"));
                 }
@@ -179,10 +179,9 @@ public class PojoInSetOperatorReproductionTest extends MultiDriverTestBase {
     }
 
     /**
-     * For comparison: the writer path ({@code Query.set(field, value, upsert, multiple)}) goes through
-     * {@code MorphiumWriterImpl.marshallIfNecessary}, which handles a single @Embedded, a List and a Map of
-     * @Embedded values - but not a Set, an array or a Map nested in a Map. Documents which shapes option B
-     * ("make marshallIfNecessary handle any Iterable/array/nested Map") would additionally fix.
+     * The writer path ({@code Query.set(field, value, upsert, multiple)}) goes through {@code MorphiumWriterImpl.marshallIfNecessary}. Before MOR-042
+     * it handled a single @Embedded, a List and a Map of @Embedded values but failed with "Unhandled Data type" (real MongoDB) or stored live
+     * objects (InMemoryDriver) for a Set, an array and a Map nested in a Map. All shapes work now, with the same output as {@code findOneAndUpdate}.
      */
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
@@ -191,40 +190,38 @@ public class PojoInSetOperatorReproductionTest extends MultiDriverTestBase {
             String driver = morphium.getDriver().getName();
             Map<String, Object> nestedMap = new LinkedHashMap<>();
             nestedMap.put("x", new Item("a", 1));
+            nestedMap.put("y", new Item("b", 2));
             Map<String, Object> mapInMap = new LinkedHashMap<>();
             mapInMap.put("outer", new LinkedHashMap<>(nestedMap));
 
             Map<String, Object[]> shapes = new LinkedHashMap<>();
-            shapes.put("list", new Object[] {"items", list(), true});
-            shapes.put("single", new Object[] {"single", new Item("a", 1), true});
-            shapes.put("map", new Object[] {"itemMap", nestedMap, true});
-            shapes.put("set", new Object[] {"itemSet", new LinkedHashSet<>(list()), false});
-            shapes.put("array", new Object[] {"itemArray", new Item[] {new Item("a", 1)}, false});
-            shapes.put("mapInMap", new Object[] {"itemMap", mapInMap, false});
+            shapes.put("list", new Object[] {"items", list()});
+            shapes.put("single", new Object[] {"single", new Item("a", 1)});
+            shapes.put("map", new Object[] {"itemMap", nestedMap});
+            shapes.put("set", new Object[] {"itemSet", new LinkedHashSet<>(list())});
+            shapes.put("array", new Object[] {"itemArray", new Item[] {new Item("a", 1), new Item("b", 2)}});
+            shapes.put("mapInMap", new Object[] {"itemMap", mapInMap});
 
             for (var e : shapes.entrySet()) {
                 String shape = e.getKey();
                 String key = "w-" + shape;
-                boolean handled = (Boolean) e.getValue()[2];
                 Query<Holder> q = morphium.createQueryFor(Holder.class).f("key").eq(key);
                 Map<String, Object> set = new HashMap<>();
                 set.put("key", key);
                 set.put((String) e.getValue()[0], e.getValue()[1]);
                 Outcome<Map<String, Object>> o = ReproSupport.attempt(() -> q.set(set, true, false));
                 ReproSupport.report(driver, "H1 writer path (Query.set) shape=" + shape, o.describe());
-                ReproSupport.report(driver, "H1 writer path (Query.set) shape=" + shape + " raw documents",
-                                    String.valueOf(morphium.createQueryFor(Holder.class).f("key").eq(key).asMapList()));
+                assertFalse(o.failed(), shape + ": " + o.describe());
+                Map<String, Object> raw = rawDoc(morphium, key);
+                ReproSupport.report(driver, "H1 writer path (Query.set) shape=" + shape + " raw", String.valueOf(raw));
 
-                if (isInMem(morphium)) {
-                    continue; // InMem is only documented here, see the REPRO-RESULT lines
-                }
-                if (handled) {
-                    assertFalse(o.failed(), shape + ": " + o.describe());
-                    assertEquals(1, morphium.createQueryFor(Holder.class).f("key").eq(key).asMapList().size());
-                } else {
-                    assertTrue(o.failed(), shape + ": expected the unhandled shape to fail: " + o.describe());
-                    assertTrue(ReproSupport.describe(o.error).contains("Unhandled Data type"), o.describe());
-                    assertTrue(morphium.createQueryFor(Holder.class).f("key").eq(key).asMapList().isEmpty());
+                switch (shape) {
+                    case "list" -> assertTwoItems((List<?>) raw.get("items"));
+                    case "set" -> assertTwoItems((List<?>) raw.get("itemSet"));
+                    case "array" -> assertTwoItems((List<?>) raw.get("itemArray"));
+                    case "single" -> assertItem(raw.get("single"), "a", 1, true);
+                    case "map" -> assertXY((Map<?, ?>) raw.get("itemMap"));
+                    default -> assertXY((Map<?, ?>) ((Map<?, ?>) raw.get("itemMap")).get("outer"));
                 }
             }
         }
