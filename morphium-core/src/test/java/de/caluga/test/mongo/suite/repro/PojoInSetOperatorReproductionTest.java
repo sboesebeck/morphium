@@ -5,7 +5,6 @@ import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
@@ -37,7 +36,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <li>The InMemoryDriver does not go through the wire encoder, so it may accept what a real MongoDB
  * connection rejects.</li>
  * </ol>
- * The test asserts the CURRENT behaviour per driver (it documents a defect, it does not fix it). It runs
+ * MOR-002 fixed hypotheses 1 and 4 for {@code Query.findOneAndUpdate}: {@code rawPojoShapesInSet} now asserts the positive
+ * expectation. {@code writerPathShapes} still pins the CURRENT behaviour of the writer path (MOR-042). It runs
  * against the InMemoryDriver by default and, in addition, against a real MongoDB when one is configured
  * (e.g. {@code ./runtests.sh --uri mongodb://127.0.0.1:27099/repro --driver pooled,inmem --test PojoInSetOperatorReproductionTest}).
  * If a defect gets fixed, the matching assertion fails and must be turned into the positive expectation.
@@ -105,9 +105,11 @@ public class PojoInSetOperatorReproductionTest extends MultiDriverTestBase {
     }
 
     /**
-     * Hypothesis 1 for the failing shapes. Real MongoDB: the encoder throws "Unhandled Data type" wrapped in
-     * a MorphiumDriverException ("Error sending Request") and nothing is stored. InMemoryDriver (hypothesis 4):
-     * see the second branch of each assertion.
+     * Hypothesis 1 / MOR-002 (fixed): every shape is marshalled by {@code Query.findOneAndUpdate} on both drivers.
+     * Elements inside a container (List, Set, array, Map value, Map in Map) carry {@code class_name}, a single
+     * value does not (same convention as {@code store()}). The same test was a pinned defect before MOR-002 (a real
+     * MongoDB failed with "Unhandled Data type", the InMemoryDriver stored live Java objects or failed with a
+     * ClassCastException after a partial write).
      */
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
@@ -133,64 +135,47 @@ public class PojoInSetOperatorReproductionTest extends MultiDriverTestBase {
                 String shape = e.getKey();
                 String key = "k-" + shape;
                 Outcome<Holder> o = upsertWith(morphium, key, (String) e.getValue()[0], e.getValue()[1]);
-                ReproSupport.report(driver, "H1/H4 shape=" + shape, o.describe());
+                ReproSupport.report(driver, "H1 shape=" + shape, o.describe());
+                assertFalse(o.failed(), shape + ": " + o.describe());
+                assertNotNull(o.value, shape + ": no document returned");
 
-                if (isInMem(morphium)) {
-                    recordInMemBehaviour(morphium, shape, key, o);
-                } else {
-                    // real MongoDB: encoder failure
-                    assertTrue(o.failed(), shape + ": expected failure on real MongoDB but got " + o.describe());
-                    MorphiumDriverException mde = o.find(MorphiumDriverException.class);
-                    assertNotNull(mde, shape + ": expected a MorphiumDriverException in the cause chain: " + o.describe());
-                    assertTrue(ReproSupport.describe(o.error).contains("Unhandled Data type"),
-                               shape + ": expected 'Unhandled Data type' in the chain: " + o.describe());
-                    assertTrue(morphium.createQueryFor(Holder.class).f("key").eq(key).asMapList().isEmpty(),
-                               shape + ": nothing may have been stored");
+                Map<String, Object> raw = rawDoc(morphium, key);
+                ReproSupport.report(driver, "H1 shape=" + shape + " raw", String.valueOf(raw));
+                switch (shape) {
+                    case "list" -> assertTwoItems((List<?>) raw.get("items"));
+                    case "set" -> assertTwoItems((List<?>) raw.get("itemSet"));
+                    case "array" -> assertTwoItems((List<?>) raw.get("itemArray"));
+                    case "single" -> assertItem(raw.get("single"), "a", 1, false);
+                    case "map" -> assertXY((Map<?, ?>) raw.get("itemMap"));
+                    default -> assertXY((Map<?, ?>) ((Map<?, ?>) raw.get("itemMap")).get("outer"));
                 }
             }
         }
     }
 
-    /**
-     * InMemoryDriver branch (hypothesis 4). Observed: List, array and (nested) Map are ACCEPTED and the POJO
-     * instances are stored as live Java objects inside the in-memory document (no BSON encoding step happens);
-     * a Set and a single POJO also reach the store (the POJO is persisted as a Java object), but the call then
-     * fails with an incidental ClassCastException while the driver builds the response, so the caller sees an
-     * error AND a half-written document. There is no deliberate contract check.
-     */
-    private void recordInMemBehaviour(Morphium morphium, String shape, String key, Outcome<Holder> o) {
-        boolean accepted = switch (shape) {
-            case "list", "array", "map", "mapInMap" -> true;
-            default -> false;
-        };
+    private static void assertItem(Object o, String name, int amount, boolean withClassName) {
+        assertTrue(o instanceof Map, "stored value must be a document, got " + (o == null ? null : o.getClass()));
+        Map<?, ?> m = (Map<?, ?>) o;
+        assertEquals(name, m.get("name"), String.valueOf(m));
+        assertEquals(amount, ((Number) m.get("amount")).intValue(), String.valueOf(m));
 
-        if (!accepted) {
-            ReproSupport.report("InMemoryDriver", "H4 shape=" + shape + " REJECTED", o.describe());
-            assertTrue(o.failed(), shape + ": expected InMem to reject, got " + o.describe());
-            assertTrue(ReproSupport.describe(o.error).contains("ClassCastException"),
-                       shape + ": expected an incidental ClassCastException: " + o.describe());
-            List<Map<String, Object>> after = morphium.createQueryFor(Holder.class).f("key").eq(key).asMapList();
-            ReproSupport.report("InMemoryDriver", "H4 shape=" + shape + " REJECTED, raw documents afterwards", String.valueOf(after));
-            // the exception is thrown only AFTER the document was written: the POJO is already stored as a Java object
-            assertEquals(1, after.size(), shape + ": partial write expected");
-            Object stored = after.get(0).get("set".equals(shape) ? "itemSet" : "single");
-            Object first = stored instanceof java.util.Collection<?> c ? c.iterator().next() : stored;
-            assertTrue(first instanceof Item, shape + ": the raw POJO was stored, got " + first);
-            return;
+        if (withClassName) {
+            assertEquals(Item.class.getName(), m.get("class_name"), String.valueOf(m));
+        } else {
+            assertFalse(m.containsKey("class_name"), String.valueOf(m));
         }
+    }
 
-        assertFalse(o.failed(), shape + ": expected InMem to accept, got " + o.describe());
-        Map<String, Object> raw = rawDoc(morphium, key);
-        ReproSupport.report("InMemoryDriver", "H4 shape=" + shape + " ACCEPTED raw", String.valueOf(raw));
-        Object stored = switch (shape) {
-            case "list" -> ((List<?>) raw.get("items")).get(0);
-            case "array" -> ((Object[]) raw.get("itemArray"))[0];
-            case "map" -> ((Map<?, ?>) raw.get("itemMap")).get("x");
-            default -> ((Map<?, ?>) ((Map<?, ?>) raw.get("itemMap")).get("outer")).get("x");
-        };
-        // the stored value is the Java object itself, not a BSON document
-        assertTrue(stored instanceof Item, shape + ": InMem keeps the raw POJO in the document, got " + stored.getClass());
-        assertNotNull(o.value, shape + ": InMem returned no document");
+    private static void assertTwoItems(List<?> l) {
+        assertEquals(2, l.size(), String.valueOf(l));
+        assertItem(l.get(0), "a", 1, true);
+        assertItem(l.get(1), "b", 2, true);
+    }
+
+    private static void assertXY(Map<?, ?> m) {
+        assertEquals(2, m.size(), String.valueOf(m));
+        assertItem(m.get("x"), "a", 1, true);
+        assertItem(m.get("y"), "b", 2, true);
     }
 
     /**
