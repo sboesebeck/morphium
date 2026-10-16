@@ -60,8 +60,9 @@ import java.util.Set;
  * <li>{@code @LastAccess} entities get a second, non-atomic update of their last-access field (MOR-052).</li>
  * <li>{@code $inc} is retried by the driver after a network error and may count twice; inside a real transaction a duplicate key aborts the transaction.</li>
  * </ul>
- * Rejected with {@link UnsupportedOperationException}: skip, a limit above 1, a hint and a projection on the query. Honoured: filter, sort, collation,
- * array filters, database override and collection name, write concern of the class.
+ * Rejected with {@link UnsupportedOperationException}: skip, a limit above 1, a hint and a projection on the query (and a sort or any limit for the count
+ * terminals {@link #updateOne()} / {@link #updateMany()}). Honoured: filter, sort (for {@code findOneAndUpdate}), collation, array filters, database override and
+ * collection name, write concern of the class.
  *
  * @param <T> the entity type
  * @apiNote incubating until 6.3: the name and package may change
@@ -169,9 +170,32 @@ public final class UpdateBuilder<T> {
             throw new IllegalArgumentException("ReturnDocument must not be null");
         }
 
-        validate();
+        validate(false, false);
         Map<String, Object> document = build();
         return query.findOneAndUpdateMapped(document, upsert, which == ReturnDocument.AFTER);
+    }
+
+    /**
+     * Executes the update on ONE document of the filter (the first the server finds - there is no sort) as an {@code update} command and returns the counts.
+     * Same validation, mapping, version and timestamp handling as {@link #findOneAndUpdate(ReturnDocument)}; additionally a sort on the query is rejected (MongoDB
+     * supports it in an update statement only from 8.0, the InMemoryDriver ignores it) and a limit above 1.
+     * <p>
+     * A lost conditional upsert raises a {@link de.caluga.morphium.driver.MorphiumDriverException} with {@code isDuplicateKey()} on every driver (the update
+     * command reports it in its reply, the query turns it into the exception), see {@link UpdateResult} for the counts.
+     */
+    public UpdateResult updateOne() {
+        validate(true, false);
+        return query.updateMapped(build(), upsert, false);
+    }
+
+    /**
+     * Executes the update on ALL documents of the filter as one {@code update} command and returns the counts. A filter-less builder updates every document. On
+     * an error the documents before it are updated (ordered multi update, no rollback), the exception message names the counts. {@code @Version} fields of all
+     * matched documents are incremented. A limit, skip or sort on the query is rejected.
+     */
+    public UpdateResult updateMany() {
+        validate(true, true);
+        return query.updateMapped(build(), upsert, true);
     }
 
     /** the update document that the terminal sends (mapped keys, marshalled values, injected version); for diagnostics and tests. Does not validate. */
@@ -226,7 +250,7 @@ public final class UpdateBuilder<T> {
         throw new IllegalArgumentException("inc supports Integer, Long, Double (and Short, Byte, Float, which are widened), not " + amount.getClass().getName());
     }
 
-    private void validate() {
+    private void validate(boolean countTerminal, boolean many) {
         if (operations.isEmpty()) {
             throw new IllegalStateException("The update is empty: add at least one set, setOnInsert, inc or unset (an empty update document would REPLACE the document)");
         }
@@ -239,8 +263,16 @@ public final class UpdateBuilder<T> {
             throw new UnsupportedOperationException("skip is not supported by the update builder");
         }
 
+        if (many && query.getLimit() != 0) {
+            throw new UnsupportedOperationException("a limit is not supported by updateMany: it updates every document of the filter");
+        }
+
         if (query.getLimit() > 1) {
-            throw new UnsupportedOperationException("a limit above 1 is not supported by the update builder: findAndModify updates one document");
+            throw new UnsupportedOperationException("a limit above 1 is not supported by the update builder: findAndModify and updateOne update one document");
+        }
+
+        if (countTerminal && query.getSort() != null && !query.getSort().isEmpty()) {
+            throw new UnsupportedOperationException("a sort is not supported by updateOne/updateMany: MongoDB supports it in an update statement only from 8.0 and the InMemoryDriver ignores it. Use findOneAndUpdate");
         }
 
         if (query.getHint() != null) {

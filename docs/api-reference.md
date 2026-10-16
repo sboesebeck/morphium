@@ -276,6 +276,12 @@ rejected at the call, an empty update is rejected (it would replace the document
 update touches it. `ReturnDocument` has no default: an upsert that inserts returns `null` for `BEFORE`. `@LastChange` and `@CreationTime` are not applied (MOR-009),
 no update events are fired, skip, limit above 1, hint and projection are rejected. See the Javadoc of `UpdateBuilder` for the complete contract.
 
+`updateOne()` and `updateMany()` run the same update as one `update` command and return an `UpdateResult` (`getMatchedCount()`, `getModifiedCount()`, `getUpsertedId()`, `isAcknowledged()`):
+```java
+UpdateResult r = jobs.f("state").eq(PENDING).modify().set("state", RUNNING).unset("error").updateMany();
+```
+A lost conditional upsert raises a `MorphiumDriverException` with `isDuplicateKey()` on every driver; sort is rejected for the count terminals.
+
 ## Aggregation API
 
 ### Aggregator Interface
