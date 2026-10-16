@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 44, done 14
+Status: open 43, done 15
 
 ## Overview
 
@@ -32,7 +32,6 @@ Status: open 44, done 14
 | MOR-053 | open | 2 | defect | InMemoryDriver: type checks of the update operators ($inc, $mul, $push, $addToSet, $pull, $pop) | M |  |  |
 | MOR-054 | open | 2 | defect | InMemoryDriver: validate the shape of an update document (unknown operator, mixed fields, _id, names) | S |  |  |
 | MOR-055 | open | 2 | defect | InMemoryDriver: number and BSON comparison semantics of $inc, $mul, $min, $max and $addToSet | M |  |  |
-| MOR-058 | open | 2 | defect | InMemoryDriver: findAndModify does not reject what the update command rejects | S |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
 | MOR-015 | open | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
@@ -66,6 +65,7 @@ Status: open 44, done 14
 | MOR-040 | done | 2 | defect | fieldNameCache: inner HashMap is not thread safe | S |  |  |
 | MOR-041 | done | 2 | implementation | Key translation for operator maps in findOneAndUpdate | M |  | MOR-002 |
 | MOR-050 | done | 2 | implementation | Update builder: updateOne, updateMany and UpdateResult | M |  | MOR-006 |
+| MOR-058 | done | 2 | defect | InMemoryDriver: findAndModify does not reject what the update command rejects | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 
@@ -944,9 +944,11 @@ Source: docs/research/plan-mor-028.md
 
 ### MOR-058 InMemoryDriver: findAndModify does not reject what the update command rejects
 
-Status **open**, priority 2, type defect, effort S
+Status **done**, priority 2, type defect, effort S
 
 Found by the update contract suite (MOR-028). The InMemoryDriver update command rejects a field name with a leading dollar sign (code 52) and setting a field below a scalar or below an array with a non-numeric segment (code 28), like a real MongoDB. The findAndModify path of the InMemoryDriver, which the lease and counter use cases run through, silently accepts all three: it stores nothing, or leaves the document unchanged, and reports success.
+
+Evidence: Contract suite (FieldOperator, ArrayOperator, UpsertAndError, StatementIsolation, UpdateContractLedgerTest; 26 invocations, 149 statements, each as update command and as findAndModify) green on PooledDriver (mongo:8) and on the InMemoryDriver; the pins of this task are gone, only MOR-055 and MOR-056 are still pinned. Before the driver change (pins removed, 24 cases added, all of them green on mongo:8) 46 distinct cases failed on the InMemoryDriver. The harness now also compares the collection after an error (.unchanged(), multi update: the documents before the error). findAndModify cases: dollar prefixed field name (52), field below a scalar and below an array with a non-numeric segment (28), now also unchanged afterwards, plus UpdateAtomicityTest.findAndModifyFailsWithTheCodeAndInsertsNothingOnUpsert (public findAndOneAndUpdate raises the code, an upsert with an error inserts nothing). A statement without a match is validated too. InMemoryDriver, runtests.sh --driver inmem --parallel 8: 2337 test methods; failures only in ReferenceCascadeTest, LazyLoadingTest and ReferenceTest (Byte Buddy does not support Java 25, the JDK of the run), TtlCappedTest.updatingTheTtlFieldPushesOutTheOldExpiryNotJustTheNewOne (fails the same way on the base commit 70b0bce71) and MultithreaddedMessagingTests (timing: another method fails per run on the base commit too, the method that failed here passes alone 3 of 3). No new failure.
 
 Acceptance:
 
@@ -954,4 +956,6 @@ Acceptance:
 - The pinned deviations in the update contract suite that name this task are removed
 
 Source: docs/research/plan-mor-028.md
+
+Commits: b951b977f
 
