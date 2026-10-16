@@ -4792,7 +4792,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 lastErrorObject.put("upserted", res.upsertedId());
             }
 
-            addResult(ret, prepareResult(Doc.of("value", res.value(), "lastErrorObject", lastErrorObject)));
+            addResult(ret, prepareResult(Doc.of("value", projectFindAndModifyValue(res.value(), cmd.getFields()), "lastErrorObject", lastErrorObject)));
         }
 
         return ret;
@@ -12896,6 +12896,45 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             boolean upsert, boolean newFlag, List<Map<String, Object>> arrayFilters)
     throws MorphiumDriverException {
         return findAndModifyUpdate(db, col, query, update, sort, collation, upsert, newFlag, arrayFilters).value();
+    }
+
+    /**
+     * The {@code fields} (projection) of a findAndModify applied to the returned document: inclusion keeps the listed (dotted) fields and {@code _id} unless it is
+     * excluded, exclusion removes the listed fields. {@code $slice}, {@code $elemMatch} and the other projection operators are not supported here. {@code null} or an
+     * empty projection returns the document as it is.
+     */
+    private Map<String, Object> projectFindAndModifyValue(Map<String, Object> doc, Map<String, Object> projection) {
+        if (doc == null || projection == null || projection.isEmpty()) {
+            return doc;
+        }
+
+        Map<String, Object> projected = new HashMap<>();
+        boolean inclusion = projection.entrySet().stream().anyMatch(e -> !"_id".equals(e.getKey()) && truthy(e.getValue()));
+
+        if (inclusion) {
+            for (var e : projection.entrySet()) {
+                if (!"_id".equals(e.getKey()) && truthy(e.getValue()) && containsByPath(doc, e.getKey())) {
+                    setByPath(projected, e.getKey(), deepCopyValue(getByPath(doc, e.getKey())));
+                }
+            }
+
+            if ((!projection.containsKey("_id") || truthy(projection.get("_id"))) && doc.containsKey("_id")) {
+                projected.put("_id", doc.get("_id"));
+            }
+
+            return projected;
+        }
+
+        Set<String> excluded = new HashSet<>();
+        Set<String> nested = new HashSet<>();
+
+        for (var e : projection.entrySet()) {
+            if (!truthy(e.getValue())) {
+                (e.getKey().contains(".") ? nested : excluded).add(e.getKey());
+            }
+        }
+
+        return deepCopyDocExcluding(doc, excluded, nested);
     }
 
     /**

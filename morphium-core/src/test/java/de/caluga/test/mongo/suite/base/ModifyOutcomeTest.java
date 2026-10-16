@@ -180,7 +180,7 @@ public class ModifyOutcomeTest extends MultiDriverTestBase {
         try (m) {
             assertThrows(IllegalStateException.class, () -> m.createQueryFor(Plain.class).f("id").eq("x").modify().tryFindOneAndUpdate(ReturnDocument.AFTER));
             assertThrows(IllegalStateException.class, () -> m.createQueryFor(Plain.class).f("id").eq("x").modify().setOnInsert("payload", "x").tryFindOneAndUpdate(ReturnDocument.AFTER));
-            assertThrows(IllegalArgumentException.class, () -> m.createQueryFor(Plain.class).f("id").eq("x").modify().set("payload", "x").tryFindOneAndUpdate(null));
+            assertThrows(IllegalArgumentException.class, () -> m.createQueryFor(Plain.class).f("id").eq("x").modify().set("payload", "x").tryFindOneAndUpdate((ReturnDocument) null));
             assertThrows(UnsupportedOperationException.class, () -> m.createQueryFor(Plain.class).f("id").eq("x").skip(1).modify().set("payload", "x").upsert().tryFindOneAndUpdate(ReturnDocument.AFTER));
             assertEquals(0, m.createQueryFor(Plain.class).countAll());
         }
