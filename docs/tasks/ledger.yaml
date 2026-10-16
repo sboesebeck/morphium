@@ -1108,7 +1108,7 @@ tasks:
 - id: MOR-054
   title: 'InMemoryDriver: validate the shape of an update document (unknown operator, mixed fields, _id, names)'
   type: defect
-  status: open
+  status: done
   priority: 2
   effort: S
   description: 'Found by the update contract suite (MOR-028). A real MongoDB rejects an unknown operator and operators
@@ -1122,6 +1122,24 @@ tasks:
   - The pinned deviations in the update contract suite that name this task are removed
   source:
   - docs/research/plan-mor-028.md
+  evidence: 'Contract suite (FieldOperator, ArrayOperator, UpsertAndError, StatementIsolation, UpdateContractLedgerTest; 26
+    invocations, 149 statements, each as update command and as findAndModify) green on PooledDriver (mongo:8) and on
+    the InMemoryDriver; the pins of this task are gone, only MOR-055 and MOR-056 are still pinned. Before the driver
+    change (pins removed, 24 cases added, all of them green on mongo:8) 46 distinct cases failed on the
+    InMemoryDriver. The harness now also compares the collection after an error (.unchanged(), multi update: the
+    documents before the error). Shape cases: unknown operator and operators mixed with fields (9, also if nothing
+    matches), a field in front of an operator (52), a modifier that is no document (9), a change of the _id by $set of
+    another value, $unset, $rename and a replacement (66; $set of the same value works), empty field name, empty path
+    segment and trailing dot (56), $rename onto itself, into a child of the source and with a non-string target (2),
+    unused arrayFilters identifier (9). Probed against mongo:8 with mongosh first (codes and the cases without a
+    match). Not done: $pop operand other than 1/-1 (9), an _id that conflicts with the filter on an upsert insert
+    (66). InMemoryDriver, runtests.sh --driver inmem --parallel 8: 2337 test methods; failures only in
+    ReferenceCascadeTest, LazyLoadingTest and ReferenceTest (Byte Buddy does not support Java 25, the JDK of the run),
+    TtlCappedTest.updatingTheTtlFieldPushesOutTheOldExpiryNotJustTheNewOne (fails the same way on the base commit
+    70b0bce71) and MultithreaddedMessagingTests (timing: another method fails per run on the base commit too, the
+    method that failed here passes alone 3 of 3). No new failure.'
+  commits:
+  - b951b977f
 - id: MOR-055
   title: 'InMemoryDriver: number and BSON comparison semantics of $inc, $mul, $min, $max and $addToSet'
   type: defect

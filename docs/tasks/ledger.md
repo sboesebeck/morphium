@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 42, done 16
+Status: open 41, done 17
 
 ## Overview
 
@@ -29,7 +29,6 @@ Status: open 42, done 16
 | MOR-037 | open | 2 | defect | Morphium.simplifyQueryObject loses predicates for repeated operator keys | S |  |  |
 | MOR-043 | open | 2 | defect | Query.f should resolve field paths with resolveFieldPath | M |  | MOR-041 |
 | MOR-046 | open | 2 | defect | BufferedMorphiumWriterImpl does not marshal update values and emits push for a pull of a list | M |  | MOR-042 |
-| MOR-054 | open | 2 | defect | InMemoryDriver: validate the shape of an update document (unknown operator, mixed fields, _id, names) | S |  |  |
 | MOR-055 | open | 2 | defect | InMemoryDriver: number and BSON comparison semantics of $inc, $mul, $min, $max and $addToSet | M |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
@@ -65,6 +64,7 @@ Status: open 42, done 16
 | MOR-041 | done | 2 | implementation | Key translation for operator maps in findOneAndUpdate | M |  | MOR-002 |
 | MOR-050 | done | 2 | implementation | Update builder: updateOne, updateMany and UpdateResult | M |  | MOR-006 |
 | MOR-053 | done | 2 | defect | InMemoryDriver: type checks of the update operators ($inc, $mul, $push, $addToSet, $pull, $pop) | M |  |  |
+| MOR-054 | done | 2 | defect | InMemoryDriver: validate the shape of an update document (unknown operator, mixed fields, _id, names) | S |  |  |
 | MOR-058 | done | 2 | defect | InMemoryDriver: findAndModify does not reject what the update command rejects | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
@@ -896,9 +896,11 @@ Commits: b951b977f
 
 ### MOR-054 InMemoryDriver: validate the shape of an update document (unknown operator, mixed fields, _id, names)
 
-Status **open**, priority 2, type defect, effort S
+Status **done**, priority 2, type defect, effort S
 
 Found by the update contract suite (MOR-028). A real MongoDB rejects an unknown operator and operators mixed with plain fields (code 9), a change of _id (code 66), an empty field name (code 56), $rename onto itself or with a non-string target (code 2) and an arrayFilters identifier that the update does not use (code 9). The InMemoryDriver applies a change of _id, stores a field with an empty or numeric name, ignores a rename onto itself, and fails the other cases with an exception that is not a MorphiumDriverException.
+
+Evidence: Contract suite (FieldOperator, ArrayOperator, UpsertAndError, StatementIsolation, UpdateContractLedgerTest; 26 invocations, 149 statements, each as update command and as findAndModify) green on PooledDriver (mongo:8) and on the InMemoryDriver; the pins of this task are gone, only MOR-055 and MOR-056 are still pinned. Before the driver change (pins removed, 24 cases added, all of them green on mongo:8) 46 distinct cases failed on the InMemoryDriver. The harness now also compares the collection after an error (.unchanged(), multi update: the documents before the error). Shape cases: unknown operator and operators mixed with fields (9, also if nothing matches), a field in front of an operator (52), a modifier that is no document (9), a change of the _id by $set of another value, $unset, $rename and a replacement (66; $set of the same value works), empty field name, empty path segment and trailing dot (56), $rename onto itself, into a child of the source and with a non-string target (2), unused arrayFilters identifier (9). Probed against mongo:8 with mongosh first (codes and the cases without a match). Not done: $pop operand other than 1/-1 (9), an _id that conflicts with the filter on an upsert insert (66). InMemoryDriver, runtests.sh --driver inmem --parallel 8: 2337 test methods; failures only in ReferenceCascadeTest, LazyLoadingTest and ReferenceTest (Byte Buddy does not support Java 25, the JDK of the run), TtlCappedTest.updatingTheTtlFieldPushesOutTheOldExpiryNotJustTheNewOne (fails the same way on the base commit 70b0bce71) and MultithreaddedMessagingTests (timing: another method fails per run on the base commit too, the method that failed here passes alone 3 of 3). No new failure.
 
 Acceptance:
 
@@ -906,6 +908,8 @@ Acceptance:
 - The pinned deviations in the update contract suite that name this task are removed
 
 Source: docs/research/plan-mor-028.md
+
+Commits: b951b977f
 
 ### MOR-055 InMemoryDriver: number and BSON comparison semantics of $inc, $mul, $min, $max and $addToSet
 
