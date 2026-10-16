@@ -566,8 +566,43 @@ public class Query<T> implements Cloneable {
      * The part of {@link #findOneAndUpdate(Map, boolean, boolean)} after the update document has been mapped. Package-private
      * so that the update builder planned in MOR-006 can call it with an already mapped document.
      */
-    @SuppressWarnings("ConstantConditions")
     T findOneAndUpdateMapped(Map<String, Object> update, boolean upsert, boolean returnNew) {
+        return unmarshallFindAndModifyValue(findAndModifyReply(update, upsert, returnNew).get("value"));
+    }
+
+    /**
+     * Like {@link #findOneAndUpdateMapped(Map, boolean, boolean)}, but the result says what the update did (inserted, updated, not matched) and a lost upsert
+     * ({@link MorphiumDriverException#isDuplicateKey()}) is returned as {@link UpdateOutcome.Kind#DUPLICATE_KEY}. Only an upsert can lose the insert of this call, so
+     * a duplicate key of an update without upsert (a unique index on a modified field) is thrown. Any other failure is thrown, too.
+     */
+    UpdateOutcome<T> findOneAndUpdateOutcome(Map<String, Object> update, boolean upsert, boolean returnNew) {
+        Map<String, Object> reply;
+
+        try {
+            reply = findAndModifyReply(update, upsert, returnNew);
+        } catch (MorphiumDriverException e) {
+            if (upsert && e.isDuplicateKey()) {
+                return UpdateOutcome.duplicateKey();
+            }
+
+            throw e;
+        }
+
+        T document = unmarshallFindAndModifyValue(reply.get("value"));
+        Object lastErrorObject = reply.get("lastErrorObject");
+        Object upserted = lastErrorObject instanceof Map<?, ?> m ? m.get("upserted") : null;
+
+        if (upserted != null) {
+            return new UpdateOutcome<>(UpdateOutcome.Kind.INSERTED, document, toIdType(upserted));
+        }
+
+        boolean updatedExisting = lastErrorObject instanceof Map<?, ?> m ? Boolean.TRUE.equals(m.get("updatedExisting")) : document != null;
+        return updatedExisting ? new UpdateOutcome<>(UpdateOutcome.Kind.UPDATED, document, null) : new UpdateOutcome<>(UpdateOutcome.Kind.NOT_MATCHED, null, null);
+    }
+
+    /** sends the findAndModify and returns the whole reply ({@code value}, {@code lastErrorObject}); clears the cache */
+    @SuppressWarnings("ConstantConditions")
+    private Map<String, Object> findAndModifyReply(Map<String, Object> update, boolean upsert, boolean returnNew) {
         // NOTE: unlike the legacy findOneAndUpdate(Map), this method NEVER serves from / writes to
         // the read cache. findOneAndUpdate always has a write side-effect (and, with upsert=true,
         // can insert a new document), so satisfying it from a stale read cache is never correct -
@@ -583,8 +618,7 @@ public class Query<T> implements Cloneable {
             effectiveUpdate = addGeneratedIdOnInsertIfNeeded(queryObject, update);
         }
 
-        long start = System.currentTimeMillis();
-        Map<String, Object> ret = null;
+        Map<String, Object> reply = null;
         MongoConnection con = null;
         FindAndModifyMongoCommand settings = null;
 
@@ -607,7 +641,7 @@ public class Query<T> implements Cloneable {
                 settings.setCollation(Doc.of(collation.toQueryObject()));
             }
 
-            ret = settings.execute();
+            reply = settings.executeReply();
             settings.releaseConnection();
             settings = null;
             con = null;
@@ -630,13 +664,16 @@ public class Query<T> implements Cloneable {
             morphium.getCache().clearCacheIfNecessary(type);
         }
 
-        if (ret == null) {
+        return reply;
+    }
+
+    private T unmarshallFindAndModifyValue(Object value) {
+        if (value == null) {
             return null;
         }
 
-        long dur = System.currentTimeMillis() - start;
-        // morphium.fireProfilingReadEvent(this, dur, ReadAccessType.GET);
-        T unmarshall = morphium.getMapper().deserialize(type, ret);
+        @SuppressWarnings("unchecked")
+        T unmarshall = morphium.getMapper().deserialize(type, (Map<String, Object>) value);
 
         if (unmarshall != null) {
             morphium.firePostLoadEvent(unmarshall);
