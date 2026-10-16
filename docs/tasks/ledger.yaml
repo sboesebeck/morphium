@@ -1162,3 +1162,70 @@ tasks:
   - The pinned deviations in the update contract suite that name this task are removed
   source:
   - docs/research/plan-mor-028.md
+- id: MOR-059
+  title: 'Query, entity and bulk write paths swallow the writeErrors of the update reply'
+  type: defect
+  status: open
+  priority: 1
+  effort: M
+  description: 'Found by the write path audit (MOR-005), measured on mongo:8. The update command reports a rejected
+    statement (duplicate key, a path below a scalar, a pull on a non-array) in the reply and does not throw. Every
+    path through MorphiumWriterImpl and the bulk context ignores that reply and returns normally: Query.set, set(Map),
+    setEnum, unset, inc and dec (all number types, enum variants), push, pushAll, pull, pullAll, Morphium.addToSet,
+    currentDate, inc/dec with a Map, setInEntity, unsetInEntity, push(entity) and the bulk requests. The caller sees
+    success while nothing was written. Only Morphium.inc(entity) and dec(entity) raise. Related to GitHub #408
+    (writeConcernError ignored). Query.updateMapped (MOR-050) already normalises the reply and is the model: a
+    writeErrors entry becomes a MorphiumDriverException with the code of the first error, isDuplicateKey() works.'
+  acceptance:
+  - Each path of the audit table in docs/research/audit-write-paths.md raises a MorphiumDriverException when the server
+    rejects the statement, on a real MongoDB
+  - The pinned deviation MOR-059 in WritePathAuditContractTest is removed
+  - The behaviour change is in the CHANGELOG (a rejected write used to be silent)
+  source:
+  - docs/research/audit-write-paths.md
+  - 'GitHub #408'
+- id: MOR-060
+  title: 'Write paths that write the Java field name: inc/dec with a Map and dotted paths through embedded documents'
+  type: defect
+  status: open
+  priority: 2
+  effort: S
+  description: 'Found by the write path audit (MOR-005), measured on mongo:8 and on the InMemoryDriver.
+    Morphium.inc(Query, Map), inc(Map<Enum,Number>, Query) and dec(Query, Map) put the keys of the map into $inc
+    without translation (MorphiumWriterImpl.inc(Query, Map) copies the map), so counterValue is written next to the
+    stored counter_value. Query.set, Query.inc and Morphium.currentDate with a dotted path through an @Embedded document
+    (box.innerValue) translate the first segment but write the second as given, next to the stored box.inner_value;
+    the update builder (resolveFieldPath) translates the same path correctly.'
+  acceptance:
+  - The three Map variants and the dotted paths of Query.set, Query.inc and currentDate write the stored name, on
+    both drivers
+  - The pinned deviation MOR-060 in WritePathAuditContractTest is removed
+  source:
+  - docs/research/audit-write-paths.md
+- id: MOR-061
+  title: 'Query.dec(field, Integer) turns an int counter into a double'
+  type: defect
+  status: open
+  priority: 3
+  effort: S
+  description: 'Found by the write path audit (MOR-005). Query.dec(String, Integer) resolves to the Number overload of
+    Morphium.dec, which subtracts amount.doubleValue(), so a decrement of an int or long field stores a double (5 becomes
+    5.0). dec(field, int) and dec(field, long) keep the type; inc has no such asymmetry.'
+  acceptance:
+  - dec with an Integer or Long amount keeps the number type of the field, on a real MongoDB
+  source:
+  - docs/research/audit-write-paths.md
+- id: MOR-062
+  title: 'Morphium.dec(Query, Map) and dec(Map, Query) increment instead of decrement'
+  type: defect
+  status: open
+  priority: 2
+  effort: S
+  description: 'Found by the write path audit (MOR-005), measured on mongo:8 and on the InMemoryDriver.
+    MorphiumBase.dec(Query, Map<String,Number>) and dec(Map<Enum,Number>, Query) pass the amounts to the writer''s
+    inc(Query, Map) without negating them, so dec(query, {counter: 1}) adds 1. The single-field dec variants negate.'
+  acceptance:
+  - dec with a Map subtracts the amounts, on a real MongoDB and on the InMemoryDriver
+  - The pinned deviation MOR-062 in WritePathAuditContractTest is removed
+  source:
+  - docs/research/audit-write-paths.md
