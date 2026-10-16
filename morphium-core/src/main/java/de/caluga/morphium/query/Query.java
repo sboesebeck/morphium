@@ -647,6 +647,120 @@ public class Query<T> implements Cloneable {
     }
 
     /**
+     * The count form of an update, for {@link UpdateBuilder#updateOne()} / {@link UpdateBuilder#updateMany()}: sends the already mapped update document as one
+     * {@code update} command (the only command with {@code multi}). Like {@link #findOneAndUpdateMapped(Map, boolean, boolean)} it adds a generated {@code _id}
+     * for an upsert, never uses the read cache and clears it after the write.
+     * <p>
+     * The update command REPORTS errors in its reply instead of throwing; this method turns them into exceptions, so a lost conditional upsert looks the same on a real
+     * MongoDB and on the InMemoryDriver: a {@code writeErrors} entry becomes a {@link MorphiumDriverException} whose {@code mongoCode} is the code of the first error
+     * (so {@code isDuplicateKey()} works) and which carries the write errors; the message names the counts of the reply, because documents may have been updated before
+     * the error (ordered multi updates stop at the first error and do not roll back). A {@code writeConcernError} (the write is applied, but not acknowledged as
+     * requested) is thrown, too, and the message says that the write was applied.
+     */
+    UpdateResult updateMapped(Map<String, Object> update, boolean upsert, boolean multiple) {
+        morphium.inc(StatisticKeys.NO_CACHED_READS);
+        Map<String, Object> queryObject = toQueryObject();
+        Map<String, Object> effectiveUpdate = upsert ? addGeneratedIdOnInsertIfNeeded(queryObject, update) : update;
+        Map<String, Object> reply;
+        MongoConnection con = null;
+        UpdateMongoCommand cmd = null;
+
+        try {
+            var wc = getMorphium().getWriteConcernForClass(getType());
+            con = morphium.getDriver().getPrimaryConnection(wc);
+            cmd = new UpdateMongoCommand(con).setDb(getDB()).setColl(getCollectionName());
+
+            if (wc != null) {
+                cmd.setWriteConcern(wc.asMap());
+            }
+
+            cmd.addUpdate(Doc.of(queryObject), Doc.of(effectiveUpdate), null, upsert, multiple, collation, arrayFilters, null);
+            reply = cmd.execute();
+            cmd.releaseConnection();
+            cmd = null;
+            con = null;
+        } finally {
+            if (cmd != null) {
+                cmd.releaseConnection();
+            } else if (con != null) {
+                morphium.getDriver().releaseConnection(con);
+            }
+        }
+
+        morphium.inc(StatisticKeys.WRITES);
+
+        if (morphium.getCache() != null) {
+            morphium.getCache().clearCacheIfNecessary(type);
+        }
+
+        return toUpdateResult(reply);
+    }
+
+    @SuppressWarnings("unchecked")
+    private UpdateResult toUpdateResult(Map<String, Object> reply) {
+        if (reply == null) {
+            return UpdateResult.unacknowledged();
+        }
+
+        long n = reply.get("n") instanceof Number ? ((Number) reply.get("n")).longValue() : -1;
+        long modified = reply.get("nModified") instanceof Number ? ((Number) reply.get("nModified")).longValue() : 0;
+        List<Map<String, Object>> upserted = reply.get("upserted") instanceof List ? (List<Map<String, Object>>) reply.get("upserted") : List.of();
+
+        if (reply.get("writeErrors") instanceof List && !((List<?>) reply.get("writeErrors")).isEmpty()) {
+            List<Map<String, Object>> errors = (List<Map<String, Object>>) reply.get("writeErrors");
+            Object code = errors.get(0).get("code");
+            Object errmsg = errors.get(0).get("errmsg");
+            MorphiumDriverException e = new MorphiumDriverException("Update of " + getCollectionName() + " failed: " + errmsg + " (code " + code + "); "
+                    + "the reply reported matched=" + Math.max(n, 0) + ", modified=" + modified + " before the error, documents updated before the error are not rolled back");
+            e.setMongoCode(code);
+            e.setWriteErrors(errors);
+            e.setCollection(getCollectionName());
+            e.setDb(getDB());
+            throw e;
+        }
+
+        if (reply.get("writeConcernError") instanceof Map) {
+            Map<String, Object> wce = (Map<String, Object>) reply.get("writeConcernError");
+            MorphiumDriverException e = new MorphiumDriverException("The update of " + getCollectionName() + " WAS APPLIED (matched=" + Math.max(n, 0) + ", modified=" + modified
+                    + ") but the write concern was not satisfied: " + wce.get("errmsg") + " (code " + wce.get("code") + ")");
+            e.setMongoCode(wce.get("code"));
+            e.setCollection(getCollectionName());
+            e.setDb(getDB());
+            throw e;
+        }
+
+        if (n < 0) {
+            return UpdateResult.unacknowledged();
+        }
+
+        Object upsertedId = upserted.isEmpty() ? null : toIdType(upserted.get(0).get("_id"));
+        return new UpdateResult(Math.max(0, n - upserted.size()), modified, upsertedId, true);
+    }
+
+    /** the id as the entity's {@code @Id} field holds it (the driver may hand out a MorphiumId for an ObjectId) */
+    private Object toIdType(Object id) {
+        if (id == null) {
+            return null;
+        }
+
+        try {
+            Class<?> idType = getARHelper().getIdField(type).getType();
+
+            if (idType.equals(String.class) && !(id instanceof String)) {
+                return id.toString();
+            }
+
+            if (idType.equals(ObjectId.class) && id instanceof MorphiumId) {
+                return new ObjectId(((MorphiumId) id).getBytes());
+            }
+        } catch (RuntimeException e) {
+            // an entity without a usable @Id field: return the id as it is
+        }
+
+        return id;
+    }
+
+    /**
      * When performing an upsert-style findOneAndUpdate, MongoDB would otherwise assign a
      * server-generated ObjectId to newly inserted documents. Morphium's store()-path always
      * assigns a client-side id first (see MorphiumWriterImpl#setIdIfNull) so that String @Id
