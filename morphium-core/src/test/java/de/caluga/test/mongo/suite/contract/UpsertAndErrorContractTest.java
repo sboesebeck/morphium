@@ -46,6 +46,7 @@ public class UpsertAndErrorContractTest extends MultiDriverTestBase {
             .expect(error(11000)),
             c("upsert applies inc on top of a seeded equality").filter(d("_id", 1, "k", 1)).update(d("$inc", d("k", 1))).upsert().expect(docs(d("_id", 1, "k", 2))),
             c("an update without operators replaces the document").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("b", 2)).expect(docs(d("_id", 1, "b", 2))),
+            c("a replacement may repeat the _id").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("_id", 1, "b", 2)).expect(docs(d("_id", 1, "b", 2))),
             c("an empty replacement keeps only the _id").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d()).expect(docs(d("_id", 1))),
             c("an upsert with a replacement inserts it with the filter id").filter(d("_id", 5)).update(d("b", 2)).upsert().expect(docs(d("_id", 5, "b", 2))),
         };
@@ -54,34 +55,37 @@ public class UpsertAndErrorContractTest extends MultiDriverTestBase {
 
     static List<Case> rejected() {
         Case[] cases = {
-            c("set of a path and its child conflicts").seed(d("_id", 1, "a", d("b", 1))).filter(d("_id", 1)).update(d("$set", d("a", d("x", 1), "a.b", 2))).expect(error(40))
-            .inMem("MOR-051", docs(d("_id", 1, "a", d("b", 2, "x", 1)))),
-            c("set and inc of one path conflict").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$set", d("a", 5), "$inc", d("a", 1))).expect(error(40))
-            .inMem("MOR-051", docs(d("_id", 1, "a", 6))),
-            c("set and unset of one path conflict").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$set", d("a", 5), "$unset", d("a", ""))).expect(error(40))
-            .inMem("MOR-051", docs(d("_id", 1))),
-            c("set of a parent and unset of the child conflict").seed(d("_id", 1, "a", d("b", 1))).filter(d("_id", 1)).update(d("$set", d("a", d()), "$unset", d("a.b", ""))).expect(error(40))
-            .inMem("MOR-051", docs(d("_id", 1, "a", d()))),
-            c("push and pull of one path conflict").seed(d("_id", 1, "a", l(1))).filter(d("_id", 1)).update(d("$push", d("a", 2), "$pull", d("a", 1))).expect(error(40))
-            .inMem("MOR-051", docs(d("_id", 1, "a", l(2)))),
-            c("changing the _id fails").seed(d("_id", 1)).filter(d("_id", 1)).update(d("$set", d("_id", 2))).expect(error(66))
-            .inMem("MOR-054", docs(d("_id", 2))),
-            c("a field name that starts with a dollar sign fails").seed(d("_id", 1)).filter(d("_id", 1)).update(d("$set", d("$bad", 1))).expect(error(52))
-            .inMemFindAndModify("MOR-058", docs(d("_id", 1))),
-            c("an unknown operator fails").seed(d("_id", 1)).filter(d("_id", 1)).update(d("$foo", d("a", 1))).expect(error(9))
-            .inMem("MOR-054", notADatabaseError()),
-            c("operators mixed with fields fail").seed(d("_id", 1)).filter(d("_id", 1)).update(d("$set", d("a", 1), "b", 2)).expect(error(9))
-            .inMem("MOR-054", notADatabaseError()),
-            c("an operator with an empty field name fails").seed(d("_id", 1)).filter(d("_id", 1)).update(d("$set", d("", 1))).expect(error(56))
-            .inMem("MOR-054", docs(d("", 1, "_id", 1))),
-            c("setting a field below a scalar fails").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$set", d("a.b", 1))).expect(error(28))
-            .inMemFindAndModify("MOR-058", docs(d("_id", 1, "a", 1))),
-            c("setting a field below an array with a non-numeric segment fails").seed(d("_id", 1, "a", l(1))).filter(d("_id", 1)).update(d("$set", d("a.b", 1))).expect(error(28))
-            .inMemFindAndModify("MOR-058", docs(d("_id", 1, "a", l(1)))),
-            c("a failing statement changes nothing").seed(d("_id", 1, "a", 1, "s", "x")).filter(d("_id", 1)).update(d("$set", d("a", 2), "$inc", d("s", 1))).expect(error(14))
-            .inMem("MOR-053", docs(d("_id", 1, "a", 2, "s", "x"))),
-            c("a failing multi update stops at the first error").seed(d("_id", 1, "v", 1), d("_id", 2, "v", "x"), d("_id", 3, "v", 1)).filter(d()).update(d("$inc", d("v", 1))).multi().expect(error(14))
-            .inMem("MOR-053", docs(d("_id", 1, "v", 2), d("_id", 2, "v", "x"), d("_id", 3, "v", 2))),
+            c("set of a path and its child conflicts").seed(d("_id", 1, "a", d("b", 1))).filter(d("_id", 1)).update(d("$set", d("a", d("x", 1), "a.b", 2))).expect(error(40)).unchanged(),
+            c("set and inc of one path conflict").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$set", d("a", 5), "$inc", d("a", 1))).expect(error(40)).unchanged(),
+            c("set and unset of one path conflict").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$set", d("a", 5), "$unset", d("a", ""))).expect(error(40)).unchanged(),
+            c("set of a parent and unset of the child conflict").seed(d("_id", 1, "a", d("b", 1))).filter(d("_id", 1)).update(d("$set", d("a", d()), "$unset", d("a.b", ""))).expect(error(40)).unchanged(),
+            c("push and pull of one path conflict").seed(d("_id", 1, "a", l(1))).filter(d("_id", 1)).update(d("$push", d("a", 2), "$pull", d("a", 1))).expect(error(40)).unchanged(),
+            c("changing the _id fails").seed(d("_id", 1)).filter(d("_id", 1)).update(d("$set", d("_id", 2))).expect(error(66)).unchanged(),
+            c("a field name that starts with a dollar sign fails").seed(d("_id", 1)).filter(d("_id", 1)).update(d("$set", d("$bad", 1))).expect(error(52)).unchanged(),
+            c("an unknown operator fails").seed(d("_id", 1)).filter(d("_id", 1)).update(d("$foo", d("a", 1))).expect(error(9)).unchanged(),
+            c("operators mixed with fields fail").seed(d("_id", 1)).filter(d("_id", 1)).update(d("$set", d("a", 1), "b", 2)).expect(error(9)).unchanged(),
+            c("an operator with an empty field name fails").seed(d("_id", 1)).filter(d("_id", 1)).update(d("$set", d("", 1))).expect(error(56)).unchanged(),
+            c("setting a field below a scalar fails").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$set", d("a.b", 1))).expect(error(28)).unchanged(),
+            c("setting a field below an array with a non-numeric segment fails").seed(d("_id", 1, "a", l(1))).filter(d("_id", 1)).update(d("$set", d("a.b", 1))).expect(error(28)).unchanged(),
+            c("a field before an operator fails").seed(d("_id", 1)).filter(d("_id", 1)).update(d("b", 2, "$set", d("a", 1))).expect(error(52)).unchanged(),
+            c("an unknown operator fails even if nothing matches").filter(d("_id", 1)).update(d("$foo", d("a", 1))).expect(error(9)).unchanged(),
+            c("a modifier that is not a document fails").seed(d("_id", 1)).filter(d("_id", 1)).update(d("$set", 5)).expect(error(9)).unchanged(),
+            c("changing the _id by a replacement fails").seed(d("_id", 1)).filter(d("_id", 1)).update(d("_id", 2)).expect(error(66)).unchanged(),
+            c("setting the _id to its own value is fine").seed(d("_id", 1)).filter(d("_id", 1)).update(d("$set", d("_id", 1, "a", 1))).expect(docs(d("_id", 1, "a", 1))),
+            c("unsetting the _id fails").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$unset", d("_id", ""))).expect(error(66)).unchanged(),
+            c("renaming the _id fails").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$rename", d("_id", "x"))).expect(error(66)).unchanged(),
+            c("a path with an empty segment fails").seed(d("_id", 1)).filter(d("_id", 1)).update(d("$set", d("a..b", 1))).expect(error(56)).unchanged(),
+            c("a path with a trailing dot fails").seed(d("_id", 1)).filter(d("_id", 1)).update(d("$set", d("a.", 1))).expect(error(56)).unchanged(),
+            c("set and setOnInsert of one path conflict").seed(d("_id", 1)).filter(d("_id", 1)).update(d("$set", d("a", 1), "$setOnInsert", d("a", 2))).expect(error(40)).unchanged(),
+            c("rename and set of the target conflict").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$rename", d("a", "b"), "$set", d("b", 2))).expect(error(40)).unchanged(),
+            c("rename into a child of the source fails").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$rename", d("a", "a.b"))).expect(error(2)).unchanged(),
+            c("a failing statement after a successful operator changes nothing").seed(d("_id", 1, "a", 1, "s", "x")).filter(d("_id", 1)).update(d("$set", d("a", 2), "$push", d("s", 1)))
+            .expect(error(2)).unchanged(),
+            c("a rejected path below a scalar changes nothing").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$set", d("x", 1, "a.b", 1))).expect(error(28)).unchanged(),
+            c("a rejected upsert inserts nothing").filter(d("_id", 1)).update(d("$set", d("v", 1), "$inc", d("v", 1))).upsert().expect(error(40)).unchanged(),
+            c("a failing statement changes nothing").seed(d("_id", 1, "a", 1, "s", "x")).filter(d("_id", 1)).update(d("$set", d("a", 2), "$inc", d("s", 1))).expect(error(14)).unchanged(),
+            c("a failing multi update stops at the first error").seed(d("_id", 1, "v", 1), d("_id", 2, "v", "x"), d("_id", 3, "v", 1)).filter(d()).update(d("$inc", d("v", 1))).multi()
+            .expect(error(14, d("_id", 1, "v", 2), d("_id", 2, "v", "x"), d("_id", 3, "v", 1))),
         };
         return new ArrayList<>(List.of(cases));
     }

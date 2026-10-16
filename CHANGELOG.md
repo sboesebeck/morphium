@@ -90,6 +90,19 @@ An `Instant`, `LocalDateTime`, `LocalDate` or `LocalTime` in a `findOneAndUpdate
 (the mapper expects the Map shape `store()` writes). They are now written by their registered type mapper. On a real MongoDB with the default configuration the stored shape is unchanged; with a
 mapper configured with `useBsonDate` the update now stores what `store()` stores.
 
+#### InMemoryDriver: update statements are rejected like mongod does, and a rejected statement changes nothing (MOR-051, MOR-053, MOR-054, MOR-058)
+The update contract suite (MOR-028) found statements that mongo:8 refuses and the InMemoryDriver applied, ignored or failed with an exception without an error code. Raw `update` and
+`findAndModify` statements now raise a `MorphiumDriverException` with the code of mongod, before any document is changed where mongod checks at parse time (also if nothing matches):
+unknown operator or an operator mixed with fields (9; a field in front of an operator 52), a modifier that is not a document (9), an empty field name (56), `$inc`/`$mul` with a
+non-numeric operand (14), `$rename` onto itself, onto a path of its own or with a target that is no string (2), an `arrayFilters` identifier the update does not use (9), and two paths of
+one statement where one is the other or its parent, in one or in two operators, `$rename` source and target included (40). While the statement is applied: `$inc`/`$mul` on a string
+or null (14), `$push`/`$addToSet` on a field that is not an array, `null` included (2), `$pull` on a non-array (2), `$pop` on a non-array (14), and a change of the `_id` by an operator or a
+replacement document (66). A statement is atomic per document: whatever fails restores the document, where the operators before the failing one used to stay applied. A multi update stops
+at the first error and keeps the documents it changed before, like mongod, and their change stream events are delivered. `findAndModify` on the InMemoryDriver now raises the errors the
+`update` command reports in its result (a field name with a leading dollar sign 52, a field below a scalar or below an array with a non-numeric segment 28) instead of reporting success,
+and an upsert with such an error inserts nothing. Behaviour change for raw maps: `$inc` and `$mul` on a field that is explicitly `null` used to treat it as 0 and now fail, as on a real
+MongoDB.
+
 #### InMemoryDriver: an upsert that matches nothing raises E11000 instead of replacing an existing document (MOR-030)
 The document of an upsert whose filter matched nothing is inserted. The InMemoryDriver did that with the `store()` logic, which replaces a document with the same `_id`: when the
 `_id` came from the filter (an equality on `_id`) or from `$setOnInsert`, a conditional upsert such as `_id = X AND (expiresAt < now OR owner = me)` silently took over a document

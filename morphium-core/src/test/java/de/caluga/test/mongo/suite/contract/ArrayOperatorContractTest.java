@@ -34,18 +34,18 @@ public class ArrayOperatorContractTest extends MultiDriverTestBase {
             c("push with each and slice keeps the last elements").seed(d("_id", 1, "a", l(1, 2))).filter(d("_id", 1)).update(d("$push", d("a", d("$each", l(3, 4), "$slice", -3)))).expect(docs(d("_id", 1, "a", l(2, 3, 4)))),
             c("push with each and sort").seed(d("_id", 1, "a", l(3, 1))).filter(d("_id", 1)).update(d("$push", d("a", d("$each", l(2), "$sort", 1)))).expect(docs(d("_id", 1, "a", l(1, 2, 3)))),
             c("push to a nested array").seed(d("_id", 1, "x", d("a", l(1)))).filter(d("_id", 1)).update(d("$push", d("x.a", 2))).expect(docs(d("_id", 1, "x", d("a", l(1, 2))))),
-            c("push to a field that is not an array fails").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$push", d("a", 2))).expect(error(2))
-            .inMem("MOR-053", notADatabaseError()),
+            c("push to a field that is not an array fails").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$push", d("a", 2))).expect(error(2)).unchanged(),
             c("addToSet adds a new value").seed(d("_id", 1, "a", l(1, 2))).filter(d("_id", 1)).update(d("$addToSet", d("a", 3))).expect(docs(d("_id", 1, "a", l(1, 2, 3)))),
             c("addToSet ignores an existing value").seed(d("_id", 1, "a", l(1, 2))).filter(d("_id", 1)).update(d("$addToSet", d("a", 2))).expect(docs(d("_id", 1, "a", l(1, 2)))),
+            c("push to a field that is null fails").seed(d("_id", 1, "a", null)).filter(d("_id", 1)).update(d("$push", d("a", 2))).expect(error(2)).unchanged(),
+            c("push with an each that is not an array fails").seed(d("_id", 1, "a", l())).filter(d("_id", 1)).update(d("$push", d("a", d("$each", 5)))).expect(error(2)).unchanged(),
             c("addToSet creates a missing array").seed(d("_id", 1)).filter(d("_id", 1)).update(d("$addToSet", d("a", 1))).expect(docs(d("_id", 1, "a", l(1)))),
             c("addToSet with each skips duplicates").seed(d("_id", 1, "a", l(1))).filter(d("_id", 1)).update(d("$addToSet", d("a", d("$each", l(1, 2, 2, 3))))).expect(docs(d("_id", 1, "a", l(1, 2, 3)))),
             c("addToSet treats 1 and 1.0 as equal").seed(d("_id", 1, "a", l(1))).filter(d("_id", 1)).update(d("$addToSet", d("a", 1.0))).expect(docs(d("_id", 1, "a", l(1))))
             .inMem("MOR-055", docs(d("_id", 1, "a", l(1, 1.0)))),
             c("addToSet compares documents with the field order").seed(d("_id", 1, "a", l(d("x", 1, "y", 2)))).filter(d("_id", 1)).update(d("$addToSet", d("a", d("y", 2, "x", 1)))).expect(docs(d("_id", 1, "a", l(d("x", 1, "y", 2), d("y", 2, "x", 1)))))
             .inMem("MOR-055", docs(d("_id", 1, "a", l(d("x", 1, "y", 2))))),
-            c("addToSet to a field that is not an array fails").seed(d("_id", 1, "a", "s")).filter(d("_id", 1)).update(d("$addToSet", d("a", 1))).expect(error(2))
-            .inMem("MOR-053", notADatabaseError()),
+            c("addToSet to a field that is not an array fails").seed(d("_id", 1, "a", "s")).filter(d("_id", 1)).update(d("$addToSet", d("a", 1))).expect(error(2)).unchanged(),
         };
         return new ArrayList<>(List.of(cases));
     }
@@ -57,16 +57,17 @@ public class ArrayOperatorContractTest extends MultiDriverTestBase {
             c("pull of documents by a field condition").seed(d("_id", 1, "a", l(d("k", 1, "v", "x"), d("k", 2, "v", "y")))).filter(d("_id", 1)).update(d("$pull", d("a", d("k", 1))))
             .expect(docs(d("_id", 1, "a", l(d("k", 2, "v", "y"))))),
             c("pull of a missing field is a no-op").seed(d("_id", 1)).filter(d("_id", 1)).update(d("$pull", d("a", 1))).expect(docs(d("_id", 1))),
-            c("pull from a field that is not an array fails").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$pull", d("a", 1))).expect(error(2))
-            .inMem("MOR-053", docs(d("_id", 1, "a", 1))),
+            c("pull from a field that is not an array fails").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$pull", d("a", 1))).expect(error(2)).unchanged(),
+            c("pull from a field that is null fails").seed(d("_id", 1, "a", null)).filter(d("_id", 1)).update(d("$pull", d("a", 1))).expect(error(2)).unchanged(),
             c("pullAll removes the listed values").seed(d("_id", 1, "a", l(1, 2, 3, 2))).filter(d("_id", 1)).update(d("$pullAll", d("a", l(2, 3)))).expect(docs(d("_id", 1, "a", l(1)))),
             c("pullAll of a missing field is a no-op").seed(d("_id", 1)).filter(d("_id", 1)).update(d("$pullAll", d("a", l(1)))).expect(docs(d("_id", 1))),
 
             c("pop 1 removes the last element").seed(d("_id", 1, "a", l(1, 2, 3))).filter(d("_id", 1)).update(d("$pop", d("a", 1))).expect(docs(d("_id", 1, "a", l(1, 2)))),
             c("pop -1 removes the first element").seed(d("_id", 1, "a", l(1, 2, 3))).filter(d("_id", 1)).update(d("$pop", d("a", -1))).expect(docs(d("_id", 1, "a", l(2, 3)))),
             c("pop of an empty array is a no-op").seed(d("_id", 1, "a", l())).filter(d("_id", 1)).update(d("$pop", d("a", 1))).expect(docs(d("_id", 1, "a", l()))),
-            c("pop of a field that is not an array fails").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$pop", d("a", 1))).expect(error(14))
-            .inMem("MOR-053", notADatabaseError()),
+            c("pop of a missing field is a no-op").seed(d("_id", 1)).filter(d("_id", 1)).update(d("$pop", d("a", 1))).expect(docs(d("_id", 1))),
+            c("pop of a field that is null fails").seed(d("_id", 1, "a", null)).filter(d("_id", 1)).update(d("$pop", d("a", 1))).expect(error(14)).unchanged(),
+            c("pop of a field that is not an array fails").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$pop", d("a", 1))).expect(error(14)).unchanged(),
         };
         return new ArrayList<>(List.of(cases));
     }
@@ -84,8 +85,7 @@ public class ArrayOperatorContractTest extends MultiDriverTestBase {
             c("filtered positional matching nothing changes nothing").seed(d("_id", 1, "a", l(1, 2))).filter(d("_id", 1)).update(d("$set", d("a.$[e]", 0))).arrayFilters(d("e", d("$gt", 5))).expect(docs(d("_id", 1, "a", l(1, 2)))),
             c("nested filtered positional").seed(d("_id", 1, "a", l(d("k", 1, "b", l(1, 2)), d("k", 2, "b", l(1, 2))))).filter(d("_id", 1)).update(d("$inc", d("a.$[o].b.$[i]", 100)))
             .arrayFilters(d("o.k", 2), d("i", d("$gte", 2))).expect(docs(d("_id", 1, "a", l(d("k", 1, "b", l(1, 2)), d("k", 2, "b", l(1, 102)))))),
-            c("an arrayFilters identifier that is not used fails").seed(d("_id", 1, "a", l(1))).filter(d("_id", 1)).update(d("$set", d("a.0", 5))).arrayFilters(d("e", d("$gt", 0))).expect(error(9))
-            .inMem("MOR-054", notADatabaseError()),
+            c("an arrayFilters identifier that is not used fails").seed(d("_id", 1, "a", l(1))).filter(d("_id", 1)).update(d("$set", d("a.0", 5))).arrayFilters(d("e", d("$gt", 0))).expect(error(9)).unchanged(),
             c("push into a filtered element").seed(d("_id", 1, "a", l(d("k", 1, "t", l()), d("k", 2, "t", l())))).filter(d("_id", 1)).update(d("$push", d("a.$[e].t", "x"))).arrayFilters(d("e.k", 2))
             .expect(docs(d("_id", 1, "a", l(d("k", 1, "t", l()), d("k", 2, "t", l("x")))))),
         };
