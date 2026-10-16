@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 42, done 10
+Status: open 41, done 11
 
 ## Overview
 
@@ -31,7 +31,6 @@ Status: open 42, done 10
 | MOR-037 | open | 2 | defect | Morphium.simplifyQueryObject loses predicates for repeated operator keys | S |  |  |
 | MOR-043 | open | 2 | defect | Query.f should resolve field paths with resolveFieldPath | M |  | MOR-041 |
 | MOR-046 | open | 2 | defect | BufferedMorphiumWriterImpl does not marshal update values and emits push for a pull of a list | M |  | MOR-042 |
-| MOR-050 | open | 2 | implementation | Update builder: updateOne, updateMany and UpdateResult | M |  | MOR-006 |
 | MOR-011 | open | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
@@ -61,6 +60,7 @@ Status: open 42, done 10
 | MOR-009 | done | 2 | implementation | Lifecycle handling in the builder: @LastChange, @CreationTime, @Version | M |  | MOR-006 |
 | MOR-040 | done | 2 | defect | fieldNameCache: inner HashMap is not thread safe | S |  |  |
 | MOR-041 | done | 2 | implementation | Key translation for operator maps in findOneAndUpdate | M |  | MOR-002 |
+| MOR-050 | done | 2 | implementation | Update builder: updateOne, updateMany and UpdateResult | M |  | MOR-006 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 
 ## Details
@@ -815,9 +815,11 @@ Source: docs/research/plan-mor-042.md
 
 ### MOR-050 Update builder: updateOne, updateMany and UpdateResult
 
-Status **open**, priority 2, type implementation, effort M
+Status **done**, priority 2, type implementation, effort M
 
 Add the count terminals to the update builder: updateOne and updateMany through the update command, with a package-private Query.updateMapped that turns writeErrors into a MorphiumDriverException (counts in the message, writeConcernError handled, no int cast of n). UpdateResult is a final class with getMatchedCount (n minus upserted), getModifiedCount, getUpsertedId converted to the @Id type, and isAcknowledged. Sort on updateOne is rejected until the InMemoryDriver honours it and the server capability is checked. Serves the Jakarta Data UPDATE count (MOR-018).
+
+Evidence: ModifyCountTest 32 invocations (16 tests) and UpdateResultTest 5, green on PooledDriver (mongo:8, v8.3.11) and InMemoryDriver: counts for updateMany/updateOne, a no-op update modifies 0, upsert that inserts (matched 0, upserted id converted to String and MorphiumId, filter id kept), a lost conditional upsert and a unique index violation in a multi update are duplicate keys on both drivers (isDuplicateKey), arrayFilters, version incremented on every matched document, cache cleared, rejected options. Mutation check: with the writeErrors normalisation disabled the two duplicate key tests fail on mongo:8. Regression subset (66 classes): 883 tests on the InMemoryDriver with 2 errors (ReferenceCascadeTest, Byte Buddy does not support Java 25); on a real MongoDB plus InMem 1051 tests, the same eight known failures as before (ReferenceCascadeTest, ExclusiveMessageTests x2, CoreFunctionalityTests.cachedObjectOperationsTest, intermittent LastAccessTest.testLastAccessInc, see MOR-042/MOR-009), no new one. Not covered: unacknowledged write concerns (w:0) are only unit tested through UpdateResult, PoppyDB, SingleMongoConnectDriver, replica sets.
 
 Acceptance:
 
@@ -829,6 +831,8 @@ Acceptance:
 Depends on: MOR-006
 
 Source: docs/research/plan-mor-006.md
+
+Commits: 28516ff60
 
 ### MOR-051 InMemoryDriver: reject path conflicts in update documents like MongoDB
 
