@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 48, done 14
+Status: open 47, done 15
 
 ## Overview
 
@@ -12,7 +12,6 @@ Status: open 48, done 14
 |---|---|---|---|---|---|---|---|
 | MOR-027 | open | 1 | documentation | Documentation page: raw commands, embedded objects and lifecycle contract | S |  |  |
 | MOR-059 | open | 1 | defect | Query, entity and bulk write paths swallow the writeErrors of the update reply | M |  |  |
-| MOR-005 | open | 2 | verification | Audit Query.set/inc/push write paths for swallowed writeErrors and missing name translation | S |  |  |
 | MOR-007 | open | 2 | implementation | Option A extension: min, max, mul, rename, currentDate, addToSet/push with each | M |  | MOR-006 |
 | MOR-008 | open | 2 | implementation | Options object for findAndModify and a defined result for upsert without returnNew | S |  | MOR-006 |
 | MOR-014 | open | 2 | implementation | Option E: startup guard for @Embedded under @Entity(translateCamelCase=false) | S |  | MOR-001 |
@@ -65,6 +64,7 @@ Status: open 48, done 14
 | MOR-006 | done | 1 | implementation | Option A core: mapper-aware update builder (set, setOnInsert, inc, unset) with findOneAndUpdate terminal | L |  | MOR-001, MOR-002 |
 | MOR-028 | done | 1 | infrastructure | Contract tests InMem vs real MongoDB for all update paths | M |  |  |
 | MOR-030 | done | 1 | defect | InMemoryDriver: honour the filter in conditional upsert and raise E11000 | M |  |  |
+| MOR-005 | done | 2 | verification | Audit Query.set/inc/push write paths for swallowed writeErrors and missing name translation | S |  |  |
 | MOR-009 | done | 2 | implementation | Lifecycle handling in the builder: @LastChange, @CreationTime, @Version | M |  | MOR-006 |
 | MOR-010 | done | 2 | implementation | Typed duplicate-key exception and typed result for a lost conditional upsert | M |  | MOR-006 |
 | MOR-040 | done | 2 | defect | fieldNameCache: inner HashMap is not thread safe | S |  |  |
@@ -152,9 +152,11 @@ Commits: 38b5f81d8
 
 ### MOR-005 Audit Query.set/inc/push write paths for swallowed writeErrors and missing name translation
 
-Status **open**, priority 2, type verification, effort S
+Status **done**, priority 2, type verification, effort S
 
 The currentDate reproduction shows that a writeErrors entry (code 52) does not raise an exception on the Query.set path. Check which update paths (set, inc, dec, push, pull, addToSet, unset, bulk) ignore writeErrors, and fix or file the confirmed ones. Also verify the unconfirmed claim that MorphiumWriter.inc(Query, Map) puts keys into $inc without field-name translation (MorphiumWriterImpl ~line 2025). Do not duplicate GitHub #408 (writeConcernError ignored); link it. Finding from MOR-042: MorphiumWriterImpl.inc(Query, Map) puts the keys of the map into $inc without name translation (around line 2025), unlike the single-field inc; verify with a test on a real MongoDB.
+
+Evidence: WritePathAuditContractTest (4 tests, 7 invocations) and docs/research/audit-write-paths.md: 37 write paths of Query, Morphium and the bulk context measured on mongo:8 (v8.3.x, PooledDriver) for raising on a rejected write and for name translation, translation also on the InMemoryDriver. Result: only Morphium.inc(entity) and dec(entity) raise, every other path swallows the writeErrors (MOR-059, priority 1; GitHub #408 is the same family); Morphium.inc(Query, Map), inc(Map<Enum,Number>, Query) and dec(Query, Map) write the Java name, confirming the MOR-042 finding, and dotted paths through an embedded document are translated only in the first segment by Query.set, Query.inc and currentDate (MOR-060); dec with a Map increments (MOR-062); Query.dec(field, Integer) stores a double (MOR-061). Every no has a ledger task; the current behaviour is pinned in the test with the task id and UpdateContractLedgerTest fails when such a task is done. Not covered: writeConcernError (GitHub #408), the async callback variants (same implementation), the Morphium.set/store paths of whole entities, replica sets.
 
 Acceptance:
 
@@ -162,6 +164,8 @@ Acceptance:
 - Every 'no' has a fix task in the ledger or a fix in the same change
 
 Source: docs/research/reproduction-results.md hypothesis 3, docs/research/jakarta-data-1.1.md section 4, GitHub #408
+
+Commits: 840e425bc
 
 ### MOR-006 Option A core: mapper-aware update builder (set, setOnInsert, inc, unset) with findOneAndUpdate terminal
 

@@ -126,7 +126,7 @@ tasks:
 - id: MOR-005
   title: Audit Query.set/inc/push write paths for swallowed writeErrors and missing name translation
   type: verification
-  status: open
+  status: done
   priority: 2
   effort: S
   description: 'The currentDate reproduction shows that a writeErrors entry (code 52) does not raise an exception
@@ -144,6 +144,18 @@ tasks:
   - docs/research/reproduction-results.md hypothesis 3
   - docs/research/jakarta-data-1.1.md section 4
   - 'GitHub #408'
+  evidence: 'WritePathAuditContractTest (4 tests, 7 invocations) and docs/research/audit-write-paths.md: 37 write paths
+    of Query, Morphium and the bulk context measured on mongo:8 (v8.3.x, PooledDriver) for raising on a rejected write and
+    for name translation, translation also on the InMemoryDriver. Result: only Morphium.inc(entity) and dec(entity) raise,
+    every other path swallows the writeErrors (MOR-059, priority 1; GitHub #408 is the same family); Morphium.inc(Query, Map),
+    inc(Map<Enum,Number>, Query) and dec(Query, Map) write the Java name, confirming the MOR-042 finding, and dotted paths
+    through an embedded document are translated only in the first segment by Query.set, Query.inc and currentDate (MOR-060);
+    dec with a Map increments (MOR-062); Query.dec(field, Integer) stores a double (MOR-061). Every no has a ledger task; the
+    current behaviour is pinned in the test with the task id and UpdateContractLedgerTest fails when such a task is done.
+    Not covered: writeConcernError (GitHub #408), the async callback variants (same implementation), the Morphium.set/store
+    paths of whole entities, replica sets.'
+  commits:
+  - 840e425bc
 - id: MOR-006
   title: 'Option A core: mapper-aware update builder (set, setOnInsert, inc, unset) with findOneAndUpdate terminal'
   type: implementation
