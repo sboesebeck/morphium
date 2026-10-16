@@ -21,6 +21,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
@@ -94,7 +95,6 @@ public class WritePathAuditContractTest extends MultiDriverTestBase {
         new Probe("Query.inc(field,Number)", (m, q, a) -> q.inc("counterValue", (Number) Integer.valueOf(4)), number("counter_value", 5)),
         new Probe("Query.inc(enum)", (m, q, a) -> q.inc(F.counterValue, Integer.valueOf(4)), number("counter_value", 5)),
         new Probe("Query.inc(dotted path)", (m, q, a) -> q.inc("box.innerValue", Integer.valueOf(4)), box("inner_value", 5)),
-        // pinned deviation MOR-061: dec(field, Integer) stores a double (the effect is compared as a number)
         new Probe("Query.dec(field,Integer)", (m, q, a) -> q.dec("counterValue", Integer.valueOf(-4)), number("counter_value", 5)),
         new Probe("Query.dec(field,Number)", (m, q, a) -> q.dec("counterValue", (Number) Integer.valueOf(-4)), number("counter_value", 5)),
         new Probe("Morphium.inc(query,map)", (m, q, a) -> m.inc(q, Map.of("counterValue", 4), false, false, null), number("counter_value", 5)),
@@ -127,10 +127,6 @@ public class WritePathAuditContractTest extends MultiDriverTestBase {
      */
     private static final Set<String> RAISE_TODAY = Set.of("Morphium.inc(entity)", "Morphium.dec(entity)");
 
-    /** the paths whose Java field names are written untranslated (the Map variants of inc/dec, and dotted paths through an embedded document); pinned deviation MOR-060 */
-    private static final Set<String> UNTRANSLATED_TODAY = Set.of("Morphium.inc(query,map)", "Morphium.inc(enumMap,query)", "Morphium.dec(query,map)",
-                                                                  "Query.set(dotted path)", "Query.inc(dotted path)", "Morphium.currentDate(dotted path)");
-
     /** the arguments that make a probe fail on the server */
     private static final Map<String, Op> FAILING = new LinkedHashMap<>();
 
@@ -143,9 +139,9 @@ public class WritePathAuditContractTest extends MultiDriverTestBase {
         FAILING.put("Query.unset(field)", (m, q, a) -> q.unset("code"));
         FAILING.put("Query.unset(enum)", (m, q, a) -> q.unset(F.code));
         FAILING.put("Morphium.inc(query,map)", (m, q, a) -> m.inc(q, Map.of("counter_value", 1), false, false, null));
-        // inc(enumMap, query) cannot be measured on its own: the keys are Java names and are written untranslated (MOR-060), so there is no collision to report
-        // dec(query, map) increments (MOR-062), so the amount 1 collides with the counter of document b
-        FAILING.put("Morphium.dec(query,map)", (m, q, a) -> m.dec(q, Map.of("counter_value", 1), false, false, null));
+        // inc(enumMap, query) cannot be measured on its own: the keys are Java names and are Java names, so a stored name would be needed to provoke a collision; the translation of this path is covered by the translation probes
+        // dec by -1 adds 1, which collides with the counter of document b
+        FAILING.put("Morphium.dec(query,map)", (m, q, a) -> m.dec(q, Map.of("counter_value", -1), false, false, null));
         FAILING.put("Bulk.addCurrentDateRequest", (m, q, a) -> bulk(m, b -> b.addCurrentDateRequest(q, false, false, "scalar_value.sub")));
         FAILING.put("Query.inc(field,Integer)", (m, q, a) -> q.inc("counterValue", Integer.valueOf(1)));
         FAILING.put("Query.inc(field,Long)", (m, q, a) -> q.inc("counterValue", Long.valueOf(1)));
@@ -249,7 +245,7 @@ public class WritePathAuditContractTest extends MultiDriverTestBase {
                     problems.add(e.getKey() + ": raised=" + raised + ", expected " + expected);
                 }
 
-                // a rejected statement changes nothing (the dotted paths are rejected only if the name was translated: MOR-060 for currentDate)
+                // a rejected statement changes nothing
                 if (!raw(m, "a").equals(before)) {
                     problems.add(e.getKey() + ": the document changed " + raw(m, "a"));
                 }
@@ -277,12 +273,9 @@ public class WritePathAuditContractTest extends MultiDriverTestBase {
                 }
 
                 Map<String, Object> raw = raw(m, "a");
-                // pinned deviation MOR-060: these paths write the Java name
-                boolean untranslated = UNTRANSLATED_TODAY.contains(p.name());
-
-                if (untranslated != hasJavaNames(raw)) {
-                    problems.add(p.name() + (untranslated ? ": expected the stray Java name (MOR-060) but " : ": stray Java name in ") + new java.util.TreeMap<>(raw));
-                } else if (!untranslated && !p.effect().test(raw)) {
+                if (hasJavaNames(raw)) {
+                    problems.add(p.name() + ": stray Java name in " + new java.util.TreeMap<>(raw));
+                } else if (!p.effect().test(raw)) {
                     problems.add(p.name() + ": the effect is missing in " + new java.util.TreeMap<>(raw));
                 }
             }
@@ -293,15 +286,33 @@ public class WritePathAuditContractTest extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
-    public void decWithAMapIncrementsInsteadOfDecrementing(Morphium m) throws Exception {
+    public void decWithAMapDecrements(Morphium m) throws Exception {
         try (m) {
             setup(m, false);
             m.dec(m.createQueryFor(Audit.class).f("_id").eq("a"), Map.of("counter_value", 1), false, false, null);
-            // pinned deviation MOR-062: the Map variants of dec hand the amounts to inc without negating them (the counter was 1; the expected result is 0)
-            assertEquals(2, ((Number) raw(m, "a").get("counter_value")).intValue());
+            assertEquals(0, ((Number) raw(m, "a").get("counter_value")).intValue(), "the counter was 1");
             m.dec(Map.of(F.counterValue, 1), m.createQueryFor(Audit.class).f("_id").eq("b"), false, false, null);
-            // pinned deviation MOR-060 and MOR-062: written untranslated, and incremented
-            assertEquals(1, ((Number) raw(m, "b").get("counterValue")).intValue());
+            assertEquals(1, ((Number) raw(m, "b").get("counter_value")).intValue(), "the counter was 2");
+            assertFalse(hasJavaNames(raw(m, "b")), "stored under the stored name");
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void decKeepsTheNumberTypeOfTheAmount(Morphium m) throws Exception {
+        try (m) {
+            setup(m, false);
+            Query<Audit> q = m.createQueryFor(Audit.class).f("_id").eq("a");
+            q.dec("counterValue", Integer.valueOf(1));
+            assertTrue(raw(m, "a").get("counter_value") instanceof Integer, "an Integer amount keeps an int field an int: " + raw(m, "a").get("counter_value").getClass());
+            assertEquals(0, ((Number) raw(m, "a").get("counter_value")).intValue());
+            q.dec("counterValue", Long.valueOf(1));
+            assertTrue(raw(m, "a").get("counter_value") instanceof Long, "a Long amount makes it a long, as inc does");
+            Audit a = m.createQueryFor(Audit.class).f("_id").eq("a").get();
+            m.dec(a, "counterValue", (Number) Integer.valueOf(1));
+            assertTrue(raw(m, "a").get("counter_value") instanceof Long, "the long stays a long (-1 - 1)");
+            q.dec("counterValue", Double.valueOf(0.5));
+            assertEquals(-2.5, ((Number) raw(m, "a").get("counter_value")).doubleValue());
         }
     }
 
@@ -312,7 +323,6 @@ public class WritePathAuditContractTest extends MultiDriverTestBase {
             Set<String> names = new java.util.TreeSet<>();
             PROBES.forEach(p -> names.add(p.name()));
             assertEquals(PROBES.size(), names.size(), "unique probe names");
-            assertTrue(names.containsAll(UNTRANSLATED_TODAY));
             assertTrue(names.containsAll(RAISE_TODAY));
             assertTrue(names.containsAll(FAILING.keySet().stream().filter(n -> !n.equals("Morphium.currentDate")).toList()), "every failing probe has a translation probe");
         }

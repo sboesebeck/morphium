@@ -1999,6 +1999,14 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         }
     }
 
+    /**
+     * The stored name of a field for an update: a single name is resolved as before, a dotted path is resolved segment by segment through the embedded documents
+     * ({@link de.caluga.morphium.AnnotationAndReflectionHelper#resolveFieldPath(Class, String)}; stored names, positional and unknown segments stay as they are).
+     */
+    private String storedName(Class<?> cls, String field) {
+        return field.indexOf('.') >= 0 ? morphium.getARHelper().resolveFieldPath(cls, field) : morphium.getARHelper().getMongoFieldName(cls, field);
+    }
+
     @Override
     public <T> Map<String, Object> inc(final Query<T> query, final Map<String, Number> fieldsToInc, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
         WriterTask r = new WriterTask() {
@@ -2023,7 +2031,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(cls), MorphiumStorageListener.UpdateTypes.INC);
                 String coll = query.getCollectionName();
                 Map<String, Object> update = new HashMap<>();
-                update.put("$inc", new HashMap<String, Object>(fieldsToInc));
+                Map<String, Object> incs = new LinkedHashMap<>();
+                fieldsToInc.forEach((k, v) -> incs.put(storedName(cls, k), v));
+                update.put("$inc", incs);
                 handleLastChange((Class <? extends T > ) cls, update);
                 Map<String, Object> qobj = query.toQueryObject();
 
@@ -2157,7 +2167,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 Class cls = query.getType();
                 morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(cls), MorphiumStorageListener.UpdateTypes.INC);
                 String coll = query.getCollectionName();
-                String fieldName = morphium.getARHelper().getMongoFieldName(cls, field);
+                String fieldName = storedName(cls, field);
                 Map<String, Object> update = UtilsMap.of("$inc", UtilsMap.of(fieldName, amount));
                 Map<String, Object> qobj = query.toQueryObject();
 
@@ -2386,12 +2396,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         Map<String, Object> fields = new LinkedHashMap<>();
 
                         for (Map.Entry<?, ?> f : ((Map<?, ?>) ef.getValue()).entrySet()) {
-                            fields.put(morphium.getARHelper().getMongoFieldName(cls, String.valueOf(f.getKey())), (Object) f.getValue());
+                            fields.put(storedName(cls, String.valueOf(f.getKey())), (Object) f.getValue());
                         }
 
                         operators.put(ef.getKey(), fields);
                     } else {
-                        toSet.put(morphium.getARHelper().getMongoFieldName(cls, ef.getKey()), ef.getValue());
+                        toSet.put(storedName(cls, ef.getKey()), ef.getValue());
                     }
                 }
 
@@ -2513,7 +2523,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 Map<String, String> toSet = new HashMap<>();
 
                 for (String f : fields) {
-                    toSet.put(morphium.getARHelper().getMongoFieldName(cls, f), "");    // value is ignored
+                    toSet.put(storedName(cls, f), "");    // value is ignored
                 }
 
                 Map<String, Object> update = UtilsMap.of("$unset", toSet);
@@ -2706,7 +2716,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     qobj = morphium.simplifyQueryObject(qobj);
                 }
 
-                String fieldName = morphium.getARHelper().getMongoFieldName(cls, field);
+                String fieldName = storedName(cls, field);
                 Map<String, Object> set = Doc.of(fieldName, marshalledValue);
                 Map<String, Object> update = null;
 
@@ -2888,7 +2898,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         logger.warn("Sort is not supported for updates!!!");
                     }
 
-                    field = morphium.getARHelper().getMongoFieldName(cls, field);
+                    field = storedName(cls, field);
                     Map<String, Object> update;
 
                     switch (type) {

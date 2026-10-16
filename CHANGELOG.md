@@ -86,6 +86,12 @@ Behaviour changes: `BigDecimal` is written as a double and `Character` as an int
 for a `List<LocalDate>` and friends changes from flat elements to wrapped ones. Documents written flat by an earlier version are not read back typed until they are stored once with `store()`
 (a flat element reaches a `List<LocalDate>` as a raw number), and `$addToSet` does not recognise a flat element as equal to a wrapped one. `useBsonDateForJavaTime` now reaches `findOneAndUpdate(Map)` and the builder, which
 supersedes the note "Documented: `useBsonDateForJavaTime` does not reach maps you build yourself" of 6.3.14 for these two methods (a map handed to a driver command is still not mapped).
+#### Write paths: Map variants of `inc`/`dec`, dotted paths and `dec` amounts (MOR-060, MOR-061, MOR-062)
+`Morphium.inc(Query, Map)`, `inc(Map<Enum,Number>, Query)` and `dec(Query, Map)` wrote the Java names of the map into `$inc` (a field `counterValue` next to the stored `counter_value`); the keys are now translated.
+`Query.set`, `Query.inc`, `Query.unset`, `push`/`pushAll` and `Morphium.currentDate` translated only the first segment of a dotted path through an `@Embedded` document (`box.innerValue` was written next to the
+stored `box.inner_value`); the whole path is resolved now, as the update builder does. `dec(Query, Map)` and `dec(Map<Enum,Number>, Query)` added the amounts instead of subtracting them. `dec` with a
+`Number` amount (`Query.dec(field, Integer)` resolves to it) turned an int or long field into a double; the amount keeps its type now, as with `inc`.
+
 #### java.time values in update documents (MOR-006)
 An `Instant`, `LocalDateTime`, `LocalDate` or `LocalTime` in a `findOneAndUpdate` or `Query.set` document was stored as the live object by the InMemoryDriver, which then could not read it back
 (the mapper expects the Map shape `store()` writes). They are now written by their registered type mapper. On a real MongoDB with the default configuration the stored shape is unchanged; with a
