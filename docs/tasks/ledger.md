@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 46, done 16
+Status: open 43, done 19
 
 ## Overview
 
@@ -32,8 +32,6 @@ Status: open 46, done 16
 | MOR-054 | open | 2 | defect | InMemoryDriver: validate the shape of an update document (unknown operator, mixed fields, _id, names) | S |  |  |
 | MOR-055 | open | 2 | defect | InMemoryDriver: number and BSON comparison semantics of $inc, $mul, $min, $max and $addToSet | M |  |  |
 | MOR-058 | open | 2 | defect | InMemoryDriver: findAndModify does not reject what the update command rejects | S |  |  |
-| MOR-060 | open | 2 | defect | Write paths that write the Java field name: inc/dec with a Map and dotted paths through embedded documents | S |  |  |
-| MOR-062 | open | 2 | defect | Morphium.dec(Query, Map) and dec(Map, Query) increment instead of decrement | S |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
 | MOR-015 | open | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
@@ -55,7 +53,6 @@ Status: open 46, done 16
 | MOR-052 | open | 3 | defect | updateLastAccess writes the untranslated Java field name | S |  |  |
 | MOR-056 | open | 3 | defect | InMemoryDriver: upsert seeds the equalities of a single-branch $or | S |  |  |
 | MOR-057 | open | 3 | defect | InMemoryDriver: an inserted document is stored by reference | S |  |  |
-| MOR-061 | open | 3 | defect | Query.dec(field, Integer) turns an int counter into a double | S |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -70,8 +67,11 @@ Status: open 46, done 16
 | MOR-040 | done | 2 | defect | fieldNameCache: inner HashMap is not thread safe | S |  |  |
 | MOR-041 | done | 2 | implementation | Key translation for operator maps in findOneAndUpdate | M |  | MOR-002 |
 | MOR-050 | done | 2 | implementation | Update builder: updateOne, updateMany and UpdateResult | M |  | MOR-006 |
+| MOR-060 | done | 2 | defect | Write paths that write the Java field name: inc/dec with a Map and dotted paths through embedded documents | S |  |  |
+| MOR-062 | done | 2 | defect | Morphium.dec(Query, Map) and dec(Map, Query) increment instead of decrement | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
+| MOR-061 | done | 3 | defect | Query.dec(field, Integer) turns an int counter into a double | S |  |  |
 
 ## Details
 
@@ -983,9 +983,11 @@ Source: docs/research/audit-write-paths.md, GitHub #408
 
 ### MOR-060 Write paths that write the Java field name: inc/dec with a Map and dotted paths through embedded documents
 
-Status **open**, priority 2, type defect, effort S
+Status **done**, priority 2, type defect, effort S
 
 Found by the write path audit (MOR-005), measured on mongo:8 and on the InMemoryDriver. Morphium.inc(Query, Map), inc(Map<Enum,Number>, Query) and dec(Query, Map) put the keys of the map into $inc without translation (MorphiumWriterImpl.inc(Query, Map) copies the map), so counterValue is written next to the stored counter_value. Query.set, Query.inc and Morphium.currentDate with a dotted path through an @Embedded document (box.innerValue) translate the first segment but write the second as given, next to the stored box.inner_value; the update builder (resolveFieldPath) translates the same path correctly.
+
+Evidence: WritePathAuditContractTest (translation probes, 37 paths) green on PooledDriver (mongo:8, v8.3.x) and InMemoryDriver with no pinned deviation left: inc(Query, Map), inc(Map<Enum,Number>, Query), dec(Query, Map) and the dotted paths through an embedded document of Query.set, Query.inc and Morphium.currentDate write the stored name. Regression (1166 invocations on both drivers) shows only the known failures (ReferenceCascadeTest, ExclusiveMessageTests x2, TransactionTest needs a replica set).
 
 Acceptance:
 
@@ -994,11 +996,15 @@ Acceptance:
 
 Source: docs/research/audit-write-paths.md
 
+Commits: a71202e84
+
 ### MOR-061 Query.dec(field, Integer) turns an int counter into a double
 
-Status **open**, priority 3, type defect, effort S
+Status **done**, priority 3, type defect, effort S
 
 Found by the write path audit (MOR-005). Query.dec(String, Integer) resolves to the Number overload of Morphium.dec, which subtracts amount.doubleValue(), so a decrement of an int or long field stores a double (5 becomes 5.0). dec(field, int) and dec(field, long) keep the type; inc has no such asymmetry.
+
+Evidence: decKeepsTheNumberTypeOfTheAmount on mongo:8 and the InMemoryDriver: dec with an Integer amount keeps an int field an int, a Long amount makes it a long as inc does, a Double amount a double; the Number overloads of Query, Morphium and the entity variants negate in the type of the amount.
 
 Acceptance:
 
@@ -1006,11 +1012,15 @@ Acceptance:
 
 Source: docs/research/audit-write-paths.md
 
+Commits: a71202e84
+
 ### MOR-062 Morphium.dec(Query, Map) and dec(Map, Query) increment instead of decrement
 
-Status **open**, priority 2, type defect, effort S
+Status **done**, priority 2, type defect, effort S
 
 Found by the write path audit (MOR-005), measured on mongo:8 and on the InMemoryDriver. MorphiumBase.dec(Query, Map<String,Number>) and dec(Map<Enum,Number>, Query) pass the amounts to the writer's inc(Query, Map) without negating them, so dec(query, {counter: 1}) adds 1. The single-field dec variants negate.
+
+Evidence: decWithAMapDecrements on mongo:8 and the InMemoryDriver: dec(Query, Map) and dec(Map<Enum,Number>, Query) subtract the amounts and write the stored name; the audit probe that provoked a collision with dec by -1 is raised/unchanged as before.
 
 Acceptance:
 
@@ -1018,4 +1028,6 @@ Acceptance:
 - The pinned deviation MOR-062 in WritePathAuditContractTest is removed
 
 Source: docs/research/audit-write-paths.md
+
+Commits: a71202e84
 
