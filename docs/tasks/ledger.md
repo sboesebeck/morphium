@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 47, done 15
+Status: open 46, done 16
 
 ## Overview
 
@@ -13,7 +13,6 @@ Status: open 47, done 15
 | MOR-027 | open | 1 | documentation | Documentation page: raw commands, embedded objects and lifecycle contract | S |  |  |
 | MOR-059 | open | 1 | defect | Query, entity and bulk write paths swallow the writeErrors of the update reply | M |  |  |
 | MOR-007 | open | 2 | implementation | Option A extension: min, max, mul, rename, currentDate, addToSet/push with each | M |  | MOR-006 |
-| MOR-008 | open | 2 | implementation | Options object for findAndModify and a defined result for upsert without returnNew | S |  | MOR-006 |
 | MOR-014 | open | 2 | implementation | Option E: startup guard for @Embedded under @Entity(translateCamelCase=false) | S |  | MOR-001 |
 | MOR-017 | open | 2 | implementation | Jakarta Data: JDQL DELETE FROM | M |  |  |
 | MOR-018 | open | 2 | implementation | Jakarta Data: JDQL UPDATE ... SET ... WHERE as one atomic update | L |  | MOR-006, MOR-007 |
@@ -65,6 +64,7 @@ Status: open 47, done 15
 | MOR-028 | done | 1 | infrastructure | Contract tests InMem vs real MongoDB for all update paths | M |  |  |
 | MOR-030 | done | 1 | defect | InMemoryDriver: honour the filter in conditional upsert and raise E11000 | M |  |  |
 | MOR-005 | done | 2 | verification | Audit Query.set/inc/push write paths for swallowed writeErrors and missing name translation | S |  |  |
+| MOR-008 | done | 2 | implementation | Options object for findAndModify and a defined result for upsert without returnNew | S |  | MOR-006 |
 | MOR-009 | done | 2 | implementation | Lifecycle handling in the builder: @LastChange, @CreationTime, @Version | M |  | MOR-006 |
 | MOR-010 | done | 2 | implementation | Typed duplicate-key exception and typed result for a lost conditional upsert | M |  | MOR-006 |
 | MOR-040 | done | 2 | defect | fieldNameCache: inner HashMap is not thread safe | S |  |  |
@@ -210,9 +210,11 @@ Source: docs/research/reproduction-results.md (update API gaps), docs/research/o
 
 ### MOR-008 Options object for findAndModify and a defined result for upsert without returnNew
 
-Status **open**, priority 2, type implementation, effort S
+Status **done**, priority 2, type implementation, effort S
 
 Replace findOneAndUpdate(Map, boolean upsert, boolean returnNew) by findOneAndUpdate(update, FindAndModifyOptions) with upsert, returnDocument(BEFORE/AFTER), sort, projection, arrayFilters, hint, collation, maxTime. Keep the old signature as a delegating overload. Document and define the result for an upsert that inserts with returnDocument BEFORE (null today, reproduced on both drivers). The arrayFilters wiring of FindAndModifyMongoCommand and InMemoryDriver.findAndOneAndUpdate is done by MOR-006; this task keeps the options object, projection and hint, which the InMemoryDriver currently drops in findAndModify (InMemoryDriver.java around line 4129).
+
+Evidence: ModifyOptionsTest 34 invocations (17 tests, 2 skipped on the InMemoryDriver: unknown hint rejected, collation) and FindAndModifyOptionsTest 5, green on PooledDriver (mongo:8, v8.3.x) and InMemoryDriver: upsert with BEFORE returns null for an insert and the document for AFTER, sort of the options overrides the query sort, projection (include, exclude, Java names translated, _id kept, stored document complete), hint by name and by key document, unknown hint rejected by mongod, array filters, maxTime, collation on mongod, returnDocument required, legacy overload equals the options form, builder terminals (projection and hint through the options, builder upsert wins over upsert(false), the option can request the upsert, tryFindOneAndUpdate(options) tells insert from update), count terminals still reject projection and hint. Mutation check: without the projection in the command the projection tests fail. ConditionalUpsertReproductionTest passes unchanged. Regression (update, upsert, builder, lease, contract and reproduction classes, 521 invocations) green on both drivers. The InMemoryDriver applies the projection (inclusion, exclusion, dotted paths; no $slice/$elemMatch) and ignores hint and maxTimeMS. Not covered: findOneAndReplace/findOneAndDelete options, PoppyDB, SingleMongoConnectDriver.
 
 Acceptance:
 
@@ -224,6 +226,8 @@ Acceptance:
 Depends on: MOR-006
 
 Source: docs/research/reproduction-results.md hypothesis 5, docs/research/other-clients.md pattern 6
+
+Commits: edd39c204
 
 ### MOR-009 Lifecycle handling in the builder: @LastChange, @CreationTime, @Version
 
