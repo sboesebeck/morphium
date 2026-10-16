@@ -9124,7 +9124,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return value;
     }
 
-    private boolean isArrayIndex(String value) {
+    private static boolean isArrayIndex(String value) {
         if (value == null || value.isEmpty()) {
             return false;
         }
@@ -9694,8 +9694,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     /**
      * The checks that mongod makes while it parses an update document, before it reads or changes a document - so also when nothing matches:
      * unknown operators and operators mixed with fields (9, a field in front of an operator is a replacement with an operator in it, 52), a
-     * modifier that is no document (9), empty field names (56), {@code $inc} and {@code $mul} with a non-numeric operand (14), {@code $rename} onto
-     * itself, onto a path of its own or with a target that is no string (2), and two paths of the statement where one is the other or its parent (40).
+     * modifier that is no document (9), empty field names (56), {@code $inc} and {@code $mul} with a non-numeric operand (14), {@code $pop} with an
+     * operand other than 1 or -1 (9), {@code $rename} onto itself, onto a path of its own or with a target that is no string (2), and paths of the
+     * statement that conflict (40, see {@link UpdatePaths}).
      * A replacement document (no operator at all) is not checked here.
      */
     private static void validateUpdate(Map<String, Object> op) {
@@ -9711,8 +9712,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                               + "' is not allowed in the context of an update's replacement document.");
         }
 
-        Set<String> paths = new HashSet<>();
-        Set<String> parents = new HashSet<>();
+        UpdatePaths paths = new UpdatePaths();
 
         for (Map.Entry<String, Object> modifier : op.entrySet()) {
             String operator = modifier.getKey();
@@ -9729,7 +9729,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             for (Map.Entry<?, ?> field : fields.entrySet()) {
                 String path = String.valueOf(field.getKey());
                 Object value = field.getValue();
-                addUpdatePath(path, paths, parents);
+                paths.add(path);
+
+                if (operator.equals("$pop") && !(value instanceof Number n && n.doubleValue() == Math.rint(n.doubleValue()) && Math.abs(n.doubleValue()) == 1)) {
+                    throw updateError(9, "$pop expects 1 or -1, found: " + value);
+                }
 
                 if (operator.equals("$inc") && !(value instanceof Number)) {
                     throw updateError(14, "Cannot increment with non-numeric argument: {" + path + ": " + value + "}");
@@ -9752,42 +9756,69 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         throw updateError(2, "The source and target field for $rename must not be on the same path: " + path + ": \"" + target + "\"");
                     }
 
-                    addUpdatePath(target, paths, parents);
+                    paths.add(target);
                 }
             }
         }
     }
 
     /**
-     * Registers a path that an update statement changes. {@code paths} holds the registered paths, {@code parents} every proper prefix of them; a path
-     * that is registered already, has a registered path as its parent or is the parent of one conflicts with them (40).
+     * The paths that an update statement changes, to find the conflicts that mongod rejects with code 40: a path that is registered already, has a
+     * registered path as its parent or is the parent of one, and an index of an array ({@code a.0}) next to a positional {@code $[]} / {@code $[id]}
+     * of the same array ({@code a.$[]}). Two positional paths of one array do not conflict, nor does {@code $} against an index.
      */
-    private static void addUpdatePath(String path, Set<String> paths, Set<String> parents) {
-        if (path.isEmpty() || path.startsWith(".") || path.endsWith(".") || path.contains("..")) {
-            throw updateError(56, "The update path '" + path + "' contains an empty field name, which is not allowed.");
-        }
+    private static final class UpdatePaths {
+        private final Set<String> paths = new HashSet<>();
+        private final Set<String> parents = new HashSet<>();
+        private final Set<String> wildcardArrays = new HashSet<>(); // arrays with a $[...] segment below them
+        private final Set<String> indexedArrays = new HashSet<>(); // arrays with a numeric segment below them
 
-        String[] segments = path.split("\\.");
-        StringBuilder prefix = new StringBuilder();
+        void add(String path) {
+            if (path.isEmpty() || path.startsWith(".") || path.endsWith(".") || path.contains("..")) {
+                throw updateError(56, "The update path '" + path + "' contains an empty field name, which is not allowed.");
+            }
 
-        for (int i = 0; i < segments.length - 1; i++) {
-            prefix.append(i > 0 ? "." : "").append(segments[i]);
+            String[] segments = path.split("\\.");
+            String[] upTo = new String[segments.length]; // upTo[i]: the path up to and including segment i
+            upTo[0] = segments[0];
 
-            if (paths.contains(prefix.toString())) {
-                throw updateError(40, "Updating the path '" + path + "' would create a conflict at '" + prefix + "'");
+            for (int i = 1; i < segments.length; i++) {
+                upTo[i] = upTo[i - 1] + "." + segments[i];
+            }
+
+            for (int i = 0; i < segments.length - 1; i++) {
+                if (paths.contains(upTo[i])) {
+                    throw conflict(path, upTo[i]);
+                }
+            }
+
+            for (int i = 1; i < segments.length; i++) {
+                if (segments[i].startsWith("$[") && indexedArrays.contains(upTo[i - 1]) || isArrayIndex(segments[i]) && wildcardArrays.contains(upTo[i - 1])) {
+                    throw conflict(path, upTo[i - 1]);
+                }
+            }
+
+            if (paths.contains(path) || parents.contains(path)) {
+                throw conflict(path, path);
+            }
+
+            paths.add(path);
+
+            for (int i = 0; i < segments.length - 1; i++) {
+                parents.add(upTo[i]);
+            }
+
+            for (int i = 1; i < segments.length; i++) {
+                if (segments[i].startsWith("$[")) {
+                    wildcardArrays.add(upTo[i - 1]);
+                } else if (isArrayIndex(segments[i])) {
+                    indexedArrays.add(upTo[i - 1]);
+                }
             }
         }
 
-        if (paths.contains(path) || parents.contains(path)) {
-            throw updateError(40, "Updating the path '" + path + "' would create a conflict at '" + path + "'");
-        }
-
-        paths.add(path);
-        prefix.setLength(0);
-
-        for (int i = 0; i < segments.length - 1; i++) {
-            prefix.append(i > 0 ? "." : "").append(segments[i]);
-            parents.add(prefix.toString());
+        private static MorphiumDriverException conflict(String path, String at) {
+            return updateError(40, "Updating the path '" + path + "' would create a conflict at '" + at + "'");
         }
     }
 
@@ -9965,7 +9996,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 if (isReplacement) {
                     Object idValue = obj.get("_id");
 
-                    if (!insert && op.containsKey("_id") && !Objects.equals(op.get("_id"), idValue)) {
+                    // an upsert that inserts has an _id only if the filter named it
+                    if ((!insert || idValue != null) && op.containsKey("_id") && !Objects.equals(op.get("_id"), idValue)) {
                         throw updateError(66, // ImmutableField
                                           "After applying the update, the (immutable) field '_id' was found to have been altered to _id: " + op.get("_id"));
                     }
@@ -10655,8 +10687,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         }
                     }
 
-                    // the _id is immutable: any operator that changes or removes it fails, after the fact (mongod 66)
-                    if (!insert && !Objects.equals(original.get("_id"), obj.get("_id"))) {
+                    // the _id is immutable: any operator that changes or removes it fails, after the fact (mongod 66). An upsert that inserts
+                    // is bound to the _id that the filter named, if it did.
+                    if ((!insert || original.containsKey("_id")) && !Objects.equals(original.get("_id"), obj.get("_id"))) {
                         throw updateError(66, // ImmutableField
                                           "After applying the update, the (immutable) field '_id' was found to have been altered to _id: " + obj.get("_id"));
                     }
