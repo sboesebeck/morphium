@@ -315,7 +315,7 @@ tasks:
 - id: MOR-011
   title: Typed lease / try-acquire primitive
   type: implementation
-  status: open
+  status: done
   priority: 3
   effort: M
   description: 'Applications implement the same lease pattern by hand (job lease, outbox relay lease, command outcome):
@@ -328,6 +328,15 @@ tasks:
   - MOR-010
   source:
   - update-path research, 2026-10-15
+  evidence: 'LeaseManagerTest 22 invocations (11 tests) and LeaseResultTest 4, green on PooledDriver (mongo:8) and
+    InMemoryDriver: acquire inserts, a held lease is HELD and untouched, renewal moves the deadline and the version,
+    takeover after expiry, release frees it for another owner, a stranger or an unknown id cannot release, Instant and
+    Date deadline fields, invalid definitions and arguments are rejected, eight contenders on a fresh lease (five
+    rounds) and on an expired lease have exactly one winner on both drivers. Mutation check: without the owner branch
+    of the filter the renewal test fails. Builder, outcome, lease and upsert suites together (256 invocations) were rerun on both drivers without a failure. Not
+    covered: natural-key leases (not the @Id), PoppyDB, SingleMongoConnectDriver, replica sets, clock skew between hosts.'
+  commits:
+  - 71dbf9463
 - id: MOR-012
   title: Builder accepts type-safe field references
   type: implementation

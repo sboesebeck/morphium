@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 40, done 12
+Status: open 39, done 13
 
 ## Overview
 
@@ -30,7 +30,6 @@ Status: open 40, done 12
 | MOR-037 | open | 2 | defect | Morphium.simplifyQueryObject loses predicates for repeated operator keys | S |  |  |
 | MOR-043 | open | 2 | defect | Query.f should resolve field paths with resolveFieldPath | M |  | MOR-041 |
 | MOR-046 | open | 2 | defect | BufferedMorphiumWriterImpl does not marshal update values and emits push for a pull of a list | M |  | MOR-042 |
-| MOR-011 | open | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
 | MOR-015 | open | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
@@ -61,6 +60,7 @@ Status: open 40, done 12
 | MOR-040 | done | 2 | defect | fieldNameCache: inner HashMap is not thread safe | S |  |  |
 | MOR-041 | done | 2 | implementation | Key translation for operator maps in findOneAndUpdate | M |  | MOR-002 |
 | MOR-050 | done | 2 | implementation | Update builder: updateOne, updateMany and UpdateResult | M |  | MOR-006 |
+| MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 
 ## Details
@@ -252,9 +252,11 @@ Commits: 3ca764c16
 
 ### MOR-011 Typed lease / try-acquire primitive
 
-Status **open**, priority 3, type implementation, effort M
+Status **done**, priority 3, type implementation, effort M
 
 Applications implement the same lease pattern by hand (job lease, outbox relay lease, command outcome): conditional upsert with filter (expiresAt < now OR owner = me), E11000 meaning 'held'. Offer a small typed primitive or documented recipe built on MOR-010.
+
+Evidence: LeaseManagerTest 22 invocations (11 tests) and LeaseResultTest 4, green on PooledDriver (mongo:8) and InMemoryDriver: acquire inserts, a held lease is HELD and untouched, renewal moves the deadline and the version, takeover after expiry, release frees it for another owner, a stranger or an unknown id cannot release, Instant and Date deadline fields, invalid definitions and arguments are rejected, eight contenders on a fresh lease (five rounds) and on an expired lease have exactly one winner on both drivers. Mutation check: without the owner branch of the filter the renewal test fails. Builder, outcome, lease and upsert suites together (256 invocations) were rerun on both drivers without a failure. Not covered: natural-key leases (not the @Id), PoppyDB, SingleMongoConnectDriver, replica sets, clock skew between hosts.
 
 Acceptance:
 
@@ -264,6 +266,8 @@ Acceptance:
 Depends on: MOR-010
 
 Source: update-path research, 2026-10-15
+
+Commits: 71dbf9463
 
 ### MOR-012 Builder accepts type-safe field references
 
