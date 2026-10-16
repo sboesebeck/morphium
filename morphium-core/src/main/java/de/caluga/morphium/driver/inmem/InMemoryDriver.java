@@ -8717,10 +8717,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                     arrayFilters, query, pendingNotifications);
         } finally {
             lock.writeLock().unlock();
-        }
-        // Notify watchers AFTER releasing the write lock to prevent deadlocks
-        for (PendingNotification notification : pendingNotifications) {
-            notifyWatchers(notification);
+            // Notify watchers AFTER releasing the write lock to prevent deadlocks. Also if a later document of a multi update failed: the
+            // documents that were changed before stay changed, and their change stream events must not get lost.
+            for (PendingNotification notification : pendingNotifications) {
+                notifyWatchers(notification);
+            }
         }
         return result;
     }
@@ -9605,8 +9606,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                     if (filter == null) {
                         // normally caught by the up-front validation; kept as a safety net
-                        throw new MorphiumDriverException(
-                                        "No array filter found for identifier '" + id + "' in path '" + key + "'");
+                        throw updateError(2, // BadValue
+                                          "No array filter found for identifier '" + id + "' in path '" + key + "'");
                     }
 
                     if (!(cur instanceof List)) {
@@ -9645,8 +9646,168 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private MorphiumDriverException pathMustExist(String path) {
-        return new MorphiumDriverException(
-                       "The path '" + path + "' must exist in the document in order to apply array updates");
+        return updateError(2, // BadValue
+                           "The path '" + path + "' must exist in the document in order to apply array updates");
+    }
+
+    /** the update operators of mongod, plus {@code $pushAll}, which was removed from mongod but is still accepted here */
+    private static final Set<String> UPDATE_OPERATORS = Set.of("$set", "$setOnInsert", "$unset", "$inc", "$currentDate", "$mul", "$rename",
+            "$min", "$max", "$pull", "$pullAll", "$pop", "$addToSet", "$push", "$pushAll", "$bit");
+
+    /** a rejected update statement, carrying the error code of mongod */
+    private static MorphiumDriverException updateError(int code, String message) {
+        MorphiumDriverException ex = new MorphiumDriverException(message);
+        ex.setMongoCode(code);
+        return ex;
+    }
+
+    /** the name of the BSON type of a value, for error messages */
+    private static String bsonTypeName(Object value) {
+        if (value == null) {
+            return "null";
+        } else if (value instanceof String) {
+            return "string";
+        } else if (value instanceof Boolean) {
+            return "bool";
+        } else if (value instanceof Integer || value instanceof Short || value instanceof Byte) {
+            return "int";
+        } else if (value instanceof Long) {
+            return "long";
+        } else if (value instanceof Number) {
+            return "double";
+        } else if (value instanceof List || value instanceof Object[]) {
+            return "array";
+        } else if (value instanceof Map) {
+            return "object";
+        } else if (value instanceof Date) {
+            return "date";
+        } else if (value instanceof MorphiumId || value instanceof ObjectId) {
+            return "objectId";
+        }
+
+        return value.getClass().getSimpleName();
+    }
+
+    /**
+     * The checks that mongod makes while it parses an update document, before it reads or changes a document - so also when nothing matches:
+     * unknown operators and operators mixed with fields (9, a field in front of an operator is a replacement with an operator in it, 52), a
+     * modifier that is no document (9), empty field names (56), {@code $inc} and {@code $mul} with a non-numeric operand (14), {@code $rename} onto
+     * itself, onto a path of its own or with a target that is no string (2), and two paths of the statement where one is the other or its parent (40).
+     * A replacement document (no operator at all) is not checked here.
+     */
+    private static void validateUpdate(Map<String, Object> op) {
+        if (op.keySet().stream().noneMatch(k -> k.startsWith("$"))) {
+            return;
+        }
+
+        String first = op.keySet().iterator().next();
+
+        if (!first.startsWith("$")) {
+            String operator = op.keySet().stream().filter(k -> k.startsWith("$")).findFirst().orElseThrow();
+            throw updateError(52, "The dollar ($) prefixed field '" + operator + "' in '" + operator
+                              + "' is not allowed in the context of an update's replacement document.");
+        }
+
+        Set<String> paths = new HashSet<>();
+        Set<String> parents = new HashSet<>();
+
+        for (Map.Entry<String, Object> modifier : op.entrySet()) {
+            String operator = modifier.getKey();
+
+            if (!operator.startsWith("$") || !UPDATE_OPERATORS.contains(operator)) {
+                throw updateError(9, "Unknown modifier: " + operator + ". Expected a valid update modifier or pipeline-style update specified as an array");
+            }
+
+            if (!(modifier.getValue() instanceof Map<?, ?> fields)) {
+                throw updateError(9, "Modifiers operate on fields but we found type " + bsonTypeName(modifier.getValue())
+                                  + " instead. For example: {$mod: {<field>: ...}} not {" + operator + ": " + modifier.getValue() + "}");
+            }
+
+            for (Map.Entry<?, ?> field : fields.entrySet()) {
+                String path = String.valueOf(field.getKey());
+                Object value = field.getValue();
+                addUpdatePath(path, paths, parents);
+
+                if (operator.equals("$inc") && !(value instanceof Number)) {
+                    throw updateError(14, "Cannot increment with non-numeric argument: {" + path + ": " + value + "}");
+                }
+
+                if (operator.equals("$mul") && !(value instanceof Number)) {
+                    throw updateError(14, "Cannot multiply with non-numeric argument: {" + path + ": " + value + "}");
+                }
+
+                if (operator.equals("$rename")) {
+                    if (!(value instanceof String target)) {
+                        throw updateError(2, "The 'to' field for $rename must be a string: " + path + ": " + value);
+                    }
+
+                    if (target.equals(path)) {
+                        throw updateError(2, "The source and target field for $rename must differ: " + path + ": \"" + target + "\"");
+                    }
+
+                    if (target.startsWith(path + ".") || path.startsWith(target + ".")) {
+                        throw updateError(2, "The source and target field for $rename must not be on the same path: " + path + ": \"" + target + "\"");
+                    }
+
+                    addUpdatePath(target, paths, parents);
+                }
+            }
+        }
+    }
+
+    /**
+     * Registers a path that an update statement changes. {@code paths} holds the registered paths, {@code parents} every proper prefix of them; a path
+     * that is registered already, has a registered path as its parent or is the parent of one conflicts with them (40).
+     */
+    private static void addUpdatePath(String path, Set<String> paths, Set<String> parents) {
+        if (path.isEmpty() || path.startsWith(".") || path.endsWith(".") || path.contains("..")) {
+            throw updateError(56, "The update path '" + path + "' contains an empty field name, which is not allowed.");
+        }
+
+        String[] segments = path.split("\\.");
+        StringBuilder prefix = new StringBuilder();
+
+        for (int i = 0; i < segments.length - 1; i++) {
+            prefix.append(i > 0 ? "." : "").append(segments[i]);
+
+            if (paths.contains(prefix.toString())) {
+                throw updateError(40, "Updating the path '" + path + "' would create a conflict at '" + prefix + "'");
+            }
+        }
+
+        if (paths.contains(path) || parents.contains(path)) {
+            throw updateError(40, "Updating the path '" + path + "' would create a conflict at '" + path + "'");
+        }
+
+        paths.add(path);
+        prefix.setLength(0);
+
+        for (int i = 0; i < segments.length - 1; i++) {
+            prefix.append(i > 0 ? "." : "").append(segments[i]);
+            parents.add(prefix.toString());
+        }
+    }
+
+    /** true if the path exists in the document, also with the value null - which {@link #readPathValue} cannot tell from a missing path */
+    private boolean pathPresent(Map<String, Object> obj, String key) {
+        if (key.indexOf('.') < 0 || obj.containsKey(key)) {
+            return obj.containsKey(key);
+        }
+
+        return getByPathArrayAware(obj, key) != null || isExplicitNullAtPath(obj, key);
+    }
+
+    /** the error of mongod for $push and $addToSet on a field that is not an array */
+    private MorphiumDriverException notAnArray(String operator, Map<String, Object> obj, String field, Object value) {
+        return updateError(2, // BadValue
+                           "Cannot apply " + operator + " to non-array field '" + field + "' - field has non-array type " + bsonTypeName(value)
+                           + " in document {_id: " + obj.get("_id") + "}");
+    }
+
+    /** the error of mongod for $inc and $mul on a field that is not a number */
+    private MorphiumDriverException nonNumericField(String operator, Map<String, Object> obj, String field, Object value) {
+        return updateError(14, "Cannot apply " + operator + " to a value of non-numeric type. {_id: " + obj.get("_id") + "} has the field '" + field
+                           + "' of non-numeric type " + bsonTypeName(value));
     }
 
     @SuppressWarnings({"ConstantConditions", "unchecked"})
@@ -9675,6 +9836,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // This method is called with the write lock already held (either by update() or
         // findAndOneAndUpdate())
         {
+            validateUpdate(op);
             List<Map<String, Object>> writeErrors = new ArrayList<>();
             List<Map<String, Object>> lst = find(db, collection, query, sort, null, collation, 0, multiple ? 0 : 1,
                                                  true);
@@ -9753,14 +9915,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 filtersById = parseArrayFilters(arrayFilters);
                 for (String id : usedFilterIds) {
                     if (!filtersById.containsKey(id)) {
-                        throw new MorphiumDriverException(
-                                        "No array filter found for identifier '" + id + "' in the update");
+                        throw updateError(2, // BadValue
+                                          "No array filter found for identifier '" + id + "' in the update");
                     }
                 }
                 for (String id : filtersById.keySet()) {
                     if (!usedFilterIds.contains(id)) {
-                        throw new MorphiumDriverException(
-                                        "The array filter for identifier '" + id + "' was not used in the update");
+                        throw updateError(9, // FailedToParse
+                                          "The array filter for identifier '" + id + "' was not used in the update");
                     }
                 }
             }
@@ -9799,6 +9961,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 // Handle replacement document: replace entire document except _id
                 if (isReplacement) {
                     Object idValue = obj.get("_id");
+
+                    if (!insert && op.containsKey("_id") && !Objects.equals(op.get("_id"), idValue)) {
+                        throw updateError(66, // ImmutableField
+                                          "After applying the update, the (immutable) field '_id' was found to have been altered to _id: " + op.get("_id"));
+                    }
+
                     obj.clear();
                     if (idValue != null) {
                         obj.put("_id", idValue);
@@ -9870,596 +10038,636 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                             ? resolvePositionalPaths(op, obj, positionalQuery, filtersById)
                                             : op;
 
-                for (String operand : docOp.keySet()) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> cmd = (Map<String, Object>) docOp.get(operand);
+                // A statement is atomic per document: whatever fails below - an exception or a write error - restores the document, so that it
+                // is changed completely or not at all. The documents of a multi update that were done before stay changed, like on a real MongoDB.
+                int writeErrorsBefore = writeErrors.size();
+                try {
+                    for (String operand : docOp.keySet()) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> cmd = (Map<String, Object>) docOp.get(operand);
 
-                    // A filtered positional path matching no array element expands to nothing —
-                    // MongoDB treats that as a successful no-op, not an error.
-                    if (cmd != null && cmd.isEmpty()) {
-                        continue;
-                    }
+                        // A filtered positional path matching no array element expands to nothing —
+                        // MongoDB treats that as a successful no-op, not an error.
+                        if (cmd != null && cmd.isEmpty()) {
+                            continue;
+                        }
 
-                    switch (operand) {
-                        case "$set":
+                        switch (operand) {
+                            case "$set":
 
-                            // $set:{"field":"value", "other_field": 123}
-                            applySetFields(obj, cmd, writeErrors);
-
-                            break;
-
-                        case "$setOnInsert":
-
-                            // $setOnInsert applies its fields ONLY when the upsert results in an
-                            // insert. On a pure update (the document already existed) it is a no-op,
-                            // matching MongoDB semantics. This lets callers seed insert-only fields
-                            // such as a String _id, an initial @Version value or a creationSource
-                            // without overwriting them on subsequent updates.
-                            if (insert) {
+                                // $set:{"field":"value", "other_field": 123}
                                 applySetFields(obj, cmd, writeErrors);
-                            }
 
-                            break;
+                                break;
 
-                        case "$unset":
+                            case "$setOnInsert":
 
-                            // $unset: { <field1>: "", ... } - supports dotted paths into nested documents
-                            for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                                unsetField(obj, entry.getKey());
-                            }
-
-                            break;
-
-                        case "$inc":
-
-                            // $inc: { <field1>: <amount1>, <field2>: <amount2>, ... }
-                            for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                                Object value = readPathValue(obj, entry.getKey());
-
-                                if (value == null)
-                                    value = 0;
-
-                                if (value instanceof Integer) {
-                                    if (entry.getValue() instanceof Integer) {
-                                        value = (Integer) value + ((Integer) entry.getValue());
-                                    } else if (entry.getValue() instanceof Float) {
-                                        value = (Integer) value + ((Float) entry.getValue());
-                                    } else if (entry.getValue() instanceof Double) {
-                                        value = (Integer) value + ((Double) entry.getValue());
-                                    } else if (entry.getValue() instanceof Long) {
-                                        value = (Integer) value + ((Long) entry.getValue());
-                                    }
-                                } else if (value instanceof Double) {
-                                    if (entry.getValue() instanceof Integer) {
-                                        value = (Double) value + ((Integer) entry.getValue());
-                                    } else if (entry.getValue() instanceof Float) {
-                                        value = (Double) value + ((Float) entry.getValue());
-                                    } else if (entry.getValue() instanceof Double) {
-                                        value = (Double) value + ((Double) entry.getValue());
-                                    } else if (entry.getValue() instanceof Long) {
-                                        value = (Double) value + ((Long) entry.getValue());
-                                    }
-                                } else if (value instanceof Float) {
-                                    if (entry.getValue() instanceof Integer) {
-                                        value = (Float) value + ((Integer) entry.getValue());
-                                    } else if (entry.getValue() instanceof Float) {
-                                        value = (Float) value + ((Float) entry.getValue());
-                                    } else if (entry.getValue() instanceof Double) {
-                                        value = (Float) value + ((Double) entry.getValue());
-                                    } else if (entry.getValue() instanceof Long) {
-                                        value = (Float) value + ((Long) entry.getValue());
-                                    }
-                                } else if (value instanceof Long) {
-                                    if (entry.getValue() instanceof Integer) {
-                                        value = (Long) value + ((Integer) entry.getValue());
-                                    } else if (entry.getValue() instanceof Float) {
-                                        value = (Long) value + ((Float) entry.getValue());
-                                    } else if (entry.getValue() instanceof Double) {
-                                        value = (Long) value + ((Double) entry.getValue());
-                                    } else if (entry.getValue() instanceof Long) {
-                                        value = (Long) value + ((Long) entry.getValue());
-                                    }
+                                // $setOnInsert applies its fields ONLY when the upsert results in an
+                                // insert. On a pure update (the document already existed) it is a no-op,
+                                // matching MongoDB semantics. This lets callers seed insert-only fields
+                                // such as a String _id, an initial @Version value or a creationSource
+                                // without overwriting them on subsequent updates.
+                                if (insert) {
+                                    applySetFields(obj, cmd, writeErrors);
                                 }
 
-                                Object currentValue = readPathValue(obj, entry.getKey());
-                                if (!Objects.equals(currentValue, value)) {
-                                    modified.add(obj.get("_id"));
-                                }
+                                break;
 
-                                if (value != null) {
-                                    writePathValue(obj, entry.getKey(), value);
-                                } else {
+                            case "$unset":
+
+                                // $unset: { <field1>: "", ... } - supports dotted paths into nested documents
+                                for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                                     unsetField(obj, entry.getKey());
                                 }
-                            }
 
-                            break;
+                                break;
 
-                        case "$currentDate":
+                            case "$inc":
 
-                            // $currentDate: { <field1>: <typeSpecification1>, ... }
-                            // Previously only cmd.keySet().toArray()[0] was written, so every field
-                            // beyond the first was silently dropped (#249). Note: {$type:"timestamp"}
-                            // is accepted but stored as a java.util.Date - the in-memory driver has no
-                            // distinct BSON Timestamp representation. writePathValue (not setByPath) so
-                            // concrete numeric paths from positional resolution descend into arrays.
-                            for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                                writePathValue(obj, entry.getKey(), new Date());
-                                modified.add(obj.get("_id"));
-                            }
+                                // $inc: { <field1>: <amount1>, <field2>: <amount2>, ... }
+                                for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                                    Object value = readPathValue(obj, entry.getKey());
 
-                            break;
+                                    if (value == null) {
+                                        // a missing field is created, an explicit null is no number (mongod 14)
+                                        if (pathPresent(obj, entry.getKey())) {
+                                            throw nonNumericField("$inc", obj, entry.getKey(), null);
+                                        }
 
-                        case "$mul":
-
-                            // $mul: { <field1>: <number1>, ... }
-                            for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                                Object value = readPathValue(obj, entry.getKey());
-
-                                if (value == null) {
-                                    // MongoDB creates a missing $mul target as 0 rather than treating
-                                    // the whole operation as a no-op (#249). Written directly (not via
-                                    // the multiply branches below) so a non-Integer multiplier cannot
-                                    // provoke a cast mismatch.
-                                    writePathValue(obj, entry.getKey(), 0);
-                                    modified.add(obj.get("_id"));
-                                    continue;
-                                }
-
-                                if (value instanceof Integer) {
-                                    value = (Integer) value * ((Integer) entry.getValue());
-                                } else if (value instanceof Double) {
-                                    value = (Double) value * ((Double) entry.getValue());
-                                } else if (value instanceof Float) {
-                                    value = (Float) value * ((Float) entry.getValue());
-                                } else if (value instanceof Long) {
-                                    value = (Long) value * ((Long) entry.getValue());
-                                }
-
-                                Object currentValue = readPathValue(obj, entry.getKey());
-                                if (!Objects.equals(currentValue, value)) {
-                                    modified.add(obj.get("_id"));
-                                }
-
-                                if (value != null) {
-                                    writePathValue(obj, entry.getKey(), value);
-                                } else {
-                                    unsetField(obj, entry.getKey());
-                                }
-                            }
-
-                            break;
-
-                        case "$rename":
-
-                            // $rename: { <field1>: <newName1>, <field2>: <newName2>, ... }
-                            // Previously this used flat Map.get/put/remove against the literal key, so a
-                            // dotted source ("a.b") never resolved and the code destructively removed the
-                            // TARGET field instead (#249). Source and target are now both resolved as
-                            // paths, and a $rename whose source does not exist is a no-op, as in MongoDB.
-                            for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                                String source = entry.getKey();
-                                String targetName = String.valueOf(entry.getValue());
-
-                                if (!containsByPath(obj, source)) {
-                                    continue;
-                                }
-
-                                Object renamedValue = getByPath(obj, source);
-                                unsetField(obj, source);
-                                setByPath(obj, targetName, renamedValue);
-                                modified.add(obj.get("_id"));
-                            }
-
-                            break;
-
-                        case "$min":
-
-                            // $min: { <field1>: <value1>, ... }
-                            for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                                if (entry.getValue() == null) {
-                                    continue;
-                                }
-
-                                Comparable value = (Comparable) readPathValue(obj, entry.getKey());
-
-                                // An absent field is seeded with the incoming value (MongoDB semantics);
-                                // the old code called compareTo on null and threw an NPE (#249).
-                                if (value == null) {
-                                    writePathValue(obj, entry.getKey(), entry.getValue());
-                                    modified.add(obj.get("_id"));
-                                    continue;
-                                }
-
-                                // noinspection unchecked
-                                if (value.compareTo(entry.getValue()) > 0) {
-                                    modified.add(obj.get("_id"));
-                                    writePathValue(obj, entry.getKey(), entry.getValue());
-                                }
-                            }
-
-                            break;
-
-                        case "$max":
-
-                            // $max: { <field1>: <value1>, ... }
-                            for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                                if (entry.getValue() == null) {
-                                    continue;
-                                }
-
-                                Comparable value = (Comparable) readPathValue(obj, entry.getKey());
-
-                                // Absent field: seed with the incoming value instead of NPE'ing (#249).
-                                if (value == null) {
-                                    writePathValue(obj, entry.getKey(), entry.getValue());
-                                    modified.add(obj.get("_id"));
-                                    continue;
-                                }
-
-                                // noinspection unchecked
-                                if (value.compareTo(entry.getValue()) < 0) {
-                                    writePathValue(obj, entry.getKey(), entry.getValue());
-                                    modified.add(obj.get("_id"));
-                                }
-                            }
-
-                            break;
-
-                        case "$pull":
-
-                            // $pull: { <field1>: <value|condition>, <field2>: <value|condition>, ... }
-                            // Examples:
-                            // $pull: { fruits: { $in: [ "apples", "oranges" ] }, vegetables: "carrots" }
-                            // $pull: { votes: { $gte: 6 } }
-                            // $pull: { results: {$elemMatch: { score: 8 , item: "B" } }}
-                            // $pull: { results: { answers: { $elemMatch: { q: 2, a: { $gte: 8 } } } } }
-                            for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                                Object rawArray = readPathValue(obj, entry.getKey());
-
-                                if (!(rawArray instanceof List)) {
-                                    // Nothing to pull from (absent or non-array field) - the old code
-                                    // wrapped this in new ArrayList((List) null) and threw an NPE.
-                                    continue;
-                                }
-
-                                List values = new ArrayList((List) rawArray);
-                                Object condition = entry.getValue();
-                                // $elemMatch applies its criteria to each array ELEMENT (a sub-document)
-                                // directly. The old code wrapped each element as a single-field pseudo-
-                                // document, which made QueryHelper's $elemMatch List-type check fail for
-                                // every element - so $pull with $elemMatch never removed anything (#249).
-                                Map<String, Object> elemMatchCriteria = null;
-
-                                if (condition instanceof Map && ((Map<?, ?>) condition).size() == 1
-                                        && ((Map<?, ?>) condition).containsKey("$elemMatch")
-                                        && ((Map<?, ?>) condition).get("$elemMatch") instanceof Map) {
-                                    elemMatchCriteria = (Map<String, Object>) ((Map<?, ?>) condition).get("$elemMatch");
-                                }
-
-                                // dotted keys (e.g. positional-resolved "items.0.tags") cannot serve as
-                                // the synthetic field name — QueryHelper would interpret the dots as a
-                                // path into the synthetic doc
-                                String matchField = entry.getKey().indexOf('.') < 0 ? entry.getKey() : "v";
-                                Map<String, Object> subquery = Doc.of(matchField, condition);
-                                List filteredValues = new ArrayList();
-
-                                for (Object value : values) {
-                                    boolean matches;
-
-                                    if (elemMatchCriteria != null) {
-                                        matches = value instanceof Map
-                                                  && QueryHelper.matchesQuery(elemMatchCriteria, (Map<String, Object>) value, null);
-                                    } else {
-                                        matches = QueryHelper.matchesQuery(subquery, Doc.of(matchField, value), null);
+                                        value = 0;
+                                    } else if (!(value instanceof Number)) {
+                                        throw nonNumericField("$inc", obj, entry.getKey(), value);
                                     }
 
-                                    if (!matches) {
-                                        filteredValues.add(value);
+                                    if (value instanceof Integer) {
+                                        if (entry.getValue() instanceof Integer) {
+                                            value = (Integer) value + ((Integer) entry.getValue());
+                                        } else if (entry.getValue() instanceof Float) {
+                                            value = (Integer) value + ((Float) entry.getValue());
+                                        } else if (entry.getValue() instanceof Double) {
+                                            value = (Integer) value + ((Double) entry.getValue());
+                                        } else if (entry.getValue() instanceof Long) {
+                                            value = (Integer) value + ((Long) entry.getValue());
+                                        }
+                                    } else if (value instanceof Double) {
+                                        if (entry.getValue() instanceof Integer) {
+                                            value = (Double) value + ((Integer) entry.getValue());
+                                        } else if (entry.getValue() instanceof Float) {
+                                            value = (Double) value + ((Float) entry.getValue());
+                                        } else if (entry.getValue() instanceof Double) {
+                                            value = (Double) value + ((Double) entry.getValue());
+                                        } else if (entry.getValue() instanceof Long) {
+                                            value = (Double) value + ((Long) entry.getValue());
+                                        }
+                                    } else if (value instanceof Float) {
+                                        if (entry.getValue() instanceof Integer) {
+                                            value = (Float) value + ((Integer) entry.getValue());
+                                        } else if (entry.getValue() instanceof Float) {
+                                            value = (Float) value + ((Float) entry.getValue());
+                                        } else if (entry.getValue() instanceof Double) {
+                                            value = (Float) value + ((Double) entry.getValue());
+                                        } else if (entry.getValue() instanceof Long) {
+                                            value = (Float) value + ((Long) entry.getValue());
+                                        }
+                                    } else if (value instanceof Long) {
+                                        if (entry.getValue() instanceof Integer) {
+                                            value = (Long) value + ((Integer) entry.getValue());
+                                        } else if (entry.getValue() instanceof Float) {
+                                            value = (Long) value + ((Float) entry.getValue());
+                                        } else if (entry.getValue() instanceof Double) {
+                                            value = (Long) value + ((Double) entry.getValue());
+                                        } else if (entry.getValue() instanceof Long) {
+                                            value = (Long) value + ((Long) entry.getValue());
+                                        }
                                     }
-                                }
 
-                                boolean valueIsChanged = !filteredValues.containsAll(values)
-                                                         || !values.containsAll(filteredValues);
-
-                                if (valueIsChanged) {
-                                    modified.add(obj.get("_id"));
-                                }
-
-                                writePathValue(obj, entry.getKey(), filteredValues);
-                            }
-
-                            break;
-
-                        case "$pullAll":
-
-                            // $pullAll: { <field1>: [ <value1>, <value2> ... ], ... }
-                            // Examples:
-                            // $pullAll: { scores: [ 0, 5 ] }
-                            for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                                Object rawList = readPathValue(obj, entry.getKey());
-
-                                if (rawList == null) {
-                                    // missing field: $pullAll is a no-op in MongoDB
-                                    continue;
-                                }
-
-                                List v = new ArrayList((List) rawList);
-                                List objectsToBeDeleted = (List) entry.getValue();
-                                boolean valueIsChanged = objectsToBeDeleted.stream()
-                                                         .anyMatch(object -> v.contains(object));
-
-                                if (valueIsChanged) {
-                                    modified.add(obj.get("_id"));
-                                }
-
-                                v.removeAll(objectsToBeDeleted);
-                                writePathValue(obj, entry.getKey(), v);
-                            }
-
-                            break;
-
-                        case "$pop":
-
-                            // $pop: { <field1>: <-1 | 1>, <field2>: <-1 | 1>, ... }
-                            // -1 removes first element, 1 removes last element
-                            // Examples:
-                            // $pop: { scores: 1 } // removes last element
-                            // $pop: { scores: -1 } // removes first element
-                            for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                                String field = entry.getKey();
-                                Object existing;
-
-                                if (field.contains(".")) {
-                                    existing = getByPathArrayAware(obj, field);
-                                } else {
-                                    existing = obj.get(field);
-                                }
-
-                                if (existing instanceof List) {
-                                    List originalList = (List) existing;
-                                    if (!originalList.isEmpty()) {
-                                        // Create a mutable copy in case the list is immutable
-                                        List v = new ArrayList(originalList);
-                                        int position = ((Number) entry.getValue()).intValue();
-                                        if (position < 0) {
-                                            // Remove first element
-                                            v.remove(0);
-                                        } else {
-                                            // Remove last element
-                                            v.remove(v.size() - 1);
-                                        }
-                                        // Update the document with the modified list
-                                        if (field.contains(".")) {
-                                            setByPathArrayAware(obj, field, v);
-                                        } else {
-                                            obj.put(field, v);
-                                        }
+                                    Object currentValue = readPathValue(obj, entry.getKey());
+                                    if (!Objects.equals(currentValue, value)) {
                                         modified.add(obj.get("_id"));
                                     }
-                                } else if (existing != null) {
-                                    throw new MorphiumDriverException(
-                                                    "Cannot apply $pop to non-array field '" + field + "'");
-                                }
-                            }
 
-                            break;
-
-                        case "$addToSet":
-                        case "$push":
-                        case "$pushAll":
-
-                            // $addToSet: { <field1>: <value1>, ... }
-                            // $push:{"field":"value"}
-                            // $pushAll:{"field":["value","value",...]}
-                            for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                                String field = entry.getKey();
-                                List v;
-                                boolean created = false;
-
-                                // mongod parity (#291): a MISSING field gets the array created, but a
-                                // field explicitly stored as null is a non-array value and must fail
-                                // ("Cannot apply $addToSet to non-array field ... has non-array type
-                                // null"). Legacy/foreign writers produce such documents; treating them
-                                // like missing hid exactly the failure mode messaging trips over.
-                                if (field.contains(".")) {
-                                    Object existing = getByPathArrayAware(obj, field);
-
-                                    if (existing == null) {
-                                        if (isExplicitNullAtPath(obj, field)) {
-                                            throw new MorphiumDriverException("Cannot apply " + operand
-                                                            + " to non-array field '" + field + "' - field has non-array type null");
-                                        }
-                                        v = new ArrayList<>();
-                                        setByPathArrayAware(obj, field, v);
-                                        created = true;
-                                    } else if (existing instanceof List) {
-                                        v = (List) existing;
+                                    if (value != null) {
+                                        writePathValue(obj, entry.getKey(), value);
                                     } else {
-                                        throw new MorphiumDriverException(
-                                                        "Cannot apply " + operand + " to non-array field '" + field + "'");
-                                    }
-                                } else {
-                                    Object existing = obj.get(field);
-
-                                    if (existing == null) {
-                                        if (obj.containsKey(field)) {
-                                            throw new MorphiumDriverException("Cannot apply " + operand
-                                                            + " to non-array field '" + field + "' - field has non-array type null");
-                                        }
-                                        v = new ArrayList<>();
-                                        obj.put(field, v);
-                                        created = true;
-                                    } else if (existing instanceof List) {
-                                        v = (List) existing;
-                                    } else {
-                                        throw new MorphiumDriverException(
-                                                        "Cannot apply " + operand + " to non-array field '" + field + "'");
+                                        unsetField(obj, entry.getKey());
                                     }
                                 }
 
-                                boolean changed = created;
-                                Object rawValue = entry.getValue();
+                                break;
 
-                                List<Object> valuesToAdd = new ArrayList<>();
-                                Integer position = null;
-                                Integer slice = null;
-                                Object sortSpec = null;
+                            case "$currentDate":
 
-                                if (rawValue instanceof Map valueMap && valueMap.containsKey("$each")) {
-                                    Object eachVal = valueMap.get("$each");
-
-                                    if (!(eachVal instanceof List)) {
-                                        throw new MorphiumDriverException("$each requires an array value");
-                                    }
-
-                                    valuesToAdd.addAll((List<Object>) eachVal);
-
-                                    if (valueMap.containsKey("$position")
-                                            && valueMap.get("$position") instanceof Number) {
-                                        position = ((Number) valueMap.get("$position")).intValue();
-                                    }
-
-                                    if (valueMap.containsKey("$slice") && valueMap.get("$slice") instanceof Number) {
-                                        slice = ((Number) valueMap.get("$slice")).intValue();
-                                    }
-
-                                    // $sort was previously not referenced at all - any $sort modifier was
-                                    // silently ignored and the array kept insertion order (#249).
-                                    if (valueMap.containsKey("$sort")) {
-                                        sortSpec = valueMap.get("$sort");
-                                    }
-                                } else if (operand.equals("$pushAll") && rawValue instanceof List) {
-                                    valuesToAdd.addAll((List<Object>) rawValue);
-                                } else {
-                                    valuesToAdd.add(rawValue);
+                                // $currentDate: { <field1>: <typeSpecification1>, ... }
+                                // Previously only cmd.keySet().toArray()[0] was written, so every field
+                                // beyond the first was silently dropped (#249). Note: {$type:"timestamp"}
+                                // is accepted but stored as a java.util.Date - the in-memory driver has no
+                                // distinct BSON Timestamp representation. writePathValue (not setByPath) so
+                                // concrete numeric paths from positional resolution descend into arrays.
+                                for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                                    writePathValue(obj, entry.getKey(), new Date());
+                                    modified.add(obj.get("_id"));
                                 }
 
-                                if (operand.equals("$addToSet")) {
-                                    for (Object elem : valuesToAdd) {
-                                        if (!v.contains(elem)) {
-                                            v.add(elem);
-                                            changed = true;
+                                break;
+
+                            case "$mul":
+
+                                // $mul: { <field1>: <number1>, ... }
+                                for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                                    Object value = readPathValue(obj, entry.getKey());
+
+                                    if (value == null) {
+                                        // an explicit null is no number (mongod 14)
+                                        if (pathPresent(obj, entry.getKey())) {
+                                            throw nonNumericField("$mul", obj, entry.getKey(), null);
                                         }
+
+                                        // MongoDB creates a missing $mul target as 0 rather than treating
+                                        // the whole operation as a no-op (#249). Written directly (not via
+                                        // the multiply branches below) so a non-Integer multiplier cannot
+                                        // provoke a cast mismatch.
+                                        writePathValue(obj, entry.getKey(), 0);
+                                        modified.add(obj.get("_id"));
+                                        continue;
                                     }
-                                } else {
-                                    if (position != null) {
-                                        int insertAt = Math.min(Math.max(position, 0), v.size());
-                                        for (Object elem : valuesToAdd) {
-                                            v.add(insertAt++, elem);
-                                        }
+
+                                    if (!(value instanceof Number)) {
+                                        throw nonNumericField("$mul", obj, entry.getKey(), value);
+                                    }
+
+                                    if (value instanceof Integer) {
+                                        value = (Integer) value * ((Integer) entry.getValue());
+                                    } else if (value instanceof Double) {
+                                        value = (Double) value * ((Double) entry.getValue());
+                                    } else if (value instanceof Float) {
+                                        value = (Float) value * ((Float) entry.getValue());
+                                    } else if (value instanceof Long) {
+                                        value = (Long) value * ((Long) entry.getValue());
+                                    }
+
+                                    Object currentValue = readPathValue(obj, entry.getKey());
+                                    if (!Objects.equals(currentValue, value)) {
+                                        modified.add(obj.get("_id"));
+                                    }
+
+                                    if (value != null) {
+                                        writePathValue(obj, entry.getKey(), value);
                                     } else {
-                                        v.addAll(valuesToAdd);
+                                        unsetField(obj, entry.getKey());
+                                    }
+                                }
+
+                                break;
+
+                            case "$rename":
+
+                                // $rename: { <field1>: <newName1>, <field2>: <newName2>, ... }
+                                // Previously this used flat Map.get/put/remove against the literal key, so a
+                                // dotted source ("a.b") never resolved and the code destructively removed the
+                                // TARGET field instead (#249). Source and target are now both resolved as
+                                // paths, and a $rename whose source does not exist is a no-op, as in MongoDB.
+                                for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                                    String source = entry.getKey();
+                                    String targetName = String.valueOf(entry.getValue());
+
+                                    if (!containsByPath(obj, source)) {
+                                        continue;
                                     }
 
-                                    if (!valuesToAdd.isEmpty()) {
-                                        changed = true;
+                                    Object renamedValue = getByPath(obj, source);
+                                    unsetField(obj, source);
+                                    setByPath(obj, targetName, renamedValue);
+                                    modified.add(obj.get("_id"));
+                                }
+
+                                break;
+
+                            case "$min":
+
+                                // $min: { <field1>: <value1>, ... }
+                                for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                                    if (entry.getValue() == null) {
+                                        continue;
                                     }
 
-                                    // MongoDB applies the modifiers in the order $each -> $sort -> $slice.
-                                    if (sortSpec != null) {
-                                        sortPushedArray(v, sortSpec);
-                                        changed = true;
+                                    Comparable value = (Comparable) readPathValue(obj, entry.getKey());
+
+                                    // An absent field is seeded with the incoming value (MongoDB semantics);
+                                    // the old code called compareTo on null and threw an NPE (#249).
+                                    if (value == null) {
+                                        writePathValue(obj, entry.getKey(), entry.getValue());
+                                        modified.add(obj.get("_id"));
+                                        continue;
                                     }
 
-                                    if (slice != null) {
-                                        if (slice >= 0) {
-                                            while (v.size() > slice) {
+                                    // noinspection unchecked
+                                    if (value.compareTo(entry.getValue()) > 0) {
+                                        modified.add(obj.get("_id"));
+                                        writePathValue(obj, entry.getKey(), entry.getValue());
+                                    }
+                                }
+
+                                break;
+
+                            case "$max":
+
+                                // $max: { <field1>: <value1>, ... }
+                                for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                                    if (entry.getValue() == null) {
+                                        continue;
+                                    }
+
+                                    Comparable value = (Comparable) readPathValue(obj, entry.getKey());
+
+                                    // Absent field: seed with the incoming value instead of NPE'ing (#249).
+                                    if (value == null) {
+                                        writePathValue(obj, entry.getKey(), entry.getValue());
+                                        modified.add(obj.get("_id"));
+                                        continue;
+                                    }
+
+                                    // noinspection unchecked
+                                    if (value.compareTo(entry.getValue()) < 0) {
+                                        writePathValue(obj, entry.getKey(), entry.getValue());
+                                        modified.add(obj.get("_id"));
+                                    }
+                                }
+
+                                break;
+
+                            case "$pull":
+
+                                // $pull: { <field1>: <value|condition>, <field2>: <value|condition>, ... }
+                                // Examples:
+                                // $pull: { fruits: { $in: [ "apples", "oranges" ] }, vegetables: "carrots" }
+                                // $pull: { votes: { $gte: 6 } }
+                                // $pull: { results: {$elemMatch: { score: 8 , item: "B" } }}
+                                // $pull: { results: { answers: { $elemMatch: { q: 2, a: { $gte: 8 } } } } }
+                                for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                                    Object rawArray = readPathValue(obj, entry.getKey());
+
+                                    if (!(rawArray instanceof List)) {
+                                        // a missing field is nothing to pull from, any other value is no array (mongod 2)
+                                        if (pathPresent(obj, entry.getKey())) {
+                                            throw updateError(2, // BadValue
+                                                              "Cannot apply $pull to a non-array value");
+                                        }
+
+                                        continue;
+                                    }
+
+                                    List values = new ArrayList((List) rawArray);
+                                    Object condition = entry.getValue();
+                                    // $elemMatch applies its criteria to each array ELEMENT (a sub-document)
+                                    // directly. The old code wrapped each element as a single-field pseudo-
+                                    // document, which made QueryHelper's $elemMatch List-type check fail for
+                                    // every element - so $pull with $elemMatch never removed anything (#249).
+                                    Map<String, Object> elemMatchCriteria = null;
+
+                                    if (condition instanceof Map && ((Map<?, ?>) condition).size() == 1
+                                            && ((Map<?, ?>) condition).containsKey("$elemMatch")
+                                            && ((Map<?, ?>) condition).get("$elemMatch") instanceof Map) {
+                                        elemMatchCriteria = (Map<String, Object>) ((Map<?, ?>) condition).get("$elemMatch");
+                                    }
+
+                                    // dotted keys (e.g. positional-resolved "items.0.tags") cannot serve as
+                                    // the synthetic field name — QueryHelper would interpret the dots as a
+                                    // path into the synthetic doc
+                                    String matchField = entry.getKey().indexOf('.') < 0 ? entry.getKey() : "v";
+                                    Map<String, Object> subquery = Doc.of(matchField, condition);
+                                    List filteredValues = new ArrayList();
+
+                                    for (Object value : values) {
+                                        boolean matches;
+
+                                        if (elemMatchCriteria != null) {
+                                            matches = value instanceof Map
+                                                      && QueryHelper.matchesQuery(elemMatchCriteria, (Map<String, Object>) value, null);
+                                        } else {
+                                            matches = QueryHelper.matchesQuery(subquery, Doc.of(matchField, value), null);
+                                        }
+
+                                        if (!matches) {
+                                            filteredValues.add(value);
+                                        }
+                                    }
+
+                                    boolean valueIsChanged = !filteredValues.containsAll(values)
+                                                             || !values.containsAll(filteredValues);
+
+                                    if (valueIsChanged) {
+                                        modified.add(obj.get("_id"));
+                                    }
+
+                                    writePathValue(obj, entry.getKey(), filteredValues);
+                                }
+
+                                break;
+
+                            case "$pullAll":
+
+                                // $pullAll: { <field1>: [ <value1>, <value2> ... ], ... }
+                                // Examples:
+                                // $pullAll: { scores: [ 0, 5 ] }
+                                for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                                    Object rawList = readPathValue(obj, entry.getKey());
+
+                                    if (rawList == null) {
+                                        // missing field: $pullAll is a no-op in MongoDB
+                                        continue;
+                                    }
+
+                                    List v = new ArrayList((List) rawList);
+                                    List objectsToBeDeleted = (List) entry.getValue();
+                                    boolean valueIsChanged = objectsToBeDeleted.stream()
+                                                             .anyMatch(object -> v.contains(object));
+
+                                    if (valueIsChanged) {
+                                        modified.add(obj.get("_id"));
+                                    }
+
+                                    v.removeAll(objectsToBeDeleted);
+                                    writePathValue(obj, entry.getKey(), v);
+                                }
+
+                                break;
+
+                            case "$pop":
+
+                                // $pop: { <field1>: <-1 | 1>, <field2>: <-1 | 1>, ... }
+                                // -1 removes first element, 1 removes last element
+                                // Examples:
+                                // $pop: { scores: 1 } // removes last element
+                                // $pop: { scores: -1 } // removes first element
+                                for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                                    String field = entry.getKey();
+                                    Object existing;
+
+                                    if (field.contains(".")) {
+                                        existing = getByPathArrayAware(obj, field);
+                                    } else {
+                                        existing = obj.get(field);
+                                    }
+
+                                    if (existing instanceof List) {
+                                        List originalList = (List) existing;
+                                        if (!originalList.isEmpty()) {
+                                            // Create a mutable copy in case the list is immutable
+                                            List v = new ArrayList(originalList);
+                                            int position = ((Number) entry.getValue()).intValue();
+                                            if (position < 0) {
+                                                // Remove first element
+                                                v.remove(0);
+                                            } else {
+                                                // Remove last element
                                                 v.remove(v.size() - 1);
                                             }
+                                            // Update the document with the modified list
+                                            if (field.contains(".")) {
+                                                setByPathArrayAware(obj, field, v);
+                                            } else {
+                                                obj.put(field, v);
+                                            }
+                                            modified.add(obj.get("_id"));
+                                        }
+                                    } else if (pathPresent(obj, field)) {
+                                        throw updateError(14, // TypeMismatch
+                                                          "Path '" + field + "' contains an element of non-array type '" + bsonTypeName(existing) + "'");
+                                    }
+                                }
+
+                                break;
+
+                            case "$addToSet":
+                            case "$push":
+                            case "$pushAll":
+
+                                // $addToSet: { <field1>: <value1>, ... }
+                                // $push:{"field":"value"}
+                                // $pushAll:{"field":["value","value",...]}
+                                for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                                    String field = entry.getKey();
+                                    List v;
+                                    boolean created = false;
+
+                                    // mongod parity (#291): a MISSING field gets the array created, but a
+                                    // field explicitly stored as null is a non-array value and must fail
+                                    // ("Cannot apply $addToSet to non-array field ... has non-array type
+                                    // null"). Legacy/foreign writers produce such documents; treating them
+                                    // like missing hid exactly the failure mode messaging trips over.
+                                    if (field.contains(".")) {
+                                        Object existing = getByPathArrayAware(obj, field);
+
+                                        if (existing == null) {
+                                            if (isExplicitNullAtPath(obj, field)) {
+                                                throw notAnArray(operand, obj, field, null);
+                                            }
+                                            v = new ArrayList<>();
+                                            setByPathArrayAware(obj, field, v);
+                                            created = true;
+                                        } else if (existing instanceof List) {
+                                            v = (List) existing;
                                         } else {
-                                            while (v.size() > Math.abs(slice)) {
-                                                v.remove(0);
+                                            throw notAnArray(operand, obj, field, existing);
+                                        }
+                                    } else {
+                                        Object existing = obj.get(field);
+
+                                        if (existing == null) {
+                                            if (obj.containsKey(field)) {
+                                                throw notAnArray(operand, obj, field, null);
+                                            }
+                                            v = new ArrayList<>();
+                                            obj.put(field, v);
+                                            created = true;
+                                        } else if (existing instanceof List) {
+                                            v = (List) existing;
+                                        } else {
+                                            throw notAnArray(operand, obj, field, existing);
+                                        }
+                                    }
+
+                                    boolean changed = created;
+                                    Object rawValue = entry.getValue();
+
+                                    List<Object> valuesToAdd = new ArrayList<>();
+                                    Integer position = null;
+                                    Integer slice = null;
+                                    Object sortSpec = null;
+
+                                    if (rawValue instanceof Map valueMap && valueMap.containsKey("$each")) {
+                                        Object eachVal = valueMap.get("$each");
+
+                                        if (!(eachVal instanceof List)) {
+                                            throw updateError(2, // BadValue
+                                                              "The argument to $each in " + operand + " must be an array but it was of type: " + bsonTypeName(eachVal));
+                                        }
+
+                                        valuesToAdd.addAll((List<Object>) eachVal);
+
+                                        if (valueMap.containsKey("$position")
+                                                && valueMap.get("$position") instanceof Number) {
+                                            position = ((Number) valueMap.get("$position")).intValue();
+                                        }
+
+                                        if (valueMap.containsKey("$slice") && valueMap.get("$slice") instanceof Number) {
+                                            slice = ((Number) valueMap.get("$slice")).intValue();
+                                        }
+
+                                        // $sort was previously not referenced at all - any $sort modifier was
+                                        // silently ignored and the array kept insertion order (#249).
+                                        if (valueMap.containsKey("$sort")) {
+                                            sortSpec = valueMap.get("$sort");
+                                        }
+                                    } else if (operand.equals("$pushAll") && rawValue instanceof List) {
+                                        valuesToAdd.addAll((List<Object>) rawValue);
+                                    } else {
+                                        valuesToAdd.add(rawValue);
+                                    }
+
+                                    if (operand.equals("$addToSet")) {
+                                        for (Object elem : valuesToAdd) {
+                                            if (!v.contains(elem)) {
+                                                v.add(elem);
+                                                changed = true;
+                                            }
+                                        }
+                                    } else {
+                                        if (position != null) {
+                                            int insertAt = Math.min(Math.max(position, 0), v.size());
+                                            for (Object elem : valuesToAdd) {
+                                                v.add(insertAt++, elem);
+                                            }
+                                        } else {
+                                            v.addAll(valuesToAdd);
+                                        }
+
+                                        if (!valuesToAdd.isEmpty()) {
+                                            changed = true;
+                                        }
+
+                                        // MongoDB applies the modifiers in the order $each -> $sort -> $slice.
+                                        if (sortSpec != null) {
+                                            sortPushedArray(v, sortSpec);
+                                            changed = true;
+                                        }
+
+                                        if (slice != null) {
+                                            if (slice >= 0) {
+                                                while (v.size() > slice) {
+                                                    v.remove(v.size() - 1);
+                                                }
+                                            } else {
+                                                while (v.size() > Math.abs(slice)) {
+                                                    v.remove(0);
+                                                }
                                             }
                                         }
                                     }
+
+                                    if (changed) {
+                                        modified.add(obj.get("_id"));
+                                    }
                                 }
 
-                                if (changed) {
-                                    modified.add(obj.get("_id"));
-                                }
-                            }
+                                break;
 
-                            break;
+                            case "$bit":
 
-                        case "$bit":
+                                // $bit: { <field>: { <and|or|xor>: <int|long> } }
+                                for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                                    String field = entry.getKey();
 
-                            // $bit: { <field>: { <and|or|xor>: <int|long> } }
-                            for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                                String field = entry.getKey();
-
-                                if (!(entry.getValue() instanceof Map)) {
-                                    throw new MorphiumDriverException(
-                                                    "The $bit modifier requires an embedded document: {$bit: {field: {and/or/xor: #}}}");
-                                }
-
-                                Map<String, Object> spec = (Map<String, Object>) entry.getValue();
-
-                                if (spec.isEmpty()) {
-                                    throw new MorphiumDriverException(
-                                                    "You must pass in at least one bit operation to $bit");
-                                }
-
-                                Object current = readPathValue(obj, field);
-
-                                // MongoDB treats a missing field as int 0 and creates it
-                                if (current == null) {
-                                    current = 0;
-                                }
-
-                                if (!(current instanceof Integer) && !(current instanceof Long)) {
-                                    throw new MorphiumDriverException(
-                                                    "Cannot apply $bit to a value of non-integral type: field '" + field + "'");
-                                }
-
-                                for (Map.Entry<String, Object> bitOp : spec.entrySet()) {
-                                    Object operandVal = bitOp.getValue();
-
-                                    if (!(operandVal instanceof Integer) && !(operandVal instanceof Long)) {
+                                    if (!(entry.getValue() instanceof Map)) {
                                         throw new MorphiumDriverException(
-                                                        "The $bit modifier field must be an Integer(32/64 bit integer)");
+                                                        "The $bit modifier requires an embedded document: {$bit: {field: {and/or/xor: #}}}");
                                     }
 
-                                    // any long involved (field or operand) promotes the result to long
-                                    boolean asLong = current instanceof Long || operandVal instanceof Long;
-                                    long cur = ((Number) current).longValue();
-                                    long arg = ((Number) operandVal).longValue();
-                                    long result;
+                                    Map<String, Object> spec = (Map<String, Object>) entry.getValue();
 
-                                    switch (bitOp.getKey()) {
-                                        case "and":
-                                            result = cur & arg;
-                                            break;
+                                    if (spec.isEmpty()) {
+                                        throw new MorphiumDriverException(
+                                                        "You must pass in at least one bit operation to $bit");
+                                    }
 
-                                        case "or":
-                                            result = cur | arg;
-                                            break;
+                                    Object current = readPathValue(obj, field);
 
-                                        case "xor":
-                                            result = cur ^ arg;
-                                            break;
+                                    // MongoDB treats a missing field as int 0 and creates it
+                                    if (current == null) {
+                                        current = 0;
+                                    }
 
-                                        default:
+                                    if (!(current instanceof Integer) && !(current instanceof Long)) {
+                                        throw new MorphiumDriverException(
+                                                        "Cannot apply $bit to a value of non-integral type: field '" + field + "'");
+                                    }
+
+                                    for (Map.Entry<String, Object> bitOp : spec.entrySet()) {
+                                        Object operandVal = bitOp.getValue();
+
+                                        if (!(operandVal instanceof Integer) && !(operandVal instanceof Long)) {
                                             throw new MorphiumDriverException(
-                                                            "The $bit modifier only supports 'and', 'or', and 'xor', not: '"
-                                                            + bitOp.getKey() + "'");
+                                                            "The $bit modifier field must be an Integer(32/64 bit integer)");
+                                        }
+
+                                        // any long involved (field or operand) promotes the result to long
+                                        boolean asLong = current instanceof Long || operandVal instanceof Long;
+                                        long cur = ((Number) current).longValue();
+                                        long arg = ((Number) operandVal).longValue();
+                                        long result;
+
+                                        switch (bitOp.getKey()) {
+                                            case "and":
+                                                result = cur & arg;
+                                                break;
+
+                                            case "or":
+                                                result = cur | arg;
+                                                break;
+
+                                            case "xor":
+                                                result = cur ^ arg;
+                                                break;
+
+                                            default:
+                                                throw new MorphiumDriverException(
+                                                                "The $bit modifier only supports 'and', 'or', and 'xor', not: '"
+                                                                + bitOp.getKey() + "'");
+                                        }
+
+                                        current = asLong ? (Object) result : (Object) (int) result;
                                     }
 
-                                    current = asLong ? (Object) result : (Object) (int) result;
+                                    Object before = readPathValue(obj, field);
+                                    if (!Objects.equals(before, current)) {
+                                        modified.add(obj.get("_id"));
+                                    }
+                                    writePathValue(obj, field, current);
                                 }
 
-                                Object before = readPathValue(obj, field);
-                                if (!Objects.equals(before, current)) {
-                                    modified.add(obj.get("_id"));
-                                }
-                                writePathValue(obj, field, current);
-                            }
+                                break;
 
-                            break;
-
-                        default:
-                            throw new RuntimeException("unknown operand " + operand);
+                            default:
+                                throw updateError(9, "Unknown modifier: " + operand);
+                        }
                     }
+
+                    // the _id is immutable: any operator that changes or removes it fails, after the fact (mongod 66)
+                    if (!insert && !Objects.equals(original.get("_id"), obj.get("_id"))) {
+                        throw updateError(66, // ImmutableField
+                                          "After applying the update, the (immutable) field '_id' was found to have been altered to _id: " + obj.get("_id"));
+                    }
+                } catch (RuntimeException ex) {
+                    obj.clear();
+                    obj.putAll(original);
+                    throw ex;
+                }
+
+                if (writeErrors.size() > writeErrorsBefore) {
+                    // a write error (path below a scalar, dollar-prefixed name) fails the whole statement; a multi update stops here
+                    obj.clear();
+                    obj.putAll(original);
+                    break;
                 }
 
                 // determine if this document has actually changed
@@ -10515,7 +10723,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                              removedList, original, originalIsExclusiveDeepCopy));
                 }
             }
-            if (insert) {
+            if (insert && writeErrors.isEmpty()) {
                 // The document of an upsert that matched nothing is INSERTED. storeInternal() has save() semantics - it replaces a document with the same
                 // _id - which silently overwrote a document that the filter did not match (a held lease taken over by a second contender, MOR-030). A real MongoDB
                 // answers with E11000, so do we; nothing has been written at this point.
@@ -12923,6 +13131,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // Use internal flag to skip lock acquisition in find() and update()
             List<Map<String, Object>> ret = find(db, col, query, sort, null, collation, 0, 1, true);
             if (ret.isEmpty() && !upsert) {
+                // like mongod, reject a statement that cannot be applied even if it would not change anything
+                validateUpdate(update);
                 return new FindAndModifyUpdateResult(null, false, null);
             }
             // Pre-update snapshot for an existing document (used when newFlag == false)
@@ -12941,6 +13151,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // array predicate, so positional-$ updates would otherwise fail to find their match.
             var updateResult = updateInternal(db, col, updateQuery, null, update, false, upsert, collation, null,
                                               arrayFilters, query, pendingNotifications);
+
+            // updateInternal reports a write error in its result, like the update command. findAndModify has no such reply: it fails, and the document
+            // is left as it was (updateInternal restored it, and did not insert)
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> writeErrors = (List<Map<String, Object>>) updateResult.get("writeErrors");
+
+            if (writeErrors != null && !writeErrors.isEmpty()) {
+                MorphiumDriverException ex = new MorphiumDriverException(String.valueOf(writeErrors.get(0).get("errmsg")));
+                ex.setMongoCode(writeErrors.get(0).get("code"));
+                ex.setWriteErrors(writeErrors);
+                throw ex;
+            }
 
             // Determine which document to return. Every branch returns a deepClone (or null) so a
             // caller mutating the result cannot corrupt the stored map.

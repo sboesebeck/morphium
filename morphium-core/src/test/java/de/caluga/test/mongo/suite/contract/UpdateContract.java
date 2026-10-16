@@ -27,7 +27,11 @@ final class UpdateContract {
     private UpdateContract() {
     }
 
-    /** the expected result of a case: the documents of the collection afterwards (ordered by _id), or an error code */
+    /**
+     * the expected result of a case: the documents of the collection afterwards (ordered by _id), or an error code. An error may name the documents that
+     * the collection holds afterwards (a failing statement changes nothing, a failing multi update keeps the documents it changed before the error);
+     * without them only the code is compared.
+     */
     static final class Result {
         final List<Map<String, Object>> docs;
         final Integer errorCode;
@@ -46,6 +50,12 @@ final class UpdateContract {
             return new Result(null, code);
         }
 
+        /** the statement fails with the code and leaves the collection with these documents */
+        @SafeVarargs
+        static Result error(int code, Map<String, Object>... docsAfter) {
+            return new Result(List.of(docsAfter), code);
+        }
+
         /** the statement fails, but not with a database error: the driver throws an exception that is not a MorphiumDriverException (only for pinned InMemoryDriver deviations) */
         static Result notADatabaseError() {
             return new Result(null, -1);
@@ -58,7 +68,7 @@ final class UpdateContract {
 
         @Override
         public String toString() {
-            return errorCode != null ? "error " + errorCode : canon(docs);
+            return errorCode != null ? "error " + errorCode + (docs != null ? " with " + canon(docs) : "") : canon(docs);
         }
     }
 
@@ -113,6 +123,13 @@ final class UpdateContract {
 
         Case expect(Result r) {
             this.expected = r;
+            return this;
+        }
+
+        /** the statement fails and leaves the seeded documents as they are; call after {@link #seed} and {@link #expect} */
+        @SuppressWarnings("unchecked")
+        Case unchanged() {
+            this.expected = Result.error(expected.errorCode, seed.toArray(new Map[0]));
             return this;
         }
 
@@ -221,10 +238,10 @@ final class UpdateContract {
                 actual = Result.error(-1); // not a database error: an exception of the driver itself
             }
 
-            if (actual == null) {
-                FindCommand find = new FindCommand(con).setDb(db).setColl(COLL).setFilter(Doc.of()).setSort(Doc.of("_id", 1)).setProjection(new Doc());
-                actual = Result.docs(find.execute().toArray(new Map[0]));
-            }
+            FindCommand find = new FindCommand(con).setDb(db).setColl(COLL).setFilter(Doc.of()).setSort(Doc.of("_id", 1)).setProjection(new Doc());
+            @SuppressWarnings("unchecked")
+            Map<String, Object>[] after = find.execute().toArray(new Map[0]);
+            actual = actual == null ? Result.docs(after) : Result.error(actual.errorCode, after);
 
             return compare(m, c, actual, path);
         } finally {
@@ -245,7 +262,8 @@ final class UpdateContract {
 
     private static boolean matches(Result want, Result actual) {
         if (want.errorCode != null || actual.errorCode != null) {
-            return want.errorCode != null && actual.errorCode != null && (want.errorCode.equals(actual.errorCode) || want.errorCode == 0);
+            boolean sameError = want.errorCode != null && actual.errorCode != null && (want.errorCode.equals(actual.errorCode) || want.errorCode == 0);
+            return sameError && (want.docs == null || canon(want.docs).equals(canon(actual.docs)));
         }
 
         return canon(want.docs).equals(canon(actual.docs));
