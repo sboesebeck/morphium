@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 41, done 11
+Status: open 40, done 12
 
 ## Overview
 
@@ -15,7 +15,6 @@ Status: open 41, done 11
 | MOR-005 | open | 2 | verification | Audit Query.set/inc/push write paths for swallowed writeErrors and missing name translation | S |  |  |
 | MOR-007 | open | 2 | implementation | Option A extension: min, max, mul, rename, currentDate, addToSet/push with each | M |  | MOR-006 |
 | MOR-008 | open | 2 | implementation | Options object for findAndModify and a defined result for upsert without returnNew | S |  | MOR-006 |
-| MOR-010 | open | 2 | implementation | Typed duplicate-key exception and typed result for a lost conditional upsert | M |  | MOR-008 |
 | MOR-014 | open | 2 | implementation | Option E: startup guard for @Embedded under @Entity(translateCamelCase=false) | S |  | MOR-001 |
 | MOR-017 | open | 2 | implementation | Jakarta Data: JDQL DELETE FROM | M |  |  |
 | MOR-018 | open | 2 | implementation | Jakarta Data: JDQL UPDATE ... SET ... WHERE as one atomic update | L |  | MOR-006, MOR-007 |
@@ -58,6 +57,7 @@ Status: open 41, done 11
 | MOR-006 | done | 1 | implementation | Option A core: mapper-aware update builder (set, setOnInsert, inc, unset) with findOneAndUpdate terminal | L |  | MOR-001, MOR-002 |
 | MOR-030 | done | 1 | defect | InMemoryDriver: honour the filter in conditional upsert and raise E11000 | M |  |  |
 | MOR-009 | done | 2 | implementation | Lifecycle handling in the builder: @LastChange, @CreationTime, @Version | M |  | MOR-006 |
+| MOR-010 | done | 2 | implementation | Typed duplicate-key exception and typed result for a lost conditional upsert | M |  | MOR-006 |
 | MOR-040 | done | 2 | defect | fieldNameCache: inner HashMap is not thread safe | S |  |  |
 | MOR-041 | done | 2 | implementation | Key translation for operator maps in findOneAndUpdate | M |  | MOR-002 |
 | MOR-050 | done | 2 | implementation | Update builder: updateOne, updateMany and UpdateResult | M |  | MOR-006 |
@@ -232,9 +232,11 @@ Commits: 69dfb6484
 
 ### MOR-010 Typed duplicate-key exception and typed result for a lost conditional upsert
 
-Status **open**, priority 2, type implementation, effort M
+Status **done**, priority 2, type implementation, effort M
 
 A conditional upsert on an existing but non-matching document throws MorphiumDriverException with mongoCode 11000 (Integer, writeErrors null); a store() duplicate reports the code inside writeErrors with mongoCode null. Add a typed exception or flag for duplicate key independent of the path, and a typed outcome (acquired / held) for the conditional upsert so callers need not parse getMongoCode(). Align with the exception model work in GitHub #210 and #211. MorphiumDriverException.isDuplicateKey() is added by MOR-006; this task adds the lastErrorObject to the findAndModify result (FindAndModifyMongoCommand.execute drops it today) and the typed outcome.
+
+Evidence: ModifyOutcomeTest 28 invocations (14 tests, one skipped on the InMemoryDriver), FindAndModifyLastErrorObjectTest 10 and UpdateOutcomeTest 5, green on PooledDriver (mongo:8) and InMemoryDriver: lastErrorObject (updatedExisting, upserted, n) in the reply for update, inserting upsert with BEFORE and AFTER, and no match; INSERTED with BEFORE has no document but the upserted id; a lost conditional upsert is DUPLICATE_KEY without any code inspection and leaves the holder untouched; a duplicate key without upsert (unique index) and other failures are still thrown; a race of eight contenders yields exactly one INSERTED and seven DUPLICATE_KEY; findOneAndUpdate unchanged. The depends_on on MOR-008 was dropped: the typed outcome needs neither the options object nor the projection; arrayFilters came with MOR-006. Regression subset (72 classes plus the inmem package): 919 tests on the InMemoryDriver with the 2 known ReferenceCascadeTest errors (Byte Buddy does not support Java 25); on mongo:8 716 tests with the same ReferenceCascadeTest errors and the known flaky ExclusiveMessageTests x2; UpdateDocumentMapperKeyTest and WriterMarshallingDifferentialTest need both drivers in one run and pass with pooled,inmem. Known difference not addressed: the InMemoryDriver does not enforce the immutability of _id nor reject $inc on a string field. Not covered: PoppyDB, SingleMongoConnectDriver, replica sets.
 
 Acceptance:
 
@@ -242,9 +244,11 @@ Acceptance:
 - The conditional upsert returns or throws a typed 'held' outcome that tests assert without inspecting codes
 - Verified against a real MongoDB (not only the InMemoryDriver).
 
-Depends on: MOR-008
+Depends on: MOR-006
 
 Source: docs/research/reproduction-results.md hypothesis 5, docs/research/other-clients.md pattern 9, GitHub #210, #211
+
+Commits: 3ca764c16
 
 ### MOR-011 Typed lease / try-acquire primitive
 
