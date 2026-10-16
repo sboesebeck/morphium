@@ -1071,7 +1071,7 @@ tasks:
 - id: MOR-053
   title: 'InMemoryDriver: type checks of the update operators ($inc, $mul, $push, $addToSet, $pull, $pop)'
   type: defect
-  status: open
+  status: done
   priority: 2
   effort: M
   description: 'Found by the update contract suite (MOR-028). A real MongoDB rejects $inc and $mul on a string or null
@@ -1086,6 +1086,25 @@ tasks:
   - The pinned deviations in the update contract suite that name this task are removed
   source:
   - docs/research/plan-mor-028.md
+  evidence: 'Contract suite (FieldOperator, ArrayOperator, UpsertAndError, StatementIsolation, UpdateContractLedgerTest; 26
+    invocations, 149 statements, each as update command and as findAndModify) green on PooledDriver (mongo:8) and on
+    the InMemoryDriver; the pins of this task are gone, only MOR-055 and MOR-056 are still pinned. Before the driver
+    change (pins removed, 24 cases added, all of them green on mongo:8) 46 distinct cases failed on the
+    InMemoryDriver. The harness now also compares the collection after an error (.unchanged(), multi update: the
+    documents before the error). Type cases: $inc and $mul on a string, on null and with a non-numeric operand (14),
+    $mul of null, $push/$addToSet on a non-array and on null (2), $push with an $each that is no array (2), $pull on a
+    non-array and on null (2), $pop on a non-array and on null (14), a failing statement after a successful operator
+    and a failing multi update (documents before the error kept). UpdateAtomicityTest: the document is restored, a
+    failing multi update still delivers the change stream events of the documents it changed (mutation checked:
+    dispatching the events after the unlock outside the finally block fails the test). Behaviour change: $inc/$mul on
+    an explicit null used to count as 0 and now fails like on mongo:8. InMemoryDriver, runtests.sh --driver inmem
+    --parallel 8: 2337 test methods; failures only in ReferenceCascadeTest, LazyLoadingTest and ReferenceTest (Byte
+    Buddy does not support Java 25, the JDK of the run),
+    TtlCappedTest.updatingTheTtlFieldPushesOutTheOldExpiryNotJustTheNewOne (fails the same way on the base commit
+    70b0bce71) and MultithreaddedMessagingTests (timing: another method fails per run on the base commit too, the
+    method that failed here passes alone 3 of 3). No new failure.'
+  commits:
+  - b951b977f
 - id: MOR-054
   title: 'InMemoryDriver: validate the shape of an update document (unknown operator, mixed fields, _id, names)'
   type: defect

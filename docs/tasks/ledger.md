@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 43, done 15
+Status: open 42, done 16
 
 ## Overview
 
@@ -29,7 +29,6 @@ Status: open 43, done 15
 | MOR-037 | open | 2 | defect | Morphium.simplifyQueryObject loses predicates for repeated operator keys | S |  |  |
 | MOR-043 | open | 2 | defect | Query.f should resolve field paths with resolveFieldPath | M |  | MOR-041 |
 | MOR-046 | open | 2 | defect | BufferedMorphiumWriterImpl does not marshal update values and emits push for a pull of a list | M |  | MOR-042 |
-| MOR-053 | open | 2 | defect | InMemoryDriver: type checks of the update operators ($inc, $mul, $push, $addToSet, $pull, $pop) | M |  |  |
 | MOR-054 | open | 2 | defect | InMemoryDriver: validate the shape of an update document (unknown operator, mixed fields, _id, names) | S |  |  |
 | MOR-055 | open | 2 | defect | InMemoryDriver: number and BSON comparison semantics of $inc, $mul, $min, $max and $addToSet | M |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
@@ -65,6 +64,7 @@ Status: open 43, done 15
 | MOR-040 | done | 2 | defect | fieldNameCache: inner HashMap is not thread safe | S |  |  |
 | MOR-041 | done | 2 | implementation | Key translation for operator maps in findOneAndUpdate | M |  | MOR-002 |
 | MOR-050 | done | 2 | implementation | Update builder: updateOne, updateMany and UpdateResult | M |  | MOR-006 |
+| MOR-053 | done | 2 | defect | InMemoryDriver: type checks of the update operators ($inc, $mul, $push, $addToSet, $pull, $pop) | M |  |  |
 | MOR-058 | done | 2 | defect | InMemoryDriver: findAndModify does not reject what the update command rejects | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
@@ -879,9 +879,11 @@ Source: docs/research/plan-mor-006.md
 
 ### MOR-053 InMemoryDriver: type checks of the update operators ($inc, $mul, $push, $addToSet, $pull, $pop)
 
-Status **open**, priority 2, type defect, effort M
+Status **done**, priority 2, type defect, effort M
 
 Found by the update contract suite (MOR-028). A real MongoDB rejects $inc and $mul on a string or null and with a non-numeric operand (code 14), $push and $addToSet on a field that is not an array (code 2), $pop on a non-array (code 14) and $pull on a non-array (code 2), and a failing statement changes nothing. The InMemoryDriver ignores $inc, $mul and $pull on the wrong type without an error, applies the other operators of the statement before the failing one, and fails $push, $addToSet and $pop with an exception that is not a MorphiumDriverException. Tests that run on the InMemoryDriver therefore pass with updates that a real MongoDB refuses.
+
+Evidence: Contract suite (FieldOperator, ArrayOperator, UpsertAndError, StatementIsolation, UpdateContractLedgerTest; 26 invocations, 149 statements, each as update command and as findAndModify) green on PooledDriver (mongo:8) and on the InMemoryDriver; the pins of this task are gone, only MOR-055 and MOR-056 are still pinned. Before the driver change (pins removed, 24 cases added, all of them green on mongo:8) 46 distinct cases failed on the InMemoryDriver. The harness now also compares the collection after an error (.unchanged(), multi update: the documents before the error). Type cases: $inc and $mul on a string, on null and with a non-numeric operand (14), $mul of null, $push/$addToSet on a non-array and on null (2), $push with an $each that is no array (2), $pull on a non-array and on null (2), $pop on a non-array and on null (14), a failing statement after a successful operator and a failing multi update (documents before the error kept). UpdateAtomicityTest: the document is restored, a failing multi update still delivers the change stream events of the documents it changed (mutation checked: dispatching the events after the unlock outside the finally block fails the test). Behaviour change: $inc/$mul on an explicit null used to count as 0 and now fails like on mongo:8. InMemoryDriver, runtests.sh --driver inmem --parallel 8: 2337 test methods; failures only in ReferenceCascadeTest, LazyLoadingTest and ReferenceTest (Byte Buddy does not support Java 25, the JDK of the run), TtlCappedTest.updatingTheTtlFieldPushesOutTheOldExpiryNotJustTheNewOne (fails the same way on the base commit 70b0bce71) and MultithreaddedMessagingTests (timing: another method fails per run on the base commit too, the method that failed here passes alone 3 of 3). No new failure.
 
 Acceptance:
 
@@ -889,6 +891,8 @@ Acceptance:
 - The pinned deviations in the update contract suite that name this task are removed
 
 Source: docs/research/plan-mor-028.md
+
+Commits: b951b977f
 
 ### MOR-054 InMemoryDriver: validate the shape of an update document (unknown operator, mixed fields, _id, names)
 
