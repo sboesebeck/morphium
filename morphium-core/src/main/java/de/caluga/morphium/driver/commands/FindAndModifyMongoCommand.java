@@ -164,13 +164,28 @@ public class FindAndModifyMongoCommand extends WriteMongoCommand<FindAndModifyMo
 
     }
 
+    /**
+     * Runs the command and returns the matched or modified document ({@code value} of the reply), {@code null} if there is none. Use
+     * {@link #executeReply()} for the {@code lastErrorObject}, which tells whether an existing document was updated or one was inserted.
+     */
     @Override
     public Map<String, Object> execute() throws MorphiumDriverException {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> value = (Map<String, Object>) executeReply().get("value");
+        return value;
+    }
+
+    /**
+     * Runs the command and returns the whole reply: {@code value} (the document, or {@code null}) and {@code lastErrorObject} with {@code updatedExisting},
+     * {@code n} and, if the upsert inserted a document, {@code upserted} (its {@code _id}). A {@code writeErrors} entry in the reply is thrown as in
+     * {@link #execute()}.
+     */
+    public Map<String, Object> executeReply() throws MorphiumDriverException {
         var writeResult = super.execute();
         if (writeResult.containsKey("writeErrors")) {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> writeErrors = (List<Map<String, Object>>) writeResult.get("writeErrors");
-            int success = (int) writeResult.get("n");
+            int success = writeResult.get("n") instanceof Number n ? n.intValue() : 0;
             StringBuilder msg = new StringBuilder();
             msg.append("Failed to write: ").append(writeErrors.size()).append(" - succeeded: ").append(success);
             for (Map<String, Object> err : writeErrors) {
@@ -180,8 +195,6 @@ public class FindAndModifyMongoCommand extends WriteMongoCommand<FindAndModifyMo
             ex.setWriteErrors(writeErrors);
             throw ex;
         }
-        @SuppressWarnings("unchecked")
-        Map<String, Object> value = (Map<String, Object>) writeResult.get("value");
-        return value;
+        return writeResult;
     }
 }

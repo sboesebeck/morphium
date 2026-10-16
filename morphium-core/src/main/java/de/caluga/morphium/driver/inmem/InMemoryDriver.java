@@ -4780,12 +4780,19 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
             var res = delete (cmd.getDb(), cmd.getColl(), Doc.of("_id", list.get(0).get("_id")), null, false, null,
                               null);
-            Map<String, Object> valueDoc = Doc.of("value", list.get(0));
+            Map<String, Object> valueDoc = Doc.of("value", list.get(0), "lastErrorObject", Doc.of("n", 1));
             addResult(ret, prepareResult(valueDoc));
         } else {
-            var res = findAndOneAndUpdate(cmd.getDb(), cmd.getColl(), cmd.getQuery(), cmd.getUpdate(), cmd.getSort(),
+            var res = findAndModifyUpdate(cmd.getDb(), cmd.getColl(), cmd.getQuery(), cmd.getUpdate(), cmd.getSort(),
                                           cmd.getCollation(), cmd.isUpsert(), cmd.isNewFlag(), cmd.getArrayFilters());
-            addResult(ret, prepareResult(Doc.of("value", res)));
+            // like mongod: updatedExisting tells an update of a document from an insert or no match, upserted carries the _id of an insert
+            Map<String, Object> lastErrorObject = Doc.of("updatedExisting", res.updatedExisting(), "n", res.updatedExisting() || res.upsertedId() != null ? 1 : 0);
+
+            if (res.upsertedId() != null) {
+                lastErrorObject.put("upserted", res.upsertedId());
+            }
+
+            addResult(ret, prepareResult(Doc.of("value", res.value(), "lastErrorObject", lastErrorObject)));
         }
 
         return ret;
@@ -12888,18 +12895,35 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             Map<String, Object> update, Map<String, Object> sort, Map<String, Object> collation,
             boolean upsert, boolean newFlag, List<Map<String, Object>> arrayFilters)
     throws MorphiumDriverException {
+        return findAndModifyUpdate(db, col, query, update, sort, collation, upsert, newFlag, arrayFilters).value();
+    }
+
+    /**
+     * What a findAndModify update did: the {@code value} of the reply and the facts of the {@code lastErrorObject}. {@code upsertedId} is non-null only if
+     * the upsert inserted a document.
+     */
+    private record FindAndModifyUpdateResult(Map<String, Object> value, boolean updatedExisting, Object upsertedId) {
+    }
+
+    /** the implementation of {@link #findAndOneAndUpdate(String, String, Map, Map, Map, Map, boolean, boolean, List)}, which also tells what happened */
+    private FindAndModifyUpdateResult findAndModifyUpdate(String db, String col, Map<String, Object> query,
+            Map<String, Object> update, Map<String, Object> sort, Map<String, Object> collation,
+            boolean upsert, boolean newFlag, List<Map<String, Object>> arrayFilters)
+    throws MorphiumDriverException {
         // NOTE: In MongoDB, findAndModify is atomic. We implement this by holding the
         // write lock for both find and update.
         java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, col);
         lock.writeLock().lock();
         List<PendingNotification> pendingNotifications = new ArrayList<>();
         Map<String, Object> result;
+        Object insertedId = null;
+        boolean updatedExisting = false;
         try {
             markCollectionTouched(db, col);
             // Use internal flag to skip lock acquisition in find() and update()
             List<Map<String, Object>> ret = find(db, col, query, sort, null, collation, 0, 1, true);
             if (ret.isEmpty() && !upsert) {
-                return null;
+                return new FindAndModifyUpdateResult(null, false, null);
             }
             // Pre-update snapshot for an existing document (used when newFlag == false)
             Map<String, Object> before = ret.isEmpty() ? null : deepClone(ret.get(0));
@@ -12923,15 +12947,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (matchedId == null) {
                 // Insert case: no pre-image exists. newFlag=false returns null (MongoDB semantics);
                 // newFlag=true returns the freshly inserted document.
-                Object insertedId = null;
                 if (updateResult.get("upsertedIds") instanceof List<?> ids && !ids.isEmpty()) {
                     insertedId = ids.get(0);
                 }
                 result = (newFlag && insertedId != null) ? findByIdClone(db, col, insertedId, collation) : null;
             } else if (newFlag) {
+                updatedExisting = true;
                 // Return the post-update state.
                 result = findByIdClone(db, col, matchedId, collation);
             } else {
+                updatedExisting = true;
                 // Return the pre-update snapshot (already a deepClone).
                 result = before;
             }
@@ -12942,7 +12967,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         for (PendingNotification notification : pendingNotifications) {
             notifyWatchers(notification);
         }
-        return result;
+        return new FindAndModifyUpdateResult(result, updatedExisting, insertedId);
     }
 
     /**
