@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 43, done 9
+Status: open 42, done 10
 
 ## Overview
 
@@ -15,7 +15,6 @@ Status: open 43, done 9
 | MOR-005 | open | 2 | verification | Audit Query.set/inc/push write paths for swallowed writeErrors and missing name translation | S |  |  |
 | MOR-007 | open | 2 | implementation | Option A extension: min, max, mul, rename, currentDate, addToSet/push with each | M |  | MOR-006 |
 | MOR-008 | open | 2 | implementation | Options object for findAndModify and a defined result for upsert without returnNew | S |  | MOR-006 |
-| MOR-009 | open | 2 | implementation | Lifecycle handling in the builder: @LastChange, @CreationTime, @Version | M |  | MOR-006 |
 | MOR-010 | open | 2 | implementation | Typed duplicate-key exception and typed result for a lost conditional upsert | M |  | MOR-008 |
 | MOR-014 | open | 2 | implementation | Option E: startup guard for @Embedded under @Entity(translateCamelCase=false) | S |  | MOR-001 |
 | MOR-017 | open | 2 | implementation | Jakarta Data: JDQL DELETE FROM | M |  |  |
@@ -59,6 +58,7 @@ Status: open 43, done 9
 | MOR-004 | done | 1 | defect | MorphiumBase.currentDate sends $set: {$currentDate: ...} and fails silently | S |  |  |
 | MOR-006 | done | 1 | implementation | Option A core: mapper-aware update builder (set, setOnInsert, inc, unset) with findOneAndUpdate terminal | L |  | MOR-001, MOR-002 |
 | MOR-030 | done | 1 | defect | InMemoryDriver: honour the filter in conditional upsert and raise E11000 | M |  |  |
+| MOR-009 | done | 2 | implementation | Lifecycle handling in the builder: @LastChange, @CreationTime, @Version | M |  | MOR-006 |
 | MOR-040 | done | 2 | defect | fieldNameCache: inner HashMap is not thread safe | S |  |  |
 | MOR-041 | done | 2 | implementation | Key translation for operator maps in findOneAndUpdate | M |  | MOR-002 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
@@ -213,9 +213,11 @@ Source: docs/research/reproduction-results.md hypothesis 5, docs/research/other-
 
 ### MOR-009 Lifecycle handling in the builder: @LastChange, @CreationTime, @Version
 
-Status **open**, priority 2, type implementation, effort M
+Status **done**, priority 2, type implementation, effort M
 
 @LastChange and @CreationTime in the builder: findOneAndUpdate through the builder (MOR-006) skips pre/post update events, @LastChange and @CreationTime; Query.set applies them. Add them to the builder on the mapped document, honouring isAutoValuesEnabled. The @Version injection is done by MOR-006. State the event contract in the Javadoc.
+
+Evidence: ModifyAutoValuesTest 22 invocations (11 tests, PooledDriver mongo:8 and InMemoryDriver): last change refreshed by update, inc and unset; creation time only on insert and never changed by an update; an upsert that inserts sets both from one clock reading; a setOnInsert-only update sets both on insert and touches nothing (also not the version) on an existing document; explicit touches win (incl. an explicit unset); Query.disableAutoValues and the thread switch skip both; Long/long, Date, String (dateFormat), LocalDateTime and Instant fields; an unsupported field type is rejected and nothing is written; toUpdateDocument shows the injection; store() afterwards works. Mutation check: with the injection disabled 10 of the 11 tests fail on the InMemoryDriver. Regression subset (64 classes): 862 tests on the InMemoryDriver with 2 errors (ReferenceCascadeTest, Byte Buddy does not support Java 25); on a real MongoDB plus InMem 1014 tests with ReferenceCascadeTest, ExclusiveMessageTests.exclusiveTest/exclusivityTest and CoreFunctionalityTests.cachedObjectOperationsTest (all known, see MOR-042) and LastAccessTest.testLastAccessInc, which is intermittent: it failed 2 of 3 repetitions on this branch and 1 of 4 on a clean develop worktree (it exercises setInEntity, not the builder).
 
 Acceptance:
 
@@ -225,6 +227,8 @@ Acceptance:
 Depends on: MOR-006
 
 Source: docs/research/reproduction-results.md hypothesis 5, docs/research/other-clients.md patterns 7, 8
+
+Commits: 69dfb6484
 
 ### MOR-010 Typed duplicate-key exception and typed result for a lost conditional upsert
 
