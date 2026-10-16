@@ -563,11 +563,34 @@ public class Query<T> implements Cloneable {
     }
 
     /**
+     * {@link #findOneAndUpdate(Map, boolean, boolean)} with the {@link FindAndModifyOptions}: upsert, which document to return (required), sort, projection, hint,
+     * collation, array filters and a maximum time. The update document is mapped as described there. An upsert that inserts returns {@code null} for
+     * {@link ReturnDocument#BEFORE} (an insert has no pre-image).
+     *
+     * @throws IllegalArgumentException if the options are null or have no {@code returnDocument}; nothing is sent then
+     */
+    public T findOneAndUpdate(Map<String, Object> update, FindAndModifyOptions options) {
+        requireReturnDocument(options);
+        return findOneAndUpdateMapped(newUpdateMapper().map(update), options.isUpsert(), options.getReturnDocument() == ReturnDocument.AFTER, options);
+    }
+
+    private static void requireReturnDocument(FindAndModifyOptions options) {
+        if (options == null || options.getReturnDocument() == null) {
+            throw new IllegalArgumentException("FindAndModifyOptions with a ReturnDocument are required (there is no default)");
+        }
+    }
+
+    /**
      * The part of {@link #findOneAndUpdate(Map, boolean, boolean)} after the update document has been mapped. Package-private
      * so that the update builder planned in MOR-006 can call it with an already mapped document.
      */
     T findOneAndUpdateMapped(Map<String, Object> update, boolean upsert, boolean returnNew) {
-        return unmarshallFindAndModifyValue(findAndModifyReply(update, upsert, returnNew).get("value"));
+        return findOneAndUpdateMapped(update, upsert, returnNew, null);
+    }
+
+    /** as above, with the options (sort, projection, hint, collation, array filters, max time) that are set; null means none */
+    T findOneAndUpdateMapped(Map<String, Object> update, boolean upsert, boolean returnNew, FindAndModifyOptions options) {
+        return unmarshallFindAndModifyValue(findAndModifyReply(update, upsert, returnNew, options).get("value"));
     }
 
     /**
@@ -576,10 +599,15 @@ public class Query<T> implements Cloneable {
      * a duplicate key of an update without upsert (a unique index on a modified field) is thrown. Any other failure is thrown, too.
      */
     UpdateOutcome<T> findOneAndUpdateOutcome(Map<String, Object> update, boolean upsert, boolean returnNew) {
+        return findOneAndUpdateOutcome(update, upsert, returnNew, null);
+    }
+
+    /** as above, with the options that are set; null means none */
+    UpdateOutcome<T> findOneAndUpdateOutcome(Map<String, Object> update, boolean upsert, boolean returnNew, FindAndModifyOptions options) {
         Map<String, Object> reply;
 
         try {
-            reply = findAndModifyReply(update, upsert, returnNew);
+            reply = findAndModifyReply(update, upsert, returnNew, options);
         } catch (MorphiumDriverException e) {
             if (upsert && e.isDuplicateKey()) {
                 return UpdateOutcome.duplicateKey();
@@ -602,7 +630,7 @@ public class Query<T> implements Cloneable {
 
     /** sends the findAndModify and returns the whole reply ({@code value}, {@code lastErrorObject}); clears the cache */
     @SuppressWarnings("ConstantConditions")
-    private Map<String, Object> findAndModifyReply(Map<String, Object> update, boolean upsert, boolean returnNew) {
+    private Map<String, Object> findAndModifyReply(Map<String, Object> update, boolean upsert, boolean returnNew, FindAndModifyOptions options) {
         // NOTE: unlike the legacy findOneAndUpdate(Map), this method NEVER serves from / writes to
         // the read cache. findOneAndUpdate always has a write side-effect (and, with upsert=true,
         // can insert a new document), so satisfying it from a stale read cache is never correct -
@@ -626,19 +654,39 @@ public class Query<T> implements Cloneable {
             var wc = getMorphium().getWriteConcernForClass(getType());
             con = morphium.getDriver().getPrimaryConnection(wc);
             settings = new FindAndModifyMongoCommand(con).setDb(getDB()).setColl(getCollectionName()).setQuery(Doc.of(queryObject)).setUpdate(Doc.of(effectiveUpdate)).setUpsert(upsert).setNewFlag(returnNew);
-            if (getSort() != null && !getSort().isEmpty()) {
+            if (options != null && options.getSort() != null) {
+                settings.setSort(translateKeys(options.getSort()));
+            } else if (getSort() != null && !getSort().isEmpty()) {
                 settings.setSort(new Doc(getSort()));
             }
 
-            if (arrayFilters != null && !arrayFilters.isEmpty()) {
-                settings.setArrayFilters(arrayFilters);
+            List<Map<String, Object>> effectiveArrayFilters = options != null && options.getArrayFilters() != null ? options.getArrayFilters() : arrayFilters;
+
+            if (effectiveArrayFilters != null && !effectiveArrayFilters.isEmpty()) {
+                settings.setArrayFilters(effectiveArrayFilters);
             }
             if (wc != null) {
                 settings.setWriteConcern(wc.asMap());
             }
 
-            if (collation != null) {
-                settings.setCollation(Doc.of(collation.toQueryObject()));
+            Collation effectiveCollation = options != null && options.getCollation() != null ? options.getCollation() : collation;
+
+            if (effectiveCollation != null) {
+                settings.setCollation(Doc.of(effectiveCollation.toQueryObject()));
+            }
+
+            if (options != null) {
+                if (options.getProjection() != null) {
+                    settings.setFields(projectionForUpdate(options.getProjection()));
+                }
+
+                if (options.getHint() != null) {
+                    settings.setHint(options.getHint());
+                }
+
+                if (options.getMaxTimeMS() != null) {
+                    settings.setMaxTimeMS(options.getMaxTimeMS());
+                }
             }
 
             reply = settings.executeReply();
@@ -665,6 +713,25 @@ public class Query<T> implements Cloneable {
         }
 
         return reply;
+    }
+
+    /** the keys of a sort or projection document as the stored names (Java names, aliases and dotted paths through embedded documents are translated) */
+    private Map<String, Object> translateKeys(Map<String, Object> source) {
+        Map<String, Object> ret = new Doc();
+        source.forEach((k, v) -> ret.put(getARHelper().resolveFieldPath(type, k), v));
+        return ret;
+    }
+
+    /** a projection for the findAndModify command: translated keys; an inclusion also keeps class_name, which a polymorphic entity needs to be read */
+    private Map<String, Object> projectionForUpdate(Map<String, Object> projection) {
+        Map<String, Object> ret = translateKeys(projection);
+        boolean inclusion = ret.entrySet().stream().anyMatch(e -> !"_id".equals(e.getKey()) && (e.getValue() instanceof Number n ? n.intValue() != 0 : !Boolean.FALSE.equals(e.getValue())));
+
+        if (inclusion) {
+            ret.putIfAbsent("class_name", 1);
+        }
+
+        return ret;
     }
 
     private T unmarshallFindAndModifyValue(Object value) {

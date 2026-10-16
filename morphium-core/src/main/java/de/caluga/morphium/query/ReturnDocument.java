@@ -1,8 +1,9 @@
 package de.caluga.morphium.query;
 
 /**
- * Which state of the document {@link UpdateBuilder#findOneAndUpdate(ReturnDocument)} returns. There is deliberately no default: with an upsert that
- * INSERTS, {@code BEFORE} returns {@code null} because there is no pre-image.
+ * Which state of the document {@link UpdateBuilder#findOneAndUpdate(ReturnDocument)}, {@link FindAndModifyOptions} and {@link Query#findOneAndUpdate(java.util.Map, FindAndModifyOptions)}
+ * return. There is deliberately no default: with an upsert that INSERTS, {@code BEFORE} returns {@code null} because there is no pre-image - the same {@code null} as for
+ * "nothing matched"; {@link UpdateBuilder#tryFindOneAndUpdate(ReturnDocument)} tells the two apart. A real MongoDB and the InMemoryDriver behave the same.
  *
  * @apiNote incubating until 6.3, the name and package may change
  */

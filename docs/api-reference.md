@@ -293,6 +293,15 @@ switch (o.getKind()) {
 ```
 Only the duplicate key of an upsert is returned as a value (without `upsert()` it is thrown, a unique index on a modified field is not "held"); every other failure is thrown as by `findOneAndUpdate`.
 
+`FindAndModifyOptions` bundles the options of the atomic find-and-modify for the raw map path and the builder:
+```java
+Plain p = query.findOneAndUpdate(Map.of("$set", Map.of("state", "RUNNING")),
+        FindAndModifyOptions.options().upsert(true).returnDocument(ReturnDocument.AFTER).sort(Map.of("priority", -1)).projection(Map.of("state", 1)).hint("state_1"));
+Plain q = query.modify().inc("attempts", 1).findOneAndUpdate(FindAndModifyOptions.options().returnDocument(ReturnDocument.BEFORE).maxTime(Duration.ofSeconds(5)));
+```
+`returnDocument` is required; an upsert that inserts returns `null` for `BEFORE` (no pre-image, use `tryFindOneAndUpdate` to tell it from no match). The projection keys may be Java names; the returned
+entity is partial. The InMemoryDriver ignores `hint` and `maxTime` and does not support collations.
+
 `LeaseManager<T>` packages the lease recipe (a job, a relay, a command that only one node may run):
 ```java
 LeaseManager<Lease> leases = LeaseManager.of(morphium, Lease.class, "ownerName", "expiresAt");   // owner: String, deadline: Instant or Date

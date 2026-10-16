@@ -23,6 +23,7 @@ public class FindAndModifyMongoCommand extends WriteMongoCommand<FindAndModifyMo
     private Object hint;
     private Map<String, Object> let;
     private List<Map<String, Object>> arrayFilters;
+    private Integer maxTimeMS;
 
     public FindAndModifyMongoCommand(MongoConnection d) {
         super(d);
@@ -116,6 +117,16 @@ public class FindAndModifyMongoCommand extends WriteMongoCommand<FindAndModifyMo
     /** the {@code arrayFilters} of the update, for {@code $[<identifier>]} paths; findAndModify supports them since MongoDB 3.6 */
     public FindAndModifyMongoCommand setArrayFilters(List<Map<String, Object>> arrayFilters) {
         this.arrayFilters = arrayFilters;
+        return this;
+    }
+
+    public Integer getMaxTimeMS() {
+        return maxTimeMS;
+    }
+
+    /** the server aborts the command after this many milliseconds (the InMemoryDriver ignores it) */
+    public FindAndModifyMongoCommand setMaxTimeMS(Integer maxTimeMS) {
+        this.maxTimeMS = maxTimeMS;
         return this;
     }
 
