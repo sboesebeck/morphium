@@ -4,14 +4,13 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 45, done 13
+Status: open 44, done 14
 
 ## Overview
 
 | ID | Status | Prio | Type | Title | Effort | Ticket | Depends on |
 |---|---|---|---|---|---|---|---|
 | MOR-027 | open | 1 | documentation | Documentation page: raw commands, embedded objects and lifecycle contract | S |  |  |
-| MOR-028 | open | 1 | infrastructure | Contract tests InMem vs real MongoDB for all update paths | M |  |  |
 | MOR-005 | open | 2 | verification | Audit Query.set/inc/push write paths for swallowed writeErrors and missing name translation | S |  |  |
 | MOR-007 | open | 2 | implementation | Option A extension: min, max, mul, rename, currentDate, addToSet/push with each | M |  | MOR-006 |
 | MOR-008 | open | 2 | implementation | Options object for findAndModify and a defined result for upsert without returnNew | S |  | MOR-006 |
@@ -60,6 +59,7 @@ Status: open 45, done 13
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
 | MOR-004 | done | 1 | defect | MorphiumBase.currentDate sends $set: {$currentDate: ...} and fails silently | S |  |  |
 | MOR-006 | done | 1 | implementation | Option A core: mapper-aware update builder (set, setOnInsert, inc, unset) with findOneAndUpdate terminal | L |  | MOR-001, MOR-002 |
+| MOR-028 | done | 1 | infrastructure | Contract tests InMem vs real MongoDB for all update paths | M |  |  |
 | MOR-030 | done | 1 | defect | InMemoryDriver: honour the filter in conditional upsert and raise E11000 | M |  |  |
 | MOR-009 | done | 2 | implementation | Lifecycle handling in the builder: @LastChange, @CreationTime, @Version | M |  | MOR-006 |
 | MOR-010 | done | 2 | implementation | Typed duplicate-key exception and typed result for a lost conditional upsert | M |  | MOR-006 |
@@ -512,9 +512,11 @@ Source: docs/research/reproduction-results.md, update-path research, 2026-10-15
 
 ### MOR-028 Contract tests InMem vs real MongoDB for all update paths
 
-Status **open**, priority 1, type infrastructure, effort M
+Status **done**, priority 1, type infrastructure, effort M
 
 Turn the reproduction tests into a maintained contract suite that runs the same update paths ($set with embedded lists/sets, $setOnInsert, $inc, $addToSet, $currentDate, conditional upsert, raw key names) against both drivers and declares divergences explicitly. The repo has no known-defect annotation; introduce a small one or an assumption convention so divergences are tracked, not hidden. Move the tests out of the repro package when the defects are fixed.
+
+Evidence: Contract suite (FieldOperator, ArrayOperator, UpsertAndError, StatementIsolation and UpdateContractLedgerTest, 26 invocations) with 125 statements run as update command and as findAndModify: green on PooledDriver (mongo:8, v8.3.x) with no pinned deviation, and on the InMemoryDriver with the deviations pinned. The expectations were written from the MongoDB semantics and all matched mongo:8 on the first run. The suite found 31 InMemoryDriver deviations, tracked as MOR-051, MOR-053 to MOR-058; each pin names its task and UpdateContractLedgerTest fails when the task is done or unknown (mutation checked: marking MOR-058 done fails it). Harness mutation check: a wrong expectation fails with the case name. Default build (InMemoryDriver only) stays green. Not covered: $currentDate, $bit, pipeline updates, collation, hint, transactions, the Morphium write paths above the raw statement layer.
 
 Acceptance:
 
@@ -524,6 +526,8 @@ Acceptance:
 - Verified against a real MongoDB (not only the InMemoryDriver).
 
 Source: docs/research/reproduction-results.md, update-path research, 2026-10-15
+
+Commits: b3db32f0a
 
 ### MOR-029 InMemoryDriver: reject values BsonEncoder cannot encode
 

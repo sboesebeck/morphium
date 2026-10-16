@@ -609,7 +609,7 @@ tasks:
 - id: MOR-028
   title: Contract tests InMem vs real MongoDB for all update paths
   type: infrastructure
-  status: open
+  status: done
   priority: 1
   effort: M
   description: Turn the reproduction tests into a maintained contract suite that runs the same update paths ($set
@@ -625,6 +625,16 @@ tasks:
   source:
   - docs/research/reproduction-results.md
   - update-path research, 2026-10-15
+  evidence: 'Contract suite (FieldOperator, ArrayOperator, UpsertAndError, StatementIsolation and UpdateContractLedgerTest,
+    26 invocations) with 125 statements run as update command and as findAndModify: green on PooledDriver
+    (mongo:8, v8.3.x) with no pinned deviation, and on the InMemoryDriver with the deviations pinned. The expectations were
+    written from the MongoDB semantics and all matched mongo:8 on the first run. The suite found 31 InMemoryDriver
+    deviations, tracked as MOR-051, MOR-053 to MOR-058; each pin names its task and UpdateContractLedgerTest fails when
+    the task is done or unknown (mutation checked: marking MOR-058 done fails it). Harness mutation check: a wrong
+    expectation fails with the case name. Default build (InMemoryDriver only) stays green. Not covered: $currentDate, $bit,
+    pipeline updates, collation, hint, transactions, the Morphium write paths above the raw statement layer.'
+  commits:
+  - b3db32f0a
 - id: MOR-029
   title: 'InMemoryDriver: reject values BsonEncoder cannot encode'
   type: defect
