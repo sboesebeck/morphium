@@ -293,6 +293,16 @@ switch (o.getKind()) {
 ```
 Only the duplicate key of an upsert is returned as a value (without `upsert()` it is thrown, a unique index on a modified field is not "held"); every other failure is thrown as by `findOneAndUpdate`.
 
+`LeaseManager<T>` packages the lease recipe (a job, a relay, a command that only one node may run):
+```java
+LeaseManager<Lease> leases = LeaseManager.of(morphium, Lease.class, "ownerName", "expiresAt");   // owner: String, deadline: Instant or Date
+LeaseResult<Lease> r = leases.tryAcquire("outbox-relay", nodeId, Duration.ofSeconds(30));         // acquires, takes over an expired lease, or renews
+if (r.isAcquired()) { /* r.getLease() has the new deadline and, with @Version, a fencing token */ }
+leases.release("outbox-relay", nodeId);                                                           // true if nodeId held it
+```
+One atomic conditional upsert on the `@Id`; `HELD` is the lost insert (duplicate key). The deadline is compared with the caller's clock, there is no heartbeat (renew by calling `tryAcquire`), and
+it must not be called inside a real MongoDB transaction (a duplicate key aborts it).
+
 ## Aggregation API
 
 ### Aggregator Interface
