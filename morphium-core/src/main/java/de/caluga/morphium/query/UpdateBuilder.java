@@ -1,13 +1,22 @@
 package de.caluga.morphium.query;
 
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.annotations.CreationTime;
+import de.caluga.morphium.annotations.LastChange;
 import de.caluga.morphium.annotations.Version;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 
 import java.lang.reflect.Field;
+import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Date;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Builds ONE atomic update of the document a {@link Query} selects and executes it as {@code findAndModify}. Obtained with
@@ -38,11 +47,14 @@ import java.util.Map;
  * only has {@code setOnInsert} operations, set to 1 on insert and left alone on an existing document. A later {@code store()} of an entity loaded before a
  * builder write is rejected with a {@code VersionMismatchException}. Disabled by {@link Query#disableAutoValues()}. An {@code @Version(fieldName=...)}
  * is rejected (MOR-044).</li>
+ * <li><b>{@code @LastChange} / {@code @CreationTime}</b> (MOR-009): the last change is set by every update that modifies a document, the creation time only when the update
+ * inserts ({@code $setOnInsert}); a setOnInsert-only update sets the last change on insert and leaves an existing document alone. A field that the update touches itself is
+ * not overwritten, {@link Query#disableAutoValues()} or the thread switch turn both (and the version) off. Types: long/Long milliseconds, Date, LocalDateTime, Instant,
+ * String (the {@code dateFormat} of the annotation); another type is rejected.</li>
  * </ul>
  * <h3>What the builder does NOT do</h3>
  * <ul>
- * <li>{@code @LastChange} and {@code @CreationTime} are <b>not</b> applied (unlike {@code Query.set}); this is MOR-009. No pre/post update events are fired;
- * {@code postLoad} is fired for the returned entity. The read cache of the type is cleared after the write.</li>
+ * <li>No pre/post update events are fired; {@code postLoad} is fired for the returned entity. The read cache of the type is cleared after the write.</li>
  * <li>It is no writer path: no asynchronous or buffered write (an entity with {@code @WriteBuffer} is rejected), no index or capped collection check on upsert.
  * A lease keyed by a natural key (not {@code _id}) needs a unique index on that key to have exactly one winner.</li>
  * <li>{@code @LastAccess} entities get a second, non-atomic update of their last-access field (MOR-052).</li>
@@ -251,10 +263,82 @@ public final class UpdateBuilder<T> {
 
         if (query.isAutoValuesEnabled() && morphium.isAutoValuesEnabledForThread()) {
             injectVersion(doc);
+            injectTimestamps(doc);
         }
 
         // the keys and values are mapped already; the pass makes sure that what is sent is what the mapper would send
         return new UpdateDocumentMapper(morphium, type, true).map(doc);
+    }
+
+    /**
+     * {@code @LastChange} is set by every update that modifies a document (and by an insert), {@code @CreationTime} only by an insert ({@code $setOnInsert}); a field
+     * that the update touches itself is left alone. Values and types as {@code store()} writes them: long/Long milliseconds, Date, LocalDateTime (system zone), String
+     * (the {@code dateFormat} of the annotation) - and Instant; any other type is rejected instead of silently storing null as {@code store()} does.
+     */
+    @SuppressWarnings("unchecked")
+    private void injectTimestamps(Map<String, Object> doc) {
+        List<String> lastChange = morphium.getARHelper().getFields(type, LastChange.class);
+        List<String> creation = morphium.getARHelper().getFields(type, CreationTime.class);
+
+        if (lastChange.isEmpty() && creation.isEmpty()) {
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        Set<String> done = new HashSet<>();
+        // a document that is only inserted (setOnInsert-only update) gets its last change on insert, an existing one stays untouched
+        String lastChangeOperator = operations.hasModifyingOperator() ? "$set" : "$setOnInsert";
+
+        for (String name : lastChange) {
+            String stored = morphium.getARHelper().resolveStoredFieldName(type, name);
+            Field f = morphium.getARHelper().getField(type, name);
+
+            if (operations.touches(stored) || !done.add(stored)) {
+                continue;
+            }
+
+            Object value = timestamp(f, now, f.getAnnotation(LastChange.class) != null ? f.getAnnotation(LastChange.class).dateFormat() : "yyyy-MM-dd hh:mm:ss", "@LastChange");
+            ((Map<String, Object>) doc.computeIfAbsent(lastChangeOperator, k -> new LinkedHashMap<String, Object>())).put(stored, value);
+        }
+
+        for (String name : creation) {
+            String stored = morphium.getARHelper().resolveStoredFieldName(type, name);
+            Field f = morphium.getARHelper().getField(type, name);
+
+            if (operations.touches(stored) || !done.add(stored)) {
+                continue;
+            }
+
+            Object value = timestamp(f, now, f.getAnnotation(CreationTime.class) != null ? f.getAnnotation(CreationTime.class).dateFormat() : "yyyy-MM-dd hh:mm:ss", "@CreationTime");
+            ((Map<String, Object>) doc.computeIfAbsent("$setOnInsert", k -> new LinkedHashMap<String, Object>())).put(stored, value);
+        }
+    }
+
+    private Object timestamp(Field f, long now, String dateFormat, String annotation) {
+        Class<?> t = f.getType();
+
+        if (t.equals(long.class) || t.equals(Long.class)) {
+            return now;
+        }
+
+        if (t.equals(Date.class)) {
+            return new Date(now);
+        }
+
+        if (t.equals(LocalDateTime.class)) {
+            return LocalDateTime.ofInstant(Instant.ofEpochMilli(now), ZoneId.systemDefault());
+        }
+
+        if (t.equals(Instant.class)) {
+            return Instant.ofEpochMilli(now);
+        }
+
+        if (t.equals(String.class)) {
+            return new SimpleDateFormat(dateFormat).format(now);
+        }
+
+        throw new IllegalStateException(annotation + " on " + type.getName() + "." + f.getName() + " has the type " + t.getName()
+                                        + ", supported are long, Long, Date, LocalDateTime, Instant and String");
     }
 
     @SuppressWarnings("unchecked")
