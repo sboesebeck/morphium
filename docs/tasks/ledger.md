@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 41, done 17
+Status: open 40, done 18
 
 ## Overview
 
@@ -47,7 +47,6 @@ Status: open 41, done 17
 | MOR-047 | open | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
 | MOR-048 | open | 3 | defect | MorphiumBase.setEnum looks the value up by the map value instead of the key | S |  |  |
 | MOR-049 | open | 3 | implementation | Writer path has no guard for @Reference and @Encrypted fields | M |  | MOR-042 |
-| MOR-051 | open | 3 | defect | InMemoryDriver: reject path conflicts in update documents like MongoDB | S |  |  |
 | MOR-052 | open | 3 | defect | updateLastAccess writes the untranslated Java field name | S |  |  |
 | MOR-056 | open | 3 | defect | InMemoryDriver: upsert seeds the equalities of a single-branch $or | S |  |  |
 | MOR-057 | open | 3 | defect | InMemoryDriver: an inserted document is stored by reference | S |  |  |
@@ -68,6 +67,7 @@ Status: open 41, done 17
 | MOR-058 | done | 2 | defect | InMemoryDriver: findAndModify does not reject what the update command rejects | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
+| MOR-051 | done | 3 | defect | InMemoryDriver: reject path conflicts in update documents like MongoDB | S |  |  |
 
 ## Details
 
@@ -854,9 +854,11 @@ Commits: 28516ff60
 
 ### MOR-051 InMemoryDriver: reject path conflicts in update documents like MongoDB
 
-Status **open**, priority 3, type defect, effort S
+Status **done**, priority 3, type defect, effort S
 
 A real MongoDB rejects an update document that touches the same path twice or a path and its child (set a and set a.b, set and inc on one field) with code 40. The InMemoryDriver accepts them, so raw-map users get a different result per driver.
+
+Evidence: Contract suite (FieldOperator, ArrayOperator, UpsertAndError, StatementIsolation, UpdateContractLedgerTest; 26 invocations, 149 statements, each as update command and as findAndModify) green on PooledDriver (mongo:8) and on the InMemoryDriver; the pins of this task are gone, only MOR-055 and MOR-056 are still pinned. Before the driver change (pins removed, 24 cases added, all of them green on mongo:8) 46 distinct cases failed on the InMemoryDriver. The harness now also compares the collection after an error (.unchanged(), multi update: the documents before the error). Conflict cases (40): set a plus set a.b, set plus inc, set plus unset, parent set plus child unset, push plus pull, set plus setOnInsert, rename target plus set, and an upsert with a conflict inserts nothing. Paths are compared segment by segment on the literal statement. Not detected, because they depend on the document or on the positional merge of mongod: a.$[] against a.0 (mongo:8: 40 at parse time) and two $[id] paths that address the same element (40 at runtime). InMemoryDriver, runtests.sh --driver inmem --parallel 8: 2337 test methods; failures only in ReferenceCascadeTest, LazyLoadingTest and ReferenceTest (Byte Buddy does not support Java 25, the JDK of the run), TtlCappedTest.updatingTheTtlFieldPushesOutTheOldExpiryNotJustTheNewOne (fails the same way on the base commit 70b0bce71) and MultithreaddedMessagingTests (timing: another method fails per run on the base commit too, the method that failed here passes alone 3 of 3). No new failure.
 
 Acceptance:
 
@@ -864,6 +866,8 @@ Acceptance:
 - The pinned deviations in the update contract suite that name this task are removed
 
 Source: docs/research/plan-mor-006.md
+
+Commits: b951b977f
 
 ### MOR-052 updateLastAccess writes the untranslated Java field name
 

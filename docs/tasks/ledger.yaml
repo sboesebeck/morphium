@@ -1044,7 +1044,7 @@ tasks:
 - id: MOR-051
   title: 'InMemoryDriver: reject path conflicts in update documents like MongoDB'
   type: defect
-  status: open
+  status: done
   priority: 3
   effort: S
   description: A real MongoDB rejects an update document that touches the same path twice or a path and its child
@@ -1055,6 +1055,22 @@ tasks:
     push plus pull on one path with code 40, like mongo:8
   - The pinned deviations in the update contract suite that name this task are removed
   source: *id003
+  evidence: 'Contract suite (FieldOperator, ArrayOperator, UpsertAndError, StatementIsolation, UpdateContractLedgerTest; 26
+    invocations, 149 statements, each as update command and as findAndModify) green on PooledDriver (mongo:8) and on
+    the InMemoryDriver; the pins of this task are gone, only MOR-055 and MOR-056 are still pinned. Before the driver
+    change (pins removed, 24 cases added, all of them green on mongo:8) 46 distinct cases failed on the
+    InMemoryDriver. The harness now also compares the collection after an error (.unchanged(), multi update: the
+    documents before the error). Conflict cases (40): set a plus set a.b, set plus inc, set plus unset, parent set
+    plus child unset, push plus pull, set plus setOnInsert, rename target plus set, and an upsert with a conflict
+    inserts nothing. Paths are compared segment by segment on the literal statement. Not detected, because they depend
+    on the document or on the positional merge of mongod: a.$[] against a.0 (mongo:8: 40 at parse time) and two $[id]
+    paths that address the same element (40 at runtime). InMemoryDriver, runtests.sh --driver inmem --parallel 8: 2337
+    test methods; failures only in ReferenceCascadeTest, LazyLoadingTest and ReferenceTest (Byte Buddy does not
+    support Java 25, the JDK of the run), TtlCappedTest.updatingTheTtlFieldPushesOutTheOldExpiryNotJustTheNewOne
+    (fails the same way on the base commit 70b0bce71) and MultithreaddedMessagingTests (timing: another method fails
+    per run on the base commit too, the method that failed here passes alone 3 of 3). No new failure.'
+  commits:
+  - b951b977f
 - id: MOR-052
   title: updateLastAccess writes the untranslated Java field name
   type: defect
