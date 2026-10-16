@@ -19,7 +19,7 @@ or one path in two operators are rejected (MongoDB answers such a document with 
 sets it to 1 on insert and leaves an existing document alone) unless the update touches it, so a `store()` of an entity loaded before a builder write is rejected with a `VersionMismatchException`
 and a `store()` after a builder upsert does not hit a duplicate key; `Query.disableAutoValues()` turns that off; an `@Version(fieldName=...)` is rejected (MOR-044).
 An empty builder (it would replace the document), `setOnInsert` without `upsert()`, skip, a limit above 1, a hint, a projection and entities with `@WriteBuffer` are rejected.
-`@LastChange` and `@CreationTime` are NOT applied and no update events are fired (MOR-009); an upsert that inserts returns `null` for `ReturnDocument.BEFORE`.
+`@LastChange` is set by every update that modifies a document (and by an insert), `@CreationTime` only when the update inserts (`$setOnInsert`), with the types `store()` writes (long/Long milliseconds, `Date`, `LocalDateTime`, `String` with the `dateFormat` of the annotation) and `Instant`; a setOnInsert-only update sets the last change on insert and leaves an existing document alone, a field that the update touches itself is not overwritten, `Query.disableAutoValues()` and the thread switch turn it off, and any other field type is rejected (`store()` would write null). No update events are fired; an upsert that inserts returns `null` for `ReturnDocument.BEFORE`.
 `MorphiumDriverException.isDuplicateKey()` tells a lost conditional upsert (a held lease) from other errors on both drivers.
 `updateOne`/`updateMany` and a typed result are MOR-050.
 
