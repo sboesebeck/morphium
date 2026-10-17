@@ -625,6 +625,13 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                         // reference BEFORE any branching, so the finally block and the
                                         // next loop iteration use the correct connection.
                                         con = upd.getConnection();
+                                        MorphiumDriverException rejected = entityRejectionOf(coll, result);
+
+                                        if (rejected != null) {
+                                            // a unique index violation is not a version mismatch (n is 0 in the reply of a rejected statement)
+                                            throw rejected;
+                                        }
+
                                         int matched = result.get("n") instanceof Number n ? n.intValue() : 0;
 
                                         if (matched == 0) {
@@ -942,6 +949,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     // (e.g. "not primary" errors). Capture the potentially new reference
                     // so the finally block releases the correct connection.
                     con = upd.getConnection();
+
+                    MorphiumDriverException rejected = entityRejectionOf(coll, result);
+
+                    if (rejected != null) {
+                        throw rejected; // a unique index violation is not a version mismatch; with continueOnError the catch below records it
+                    }
 
                     int matched = result.get("n") instanceof Number n ? n.intValue() : 0;
                     if (matched == 0) {
@@ -1534,6 +1547,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 throw new MorphiumDriverException("Error: " + ret.get("code") + " - " + ret.get("errmsg"));
                             }
 
+                            MorphiumDriverException rejection = entityRejectionOf(collectionName, ret);
+
+                            if (rejection != null) {
+                                throw rejection;
+                            }
+
                             if (!Integer.valueOf(1).equals(ret.get("nModified"))) {
                                 throw new MorphiumDriverException("Error - not updated");
                             }
@@ -1905,6 +1924,13 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         throw new MorphiumDriverException("Error: " + ret.get("code") + " - " + ret.get("errmsg"));
                     }
 
+                    MorphiumDriverException rejection = entityRejectionOf(coll, ret);
+
+                    if (rejection != null) {
+                        morphium.getCache().clearCacheIfNecessary(cls);
+                        throw rejection;
+                    }
+
                     if (!Integer.valueOf(1).equals(ret.get("nModified"))) {
                         throw new MorphiumDriverException("Update failed");
                     }
@@ -2006,6 +2032,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
      */
     private MorphiumDriverException rejectionOf(Query<?> query, String coll, Map<String, Object> reply) {
         return query.isRaiseOnWriteErrors() ? WriteReplyErrors.rejectionOf(getDbName(), coll, reply) : null;
+    }
+
+    /** as {@link #rejectionOf(Query, String, Map)} for the writes that start from an entity and have no query to carry an override: the configuration decides */
+    @SuppressWarnings("deprecation")
+    private MorphiumDriverException entityRejectionOf(String coll, Map<String, Object> reply) {
+        return morphium.getConfig().writerSettings().isRaiseOnWriteErrors() ? WriteReplyErrors.rejectionOf(getDbName(), coll, reply) : null;
     }
 
     /**
@@ -3279,8 +3311,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     settings.setWriteConcern(wc.asMap());
                 }
 
-                settings.execute();
+                var reply = settings.execute();
                 settings.releaseConnection();
+                MorphiumDriverException rejection = entityRejectionOf(coll, reply);
                 morphium.inc(StatisticKeys.WRITES);
                 handleLastChange(cls, update);
                 long dur = System.currentTimeMillis() - start;
@@ -3293,6 +3326,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 // This preserves the MongoDB behavior where unset removes field completely
 
                 morphium.firePostUpdateEvent(morphium.getARHelper().getRealClass(cls), MorphiumStorageListener.UpdateTypes.UNSET);
+
+                if (rejection != null) {
+                    throw rejection;
+                }
 
                 if (callback != null) {
                     callback.onOperationSucceeded(AsyncOperationType.UNSET, null, System.currentTimeMillis() - start, null, toSet, field);
