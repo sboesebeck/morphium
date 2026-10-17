@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 39, done 23
+Status: open 42, done 23
 
 ## Overview
 
@@ -29,6 +29,8 @@ Status: open 39, done 23
 | MOR-043 | open | 2 | defect | Query.f should resolve field paths with resolveFieldPath | M |  | MOR-041 |
 | MOR-046 | open | 2 | defect | BufferedMorphiumWriterImpl does not marshal update values and emits push for a pull of a list | M |  | MOR-042 |
 | MOR-055 | open | 2 | defect | InMemoryDriver: number and BSON comparison semantics of $inc, $mul, $min, $max and $addToSet | M |  |  |
+| MOR-063 | open | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
+| MOR-064 | open | 2 | defect | store() of an existing entity swallows a rejected update (StoreMongoCommand) | M |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
 | MOR-015 | open | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
@@ -49,6 +51,7 @@ Status: open 39, done 23
 | MOR-052 | open | 3 | defect | updateLastAccess writes the untranslated Java field name | S |  |  |
 | MOR-056 | open | 3 | defect | InMemoryDriver: upsert seeds the equalities of a single-branch $or | S |  |  |
 | MOR-057 | open | 3 | defect | InMemoryDriver: an inserted document is stored by reference | S |  |  |
+| MOR-065 | open | 3 | defect | Delete paths ignore the writeErrors of the delete reply | S |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -1046,4 +1049,41 @@ Acceptance:
 Source: docs/research/audit-write-paths.md
 
 Commits: a71202e84
+
+### MOR-063 quarkus-morphium migration lock: recognise a held lock by isDuplicateKey()
+
+Status **open**, priority 2, type defect, effort S
+
+MorphiumMigrationRunner.acquireLock (quarkus-morphium/runtime) takes the lock with an upsert (Query.set(update, true, false)) and recognises a held lock only by e.getMessage().contains("duplicate key"). Since MOR-059 the write raises a MorphiumDriverException for the lost upsert; the message of the normaliser contains the server text, so the check still matches, but it is fragile, and a WriteConcernNotSatisfiedException (the lock IS written) is rethrown as a failure of the run while the lock stays held for its TTL. Use MorphiumDriverException.isDuplicateKey() and treat WriteConcernNotSatisfiedException as acquired (or release the lock). Released in lockstep with core 6.4.
+
+Acceptance:
+
+- A held lock is reported as "lock held" through isDuplicateKey(), tested against a real MongoDB with two runners
+- A write concern error while taking the lock does not leave a lock held by an aborted run
+
+Source: docs/research/plan-mor-059.md
+
+### MOR-064 store() of an existing entity swallows a rejected update (StoreMongoCommand)
+
+Status **open**, priority 2, type defect, effort M
+
+Follow-up of MOR-059, not covered by it: StoreMongoCommand.execute() delegates to UpdateMongoCommand, and the store paths of MorphiumWriterImpl (store, storeList, the non-versioned update half) do not look at the writeErrors of the reply. A unique index violation on the store() of an existing entity is presumably silent (the versioned paths raise since MOR-059). Verify on a real MongoDB, then raise like the other paths (switch, async callbacks, FailedStore for storeList with continueOnError).
+
+Acceptance:
+
+- store() and storeList() of an existing entity raise a MorphiumDriverException (isDuplicateKey) for a unique index violation, on a real MongoDB; with continueOnError the FailedStore carries it
+
+Source: docs/research/plan-mor-059.md
+
+### MOR-065 Delete paths ignore the writeErrors of the delete reply
+
+Status **open**, priority 3, type defect, effort S
+
+Follow-up of MOR-059: DeleteMongoCommand is the same hole as the update command; Query.remove and Morphium.delete do not look at the reply (the bulk context does since MOR-059). Verify which server errors a delete can report (a write concern error, a failing collation) and raise them like the update paths.
+
+Acceptance:
+
+- A rejected delete raises a MorphiumDriverException, on a real MongoDB
+
+Source: docs/research/plan-mor-059.md
 

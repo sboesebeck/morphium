@@ -102,3 +102,20 @@ Recommendation first, then the alternative.
 5. `ThrowOnError` users: accept the exception type change `IllegalStateException` to `MorphiumDriverException` with a migration note (recommended), or keep `IllegalStateException` as a superclass-compatible wrapper?
 6. Buffered writer: a later `onOperationError` after an earlier "succeeded" callback (recommended, documented) or defer the success callbacks until after the flush?
 7. Who changes and releases the quarkus-morphium migration runner, in lockstep?
+
+---
+
+# Owner decisions and implementation (all recommendations of plan v2 taken)
+
+Decided: release vehicle **6.4.0** with a loud CHANGELOG; deprecated global switch **and per-query override**; **`WriteConcernNotSatisfiedException`** thrown (never from the internal best-effort writes); scope **without `store()` and `DeleteMongoCommand`** (ledger tasks MOR-064, MOR-065); **bulk aggregates** (unordered contexts run every request, then one `BulkWriteException`); **`ThrowOnError` migration note** (CHANGELOG, Javadoc, configuration reference); the **Quarkus migration runner is a follow-up** (MOR-063, released in lockstep); the buffered writer reports the error to the callbacks of the failed collection after an earlier "succeeded" (documented); events and caches follow what was applied.
+
+Implemented in six commits on `feat/mor-059-raise-on-write-errors`, tests first in every step:
+
+1. `WriteReplyErrors` (the normaliser, extracted from `Query.toUpdateResult`, wording neutral for update and delete), `WriteConcernNotSatisfiedException`, `WriterSettings.raiseOnWriteErrors` (deprecated, default true), `Query.setRaiseOnWriteErrors(Boolean)` / `isRaiseOnWriteErrors()`.
+2. `MorphiumWriterImpl`: `rejectionOf(...)` at the six query-based sites (inc(Query, Map), inc(Query, field), set, unset, pushIt, pushPullAll); the rejection is returned, the cache is cleared and the post-update event fired, then it is thrown; limited multi updates stop at the first rejected batch; `set(Query, Map)` clears the statements of a sent batch (it re-sent them before).
+3. The best-effort `deleteAt` writes of the three messaging classes do not raise (`setInEntity` logs, the lock write uses `setRaiseOnWriteErrors(false)`).
+4. Entity paths (`inc/dec(entity)`, `doUpdate` for `unsetInEntity`/`pop`, `updateUsingFields`) and the versioned store paths check the reply; a unique index violation is no longer a `VersionMismatchException`.
+5. Bulk: `BulkWriteException`, `BulkRequestContext.raiseOrLog` used by the Pooled, SingleMongoConnect and InMemory drivers; the update and delete replies are checked; `MorphiumBulkContext.runBulk` fires the post events in `finally`; the buffered flush isolates the contexts; the InMemoryDriver's ordered `update` command stops at the first statement with a write error.
+6. Flip of the last pins of `WritePathAuditContractTest` (now asserts `MorphiumDriverException`, the server code and the write errors for every path, the bulk requests with `BulkWriteException`), `CurrentDateReproductionTest` flipped, CHANGELOG, configuration reference, API reference, `ThrowOnError` Javadoc.
+
+Deviations from plan v2: `renewLock`/`acquireLock` of the Quarkus module are not changed here (MOR-063); `SequenceGenerator` needed no change (it uses `inc(entity)`, which now raises the normalised exception); the end-to-end test of the buffered flush (private classes, flaky buffer thread, the existing buffered tests are mostly `@Disabled`) is not written: the per-context try/catch is not covered by a test; a stubbed `writeConcernError` through the writer is not covered end to end either (the normaliser is unit tested); the transaction case needs a replica set and is not covered.
