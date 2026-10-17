@@ -395,4 +395,22 @@ public class MorphiumConfigTest {
         assertFalse(cfg.objectMappingSettings().isTranslateUpdateFieldNames());
     }
 
+    @Test
+    public void raiseOnWriteErrorsIsOnByDefaultAndSurvivesPropertiesAndCopy() {
+        MorphiumConfig cfg = getConfig();
+        assertTrue(cfg.writerSettings().isRaiseOnWriteErrors());
+        assertTrue(cfg.asProperties().keySet().stream().noneMatch(k -> k.toString().endsWith("raiseOnWriteErrors")), "default values are not written to properties");
+
+        cfg.writerSettings().disableRaiseOnWriteErrors();
+        assertFalse(cfg.writerSettings().isRaiseOnWriteErrors());
+        Properties p = cfg.asProperties();
+        assertTrue(p.entrySet().stream().anyMatch(e -> e.getKey().toString().endsWith("raiseOnWriteErrors") && "false".equals(e.getValue())), String.valueOf(p.keySet()));
+        assertFalse(MorphiumConfig.fromProperties(p).writerSettings().isRaiseOnWriteErrors());
+        de.caluga.morphium.config.WriterSettings copy = cfg.writerSettings().copy();
+        assertFalse(copy.isRaiseOnWriteErrors());
+        cfg.writerSettings().enableRaiseOnWriteErrors();
+        assertTrue(cfg.writerSettings().isRaiseOnWriteErrors());
+        assertTrue(cfg.writerSettings().setRaiseOnWriteErrors(true).isRaiseOnWriteErrors());
+    }
+
 }

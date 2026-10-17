@@ -28,6 +28,8 @@ public class WriterSettings extends Settings {
     // ms for the pause of the main thread
     private int writeBufferTimeGranularity = 100;
     private int threadConnectionMultiplier = 5;
+    // MOR-059: a rejected write (the writeErrors of an update reply) raises a MorphiumDriverException
+    private boolean raiseOnWriteErrors = true;
 
 
     public MorphiumWriter getWriter() {
@@ -124,6 +126,39 @@ public class WriterSettings extends Settings {
     }
     public WriterSettings setThreadConnectionMultiplier(int threadConnectionMultiplier) {
         this.threadConnectionMultiplier = threadConnectionMultiplier;
+        return this;
+    }
+
+    /**
+     * MOR-059: the {@code update} command reports a statement that the server rejects (duplicate key, a path below a scalar, ...) in its reply and does not fail.
+     * With {@code true} (the default) the write methods of {@code Query} and {@code Morphium} (set, unset, inc, dec, push, pull, addToSet, currentDate, the entity
+     * variants and the bulk context) raise a {@code MorphiumDriverException} for it, and a {@code WriteConcernNotSatisfiedException} if the write was applied but the
+     * write concern was not satisfied. With {@code false} the old behaviour is restored: the reply is returned and nobody looks at it.
+     * <p>
+     * A temporary switch for the upgrade, deprecated and removed in 7.0. Overridable per query, see {@code Query.setRaiseOnWriteErrors}.
+     *
+     * @deprecated only for the migration, will be removed in 7.0
+     */
+    @Deprecated
+    public boolean isRaiseOnWriteErrors() {
+        return raiseOnWriteErrors;
+    }
+
+    @Deprecated
+    public WriterSettings setRaiseOnWriteErrors(boolean raiseOnWriteErrors) {
+        this.raiseOnWriteErrors = raiseOnWriteErrors;
+        return this;
+    }
+
+    @Deprecated
+    public WriterSettings enableRaiseOnWriteErrors() {
+        raiseOnWriteErrors = true;
+        return this;
+    }
+
+    @Deprecated
+    public WriterSettings disableRaiseOnWriteErrors() {
+        raiseOnWriteErrors = false;
         return this;
     }
 }
