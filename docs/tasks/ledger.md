@@ -4,14 +4,13 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 42, done 23
+Status: open 41, done 24
 
 ## Overview
 
 | ID | Status | Prio | Type | Title | Effort | Ticket | Depends on |
 |---|---|---|---|---|---|---|---|
 | MOR-027 | open | 1 | documentation | Documentation page: raw commands, embedded objects and lifecycle contract | S |  |  |
-| MOR-059 | open | 1 | defect | Query, entity and bulk write paths swallow the writeErrors of the update reply | M |  |  |
 | MOR-007 | open | 2 | implementation | Option A extension: min, max, mul, rename, currentDate, addToSet/push with each | M |  | MOR-006 |
 | MOR-014 | open | 2 | implementation | Option E: startup guard for @Embedded under @Entity(translateCamelCase=false) | S |  | MOR-001 |
 | MOR-017 | open | 2 | implementation | Jakarta Data: JDQL DELETE FROM | M |  |  |
@@ -59,6 +58,7 @@ Status: open 42, done 23
 | MOR-006 | done | 1 | implementation | Option A core: mapper-aware update builder (set, setOnInsert, inc, unset) with findOneAndUpdate terminal | L |  | MOR-001, MOR-002 |
 | MOR-028 | done | 1 | infrastructure | Contract tests InMem vs real MongoDB for all update paths | M |  |  |
 | MOR-030 | done | 1 | defect | InMemoryDriver: honour the filter in conditional upsert and raise E11000 | M |  |  |
+| MOR-059 | done | 1 | defect | Query, entity and bulk write paths swallow the writeErrors of the update reply | M |  |  |
 | MOR-005 | done | 2 | verification | Audit Query.set/inc/push write paths for swallowed writeErrors and missing name translation | S |  |  |
 | MOR-008 | done | 2 | implementation | Options object for findAndModify and a defined result for upsert without returnNew | S |  | MOR-006 |
 | MOR-009 | done | 2 | implementation | Lifecycle handling in the builder: @LastChange, @CreationTime, @Version | M |  | MOR-006 |
@@ -988,9 +988,11 @@ Commits: b951b977f
 
 ### MOR-059 Query, entity and bulk write paths swallow the writeErrors of the update reply
 
-Status **open**, priority 1, type defect, effort M
+Status **done**, priority 1, type defect, effort M
 
 Found by the write path audit (MOR-005), measured on mongo:8. The update command reports a rejected statement (duplicate key, a path below a scalar, a pull on a non-array) in the reply and does not throw. Every path through MorphiumWriterImpl and the bulk context ignores that reply and returns normally: Query.set, set(Map), setEnum, unset, inc and dec (all number types, enum variants), push, pushAll, pull, pullAll, Morphium.addToSet, currentDate, inc/dec with a Map, setInEntity, unsetInEntity, push(entity) and the bulk requests. The caller sees success while nothing was written. Only Morphium.inc(entity) and dec(entity) raise. Related to GitHub #408 (writeConcernError ignored). Query.updateMapped (MOR-050) already normalises the reply and is the model: a writeErrors entry becomes a MorphiumDriverException with the code of the first error, isDuplicateKey() works.
+
+Evidence: Every write path of the audit table raises: WritePathAuditContractTest (4 tests, probes of 37 paths) asserts on mongo:8 (v8.3.x) a MorphiumDriverException with the server code (11000 / 28 / 2), isDuplicateKey() for the unique violations, the write errors and an unchanged document for Query.set/set(Map)/setEnum/unset/inc/dec/push/pushAll/pull/pullAll, Morphium.addToSet/currentDate/inc(Map)/dec(Map), setInEntity/unsetInEntity/push/inc/dec(entity) and the bulk requests (BulkWriteException); RaiseOnWriteErrorsTest (13 tests) and BulkRaiseOnWriteErrorsTest (6): the per-query override and the configuration switch bring the old behaviour back (real MongoDB), an async callback gets onOperationError once and never onOperationSucceeded, a multi update keeps the documents before the error and says so, the post-update event still fires, updateUsingFields and the versioned store paths raise the duplicate key instead of a VersionMismatchException, an ordered bulk stops at the first rejected request and an unordered one runs all of them (partial counts on the exception), a rejected bulk insert raises; WriteReplyErrorsTest (7, pure) for the normaliser including WriteConcernNotSatisfiedException. Regression: 1377 test methods (tags core and messaging) on the InMemoryDriver with only the known failures (LazyLoadingTest, ReferenceCascadeTest, ReferenceTest: Byte Buddy does not support Java 25; MultithreaddedMessagingTests: timing) plus CurrentDateReproductionTest, which pinned the old silent behaviour and was flipped; 1229 invocations of the update, upsert, builder, lease, contract, bulk and reproduction classes on mongo:8 and the InMemoryDriver with the known failures only (ExclusiveMessageTests x2, ReferenceCascadeTest). Not covered: the per-context isolation of the buffered flush (private classes, the buffered tests are mostly disabled), a writeConcernError through the writer end to end (the normaliser is unit tested), transactions and the messaging tests on mongod (they need a replica set), the store() and delete paths (MOR-064, MOR-065), the Quarkus migration runner (MOR-063).
 
 Acceptance:
 
@@ -999,6 +1001,8 @@ Acceptance:
 - The behaviour change is in the CHANGELOG (a rejected write used to be silent)
 
 Source: docs/research/audit-write-paths.md, GitHub #408
+
+Commits: 7b2899074, b7d2d06ec, b039bbe67, 6f03e1ad5, c073a1a04, c753fdb5f
 
 ### MOR-060 Write paths that write the Java field name: inc/dec with a Map and dotted paths through embedded documents
 
