@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 43, done 19
+Status: open 39, done 23
 
 ## Overview
 
@@ -28,10 +28,7 @@ Status: open 43, done 19
 | MOR-037 | open | 2 | defect | Morphium.simplifyQueryObject loses predicates for repeated operator keys | S |  |  |
 | MOR-043 | open | 2 | defect | Query.f should resolve field paths with resolveFieldPath | M |  | MOR-041 |
 | MOR-046 | open | 2 | defect | BufferedMorphiumWriterImpl does not marshal update values and emits push for a pull of a list | M |  | MOR-042 |
-| MOR-053 | open | 2 | defect | InMemoryDriver: type checks of the update operators ($inc, $mul, $push, $addToSet, $pull, $pop) | M |  |  |
-| MOR-054 | open | 2 | defect | InMemoryDriver: validate the shape of an update document (unknown operator, mixed fields, _id, names) | S |  |  |
 | MOR-055 | open | 2 | defect | InMemoryDriver: number and BSON comparison semantics of $inc, $mul, $min, $max and $addToSet | M |  |  |
-| MOR-058 | open | 2 | defect | InMemoryDriver: findAndModify does not reject what the update command rejects | S |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
 | MOR-015 | open | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
@@ -49,7 +46,6 @@ Status: open 43, done 19
 | MOR-047 | open | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
 | MOR-048 | open | 3 | defect | MorphiumBase.setEnum looks the value up by the map value instead of the key | S |  |  |
 | MOR-049 | open | 3 | implementation | Writer path has no guard for @Reference and @Encrypted fields | M |  | MOR-042 |
-| MOR-051 | open | 3 | defect | InMemoryDriver: reject path conflicts in update documents like MongoDB | S |  |  |
 | MOR-052 | open | 3 | defect | updateLastAccess writes the untranslated Java field name | S |  |  |
 | MOR-056 | open | 3 | defect | InMemoryDriver: upsert seeds the equalities of a single-branch $or | S |  |  |
 | MOR-057 | open | 3 | defect | InMemoryDriver: an inserted document is stored by reference | S |  |  |
@@ -67,10 +63,14 @@ Status: open 43, done 19
 | MOR-040 | done | 2 | defect | fieldNameCache: inner HashMap is not thread safe | S |  |  |
 | MOR-041 | done | 2 | implementation | Key translation for operator maps in findOneAndUpdate | M |  | MOR-002 |
 | MOR-050 | done | 2 | implementation | Update builder: updateOne, updateMany and UpdateResult | M |  | MOR-006 |
+| MOR-053 | done | 2 | defect | InMemoryDriver: type checks of the update operators ($inc, $mul, $push, $addToSet, $pull, $pop) | M |  |  |
+| MOR-054 | done | 2 | defect | InMemoryDriver: validate the shape of an update document (unknown operator, mixed fields, _id, names) | S |  |  |
+| MOR-058 | done | 2 | defect | InMemoryDriver: findAndModify does not reject what the update command rejects | S |  |  |
 | MOR-060 | done | 2 | defect | Write paths that write the Java field name: inc/dec with a Map and dotted paths through embedded documents | S |  |  |
 | MOR-062 | done | 2 | defect | Morphium.dec(Query, Map) and dec(Map, Query) increment instead of decrement | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
+| MOR-051 | done | 3 | defect | InMemoryDriver: reject path conflicts in update documents like MongoDB | S |  |  |
 | MOR-061 | done | 3 | defect | Query.dec(field, Integer) turns an int counter into a double | S |  |  |
 
 ## Details
@@ -866,9 +866,11 @@ Commits: 28516ff60
 
 ### MOR-051 InMemoryDriver: reject path conflicts in update documents like MongoDB
 
-Status **open**, priority 3, type defect, effort S
+Status **done**, priority 3, type defect, effort S
 
 A real MongoDB rejects an update document that touches the same path twice or a path and its child (set a and set a.b, set and inc on one field) with code 40. The InMemoryDriver accepts them, so raw-map users get a different result per driver.
+
+Evidence: Contract suite (FieldOperator, ArrayOperator, UpsertAndError, StatementIsolation, UpdateContractLedgerTest; 26 invocations, 149 statements, each as update command and as findAndModify) green on PooledDriver (mongo:8) and on the InMemoryDriver; the pins of this task are gone, only MOR-055 and MOR-056 are still pinned. Before the driver change (pins removed, 24 cases added, all of them green on mongo:8) 46 distinct cases failed on the InMemoryDriver. The harness now also compares the collection after an error (.unchanged(), multi update: the documents before the error). Conflict cases (40): set a plus set a.b, set plus inc, set plus unset, parent set plus child unset, push plus pull, set plus setOnInsert, rename target plus set, and an upsert with a conflict inserts nothing. Paths are compared segment by segment on the literal statement. An index of an array next to a $[] or $[id] of the same array (a.$[] against a.0 or a.1.x) conflicts too (40, probed on mongo:8); two positional paths of one array and $ against an index do not. Not detected: two $[id] paths that address the same element (40 at runtime). Added in d017357da. InMemoryDriver, runtests.sh --driver inmem --parallel 8: 2337 test methods; failures only in ReferenceCascadeTest, LazyLoadingTest and ReferenceTest (Byte Buddy does not support Java 25, the JDK of the run), TtlCappedTest.updatingTheTtlFieldPushesOutTheOldExpiryNotJustTheNewOne (fails the same way on the base commit 70b0bce71) and MultithreaddedMessagingTests (timing: another method fails per run on the base commit too, the method that failed here passes alone 3 of 3). No new failure.
 
 Acceptance:
 
@@ -876,6 +878,8 @@ Acceptance:
 - The pinned deviations in the update contract suite that name this task are removed
 
 Source: docs/research/plan-mor-006.md
+
+Commits: b951b977f, d017357da
 
 ### MOR-052 updateLastAccess writes the untranslated Java field name
 
@@ -891,9 +895,11 @@ Source: docs/research/plan-mor-006.md
 
 ### MOR-053 InMemoryDriver: type checks of the update operators ($inc, $mul, $push, $addToSet, $pull, $pop)
 
-Status **open**, priority 2, type defect, effort M
+Status **done**, priority 2, type defect, effort M
 
 Found by the update contract suite (MOR-028). A real MongoDB rejects $inc and $mul on a string or null and with a non-numeric operand (code 14), $push and $addToSet on a field that is not an array (code 2), $pop on a non-array (code 14) and $pull on a non-array (code 2), and a failing statement changes nothing. The InMemoryDriver ignores $inc, $mul and $pull on the wrong type without an error, applies the other operators of the statement before the failing one, and fails $push, $addToSet and $pop with an exception that is not a MorphiumDriverException. Tests that run on the InMemoryDriver therefore pass with updates that a real MongoDB refuses.
+
+Evidence: Contract suite (FieldOperator, ArrayOperator, UpsertAndError, StatementIsolation, UpdateContractLedgerTest; 26 invocations, 149 statements, each as update command and as findAndModify) green on PooledDriver (mongo:8) and on the InMemoryDriver; the pins of this task are gone, only MOR-055 and MOR-056 are still pinned. Before the driver change (pins removed, 24 cases added, all of them green on mongo:8) 46 distinct cases failed on the InMemoryDriver. The harness now also compares the collection after an error (.unchanged(), multi update: the documents before the error). Type cases: $inc and $mul on a string, on null and with a non-numeric operand (14), $mul of null, $push/$addToSet on a non-array and on null (2), $push with an $each that is no array (2), $pull on a non-array and on null (2), $pop on a non-array and on null (14), a failing statement after a successful operator and a failing multi update (documents before the error kept). UpdateAtomicityTest: the document is restored, a failing multi update still delivers the change stream events of the documents it changed (mutation checked: dispatching the events after the unlock outside the finally block fails the test). Behaviour change: $inc/$mul on an explicit null used to count as 0 and now fails like on mongo:8. InMemoryDriver, runtests.sh --driver inmem --parallel 8: 2337 test methods; failures only in ReferenceCascadeTest, LazyLoadingTest and ReferenceTest (Byte Buddy does not support Java 25, the JDK of the run), TtlCappedTest.updatingTheTtlFieldPushesOutTheOldExpiryNotJustTheNewOne (fails the same way on the base commit 70b0bce71) and MultithreaddedMessagingTests (timing: another method fails per run on the base commit too, the method that failed here passes alone 3 of 3). No new failure.
 
 Acceptance:
 
@@ -902,11 +908,15 @@ Acceptance:
 
 Source: docs/research/plan-mor-028.md
 
+Commits: b951b977f
+
 ### MOR-054 InMemoryDriver: validate the shape of an update document (unknown operator, mixed fields, _id, names)
 
-Status **open**, priority 2, type defect, effort S
+Status **done**, priority 2, type defect, effort S
 
 Found by the update contract suite (MOR-028). A real MongoDB rejects an unknown operator and operators mixed with plain fields (code 9), a change of _id (code 66), an empty field name (code 56), $rename onto itself or with a non-string target (code 2) and an arrayFilters identifier that the update does not use (code 9). The InMemoryDriver applies a change of _id, stores a field with an empty or numeric name, ignores a rename onto itself, and fails the other cases with an exception that is not a MorphiumDriverException.
+
+Evidence: Contract suite (FieldOperator, ArrayOperator, UpsertAndError, StatementIsolation, UpdateContractLedgerTest; 26 invocations, 149 statements, each as update command and as findAndModify) green on PooledDriver (mongo:8) and on the InMemoryDriver; the pins of this task are gone, only MOR-055 and MOR-056 are still pinned. Before the driver change (pins removed, 24 cases added, all of them green on mongo:8) 46 distinct cases failed on the InMemoryDriver. The harness now also compares the collection after an error (.unchanged(), multi update: the documents before the error). Shape cases: unknown operator and operators mixed with fields (9, also if nothing matches), a field in front of an operator (52), a modifier that is no document (9), a change of the _id by $set of another value, $unset, $rename and a replacement (66; $set of the same value works), empty field name, empty path segment and trailing dot (56), $rename onto itself, into a child of the source and with a non-string target (2), unused arrayFilters identifier (9). Probed against mongo:8 with mongosh first (codes and the cases without a match). Also: $pop with an operand other than 1 or -1, a fraction or a string (9; 1.0 works), an upsert whose update changes the _id named by the filter (66, also with $setOnInsert, $inc and a replacement; a double for an int is another value). Added in d017357da. InMemoryDriver, runtests.sh --driver inmem --parallel 8: 2337 test methods; failures only in ReferenceCascadeTest, LazyLoadingTest and ReferenceTest (Byte Buddy does not support Java 25, the JDK of the run), TtlCappedTest.updatingTheTtlFieldPushesOutTheOldExpiryNotJustTheNewOne (fails the same way on the base commit 70b0bce71) and MultithreaddedMessagingTests (timing: another method fails per run on the base commit too, the method that failed here passes alone 3 of 3). No new failure.
 
 Acceptance:
 
@@ -914,6 +924,8 @@ Acceptance:
 - The pinned deviations in the update contract suite that name this task are removed
 
 Source: docs/research/plan-mor-028.md
+
+Commits: b951b977f, d017357da
 
 ### MOR-055 InMemoryDriver: number and BSON comparison semantics of $inc, $mul, $min, $max and $addToSet
 
@@ -956,9 +968,11 @@ Source: docs/research/plan-mor-028.md
 
 ### MOR-058 InMemoryDriver: findAndModify does not reject what the update command rejects
 
-Status **open**, priority 2, type defect, effort S
+Status **done**, priority 2, type defect, effort S
 
 Found by the update contract suite (MOR-028). The InMemoryDriver update command rejects a field name with a leading dollar sign (code 52) and setting a field below a scalar or below an array with a non-numeric segment (code 28), like a real MongoDB. The findAndModify path of the InMemoryDriver, which the lease and counter use cases run through, silently accepts all three: it stores nothing, or leaves the document unchanged, and reports success.
+
+Evidence: Contract suite (FieldOperator, ArrayOperator, UpsertAndError, StatementIsolation, UpdateContractLedgerTest; 26 invocations, 149 statements, each as update command and as findAndModify) green on PooledDriver (mongo:8) and on the InMemoryDriver; the pins of this task are gone, only MOR-055 and MOR-056 are still pinned. Before the driver change (pins removed, 24 cases added, all of them green on mongo:8) 46 distinct cases failed on the InMemoryDriver. The harness now also compares the collection after an error (.unchanged(), multi update: the documents before the error). findAndModify cases: dollar prefixed field name (52), field below a scalar and below an array with a non-numeric segment (28), now also unchanged afterwards, plus UpdateAtomicityTest.findAndModifyFailsWithTheCodeAndInsertsNothingOnUpsert (public findAndOneAndUpdate raises the code, an upsert with an error inserts nothing). A statement without a match is validated too. InMemoryDriver, runtests.sh --driver inmem --parallel 8: 2337 test methods; failures only in ReferenceCascadeTest, LazyLoadingTest and ReferenceTest (Byte Buddy does not support Java 25, the JDK of the run), TtlCappedTest.updatingTheTtlFieldPushesOutTheOldExpiryNotJustTheNewOne (fails the same way on the base commit 70b0bce71) and MultithreaddedMessagingTests (timing: another method fails per run on the base commit too, the method that failed here passes alone 3 of 3). No new failure.
 
 Acceptance:
 
@@ -966,6 +980,8 @@ Acceptance:
 - The pinned deviations in the update contract suite that name this task are removed
 
 Source: docs/research/plan-mor-028.md
+
+Commits: b951b977f
 
 ### MOR-059 Query, entity and bulk write paths swallow the writeErrors of the update reply
 

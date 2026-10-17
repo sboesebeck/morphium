@@ -62,18 +62,17 @@ public class FieldOperatorContractTest extends MultiDriverTestBase {
             .inMem("MOR-055", docs(d("_id", 1, "a", Integer.MIN_VALUE))),
             c("inc of a double by an int is a double").seed(d("_id", 1, "a", 1.5)).filter(d("_id", 1)).update(d("$inc", d("a", 1))).expect(docs(d("_id", 1, "a", 2.5))),
             c("inc of a missing nested path creates the parents").seed(d("_id", 1)).filter(d("_id", 1)).update(d("$inc", d("a.b", 1))).expect(docs(d("_id", 1, "a", d("b", 1)))),
-            c("inc of a string fails").seed(d("_id", 1, "a", "x")).filter(d("_id", 1)).update(d("$inc", d("a", 1))).expect(error(14))
-            .inMem("MOR-053", docs(d("_id", 1, "a", "x"))),
-            c("inc of null fails").seed(d("_id", 1, "a", null)).filter(d("_id", 1)).update(d("$inc", d("a", 1))).expect(error(14))
-            .inMem("MOR-053", docs(d("_id", 1, "a", 1))),
-            c("inc by a string fails").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$inc", d("a", "x"))).expect(error(14))
-            .inMem("MOR-053", docs(d("_id", 1, "a", 1))),
+            c("inc of a string fails").seed(d("_id", 1, "a", "x")).filter(d("_id", 1)).update(d("$inc", d("a", 1))).expect(error(14)).unchanged(),
+            c("inc of null fails").seed(d("_id", 1, "a", null)).filter(d("_id", 1)).update(d("$inc", d("a", 1))).expect(error(14)).unchanged(),
+            c("inc by a string fails").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$inc", d("a", "x"))).expect(error(14)).unchanged(),
+            c("inc by a string fails even if nothing matches").filter(d("_id", 1)).update(d("$inc", d("a", "x"))).expect(error(14)).unchanged(),
+            c("mul of null fails").seed(d("_id", 1, "a", null)).filter(d("_id", 1)).update(d("$mul", d("a", 2))).expect(error(14)).unchanged(),
+            c("mul by a string fails").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$mul", d("a", "x"))).expect(error(14)).unchanged(),
             c("mul of an int by an int").seed(d("_id", 1, "a", 3)).filter(d("_id", 1)).update(d("$mul", d("a", 2))).expect(docs(d("_id", 1, "a", 6))),
             c("mul of a missing field creates zero of the type of the factor").seed(d("_id", 1)).filter(d("_id", 1)).update(d("$mul", d("a", 5))).expect(docs(d("_id", 1, "a", 0))),
             c("mul of an int by a double is a double").seed(d("_id", 1, "a", 2)).filter(d("_id", 1)).update(d("$mul", d("a", 1.5))).expect(docs(d("_id", 1, "a", 3.0)))
             .inMem("MOR-055", notADatabaseError()),
-            c("mul of a string fails").seed(d("_id", 1, "a", "x")).filter(d("_id", 1)).update(d("$mul", d("a", 2))).expect(error(14))
-            .inMem("MOR-053", docs(d("_id", 1, "a", "x"))),
+            c("mul of a string fails").seed(d("_id", 1, "a", "x")).filter(d("_id", 1)).update(d("$mul", d("a", 2))).expect(error(14)).unchanged(),
         };
         return new ArrayList<>(List.of(cases));
     }
@@ -97,10 +96,8 @@ public class FieldOperatorContractTest extends MultiDriverTestBase {
             c("rename overwrites an existing target").seed(d("_id", 1, "a", 1, "b", 2)).filter(d("_id", 1)).update(d("$rename", d("a", "b"))).expect(docs(d("_id", 1, "b", 1))),
             c("rename into a nested path").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$rename", d("a", "x.y"))).expect(docs(d("_id", 1, "x", d("y", 1)))),
             c("rename out of a nested path").seed(d("_id", 1, "x", d("y", 1))).filter(d("_id", 1)).update(d("$rename", d("x.y", "a"))).expect(docs(d("_id", 1, "x", d(), "a", 1))),
-            c("rename to the same name fails").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$rename", d("a", "a"))).expect(error(2))
-            .inMem("MOR-054", docs(d("_id", 1, "a", 1))),
-            c("rename with a non-string target fails").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$rename", d("a", 5))).expect(error(2))
-            .inMem("MOR-054", docs(d("5", 1, "_id", 1))),
+            c("rename to the same name fails").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$rename", d("a", "a"))).expect(error(2)).unchanged(),
+            c("rename with a non-string target fails").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$rename", d("a", 5))).expect(error(2)).unchanged(),
         };
         return new ArrayList<>(List.of(cases));
     }

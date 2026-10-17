@@ -17,7 +17,7 @@ import java.util.Set;
  * <li>The same field twice in one operator: equal values (deep equality) merge, different values are rejected. {@code $inc} is the exception: a
  * second increment of a field is ambiguous (one increment or two) and always rejected.</li>
  * <li>Two operations on the same path, or on a path and one of its children ({@code a} and {@code a.b}), are rejected - within one operator and across
- * operators. MongoDB answers such a document with error 40 ("conflict"); the InMemoryDriver does not (MOR-051). Paths are compared segment by
+ * operators. MongoDB answers such a document with error 40 ("conflict"), and so does the InMemoryDriver (MOR-051). Paths are compared segment by
  * segment ({@code ab} is not a child of {@code a}, {@code a.0} and {@code a.1} are siblings). Pairs that contain a positional or {@code $} segment are
  * not judged: what they address depends on the document.</li>
  * <li>{@code null} is a value for {@code $set} and {@code $setOnInsert}, not for {@code $inc}.</li>

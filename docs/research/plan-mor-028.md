@@ -11,6 +11,8 @@
 
 ## Found deviations (InMemoryDriver), by ledger task
 
+MOR-051, MOR-053, MOR-054 and MOR-058 are fixed (their pins are gone from the suite); the rows stay as the record of what the suite found.
+
 | Task | Deviation |
 |---|---|
 | MOR-051 | no path conflict check (set a + set a.b, set + inc, set + unset, parent set + child unset, push + pull) |
