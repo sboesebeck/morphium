@@ -45,8 +45,8 @@ Java field name to the stored name. Measured on a real MongoDB (`mongo:8`, v8.3.
 | `Morphium.currentDate(enum)` | n/m | yes |
 | `Morphium.currentDate(dotted path)` | n/m | yes |
 | `Morphium.setInEntity(field)` | **no** | yes |
-| `Morphium.inc(entity)` | **no** | yes |
-| `Morphium.dec(entity)` | **no** | yes |
+| `Morphium.inc(entity)` | yes | yes |
+| `Morphium.dec(entity)` | yes | yes |
 | `Morphium.unsetInEntity` | **no** | yes |
 | `Morphium.push(entity)` | **no** | yes |
 | `Bulk.addSetRequest` | **no** | yes |
