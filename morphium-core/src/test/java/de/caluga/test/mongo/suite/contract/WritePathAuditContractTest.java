@@ -5,6 +5,7 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.bulk.MorphiumBulkContext;
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.commands.FindCommand;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
@@ -121,11 +122,19 @@ public class WritePathAuditContractTest extends MultiDriverTestBase {
         new Probe("Bulk.addCurrentDateRequest", (m, q, a) -> bulk(m, b -> b.addCurrentDateRequest(q, false, false, "lastSeen")), raw -> raw.get("last_seen") instanceof Date));
 
     /**
-     * What a probe must do when the server rejects it: the arguments of {@link #PROBES} are chosen so that each of them violates a unique index (document b holds
-     * counter 2 and tag b, document a has code x), the dotted paths go below a scalar and pull/pullAll target a field that is no array. Only {@code inc(entity)}
-     * and {@code dec(entity)} raise an exception today.
+     * What a probe must do when the server rejects it: the arguments of {@link #FAILING} are chosen so that each of them violates a unique index (document b holds
+     * counter 2 and tag b, document a has code x), the dotted paths go below a scalar and pull/pullAll target a field that is no array. Every path raises since
+     * MOR-059, except the ones that are still silent: unsetInEntity (step 4 of the plan) and the bulk requests (step 5); pinned deviation MOR-059.
      */
-    private static final Set<String> RAISE_TODAY = Set.of("Morphium.inc(entity)", "Morphium.dec(entity)");
+    private static final Set<String> SILENT_UNTIL_MOR_059_IS_DONE = Set.of("Morphium.unsetInEntity",
+            "Bulk.addSetRequest", "Bulk.addIncRequest", "Bulk.addPushRequest", "Bulk.addUnsetRequest", "Bulk.addCurrentDateRequest");
+
+    /** raise today with an exception of their own ("Update failed"), not with the write errors of the server; replaced in step 4 of the plan */
+    private static final Set<String> LEGACY_EXCEPTION = Set.of("Morphium.inc(entity)", "Morphium.dec(entity)");
+
+    /** the server error code of each rejected probe; 11000 (duplicate key) unless listed */
+    private static final Map<String, Integer> CODE = Map.of("Query.pull(field)", 2, "Query.pullAll(field)", 2, "Query.set(dotted path)", 28, "Query.inc(dotted path)", 28,
+            "Morphium.currentDate", 28, "Bulk.addCurrentDateRequest", 28);
 
     /** the arguments that make a probe fail on the server */
     private static final Map<String, Op> FAILING = new LinkedHashMap<>();
@@ -219,7 +228,7 @@ public class WritePathAuditContractTest extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
-    public void aRejectedWriteIsRaisedOnlyByTheEntityIncAndDec(Morphium m) throws Exception {
+    public void aRejectedWriteIsRaised(Morphium m) throws Exception {
         try (m) {
             // the unique indexes and the errors are server behaviour: measured on a real MongoDB only
             assumeFalse(UpdateContract.isInMem(m), "needs a real MongoDB");
@@ -231,18 +240,37 @@ public class WritePathAuditContractTest extends MultiDriverTestBase {
                 Query<Audit> q = m.createQueryFor(Audit.class).f("_id").eq("a");
                 Map<String, Object> before = raw(m, "a");
                 boolean raised = false;
+                Throwable thrown = null;
 
                 try {
                     e.getValue().run(m, q, a);
                 } catch (Throwable t) {
                     raised = true;
+                    thrown = t;
                 }
 
-                // pinned deviation MOR-059: every other path swallows the writeErrors of the reply and reports success
-                boolean expected = RAISE_TODAY.contains(e.getKey());
+                boolean expected = !SILENT_UNTIL_MOR_059_IS_DONE.contains(e.getKey());
 
                 if (raised != expected) {
                     problems.add(e.getKey() + ": raised=" + raised + ", expected " + expected);
+                } else if (raised && !LEGACY_EXCEPTION.contains(e.getKey())) {
+                    if (!(thrown instanceof MorphiumDriverException mde)) {
+                        problems.add(e.getKey() + ": expected a MorphiumDriverException but got " + thrown);
+                    } else {
+                        int code = CODE.getOrDefault(e.getKey(), 11000);
+
+                        if (!(mde.getMongoCode() instanceof Number n) || n.intValue() != code) {
+                            problems.add(e.getKey() + ": expected the server code " + code + " but got " + mde.getMongoCode() + " (" + mde.getMessage() + ")");
+                        }
+
+                        if (code == 11000 && !mde.isDuplicateKey()) {
+                            problems.add(e.getKey() + ": isDuplicateKey() is false");
+                        }
+
+                        if (mde.getWriteErrors() == null || mde.getWriteErrors().isEmpty()) {
+                            problems.add(e.getKey() + ": no write errors on the exception");
+                        }
+                    }
                 }
 
                 // a rejected statement changes nothing
@@ -323,7 +351,8 @@ public class WritePathAuditContractTest extends MultiDriverTestBase {
             Set<String> names = new java.util.TreeSet<>();
             PROBES.forEach(p -> names.add(p.name()));
             assertEquals(PROBES.size(), names.size(), "unique probe names");
-            assertTrue(names.containsAll(RAISE_TODAY));
+            assertTrue(names.containsAll(SILENT_UNTIL_MOR_059_IS_DONE));
+            assertTrue(names.containsAll(LEGACY_EXCEPTION));
             assertTrue(names.containsAll(FAILING.keySet().stream().filter(n -> !n.equals("Morphium.currentDate")).toList()), "every failing probe has a translation probe");
         }
     }
