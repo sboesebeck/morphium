@@ -243,6 +243,7 @@ cfg.objectMappingSettings()
 | `setUseBsonDateForJavaTime(boolean)` | false | Store `Instant`, `LocalDate`, `LocalTime` and `LocalDateTime` as native BSON Date instead of Morphium's legacy formats. Mapper path only, see below |
 | `setTranslateAggregationFieldNames(boolean)` | false | Translate Java property names in aggregation stages to stored field names (overridable per aggregator) |
 | `setTranslateUpdateFieldNames(boolean)` | true | Translate the field names in the operator maps of `Query.findOneAndUpdate` (`$set`, `$unset`, `$rename`, ... incl. dotted keys through single embedded fields) to the names the fields are stored under. Kill switch: `false` writes the keys exactly as given. Overridable per query with `Query.setTranslateUpdateFieldNames(Boolean)`. Aliases, unknown, positional and `$`-prefixed keys are never translated |
+| `writerSettings().setRaiseOnWriteErrors(boolean)` | true | Deprecated migration switch (removed in 7.0). A write that the server rejects (duplicate key, a path below a scalar, `$pull` on a non-array, ...) raises a `MorphiumDriverException` (`WriteConcernNotSatisfiedException` if the write was applied but the write concern was not satisfied; `BulkWriteException` for the bulk context). The `update` command reports such a statement in its reply and does not fail; with `false` Morphium returns that reply and nobody looks at it, as before 6.4. Overridable per query with `Query.setRaiseOnWriteErrors(Boolean)` |
 
 ### `useBsonDateForJavaTime`: where it applies
 

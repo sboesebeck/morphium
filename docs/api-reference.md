@@ -302,6 +302,21 @@ Plain q = query.modify().inc("attempts", 1).findOneAndUpdate(FindAndModifyOption
 `returnDocument` is required; an upsert that inserts returns `null` for `BEFORE` (no pre-image, use `tryFindOneAndUpdate` to tell it from no match). The projection keys may be Java names; the returned
 entity is partial. The InMemoryDriver ignores `hint` and `maxTime` and does not support collations.
 
+### Rejected writes raise
+
+The `update` command reports a statement that the server rejects in its reply instead of failing. Morphium raises it (since 6.4, MOR-059): `Query.set/unset/inc/dec/push/pull/...`, the entity variants and the bulk context throw a
+`MorphiumDriverException` (`getMongoCode()`, `isDuplicateKey()`, `getWriteErrors()`), `WriteConcernNotSatisfiedException` if the write was applied but missed its write concern, `BulkWriteException` for a bulk
+(`getPartialResult()`, `getFailures()`).
+```java
+try {
+    jobs.f("id").eq(id).set("code", code);
+} catch (MorphiumDriverException e) {
+    if (e.isDuplicateKey()) { /* somebody else has this code */ }
+}
+jobs.f("id").eq(id).setRaiseOnWriteErrors(false).set("code", code);   // best effort: the reply is returned, nobody looks at it
+```
+Documents that an ordered multi update changed before the error are not rolled back. `WriterSettings.raiseOnWriteErrors` (deprecated, removed in 7.0) switches raising off for all writes.
+
 `LeaseManager<T>` packages the lease recipe (a job, a relay, a command that only one node may run):
 ```java
 LeaseManager<Lease> leases = LeaseManager.of(morphium, Lease.class, "ownerName", "expiresAt");   // owner: String, deadline: Instant or Date
