@@ -1424,7 +1424,12 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             } else {
                 obj.setDeleteAt(new Date(System.currentTimeMillis() + obj.getDeleteAfterProcessingTime()));
                 String deleteAtField = morphium.getARHelper().getMongoFieldName(Msg.class, Msg.Fields.deleteAt.name());
-                morphium.setInEntity(obj, getCollectionName(), deleteAtField, obj.getDeleteAt(), false, null);
+                try {
+                    morphium.setInEntity(obj, getCollectionName(), deleteAtField, obj.getDeleteAt(), false, null);
+                } catch (MorphiumDriverException e) {
+                    // the deleteAt mark is best effort (a MongoDB TTL index or the scheduled cleanup removes the message anyway); it must not skip the rest
+                    log.warn("Could not set deleteAt of a processed message: {}", e.getMessage());
+                }
 
                 // MongoDB TTL cleanup is not instantaneous (monitor runs periodically); schedule best-effort cleanup.
                 long deleteDelay = Math.max(0, obj.getDeleteAfterProcessingTime()) + TimeUnit.SECONDS.toMillis(1);
@@ -1446,6 +1451,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
                 if (obj.isExclusive()) {
                     morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(obj.getMsgId())
+                            .setRaiseOnWriteErrors(false) // best effort: the scheduled cleanup below removes the lock anyway
                             .set(MsgLock.Fields.deleteAt, obj.getDeleteAt());
 
                     if (decouplePool != null) {
