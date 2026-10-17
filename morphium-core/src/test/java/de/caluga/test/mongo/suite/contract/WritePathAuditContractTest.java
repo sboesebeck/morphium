@@ -123,13 +123,9 @@ public class WritePathAuditContractTest extends MultiDriverTestBase {
 
     /**
      * What a probe must do when the server rejects it: the arguments of {@link #FAILING} are chosen so that each of them violates a unique index (document b holds
-     * counter 2 and tag b, document a has code x), the dotted paths go below a scalar and pull/pullAll target a field that is no array. Every path raises since
-     * MOR-059, except the ones that are still silent: unsetInEntity (step 4 of the plan) and the bulk requests (step 5); pinned deviation MOR-059.
+     * counter 2 and tag b, document a has code x), the dotted paths go below a scalar and pull/pullAll target a field that is no array. Every path raises a
+     * {@link MorphiumDriverException} with the server code and the write errors since MOR-059 (the bulk requests: a BulkWriteException with the code of the first rejection).
      */
-    private static final Set<String> SILENT_UNTIL_MOR_059_IS_DONE = Set.of("Bulk.addSetRequest", "Bulk.addIncRequest", "Bulk.addPushRequest", "Bulk.addUnsetRequest", "Bulk.addCurrentDateRequest");
-
-    /** raise today with an exception of their own ("Update failed"), not with the write errors of the server; replaced in step 4 of the plan */
-    private static final Set<String> LEGACY_EXCEPTION = Set.of();
 
     /** the server error code of each rejected probe; 11000 (duplicate key) unless listed */
     private static final Map<String, Integer> CODE = Map.of("Query.pull(field)", 2, "Query.pullAll(field)", 2, "Query.set(dotted path)", 28, "Query.inc(dotted path)", 28,
@@ -248,11 +244,9 @@ public class WritePathAuditContractTest extends MultiDriverTestBase {
                     thrown = t;
                 }
 
-                boolean expected = !SILENT_UNTIL_MOR_059_IS_DONE.contains(e.getKey());
-
-                if (raised != expected) {
-                    problems.add(e.getKey() + ": raised=" + raised + ", expected " + expected);
-                } else if (raised && !LEGACY_EXCEPTION.contains(e.getKey())) {
+                if (!raised) {
+                    problems.add(e.getKey() + ": did not raise");
+                } else {
                     if (!(thrown instanceof MorphiumDriverException mde)) {
                         problems.add(e.getKey() + ": expected a MorphiumDriverException but got " + thrown);
                     } else {
@@ -350,7 +344,7 @@ public class WritePathAuditContractTest extends MultiDriverTestBase {
             Set<String> names = new java.util.TreeSet<>();
             PROBES.forEach(p -> names.add(p.name()));
             assertEquals(PROBES.size(), names.size(), "unique probe names");
-            assertTrue(names.containsAll(SILENT_UNTIL_MOR_059_IS_DONE));
+            
             
             assertTrue(names.containsAll(FAILING.keySet().stream().filter(n -> !n.equals("Morphium.currentDate")).toList()), "every failing probe has a translation probe");
         }

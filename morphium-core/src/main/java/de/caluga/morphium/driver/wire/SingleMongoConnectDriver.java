@@ -47,6 +47,7 @@ import de.caluga.morphium.driver.commands.KillCursorsCommand;
 import de.caluga.morphium.driver.commands.MongoCommand;
 import de.caluga.morphium.driver.commands.ReplicastStatusCommand;
 import de.caluga.morphium.driver.commands.UpdateMongoCommand;
+import de.caluga.morphium.driver.commands.WriteReplyErrors;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 
@@ -766,9 +767,11 @@ public class SingleMongoConnectDriver extends DriverBase {
                 int insertCount = 0;
                 int modifiedCount = 0;
                 List<Object> upsertedIds = new ArrayList<>();
+                List<MorphiumDriverException> failures = new ArrayList<>();
 
                 try {
                     for (BulkRequest r : requests) {
+                        try {
                         if (r instanceof InsertBulkRequest) {
                             var c = getPrimaryConnection(wc);
                             InsertMongoCommand settings = new InsertMongoCommand(c);
@@ -796,6 +799,10 @@ public class SingleMongoConnectDriver extends DriverBase {
                                     upsertedIds.add(u.get("_id"));
                                 }
                             }
+                            MorphiumDriverException rejected = WriteReplyErrors.rejectionOf(db, collection, result);
+                            if (rejected != null) {
+                                throw rejected;
+                            }
                         } else if (r instanceof DeleteBulkRequest) {
                             DeleteBulkRequest dbr = ((DeleteBulkRequest) r);
                             var c = getPrimaryConnection(wc);
@@ -806,8 +813,18 @@ public class SingleMongoConnectDriver extends DriverBase {
                             if (result.containsKey("n")) {
                                 delCount += ((Number) result.get("n")).intValue();
                             }
+                            MorphiumDriverException rejected = WriteReplyErrors.rejectionOf(db, collection, result);
+                            if (rejected != null) {
+                                throw rejected;
+                            }
                         } else {
                             throw new RuntimeException("Unknown operation " + r.getClass().getName());
+                        }
+                        } catch (MorphiumDriverException e) {
+                            failures.add(e);
+                            if (ordered) {
+                                break;
+                            }
                         }
                     }
                 } catch (MorphiumDriverException e) {
@@ -827,6 +844,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                     res.put("upsertedIds", upsertedIds);
                 }
 
+                raiseOrLog(db, collection, ordered, requests.size(), res, failures);
                 return res;
             }
             public UpdateBulkRequest addUpdateBulkRequest() {

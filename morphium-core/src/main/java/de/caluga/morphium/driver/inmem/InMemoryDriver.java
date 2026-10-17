@@ -128,6 +128,7 @@ import de.caluga.morphium.driver.commands.ShutdownCommand;
 import de.caluga.morphium.driver.commands.StepDownCommand;
 import de.caluga.morphium.driver.commands.StoreMongoCommand;
 import de.caluga.morphium.driver.commands.UpdateMongoCommand;
+import de.caluga.morphium.driver.commands.WriteReplyErrors;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.commands.auth.CreateRoleAdminCommand;
 import de.caluga.morphium.driver.commands.auth.CreateUserAdminCommand;
@@ -4076,6 +4077,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
 
             // accumulate writeErrors with correct index
+            boolean statementFailed = false;
+
             if (res.containsKey("writeErrors") && res.get("writeErrors") instanceof List) {
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> errors = (List<Map<String, Object>>) res.get("writeErrors");
@@ -4083,8 +4086,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     Map<String, Object> errorWithIndex = new HashMap<>(err);
                     errorWithIndex.put("index", updateIndex);
                     allWriteErrors.add(errorWithIndex);
+                    statementFailed = true;
                 }
             }
+
+            // like mongod: an ordered update (the default) stops at the first statement with an error, the statements before it stay applied
+            if (statementFailed && (cmd.getOrdered() == null || cmd.getOrdered())) {
+                break;
+            }
+
             updateIndex++;
         }
 
@@ -13487,12 +13497,21 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 int insertCount = 0;
                 int modifiedCount = 0;
                 List<Object> upsertedIds = new ArrayList<>();
+                List<MorphiumDriverException> failures = new ArrayList<>();
 
                 try {
                     for (BulkRequest r : requests) {
+                        try {
                         if (r instanceof InsertBulkRequest) {
                             InsertBulkRequest ibr = (InsertBulkRequest) r;
-                            insert(db, collection, ibr.getToInsert(), null);
+                            // the list holds the write errors of the rejected documents (empty if all were inserted)
+                            List<Map<String, Object>> insertErrors = insert(db, collection, ibr.getToInsert(), null);
+                            MorphiumDriverException insertRejected = WriteReplyErrors.rejectionOf(db, collection, Doc.of("n", 0, "writeErrors", insertErrors));
+
+                            if (insertRejected != null) {
+                                throw insertRejected;
+                            }
+
                             insertCount += ibr.getToInsert().size();
                         } else if (r instanceof UpdateBulkRequest) {
                             UpdateBulkRequest up = (UpdateBulkRequest) r;
@@ -13512,14 +13531,32 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                 List<Object> ids = (List<Object>) updateResult.get("upsertedIds");
                                 upsertedIds.addAll(ids);
                             }
+
+                            MorphiumDriverException updateRejected = WriteReplyErrors.rejectionOf(db, collection, updateResult);
+
+                            if (updateRejected != null) {
+                                throw updateRejected;
+                            }
                         } else if (r instanceof DeleteBulkRequest) {
                             Map<String, Object> delResult = delete (db, collection, ((DeleteBulkRequest) r).getQuery(),
                                                                     null, ((DeleteBulkRequest) r).isMultiple(), null, null);
                             if (delResult.containsKey("n")) {
                                 delCount += ((Number) delResult.get("n")).intValue();
                             }
+
+                            MorphiumDriverException deleteRejected = WriteReplyErrors.rejectionOf(db, collection, delResult);
+
+                            if (deleteRejected != null) {
+                                throw deleteRejected;
+                            }
                         } else {
                             throw new RuntimeException("Unknown operation " + r.getClass().getName());
+                        }
+                        } catch (MorphiumDriverException e) {
+                            failures.add(e);
+                            if (ordered) {
+                                break;
+                            }
                         }
                     }
                 } catch (MorphiumDriverException e) {
@@ -13538,6 +13575,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     res.put("upsertedIds", upsertedIds);
                 }
 
+                raiseOrLog(db, collection, ordered, requests.size(), res, failures);
                 return res;
             }
 
