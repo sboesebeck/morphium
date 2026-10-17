@@ -45,6 +45,7 @@ import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.commands.WriteReplyErrors;
 import de.caluga.morphium.driver.MorphiumId;
 import org.bson.types.ObjectId;
 import de.caluga.morphium.driver.commands.CountMongoCommand;
@@ -445,6 +446,29 @@ public class Query<T> implements Cloneable {
         return fieldList != null && !fieldList.isEmpty();
     }
 
+    private Boolean raiseOnWriteErrors;
+
+    /**
+     * Overrides {@code WriterSettings.raiseOnWriteErrors} for the writes of this query (set, unset, inc, dec, push, pull, ...): {@code false} returns the reply of a
+     * rejected write as before (the old behaviour, for example for a best-effort upsert that races on a unique index), {@code true} raises even if the
+     * configuration switched raising off, {@code null} follows the configuration.
+     */
+    public Query<T> setRaiseOnWriteErrors(Boolean raise) {
+        this.raiseOnWriteErrors = raise;
+        return this;
+    }
+
+    /** the override set with {@link #setRaiseOnWriteErrors(Boolean)}, or null */
+    public Boolean getRaiseOnWriteErrors() {
+        return raiseOnWriteErrors;
+    }
+
+    /** whether a rejected write of this query raises: the override, else the configuration */
+    @SuppressWarnings("deprecation")
+    public boolean isRaiseOnWriteErrors() {
+        return raiseOnWriteErrors != null ? raiseOnWriteErrors : morphium.getConfig().writerSettings().isRaiseOnWriteErrors();
+    }
+
     private Boolean translateUpdateFieldNames;
 
     /**
@@ -810,27 +834,10 @@ public class Query<T> implements Cloneable {
         long modified = reply.get("nModified") instanceof Number ? ((Number) reply.get("nModified")).longValue() : 0;
         List<Map<String, Object>> upserted = reply.get("upserted") instanceof List ? (List<Map<String, Object>>) reply.get("upserted") : List.of();
 
-        if (reply.get("writeErrors") instanceof List && !((List<?>) reply.get("writeErrors")).isEmpty()) {
-            List<Map<String, Object>> errors = (List<Map<String, Object>>) reply.get("writeErrors");
-            Object code = errors.get(0).get("code");
-            Object errmsg = errors.get(0).get("errmsg");
-            MorphiumDriverException e = new MorphiumDriverException("Update of " + getCollectionName() + " failed: " + errmsg + " (code " + code + "); "
-                    + "the reply reported matched=" + Math.max(n, 0) + ", modified=" + modified + " before the error, documents updated before the error are not rolled back");
-            e.setMongoCode(code);
-            e.setWriteErrors(errors);
-            e.setCollection(getCollectionName());
-            e.setDb(getDB());
-            throw e;
-        }
+        MorphiumDriverException rejection = WriteReplyErrors.rejectionOf(getDB(), getCollectionName(), reply);
 
-        if (reply.get("writeConcernError") instanceof Map) {
-            Map<String, Object> wce = (Map<String, Object>) reply.get("writeConcernError");
-            MorphiumDriverException e = new MorphiumDriverException("The update of " + getCollectionName() + " WAS APPLIED (matched=" + Math.max(n, 0) + ", modified=" + modified
-                    + ") but the write concern was not satisfied: " + wce.get("errmsg") + " (code " + wce.get("code") + ")");
-            e.setMongoCode(wce.get("code"));
-            e.setCollection(getCollectionName());
-            e.setDb(getDB());
-            throw e;
+        if (rejection != null) {
+            throw rejection;
         }
 
         if (n < 0) {
