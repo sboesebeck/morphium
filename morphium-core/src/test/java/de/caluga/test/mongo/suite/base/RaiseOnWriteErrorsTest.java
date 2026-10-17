@@ -42,9 +42,19 @@ public class RaiseOnWriteErrorsTest extends MultiDriverTestBase {
         public int counter;
     }
 
+    @Entity
+    public static class Versioned {
+        @Id
+        public String id;
+        public String code;
+        @de.caluga.morphium.annotations.Version
+        public Long version;
+    }
+
     private void setup(Morphium m, String... codes) throws Exception {
         m.dropCollection(Keyed.class);
         m.ensureIndex(Keyed.class, m.getMapper().getCollectionName(Keyed.class), Map.of("code", 1), Map.of("unique", true));
+        m.ensureIndex(Keyed.class, m.getMapper().getCollectionName(Keyed.class), Map.of("counter", 1), Map.of("unique", true));
 
         for (int i = 0; i < codes.length; i++) {
             Keyed k = new Keyed();
@@ -186,6 +196,80 @@ public class RaiseOnWriteErrorsTest extends MultiDriverTestBase {
             Map<String, Object> reply = byId(m, "nothing").set("code", "z");
             assertEquals(0, ((Number) reply.get("n")).intValue());
             assertNull(byId(m, "nothing").get());
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void theEntityVariantsRaiseWithTheWriteErrorsOfTheServer(Morphium m) throws Exception {
+        try (m) {
+            setup(m, "a", "b");
+            Keyed k0 = byId(m, "k0").get();
+            MorphiumDriverException inc = assertThrows(MorphiumDriverException.class, () -> m.inc(k0, "counter", 1));
+            assertTrue(inc.isDuplicateKey(), "inc(entity) used to say 'Update failed': " + inc);
+            assertThrows(MorphiumDriverException.class, () -> m.dec(k0, "counter", -1));
+            MorphiumDriverException set = assertThrows(MorphiumDriverException.class, () -> m.setInEntity(k0, "code", "b"));
+            assertTrue(set.isDuplicateKey(), String.valueOf(set));
+            assertEquals("a", byId(m, "k0").get().code);
+            assertEquals(0, byId(m, "k0").get().counter);
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void unsetInEntityRaises(Morphium m) throws Exception {
+        try (m) {
+            m.dropCollection(Keyed.class);
+            m.ensureIndex(Keyed.class, m.getMapper().getCollectionName(Keyed.class), Map.of("code", 1), Map.of("unique", true));
+            Keyed a = new Keyed();
+            a.id = "a";
+            a.code = "x";
+            m.store(a);
+            Keyed b = new Keyed();
+            b.id = "b";
+            m.store(b);
+            MorphiumDriverException e = assertThrows(MorphiumDriverException.class, () -> m.unsetInEntity(a, "code"), "the unset code is null, like the one of b");
+            assertTrue(e.isDuplicateKey(), String.valueOf(e));
+            assertEquals("x", byId(m, "a").get().code);
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void updateUsingFieldsRaisesTheDuplicateKey(Morphium m) throws Exception {
+        try (m) {
+            setup(m, "a", "b");
+            Keyed k0 = byId(m, "k0").get();
+            k0.code = "b";
+            MorphiumDriverException e = assertThrows(MorphiumDriverException.class, () -> m.updateUsingFields(k0, "code"));
+            assertTrue(e.isDuplicateKey(), String.valueOf(e));
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void aDuplicateKeyOnAVersionedStoreIsNotAVersionMismatch(Morphium m) throws Exception {
+        try (m) {
+            m.dropCollection(Versioned.class);
+            m.ensureIndex(Versioned.class, m.getMapper().getCollectionName(Versioned.class), Map.of("code", 1), Map.of("unique", true));
+            Versioned a = new Versioned();
+            a.id = "a";
+            a.code = "a";
+            m.store(a);
+            Versioned b = new Versioned();
+            b.id = "b";
+            b.code = "b";
+            m.store(b);
+            Versioned loaded = m.createQueryFor(Versioned.class).f("id").eq("a").get();
+            loaded.code = "b";
+            MorphiumDriverException e = assertThrows(MorphiumDriverException.class, () -> m.store(loaded), "used to surface as a VersionMismatchException");
+            assertTrue(e.isDuplicateKey(), String.valueOf(e));
+            assertEquals("a", m.createQueryFor(Versioned.class).f("id").eq("a").get().code);
+
+            Versioned again = m.createQueryFor(Versioned.class).f("id").eq("a").get();
+            again.code = "b";
+            Exception list = assertThrows(Exception.class, () -> m.storeList(java.util.List.of(again), m.getMapper().getCollectionName(Versioned.class), false));
+            assertTrue(list instanceof MorphiumDriverException mde && mde.isDuplicateKey() || list.getCause() instanceof MorphiumDriverException, String.valueOf(list));
         }
     }
 }
