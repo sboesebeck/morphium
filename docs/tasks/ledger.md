@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 41, done 24
+Status: open 40, done 25
 
 ## Overview
 
@@ -28,7 +28,6 @@ Status: open 41, done 24
 | MOR-043 | open | 2 | defect | Query.f should resolve field paths with resolveFieldPath | M |  | MOR-041 |
 | MOR-046 | open | 2 | defect | BufferedMorphiumWriterImpl does not marshal update values and emits push for a pull of a list | M |  | MOR-042 |
 | MOR-055 | open | 2 | defect | InMemoryDriver: number and BSON comparison semantics of $inc, $mul, $min, $max and $addToSet | M |  |  |
-| MOR-063 | open | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
 | MOR-064 | open | 2 | defect | store() of an existing entity swallows a rejected update (StoreMongoCommand) | M |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
@@ -71,6 +70,7 @@ Status: open 41, done 24
 | MOR-058 | done | 2 | defect | InMemoryDriver: findAndModify does not reject what the update command rejects | S |  |  |
 | MOR-060 | done | 2 | defect | Write paths that write the Java field name: inc/dec with a Map and dotted paths through embedded documents | S |  |  |
 | MOR-062 | done | 2 | defect | Morphium.dec(Query, Map) and dec(Map, Query) increment instead of decrement | S |  |  |
+| MOR-063 | done | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-051 | done | 3 | defect | InMemoryDriver: reject path conflicts in update documents like MongoDB | S |  |  |
@@ -1056,9 +1056,11 @@ Commits: a71202e84
 
 ### MOR-063 quarkus-morphium migration lock: recognise a held lock by isDuplicateKey()
 
-Status **open**, priority 2, type defect, effort S
+Status **done**, priority 2, type defect, effort S
 
 MorphiumMigrationRunner.acquireLock (quarkus-morphium/runtime) takes the lock with an upsert (Query.set(update, true, false)) and recognises a held lock only by e.getMessage().contains("duplicate key"). Since MOR-059 the write raises a MorphiumDriverException for the lost upsert; the message of the normaliser contains the server text, so the check still matches, but it is fragile, and a WriteConcernNotSatisfiedException (the lock IS written) is rethrown as a failure of the run while the lock stays held for its TTL. Use MorphiumDriverException.isDuplicateKey() and treat WriteConcernNotSatisfiedException as acquired (or release the lock). Released in lockstep with core 6.4.
+
+Evidence: MorphiumMigrationRunnerLockTest (7, pure) and MorphiumMigrationRunnerLockContentionTest (4: two runners and six concurrent contenders, on the InMemoryDriver and on mongo:8 with -Dmorphium.uri, the Mongo variants are skipped without it so the default build stays green): a matched or upserted reply is acquired, a duplicate key by its code (also only in the write errors, also with a message that does not mention it) is held, a WriteConcernNotSatisfiedException is acquired, any other failure is rethrown (also a RuntimeException whose text says duplicate key); on both drivers the second runner finds 'Migration lock is held by', takes the lock over after the TTL, and exactly one of six contenders wins. The Quarkus migration integration tests (9, InMemoryDriver) are green. Not covered: a write concern error against a real replica set, the renewLock path (unchanged).
 
 Acceptance:
 
@@ -1066,6 +1068,8 @@ Acceptance:
 - A write concern error while taking the lock does not leave a lock held by an aborted run
 
 Source: docs/research/plan-mor-059.md
+
+Commits: 08ddc0510
 
 ### MOR-064 store() of an existing entity swallows a rejected update (StoreMongoCommand)
 
