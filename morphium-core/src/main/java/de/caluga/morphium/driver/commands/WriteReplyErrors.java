@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Turns the reply of an {@code update} command into the exception of a rejected write. The server reports a statement that it rejects (duplicate key,
+ * Turns the reply of a write command ({@code update}, {@code delete}) into the exception of a rejected write. The server reports a statement that it rejects (duplicate key,
  * a path below a scalar, {@code $pull} on a non-array, ...) inside the reply ({@code writeErrors}) and does not fail the command; a write that is applied but
  * does not satisfy the write concern is reported as {@code writeConcernError}.
  * <ul>
@@ -37,7 +37,7 @@ public final class WriteReplyErrors {
             List<Map<String, Object>> errors = (List<Map<String, Object>>) list;
             Object code = errors.get(0).get("code");
             Object errmsg = errors.get(0).get("errmsg");
-            MorphiumDriverException e = new MorphiumDriverException("Update of " + collection + " failed: " + errmsg + " (code " + code + ")"
+            MorphiumDriverException e = new MorphiumDriverException("Write to " + collection + " failed: " + errmsg + " (code " + code + ")"
                     + (errors.size() > 1 ? " (+" + (errors.size() - 1) + " more, " + errors.size() + " errors)" : "") + "; the reply reported matched=" + n + ", modified=" + modified
                     + " before the error, documents updated before the error are not rolled back");
             e.setMongoCode(code);
@@ -48,7 +48,7 @@ public final class WriteReplyErrors {
         }
 
         if (reply.get("writeConcernError") instanceof Map<?, ?> wce) {
-            WriteConcernNotSatisfiedException e = new WriteConcernNotSatisfiedException("The update of " + collection + " WAS APPLIED (matched=" + n + ", modified=" + modified
+            WriteConcernNotSatisfiedException e = new WriteConcernNotSatisfiedException("The write to " + collection + " WAS APPLIED (matched=" + n + ", modified=" + modified
                     + ") but the write concern was not satisfied: " + wce.get("errmsg") + " (code " + wce.get("code") + ")");
             e.setMongoCode(wce.get("code"));
             e.setCollection(collection);

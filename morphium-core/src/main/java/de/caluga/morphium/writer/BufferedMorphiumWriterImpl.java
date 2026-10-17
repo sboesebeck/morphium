@@ -167,14 +167,27 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             throw ex;
         }
 
-        try {
-            for (BulkRequestContext ctx : bulkByCollectionName.values()) {
-                if (ctx != null) {
-                    ctx.execute();
+        // MOR-059: a rejected bulk raises; one failing collection must not keep the others from being written
+        for (Map.Entry<String, BulkRequestContext> bulk : bulkByCollectionName.entrySet()) {
+            if (bulk.getValue() == null) {
+                continue;
+            }
+
+            try {
+                bulk.getValue().execute();
+            } catch (Exception e) {
+                logger.error("Error during execution of the buffered writes for collection " + bulk.getKey(), e);
+
+                for (WriteBufferEntry entry : localQueue) {
+                    if (bulk.getKey().equals(entry.getCollectionName()) && entry.getCb() != null) {
+                        try {
+                            entry.getCb().onOperationError(entry.getType(), null, 0, e.getMessage(), e, null);
+                        } catch (Exception ignored) {
+                            // a failing callback must not stop the flush
+                        }
+                    }
                 }
             }
-        } catch (Exception e) {
-            logger.error("Error during exeecution of unordered bulk", e);
         }
 
         for (WriteBufferEntry entry : localQueue) {

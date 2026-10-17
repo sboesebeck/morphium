@@ -36,9 +36,13 @@ public class MorphiumBulkContext<T> {
 
     public Map<String, Object> runBulk() {
         firePre();
-        Map<String, Object> ret = ctx.execute();
-        firePost();
-        return ret;
+
+        try {
+            return ctx.execute();
+        } finally {
+            // MOR-059: also for a rejected bulk - requests were applied and the other nodes have to learn about it (caches)
+            firePost();
+        }
     }
 
     public int getNumberOfRequests() {

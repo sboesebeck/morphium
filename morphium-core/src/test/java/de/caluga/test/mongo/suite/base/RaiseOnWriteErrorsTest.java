@@ -128,7 +128,7 @@ public class RaiseOnWriteErrorsTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void aMultiUpdateKeepsTheDocumentsBeforeTheErrorAndSaysSo(Morphium m) throws Exception {
         try (m) {
-            assumeFalse(m.getDriver() instanceof InMemoryDriver, "the ordered stop of the InMemoryDriver is step 5 of MOR-059");
+            assumeFalse(m.getDriver() instanceof InMemoryDriver, "the InMemoryDriver reports a violated unique index as an exception of the first failing document, so a multi update does not reach the second one");
             setup(m, "a", "b", "c");
             MorphiumDriverException e = assertThrows(MorphiumDriverException.class, () -> m.createQueryFor(Keyed.class).set("code", "same", false, true));
             assertTrue(e.isDuplicateKey());
@@ -174,7 +174,7 @@ public class RaiseOnWriteErrorsTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void thePostUpdateEventStillFiresForWhatWasApplied(Morphium m) throws Exception {
         try (m) {
-            assumeFalse(m.getDriver() instanceof InMemoryDriver, "the ordered stop of the InMemoryDriver is step 5 of MOR-059");
+            assumeFalse(m.getDriver() instanceof InMemoryDriver, "the InMemoryDriver reports a violated unique index as an exception of the first failing document, so a multi update does not reach the second one");
             setup(m, "a", "b", "c");
             AtomicInteger postUpdates = new AtomicInteger();
             m.addListener(new MorphiumStorageAdapter<Keyed>() {
@@ -270,6 +270,39 @@ public class RaiseOnWriteErrorsTest extends MultiDriverTestBase {
             again.code = "b";
             Exception list = assertThrows(Exception.class, () -> m.storeList(java.util.List.of(again), m.getMapper().getCollectionName(Versioned.class), false));
             assertTrue(list instanceof MorphiumDriverException mde && mde.isDuplicateKey() || list.getCause() instanceof MorphiumDriverException, String.valueOf(list));
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void anOrderedUpdateCommandStopsAtTheFirstRejectedStatement(Morphium m) throws Exception {
+        try (m) {
+            setup(m, "a", "b", "c");
+            var con = m.getDriver().getPrimaryConnection(null);
+
+            try {
+                de.caluga.morphium.driver.commands.UpdateMongoCommand cmd = new de.caluga.morphium.driver.commands.UpdateMongoCommand(con).setDb(m.getConfig().connectionSettings().getDatabase())
+                        .setColl(m.getMapper().getCollectionName(Keyed.class));
+                cmd.addUpdate(Map.of("_id", "k0"), Map.of("$set", Map.of("counter", 10)), null, false, false, null, null, null);
+                cmd.addUpdate(Map.of("_id", "k1"), Map.of("$set", Map.of("code", "a")), null, false, false, null, null, null); // duplicate key
+                cmd.addUpdate(Map.of("_id", "k2"), Map.of("$set", Map.of("counter", 30)), null, false, false, null, null, null);
+
+                try {
+                    Map<String, Object> reply = cmd.execute();
+                    List<?> errors = (List<?>) reply.get("writeErrors");
+                    assertNotNull(errors, String.valueOf(reply));
+                    assertEquals(1, errors.size());
+                    assertEquals(1, ((Number) ((Map<?, ?>) errors.get(0)).get("index")).intValue());
+                } catch (MorphiumDriverException e) {
+                    // the InMemoryDriver reports a violated unique index as an exception, a real MongoDB in the reply; the state afterwards is the same
+                    assertTrue(m.getDriver() instanceof InMemoryDriver && e.isDuplicateKey(), String.valueOf(e));
+                }
+
+                assertEquals(10, byId(m, "k0").get().counter, "the statement before the error stays applied");
+                assertEquals(2, byId(m, "k2").get().counter, "ordered: the statement after the error was not executed");
+            } finally {
+                m.getDriver().releaseConnection(con);
+            }
         }
     }
 }
