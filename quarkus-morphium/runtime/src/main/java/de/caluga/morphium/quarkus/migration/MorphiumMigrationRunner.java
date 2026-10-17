@@ -16,6 +16,8 @@
 package de.caluga.morphium.quarkus.migration;
 
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.WriteConcernNotSatisfiedException;
 import de.caluga.morphium.query.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +29,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -507,7 +510,7 @@ public class MorphiumMigrationRunner {
      *
      * @throws RuntimeException if the lock is held by another process
      */
-    private void acquireLock() {
+    void acquireLock() { // package-private for the tests
         currentOwner = getOwnerIdentifier();
         log.debug("Acquiring migration lock (owner={})", currentOwner);
 
@@ -526,35 +529,51 @@ public class MorphiumMigrationRunner {
                 "acquired_at", now,
                 "expires_at", expiresAt);
 
-        try {
-            var result = q.set(update, true, false);
-
-            // MongoDB returns: n (matched count), nModified, ok, and upserted (array) on upsert.
-            // If n==0 and no upsert happened, the lock is held by another process.
-            if (result == null) {
-                throwLockHeld();
-                return;
-            }
-
-            Object n = result.get("n");
-            Object upserted = result.get("upserted");
-            long matchedCount = n instanceof Number num ? num.longValue() : 0;
-            boolean wasUpserted = upserted != null;
-
-            if (matchedCount == 0 && !wasUpserted) {
-                throwLockHeld();
-                return;
-            }
-        } catch (RuntimeException e) {
-            // DuplicateKeyError when _id exists but expires_at condition didn't match (lock still active)
-            if (e.getMessage() != null && e.getMessage().contains("duplicate key")) {
-                throwLockHeld();
-                return;
-            }
-            throw e;
+        if (!lockWasAcquired(() -> q.set(update, true, false))) {
+            throwLockHeld();
+            return;
         }
 
         log.debug("Migration lock acquired (TTL={}s)", config.lockTtlSeconds());
+    }
+
+    /**
+     * Runs the write that takes the lock and tells whether this instance holds the lock now (MOR-063).
+     * <ul>
+     * <li>A reply with a matched or upserted document: acquired. A reply with neither (or no reply): held by another process; that is how a lost upsert shows up when
+     * {@code WriterSettings.raiseOnWriteErrors} is switched off.</li>
+     * <li>A {@link MorphiumDriverException} that {@linkplain MorphiumDriverException#isDuplicateKey() is a duplicate key}: the {@code _id} of the lock exists and its
+     * {@code expires_at} is not reached, the lock is held by another process. Recognised by the error code, not by the text of the message.</li>
+     * <li>A {@link WriteConcernNotSatisfiedException}: the lock IS written, only its write concern was not satisfied in time. Treated as acquired (and logged), because
+     * aborting the run would leave the lock held by nobody until it expires.</li>
+     * <li>Anything else is rethrown.</li>
+     * </ul>
+     * Package-private for the tests.
+     */
+    static boolean lockWasAcquired(Supplier<Map<String, Object>> write) {
+        Map<String, Object> result;
+
+        try {
+            result = write.get();
+        } catch (WriteConcernNotSatisfiedException e) {
+            log.warn("The migration lock was written, but its write concern was not satisfied: {}", e.getMessage());
+            return true;
+        } catch (MorphiumDriverException e) {
+            if (e.isDuplicateKey()) {
+                return false;
+            }
+
+            throw e;
+        }
+
+        if (result == null) {
+            return false;
+        }
+
+        // MongoDB returns: n (matched count, including an upserted document), nModified, ok, and upserted (array) on upsert.
+        Object n = result.get("n");
+        long matchedCount = n instanceof Number num ? num.longValue() : 0;
+        return matchedCount > 0 || result.get("upserted") != null;
     }
 
     /**

@@ -39,6 +39,9 @@ The `update` command reports a statement that the server rejects (duplicate key,
 - **Migration.** The deprecated `WriterSettings.raiseOnWriteErrors` (default `true`; `writerSettings().disableRaiseOnWriteErrors()`) restores the old behaviour for one release and is removed in 7.0; `Query.setRaiseOnWriteErrors(Boolean)` overrides it for one query (a best-effort upsert that races on a unique index). Callers of `ThrowOnError.throwOnWriteError(reply)` catch `IllegalStateException`; the write methods throw `MorphiumDriverException` themselves now, so `throwOnWriteError` is only needed with the switch off. Internal best-effort writes (the `deleteAt` mark of processed messages) do not raise. Applications that rely on a racing upsert being silent (for example the lock of the Quarkus migration runner, which recognises the duplicate key by the text of the message) have to handle the exception: MOR-063.
 - The InMemoryDriver stops an ordered `update` command at the first statement with a write error, like `mongod`.
 
+#### Quarkus migration lock recognises a held lock by its error code (MOR-063)
+`MorphiumMigrationRunner` took the lock with an upsert and recognised a held lock by the text "duplicate key" in the exception message. Since a rejected write raises (MOR-059) it uses `MorphiumDriverException.isDuplicateKey()` and treats a `WriteConcernNotSatisfiedException` (the lock is written, only its write concern was not satisfied in time) as acquired instead of aborting the run with the lock held until it expires.
+
 #### Writer path and `findOneAndUpdate`: one convention for values (MOR-042)
 - A single `@Embedded` value in `findOneAndUpdate` now carries `class_name` and a single `@Entity` keeps its `_id`, like on the writer path (the first version of the
   update-value walk left both out); the declared type of the field is not known to an update, and `class_name` is what lets an `Object` or `@AdditionalData` value be read back.
