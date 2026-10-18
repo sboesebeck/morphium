@@ -32,6 +32,9 @@ An empty builder (it would replace the document), `setOnInsert` without `upsert(
 
 ### Changed
 
+#### `Query.f`: a dotted path is translated up to a List, Map or Object field (MOR-043)
+`Query.f("lineItems.label")` took the whole path as written as soon as a segment was a List, a Map or an `Object` field, the translated leading segment included, so the filter looked for `lineItems.label` while the field is stored as `line_items` and an update with `resolveFieldPath` had written `line_items.0.label`. The segments up to and including that field are translated now, the rest is taken as written, so a filter and an update on the same path address the same stored field. An entity with `@AdditionalData` took every path as written; a dotted path is translated now as far as it is known and the free-form rest is kept (a single name was translated before by the field operators and is unchanged). An unknown first segment of an entity without `@AdditionalData` is still rejected.
+
 #### Bulk context: the update requests marshal their values (MOR-047)
 The `add*Request` methods of `MorphiumBulkContext` handed their values to the driver as they were, so an embedded object, a Set or an enum in a bulk `set`, `min`, `max` or `push` failed on a real MongoDB with `Unhandled Data type` (the bulk was rejected), and the InMemoryDriver stored the live Java object or failed with a `ClassCastException`. `$set`, `$min` and `$max` take the shape of a whole field, `$push` the shape of an element, as `Query.set` and `Query.push` do, so custom-mapped values such as `java.time` are written like there, too. The numbers of `$inc` and `$mul`, `$unset`, `$currentDate`, `$pop` and `$rename` are unchanged. `addCustomUpdateRequest` still sends the command map as it is.
 
