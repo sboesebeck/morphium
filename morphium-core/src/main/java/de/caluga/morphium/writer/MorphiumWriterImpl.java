@@ -1758,6 +1758,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     ret = settings.execute();
                     settings.releaseConnection();
+                    MorphiumDriverException rejection = rejectionOf(q, collectionName, ret); // MOR-065
                     long dur = System.currentTimeMillis() - start;
                     // morphium.fireProfilingWriteEvent(
                     // q.getType(),
@@ -1768,6 +1769,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     morphium.inc(StatisticKeys.WRITES);
                     morphium.getCache().clearCacheIfNecessary(q.getType());
                     morphium.firePostRemoveEvent(q);
+
+                    if (rejection != null) {
+                        throw rejection;
+                    }
 
                     if (callback != null) {
                         callback.onOperationSucceeded(AsyncOperationType.REMOVE, q, System.currentTimeMillis() - start, null, null);
@@ -1859,8 +1864,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         settings.setWriteConcern(wc.asMap());
                     }
 
-                    //var res = settings.execute();
-                    settings.execute();
+                    var res = settings.execute();
+                    MorphiumDriverException rejection = entityRejectionOf(settings.getColl(), res); // MOR-065
                     settings.releaseConnection();
                     settings = null;
                     con = null;
@@ -1868,6 +1873,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     morphium.clearCachefor(o.getClass());
                     morphium.inc(StatisticKeys.WRITES);
                     morphium.firePostRemoveEvent(o);
+
+                    if (rejection != null) {
+                        throw rejection;
+                    }
 
                     if (callback != null) {
                         callback.onOperationSucceeded(AsyncOperationType.REMOVE, null, System.currentTimeMillis() - start, null, o);
