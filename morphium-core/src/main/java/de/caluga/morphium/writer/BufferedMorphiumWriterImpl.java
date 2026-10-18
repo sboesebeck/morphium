@@ -640,10 +640,22 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }, c, AsyncOperationType.UPDATE);
     }
 
+    /** the stored name of a field for an update; a dotted path is resolved segment by segment, see {@code MorphiumWriterImpl} */
+    private String storedName(Class<?> cls, String field) {
+        return field.indexOf('.') >= 0 ? morphium.getARHelper().resolveFieldPath(cls, field) : morphium.getARHelper().getMongoFieldName(cls, field);
+    }
+
     @Override
     public <T> Map<String, Object> set(final Query<T> query, final Map<String, Object> values, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<>();
+        }
+
+        // MOR-046: marshalled on the calling thread with the update-value walk of the synchronous writer, see MorphiumWriterImpl.set
+        final Map<String, Object> marshalled = new LinkedHashMap<>();
+
+        for (Map.Entry<String, Object> kv : values.entrySet()) {
+            marshalled.put(kv.getKey(), morphium.getMapper().marshallUpdateValue(kv.getValue()));
         }
 
         //        final AsyncOperationCallback<T> callback = c;
@@ -661,9 +673,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             Doc set = new Doc();
             wr.setCmd(Doc.of("$set", set));
 
-            for (Map.Entry kv : values.entrySet()) {
-                String fld = morphium.getARHelper().getMongoFieldName(query.getType(), kv.getKey().toString());
-                set.put(fld, kv.getValue());
+            for (Map.Entry<String, Object> kv : marshalled.entrySet()) {
+                set.put(storedName(query.getType(), kv.getKey()), kv.getValue());
             }
             morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
         }, c, AsyncOperationType.SET);
@@ -960,6 +971,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             c = new AsyncOpAdapter<>();
         }
 
+        // MOR-046: marshalled on the calling thread, like MorphiumWriterImpl.pushPull
+        final Object marshalledValue = type == MorphiumStorageListener.UpdateTypes.PULL ? morphium.getMapper().marshallUpdatePullOperand(value) : morphium.getMapper().marshallUpdateElement(value);
         morphium.inc(StatisticKeys.WRITES_CACHED);
         addToWriteQueue(q.getType(), q.getCollectionName(), ctx -> {
             UpdateBulkRequest r = ctx.addUpdateBulkRequest();
@@ -968,23 +981,23 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             r.setMultiple(multiple);
 
             morphium.getCache().clearCacheIfNecessary(q.getType());
-            // String fld = morphium.getARHelper().getMongoFieldName(q.getType(), field);
+            String fld = storedName(q.getType(), field);
             switch (type) {
                 case PUSH:
                     morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-                    r.setCmd(Doc.of("$push", Doc.of(field, value)));
+                    r.setCmd(Doc.of("$push", Doc.of(fld, marshalledValue)));
                     morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
                     break;
 
                 case PULL:
                     morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PULL);
-                    r.setCmd(Doc.of("$pull", Doc.of(field, value)));
+                    r.setCmd(Doc.of("$pull", Doc.of(fld, marshalledValue)));
                     morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PULL);
                     break;
 
                 case ADD_TO_SET:
                     morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.ADD_TO_SET);
-                    r.setCmd(Doc.of("$addToSet", Doc.of(field, value)));
+                    r.setCmd(Doc.of("$addToSet", Doc.of(fld, marshalledValue)));
                     morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.ADD_TO_SET);
                     break;
 
@@ -1004,38 +1017,54 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             c = new AsyncOpAdapter<>();
         }
 
+        if (value == null) {
+            throw new IllegalArgumentException("The list of values to " + type.name().toLowerCase() + " must not be null");
+        }
+
+        // MOR-046: marshalled on the calling thread, like MorphiumWriterImpl.pushPullAll
+        final List<Object> marshalledValues = new ArrayList<>(value.size());
+
+        for (Object o : value) {
+            marshalledValues.add(morphium.getMapper().marshallUpdateElement(o));
+        }
+
         morphium.inc(StatisticKeys.WRITES_CACHED);
         addToWriteQueue(q.getType(), q.getCollectionName(), ctx -> {
             //                directWriter.pushPull(push, query, field, value, upsert,
             // multiple, callback);
             morphium.getCache().clearCacheIfNecessary(q.getType());
-            String fld = morphium.getARHelper().getMongoFieldName(q.getType(), field);
+            String fld = storedName(q.getType(), field);
             morphium.firePreUpdateEvent(q.getType(), type);
 
-            for (Object o : value) {
+            if (type == MorphiumStorageListener.UpdateTypes.PULL) {
+                // one request: it used to send a $push of every element
                 UpdateBulkRequest r = ctx.addUpdateBulkRequest();
                 r.setQuery(Doc.of(q.toQueryObject()));
                 r.setUpsert(upsert);
                 r.setMultiple(multiple);
+                r.setCmd(Doc.of("$pullAll", Doc.of(fld, marshalledValues)));
+            } else {
+                for (Object o : marshalledValues) {
+                    UpdateBulkRequest r = ctx.addUpdateBulkRequest();
+                    r.setQuery(Doc.of(q.toQueryObject()));
+                    r.setUpsert(upsert);
+                    r.setMultiple(multiple);
 
-                switch (type) {
-                    case PUSH:
-                        r.setCmd(Doc.of("$push", Doc.of(fld, o)));
-                        break;
+                    switch (type) {
+                        case PUSH:
+                            r.setCmd(Doc.of("$push", Doc.of(fld, o)));
+                            break;
 
-                    case PULL:
-                        r.setCmd(Doc.of("$push", Doc.of(fld, o)));
-                        break;
+                        case ADD_TO_SET:
+                            r.setCmd(Doc.of("$addToSet", Doc.of(fld, o)));
+                            break;
 
-                    case ADD_TO_SET:
-                        r.setCmd(Doc.of("$addToSet", Doc.of(fld, o)));
-                        break;
+                        default:
+                            throw new IllegalArgumentException("Unsupported operation " + type.name());
+                    }
 
-                    default:
-                        throw new IllegalArgumentException("Unsupported operation " + type.name());
+                    //                        ctx.addRequest(r);
                 }
-
-                //                        ctx.addRequest(r);
             }
             morphium.firePostUpdateEvent(q.getType(), type);
         }, c, type.equals(MorphiumStorageListener.UpdateTypes.PULL) ? AsyncOperationType.PULL : AsyncOperationType.PUSH);
