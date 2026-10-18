@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 36, done 29
+Status: open 35, done 30
 
 ## Overview
 
@@ -25,7 +25,6 @@ Status: open 36, done 29
 | MOR-034 | open | 2 | implementation | Quarkus testing module: real MongoDB test resource, data reset and fixtures | M |  |  |
 | MOR-036 | open | 2 | verification | Re-run the reproduction on other topologies and server versions | S |  |  |
 | MOR-037 | open | 2 | defect | Morphium.simplifyQueryObject loses predicates for repeated operator keys | S |  |  |
-| MOR-055 | open | 2 | defect | InMemoryDriver: number and BSON comparison semantics of $inc, $mul, $min, $max and $addToSet | M |  |  |
 | MOR-063 | open | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
@@ -65,6 +64,7 @@ Status: open 36, done 29
 | MOR-050 | done | 2 | implementation | Update builder: updateOne, updateMany and UpdateResult | M |  | MOR-006 |
 | MOR-053 | done | 2 | defect | InMemoryDriver: type checks of the update operators ($inc, $mul, $push, $addToSet, $pull, $pop) | M |  |  |
 | MOR-054 | done | 2 | defect | InMemoryDriver: validate the shape of an update document (unknown operator, mixed fields, _id, names) | S |  |  |
+| MOR-055 | done | 2 | defect | InMemoryDriver: number and BSON comparison semantics of $inc, $mul, $min, $max and $addToSet | M |  |  |
 | MOR-058 | done | 2 | defect | InMemoryDriver: findAndModify does not reject what the update command rejects | S |  |  |
 | MOR-060 | done | 2 | defect | Write paths that write the Java field name: inc/dec with a Map and dotted paths through embedded documents | S |  |  |
 | MOR-062 | done | 2 | defect | Morphium.dec(Query, Map) and dec(Map, Query) increment instead of decrement | S |  |  |
@@ -944,9 +944,11 @@ Commits: 247a3f1d1, 302718c42
 
 ### MOR-055 InMemoryDriver: number and BSON comparison semantics of $inc, $mul, $min, $max and $addToSet
 
-Status **open**, priority 2, type defect, effort M
+Status **done**, priority 2, type defect, effort M
 
 Found by the update contract suite (MOR-028). $inc on an int that overflows wraps around to a negative int in the InMemoryDriver, a real MongoDB widens to a long. $mul of an int by a double and $min / $max across types (a number against a string) or with an equal value of another number type fail with an exception, a real MongoDB follows the BSON comparison order. $addToSet treats 1 and 1.0 as different values and a document with another field order as equal, a real MongoDB does the opposite. A wrapped counter is silent data corruption in tests.
+
+Evidence: The seven pins of this task are removed from FieldOperatorContractTest and ArrayOperatorContractTest, and the contract suite (83 invocations including the ledger test) passes on mongo:8 and on the InMemoryDriver. Without the driver change 3 of the 6 contract methods fail on the InMemoryDriver. The cases: inc of an int that overflows becomes a long, mul of an int by a double is a double, max and min across types follow the BSON order, max of an equal value of another number type keeps the old value, addToSet treats 1 and 1.0 as equal and a document with another field order as different. Regression: 1486 test methods (core and messaging) on the InMemoryDriver with only the known flaky MultithreaddedMessagingTests. Not covered: Decimal128 and BigInteger operands, the comparison of binary data, ids and regular expressions beyond their type order, and the operators of aggregation expressions.
 
 Acceptance:
 
@@ -954,6 +956,8 @@ Acceptance:
 - The pinned deviations in the update contract suite that name this task are removed
 
 Source: docs/research/plan-mor-028.md
+
+Commits: c60b7348a
 
 ### MOR-056 InMemoryDriver: upsert seeds the equalities of a single-branch $or
 

@@ -1197,7 +1197,7 @@ tasks:
 - id: MOR-055
   title: 'InMemoryDriver: number and BSON comparison semantics of $inc, $mul, $min, $max and $addToSet'
   type: defect
-  status: open
+  status: done
   priority: 2
   effort: M
   description: 'Found by the update contract suite (MOR-028). $inc on an int that overflows wraps around to a negative
@@ -1210,6 +1210,9 @@ tasks:
   - The pinned deviations in the update contract suite that name this task are removed
   source:
   - docs/research/plan-mor-028.md
+  evidence: 'The seven pins of this task are removed from FieldOperatorContractTest and ArrayOperatorContractTest, and the contract suite (83 invocations including the ledger test) passes on mongo:8 and on the InMemoryDriver. Without the driver change 3 of the 6 contract methods fail on the InMemoryDriver. The cases: inc of an int that overflows becomes a long, mul of an int by a double is a double, max and min across types follow the BSON order, max of an equal value of another number type keeps the old value, addToSet treats 1 and 1.0 as equal and a document with another field order as different. Regression: 1486 test methods (core and messaging) on the InMemoryDriver with only the known flaky MultithreaddedMessagingTests. Not covered: Decimal128 and BigInteger operands, the comparison of binary data, ids and regular expressions beyond their type order, and the operators of aggregation expressions.'
+  commits:
+  - c60b7348a
 - id: MOR-056
   title: 'InMemoryDriver: upsert seeds the equalities of a single-branch $or'
   type: defect
