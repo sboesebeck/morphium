@@ -976,7 +976,7 @@ tasks:
 - id: MOR-046
   title: BufferedMorphiumWriterImpl does not marshal update values and emits push for a pull of a list
   type: defect
-  status: open
+  status: done
   priority: 2
   effort: M
   description: For entities with @WriteBuffer on a real MongoDB the buffered writer passes the values of set, pushPull
@@ -991,6 +991,9 @@ tasks:
   - MOR-042
   source: &id002
   - docs/research/plan-mor-042.md
+  evidence: 'BufferedWriterUpdateValuesTest (5 tests, 10 invocations) on mongo:8 and the InMemoryDriver: set with an embedded object, an enum and a Set, push and addToSet of an embedded object, pushAll of embedded objects, pull of an element and pullAll of elements on a @WriteBuffer entity store the documents the synchronous writer stores. Before the change 4 of the 5 failed on mongo:8 (the three embedded cases with Unhandled Data type, pullAll grew the list from [a, b, c] to [a, b, c, a, c]); the InMemoryDriver uses the synchronous writer and passed before. BufferedWriteIsolationTest, WriteBufferCountTest, BufferedWriterConcurrentFlushTest, RaiseOnWriteErrorsTest and the writer path tests are green. Not covered: setInEntity and the other entity variants of the buffered writer, the bulk context (MOR-047).'
+  commits:
+  - 29651b94a
 - id: MOR-047
   title: MorphiumBulkContext.createUpdateRequest does not marshal update values
   type: defect
