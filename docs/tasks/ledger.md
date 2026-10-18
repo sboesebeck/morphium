@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 40, done 25
+Status: open 41, done 25
 
 ## Overview
 
@@ -50,6 +50,7 @@ Status: open 40, done 25
 | MOR-056 | open | 3 | defect | InMemoryDriver: upsert seeds the equalities of a single-branch $or | S |  |  |
 | MOR-057 | open | 3 | defect | InMemoryDriver: an inserted document is stored by reference | S |  |  |
 | MOR-065 | open | 3 | defect | Delete paths ignore the writeErrors of the delete reply | S |  |  |
+| MOR-066 | open | 3 | defect | InMemoryDriver: $pull with a document condition does not apply query operators to the fields of the elements | S |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -93,7 +94,7 @@ Acceptance:
 
 Source: docs/research/reproduction-results.md, docs/research/other-clients.md, docs/research/reproduction-results.md (serialisation analysis)
 
-Commits: 44157c934
+Commits: a8a050fae
 
 ### MOR-002 Option B: marshal every operator map in Query.findOneAndUpdate
 
@@ -114,7 +115,7 @@ Depends on: MOR-001
 
 Source: docs/research/reproduction-results.md hypothesis 1, docs/research/reproduction-results.md (serialisation analysis)
 
-Commits: 491945d60
+Commits: 1e381e638
 
 ### MOR-003 findOneAndUpdate with a compound filter and upsert collides on _id (code 66)
 
@@ -132,7 +133,7 @@ Acceptance:
 
 Source: docs/research/reproduction-results.md hypothesis 5, docs/research/upsert-id-seeding-probe.md
 
-Commits: 491945d60, d6537bcb7
+Commits: 1e381e638, 2ab9da751
 
 ### MOR-004 MorphiumBase.currentDate sends $set: {$currentDate: ...} and fails silently
 
@@ -151,7 +152,7 @@ Acceptance:
 
 Source: docs/research/reproduction-results.md hypothesis 3
 
-Commits: 38b5f81d8
+Commits: 9d59ca161
 
 ### MOR-005 Audit Query.set/inc/push write paths for swallowed writeErrors and missing name translation
 
@@ -168,7 +169,7 @@ Acceptance:
 
 Source: docs/research/reproduction-results.md hypothesis 3, docs/research/jakarta-data-1.1.md section 4, GitHub #408
 
-Commits: 840e425bc
+Commits: 821a92b1f
 
 ### MOR-006 Option A core: mapper-aware update builder (set, setOnInsert, inc, unset) with findOneAndUpdate terminal
 
@@ -193,7 +194,7 @@ Depends on: MOR-001, MOR-002
 
 Source: docs/research/plan-mor-001-002-003.md, docs/research/plan-mor-006.md
 
-Commits: 29c154343, 22b58f60b, 8d89c0770, cdeba478e
+Commits: 5b0b6b15c, 75350521e, a203c1633, 69dc7128d
 
 ### MOR-007 Option A extension: min, max, mul, rename, currentDate, addToSet/push with each
 
@@ -230,7 +231,7 @@ Depends on: MOR-006
 
 Source: docs/research/reproduction-results.md hypothesis 5, docs/research/other-clients.md pattern 6
 
-Commits: edd39c204
+Commits: 7abd9591a
 
 ### MOR-009 Lifecycle handling in the builder: @LastChange, @CreationTime, @Version
 
@@ -249,7 +250,7 @@ Depends on: MOR-006
 
 Source: docs/research/reproduction-results.md hypothesis 5, docs/research/other-clients.md patterns 7, 8
 
-Commits: 69dfb6484
+Commits: 9aaf03b30
 
 ### MOR-010 Typed duplicate-key exception and typed result for a lost conditional upsert
 
@@ -269,7 +270,7 @@ Depends on: MOR-006
 
 Source: docs/research/reproduction-results.md hypothesis 5, docs/research/other-clients.md pattern 9, GitHub #210, #211
 
-Commits: 3ca764c16
+Commits: 7f616d6ce
 
 ### MOR-011 Typed lease / try-acquire primitive
 
@@ -288,7 +289,7 @@ Depends on: MOR-010
 
 Source: update-path research, 2026-10-15
 
-Commits: 71dbf9463
+Commits: 8a7b249ed
 
 ### MOR-012 Builder accepts type-safe field references
 
@@ -542,7 +543,7 @@ Acceptance:
 
 Source: docs/research/reproduction-results.md, update-path research, 2026-10-15
 
-Commits: b3db32f0a
+Commits: cf98d495a
 
 ### MOR-029 InMemoryDriver: reject values BsonEncoder cannot encode
 
@@ -572,7 +573,7 @@ Acceptance:
 
 Source: docs/research/reproduction-results.md hypothesis 5, GitHub #399
 
-Commits: 88ae60b4b
+Commits: 4f21f84ee
 
 ### MOR-031 Quarkus: Micrometer / OpenTelemetry metrics for pool and update paths
 
@@ -699,7 +700,7 @@ Acceptance:
 
 Source: docs/research/plan-mor-001-002-003.md
 
-Commits: 491945d60
+Commits: 1e381e638
 
 ### MOR-041 Key translation for operator maps in findOneAndUpdate
 
@@ -723,7 +724,7 @@ Depends on: MOR-002
 
 Source: docs/research/plan-mor-001-002-003.md, docs/research/plan-mor-041.md
 
-Commits: 0ec3a9562
+Commits: 56b0d5aea
 
 ### MOR-042 Writer path: marshal values with the shared update-value walk and use one convention for single values
 
@@ -748,7 +749,7 @@ Depends on: MOR-002
 
 Source: docs/research/plan-mor-001-002-003.md, docs/research/plan-mor-042.md
 
-Commits: 4e378f261, 39ac39ac3
+Commits: 1fba2673a, 9f7ecd2df
 
 ### MOR-043 Query.f should resolve field paths with resolveFieldPath
 
@@ -865,7 +866,7 @@ Depends on: MOR-006
 
 Source: docs/research/plan-mor-006.md
 
-Commits: 28516ff60
+Commits: d337a9f72
 
 ### MOR-051 InMemoryDriver: reject path conflicts in update documents like MongoDB
 
@@ -882,7 +883,7 @@ Acceptance:
 
 Source: docs/research/plan-mor-006.md
 
-Commits: b951b977f, d017357da
+Commits: 5624fdd63, 9f31c9ed8
 
 ### MOR-052 updateLastAccess writes the untranslated Java field name
 
@@ -911,7 +912,7 @@ Acceptance:
 
 Source: docs/research/plan-mor-028.md
 
-Commits: b951b977f
+Commits: 5624fdd63
 
 ### MOR-054 InMemoryDriver: validate the shape of an update document (unknown operator, mixed fields, _id, names)
 
@@ -928,7 +929,7 @@ Acceptance:
 
 Source: docs/research/plan-mor-028.md
 
-Commits: b951b977f, d017357da
+Commits: 5624fdd63, 9f31c9ed8
 
 ### MOR-055 InMemoryDriver: number and BSON comparison semantics of $inc, $mul, $min, $max and $addToSet
 
@@ -984,7 +985,7 @@ Acceptance:
 
 Source: docs/research/plan-mor-028.md
 
-Commits: b951b977f
+Commits: 5624fdd63
 
 ### MOR-059 Query, entity and bulk write paths swallow the writeErrors of the update reply
 
@@ -1002,7 +1003,7 @@ Acceptance:
 
 Source: docs/research/audit-write-paths.md, GitHub #408
 
-Commits: 7b2899074, b7d2d06ec, b039bbe67, 6f03e1ad5, c073a1a04, c753fdb5f
+Commits: 43dc6806c, a45895978, a53c03bf9, f9cd398f3, 66d717198, b07017afa
 
 ### MOR-060 Write paths that write the Java field name: inc/dec with a Map and dotted paths through embedded documents
 
@@ -1019,7 +1020,7 @@ Acceptance:
 
 Source: docs/research/audit-write-paths.md
 
-Commits: a71202e84
+Commits: 886c56663
 
 ### MOR-061 Query.dec(field, Integer) turns an int counter into a double
 
@@ -1035,7 +1036,7 @@ Acceptance:
 
 Source: docs/research/audit-write-paths.md
 
-Commits: a71202e84
+Commits: 886c56663
 
 ### MOR-062 Morphium.dec(Query, Map) and dec(Map, Query) increment instead of decrement
 
@@ -1052,7 +1053,7 @@ Acceptance:
 
 Source: docs/research/audit-write-paths.md
 
-Commits: a71202e84
+Commits: 886c56663
 
 ### MOR-063 quarkus-morphium migration lock: recognise a held lock by isDuplicateKey()
 
@@ -1069,7 +1070,7 @@ Acceptance:
 
 Source: docs/research/plan-mor-059.md
 
-Commits: 08ddc0510
+Commits: 2b5ad3882
 
 ### MOR-064 store() of an existing entity swallows a rejected update (StoreMongoCommand)
 
@@ -1094,4 +1095,17 @@ Acceptance:
 - A rejected delete raises a MorphiumDriverException, on a real MongoDB
 
 Source: docs/research/plan-mor-059.md
+
+### MOR-066 InMemoryDriver: $pull with a document condition does not apply query operators to the fields of the elements
+
+Status **open**, priority 3, type defect, effort S
+
+Found while reconciling the update-value walk with #335. On a real MongoDB a $pull whose operand is a document is a query against each element: {$pull: {dateList: {value: {$gte: 19005}}}} removes the elements {value: 19005} and above (the shape the update paths use to pull from a container of wrapped scalars with an operator condition). The InMemoryDriver does not apply the operators to the fields of the elements and removes nothing. UpdateValueShapeParityTest pins the deviation (pinned deviation MOR-066).
+
+Acceptance:
+
+- The InMemoryDriver removes the elements that match a document condition with query operators, like mongo:8
+- The pin in UpdateValueShapeParityTest is removed
+
+Source: docs/research/plan-reconcile-335.md
 
