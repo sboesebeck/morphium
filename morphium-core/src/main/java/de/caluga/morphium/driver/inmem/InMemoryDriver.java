@@ -5284,6 +5284,258 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return ((Comparable) v1).compareTo(v2);
     }
 
+    /**
+     * The sum of two numbers with the result type of mongod: int and int stay an int and widen to a long on overflow, a long that overflows becomes a double, anything with a
+     * double is a double (a float stays a float if the other side is no double: the InMemoryDriver keeps what was stored). MOR-055.
+     */
+    static Number addNumbers(Number a, Number b) {
+        if (a instanceof Double || b instanceof Double) {
+            return a.doubleValue() + b.doubleValue();
+        }
+
+        if (a instanceof Float || b instanceof Float) {
+            return a.floatValue() + b.floatValue();
+        }
+
+        if (isIntegralNumber(a) && isIntegralNumber(b)) {
+            boolean bothInt = a instanceof Integer && b instanceof Integer;
+
+            try {
+                long sum = Math.addExact(a.longValue(), b.longValue());
+
+                if (bothInt && sum >= Integer.MIN_VALUE && sum <= Integer.MAX_VALUE) {
+                    return (int) sum;
+                }
+
+                return sum;
+            } catch (ArithmeticException e) {
+                return a.doubleValue() + b.doubleValue();
+            }
+        }
+
+        return a.doubleValue() + b.doubleValue();
+    }
+
+    /** as {@link #addNumbers(Number, Number)} for {@code $mul}. */
+    static Number multiplyNumbers(Number a, Number b) {
+        if (a instanceof Double || b instanceof Double) {
+            return a.doubleValue() * b.doubleValue();
+        }
+
+        if (a instanceof Float || b instanceof Float) {
+            return a.floatValue() * b.floatValue();
+        }
+
+        if (isIntegralNumber(a) && isIntegralNumber(b)) {
+            boolean bothInt = a instanceof Integer && b instanceof Integer;
+
+            try {
+                long product = Math.multiplyExact(a.longValue(), b.longValue());
+
+                if (bothInt && product >= Integer.MIN_VALUE && product <= Integer.MAX_VALUE) {
+                    return (int) product;
+                }
+
+                return product;
+            } catch (ArithmeticException e) {
+                return a.doubleValue() * b.doubleValue();
+            }
+        }
+
+        return a.doubleValue() * b.doubleValue();
+    }
+
+    /** the zero a {@code $mul} creates for a missing field: of the type of the factor */
+    private static Number zeroOfTypeOf(Object factor) {
+        if (factor instanceof Double) {
+            return 0.0d;
+        }
+
+        if (factor instanceof Float) {
+            return 0.0f;
+        }
+
+        if (factor instanceof Long) {
+            return 0L;
+        }
+
+        return 0;
+    }
+
+    /** the position of a value in the BSON comparison order of its type: null, numbers, strings, documents, arrays, binary data, ids, booleans, dates, regular expressions */
+    private static int bsonTypeRank(Object o) {
+        if (o == null) {
+            return 1;
+        }
+
+        if (o instanceof Number) {
+            return 2;
+        }
+
+        if (o instanceof CharSequence || o instanceof Character || o instanceof Enum) {
+            return 3;
+        }
+
+        if (o instanceof Map) {
+            return 4;
+        }
+
+        if (o instanceof Collection || o.getClass().isArray() && !(o instanceof byte[])) {
+            return 5;
+        }
+
+        if (o instanceof byte[]) {
+            return 6;
+        }
+
+        if (o instanceof ObjectId || o instanceof MorphiumId || o instanceof UUID) {
+            return 7;
+        }
+
+        if (o instanceof Boolean) {
+            return 8;
+        }
+
+        if (o instanceof Date || o instanceof java.time.Instant || o instanceof java.time.temporal.TemporalAccessor) {
+            return 9;
+        }
+
+        if (o instanceof java.util.regex.Pattern) {
+            return 11;
+        }
+
+        return 12;
+    }
+
+    /**
+     * Compares two values the way mongod does for {@code $min} and {@code $max}: first by the BSON type order, numbers by value across number types, documents field by field
+     * in order, arrays element by element. MOR-055.
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    static int compareBson(Object a, Object b) {
+        int ra = bsonTypeRank(a);
+        int rb = bsonTypeRank(b);
+
+        if (ra != rb) {
+            return Integer.compare(ra, rb);
+        }
+
+        switch (ra) {
+            case 1:
+                return 0;
+
+            case 2:
+                return compareSortValues(a, b);
+
+            case 3:
+                return a.toString().compareTo(b.toString());
+
+            case 4: {
+                Iterator<Map.Entry> ia = ((Map) a).entrySet().iterator();
+                Iterator<Map.Entry> ib = ((Map) b).entrySet().iterator();
+
+                while (ia.hasNext() && ib.hasNext()) {
+                    Map.Entry ea = ia.next();
+                    Map.Entry eb = ib.next();
+                    int c = String.valueOf(ea.getKey()).compareTo(String.valueOf(eb.getKey()));
+
+                    if (c != 0) {
+                        return c;
+                    }
+
+                    c = compareBson(ea.getValue(), eb.getValue());
+
+                    if (c != 0) {
+                        return c;
+                    }
+                }
+
+                return Boolean.compare(ia.hasNext(), ib.hasNext());
+            }
+
+            case 5: {
+                List la = a instanceof Collection ? new ArrayList((Collection) a) : Arrays.asList((Object[]) a);
+                List lb = b instanceof Collection ? new ArrayList((Collection) b) : Arrays.asList((Object[]) b);
+                int n = Math.min(la.size(), lb.size());
+
+                for (int i = 0; i < n; i++) {
+                    int c = compareBson(la.get(i), lb.get(i));
+
+                    if (c != 0) {
+                        return c;
+                    }
+                }
+
+                return Integer.compare(la.size(), lb.size());
+            }
+
+            default:
+                if (a instanceof Comparable && a.getClass().equals(b.getClass())) {
+                    return ((Comparable) a).compareTo(b);
+                }
+
+                return String.valueOf(a).compareTo(String.valueOf(b));
+        }
+    }
+
+    /** BSON equality for {@code $addToSet}: numbers by value across number types, documents with the same fields in the same order, arrays element by element */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    static boolean bsonEquals(Object a, Object b) {
+        if (a == b) {
+            return true;
+        }
+
+        if (a == null || b == null) {
+            return false;
+        }
+
+        if (a instanceof Number && b instanceof Number) {
+            return compareSortValues(a, b) == 0;
+        }
+
+        if (a instanceof Map && b instanceof Map) {
+            Map ma = (Map) a;
+            Map mb = (Map) b;
+
+            if (ma.size() != mb.size()) {
+                return false;
+            }
+
+            Iterator<Map.Entry> ia = ma.entrySet().iterator();
+            Iterator<Map.Entry> ib = mb.entrySet().iterator();
+
+            while (ia.hasNext()) {
+                Map.Entry ea = ia.next();
+                Map.Entry eb = ib.next();
+
+                if (!Objects.equals(ea.getKey(), eb.getKey()) || !bsonEquals(ea.getValue(), eb.getValue())) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        if (a instanceof List && b instanceof List) {
+            List la = (List) a;
+            List lb = (List) b;
+
+            if (la.size() != lb.size()) {
+                return false;
+            }
+
+            for (int i = 0; i < la.size(); i++) {
+                if (!bsonEquals(la.get(i), lb.get(i))) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        return a.equals(b);
+    }
+
     private static boolean isIntegralNumber(Number n) {
         return n instanceof Byte || n instanceof Short || n instanceof Integer || n instanceof Long
                 || n instanceof java.util.concurrent.atomic.AtomicInteger
@@ -10172,47 +10424,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                         throw nonNumericField("$inc", obj, entry.getKey(), value);
                                     }
 
-                                    if (value instanceof Integer) {
-                                        if (entry.getValue() instanceof Integer) {
-                                            value = (Integer) value + ((Integer) entry.getValue());
-                                        } else if (entry.getValue() instanceof Float) {
-                                            value = (Integer) value + ((Float) entry.getValue());
-                                        } else if (entry.getValue() instanceof Double) {
-                                            value = (Integer) value + ((Double) entry.getValue());
-                                        } else if (entry.getValue() instanceof Long) {
-                                            value = (Integer) value + ((Long) entry.getValue());
-                                        }
-                                    } else if (value instanceof Double) {
-                                        if (entry.getValue() instanceof Integer) {
-                                            value = (Double) value + ((Integer) entry.getValue());
-                                        } else if (entry.getValue() instanceof Float) {
-                                            value = (Double) value + ((Float) entry.getValue());
-                                        } else if (entry.getValue() instanceof Double) {
-                                            value = (Double) value + ((Double) entry.getValue());
-                                        } else if (entry.getValue() instanceof Long) {
-                                            value = (Double) value + ((Long) entry.getValue());
-                                        }
-                                    } else if (value instanceof Float) {
-                                        if (entry.getValue() instanceof Integer) {
-                                            value = (Float) value + ((Integer) entry.getValue());
-                                        } else if (entry.getValue() instanceof Float) {
-                                            value = (Float) value + ((Float) entry.getValue());
-                                        } else if (entry.getValue() instanceof Double) {
-                                            value = (Float) value + ((Double) entry.getValue());
-                                        } else if (entry.getValue() instanceof Long) {
-                                            value = (Float) value + ((Long) entry.getValue());
-                                        }
-                                    } else if (value instanceof Long) {
-                                        if (entry.getValue() instanceof Integer) {
-                                            value = (Long) value + ((Integer) entry.getValue());
-                                        } else if (entry.getValue() instanceof Float) {
-                                            value = (Long) value + ((Float) entry.getValue());
-                                        } else if (entry.getValue() instanceof Double) {
-                                            value = (Long) value + ((Double) entry.getValue());
-                                        } else if (entry.getValue() instanceof Long) {
-                                            value = (Long) value + ((Long) entry.getValue());
-                                        }
-                                    }
+                                    value = addNumbers((Number) value, (Number) entry.getValue());
 
                                     Object currentValue = readPathValue(obj, entry.getKey());
                                     if (!Objects.equals(currentValue, value)) {
@@ -10259,7 +10471,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                         // the whole operation as a no-op (#249). Written directly (not via
                                         // the multiply branches below) so a non-Integer multiplier cannot
                                         // provoke a cast mismatch.
-                                        writePathValue(obj, entry.getKey(), 0);
+                                        writePathValue(obj, entry.getKey(), zeroOfTypeOf(entry.getValue()));
                                         modified.add(obj.get("_id"));
                                         continue;
                                     }
@@ -10268,15 +10480,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                         throw nonNumericField("$mul", obj, entry.getKey(), value);
                                     }
 
-                                    if (value instanceof Integer) {
-                                        value = (Integer) value * ((Integer) entry.getValue());
-                                    } else if (value instanceof Double) {
-                                        value = (Double) value * ((Double) entry.getValue());
-                                    } else if (value instanceof Float) {
-                                        value = (Float) value * ((Float) entry.getValue());
-                                    } else if (value instanceof Long) {
-                                        value = (Long) value * ((Long) entry.getValue());
-                                    }
+                                    value = multiplyNumbers((Number) value, (Number) entry.getValue());
 
                                     Object currentValue = readPathValue(obj, entry.getKey());
                                     if (!Objects.equals(currentValue, value)) {
@@ -10323,7 +10527,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                         continue;
                                     }
 
-                                    Comparable value = (Comparable) readPathValue(obj, entry.getKey());
+                                    Object value = readPathValue(obj, entry.getKey());
 
                                     // An absent field is seeded with the incoming value (MongoDB semantics);
                                     // the old code called compareTo on null and threw an NPE (#249).
@@ -10333,8 +10537,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                         continue;
                                     }
 
-                                    // noinspection unchecked
-                                    if (value.compareTo(entry.getValue()) > 0) {
+                                    // BSON comparison order across types, numbers by value (MOR-055)
+                                    if (compareBson(value, entry.getValue()) > 0) {
                                         modified.add(obj.get("_id"));
                                         writePathValue(obj, entry.getKey(), entry.getValue());
                                     }
@@ -10350,7 +10554,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                         continue;
                                     }
 
-                                    Comparable value = (Comparable) readPathValue(obj, entry.getKey());
+                                    Object value = readPathValue(obj, entry.getKey());
 
                                     // Absent field: seed with the incoming value instead of NPE'ing (#249).
                                     if (value == null) {
@@ -10359,8 +10563,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                         continue;
                                     }
 
-                                    // noinspection unchecked
-                                    if (value.compareTo(entry.getValue()) < 0) {
+                                    // BSON comparison order across types, numbers by value (MOR-055)
+                                    if (compareBson(value, entry.getValue()) < 0) {
                                         writePathValue(obj, entry.getKey(), entry.getValue());
                                         modified.add(obj.get("_id"));
                                     }
@@ -10600,7 +10804,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                                     if (operand.equals("$addToSet")) {
                                         for (Object elem : valuesToAdd) {
-                                            if (!v.contains(elem)) {
+                                            // BSON equality (MOR-055): 1 and 1.0 are the same value, a document is the same only with the same field order
+                                            if (v.stream().noneMatch(existingElem -> bsonEquals(existingElem, elem))) {
                                                 v.add(elem);
                                                 changed = true;
                                             }
