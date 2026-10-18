@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 40, done 25
+Status: open 39, done 26
 
 ## Overview
 
@@ -49,7 +49,6 @@ Status: open 40, done 25
 | MOR-052 | open | 3 | defect | updateLastAccess writes the untranslated Java field name | S |  |  |
 | MOR-056 | open | 3 | defect | InMemoryDriver: upsert seeds the equalities of a single-branch $or | S |  |  |
 | MOR-057 | open | 3 | defect | InMemoryDriver: an inserted document is stored by reference | S |  |  |
-| MOR-065 | open | 3 | defect | Delete paths ignore the writeErrors of the delete reply | S |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -75,6 +74,7 @@ Status: open 40, done 25
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-051 | done | 3 | defect | InMemoryDriver: reject path conflicts in update documents like MongoDB | S |  |  |
 | MOR-061 | done | 3 | defect | Query.dec(field, Integer) turns an int counter into a double | S |  |  |
+| MOR-065 | done | 3 | defect | Delete paths ignore the writeErrors of the delete reply | S |  |  |
 
 ## Details
 
@@ -1085,13 +1085,17 @@ Commits: 2209bb92e
 
 ### MOR-065 Delete paths ignore the writeErrors of the delete reply
 
-Status **open**, priority 3, type defect, effort S
+Status **done**, priority 3, type defect, effort S
 
 Follow-up of MOR-059: DeleteMongoCommand is the same hole as the update command; Query.remove and Morphium.delete do not look at the reply (the bulk context does since MOR-059). Verify which server errors a delete can report (a write concern error, a failing collation) and raise them like the update paths.
+
+Evidence: DeleteRaisesOnRejectedDeleteTest (8 tests, 16 invocations, 2 skipped: the write concern tests on the InMemoryDriver) on a single-node replica set (mongo:8) and the InMemoryDriver: a delete with an unknown query operator raises the MorphiumDriverException with code 2 and deletes nothing (Query.remove and Morphium.remove), the async callback gets onOperationError once, the per-query override and the configuration switch bring the reply back, a successful remove of a query, an entity and a list still works, and a delete that misses its write concern (w:2 on one node) raises WriteConcernNotSatisfiedException with the data deleted, for a query and for an entity. The InMemoryDriver now reports an unparsable delete query as code 2 in the reply, like mongod. Regression: 1480 test methods (core and messaging) on the InMemoryDriver, only the known flaky MultithreaddedMessagingTests failed. Not covered: the delete of the bulk context (raises since MOR-059), cascade deletes and the TTL index.
 
 Acceptance:
 
 - A rejected delete raises a MorphiumDriverException, on a real MongoDB
 
 Source: docs/research/plan-mor-059.md
+
+Commits: 0026ad543
 
