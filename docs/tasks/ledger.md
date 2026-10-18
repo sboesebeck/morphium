@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 39, done 26
+Status: open 38, done 27
 
 ## Overview
 
@@ -26,7 +26,6 @@ Status: open 39, done 26
 | MOR-036 | open | 2 | verification | Re-run the reproduction on other topologies and server versions | S |  |  |
 | MOR-037 | open | 2 | defect | Morphium.simplifyQueryObject loses predicates for repeated operator keys | S |  |  |
 | MOR-043 | open | 2 | defect | Query.f should resolve field paths with resolveFieldPath | M |  | MOR-041 |
-| MOR-046 | open | 2 | defect | BufferedMorphiumWriterImpl does not marshal update values and emits push for a pull of a list | M |  | MOR-042 |
 | MOR-055 | open | 2 | defect | InMemoryDriver: number and BSON comparison semantics of $inc, $mul, $min, $max and $addToSet | M |  |  |
 | MOR-063 | open | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
@@ -63,6 +62,7 @@ Status: open 39, done 26
 | MOR-010 | done | 2 | implementation | Typed duplicate-key exception and typed result for a lost conditional upsert | M |  | MOR-006 |
 | MOR-040 | done | 2 | defect | fieldNameCache: inner HashMap is not thread safe | S |  |  |
 | MOR-041 | done | 2 | implementation | Key translation for operator maps in findOneAndUpdate | M |  | MOR-002 |
+| MOR-046 | done | 2 | defect | BufferedMorphiumWriterImpl does not marshal update values and emits push for a pull of a list | M |  | MOR-042 |
 | MOR-050 | done | 2 | implementation | Update builder: updateOne, updateMany and UpdateResult | M |  | MOR-006 |
 | MOR-053 | done | 2 | defect | InMemoryDriver: type checks of the update operators ($inc, $mul, $push, $addToSet, $pull, $pop) | M |  |  |
 | MOR-054 | done | 2 | defect | InMemoryDriver: validate the shape of an update document (unknown operator, mixed fields, _id, names) | S |  |  |
@@ -793,9 +793,11 @@ Source: docs/research/plan-mor-041.md
 
 ### MOR-046 BufferedMorphiumWriterImpl does not marshal update values and emits push for a pull of a list
 
-Status **open**, priority 2, type defect, effort M
+Status **done**, priority 2, type defect, effort M
 
 For entities with @WriteBuffer on a real MongoDB the buffered writer passes the values of set, pushPull and pushPullAll to the driver raw, so embedded values, Sets and enums fail or are stored differently from the synchronous writer, and pushPullAll for PULL emits $push (BufferedMorphiumWriterImpl around lines 631-658, 944-985 and 988-1030). It is selected on a real MongoDB only, so the InMemoryDriver tests never see it.
+
+Evidence: BufferedWriterUpdateValuesTest (5 tests, 10 invocations) on mongo:8 and the InMemoryDriver: set with an embedded object, an enum and a Set, push and addToSet of an embedded object, pushAll of embedded objects, pull of an element and pullAll of elements on a @WriteBuffer entity store the documents the synchronous writer stores. Before the change 4 of the 5 failed on mongo:8 (the three embedded cases with Unhandled Data type, pullAll grew the list from [a, b, c] to [a, b, c, a, c]); the InMemoryDriver uses the synchronous writer and passed before. BufferedWriteIsolationTest, WriteBufferCountTest, BufferedWriterConcurrentFlushTest, RaiseOnWriteErrorsTest and the writer path tests are green. Not covered: setInEntity and the other entity variants of the buffered writer, the bulk context (MOR-047).
 
 Acceptance:
 
@@ -805,6 +807,8 @@ Acceptance:
 Depends on: MOR-042
 
 Source: docs/research/plan-mor-042.md
+
+Commits: 29651b94a
 
 ### MOR-047 MorphiumBulkContext.createUpdateRequest does not marshal update values
 
