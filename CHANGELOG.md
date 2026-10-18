@@ -32,6 +32,9 @@ An empty builder (it would replace the document), `setOnInsert` without `upsert(
 
 ### Changed
 
+#### `Query.remove` and `Morphium.remove` raise a rejected delete (MOR-065)
+The `delete` command reports a statement that the server rejects (an unknown query operator, an invalid collation) in the `writeErrors` of its reply, and a delete that is applied but misses its write concern in `writeConcernError`, exactly like `update`. `Query.remove()`, `Morphium.remove(Query)`, `remove(entity)` and `remove(List)` did not look at the reply. They throw the `MorphiumDriverException` (`getMongoCode()`, `getWriteErrors()`) or the `WriteConcernNotSatisfiedException` now, after the cache was cleared and the post-remove event fired for what was applied; an async callback gets `onOperationError`. The switch `WriterSettings.raiseOnWriteErrors` and `Query.setRaiseOnWriteErrors(Boolean)` apply here, too. The InMemoryDriver reports a query it cannot parse (an unknown operator) in the reply of a `delete` command as code 2, as `mongod` does, instead of throwing an `IllegalArgumentException` out of the driver.
+
 #### `store()` and `storeList()` of an existing entity raise a rejected update (MOR-064)
 `store()` of an entity that already exists is an update (a `$set` upsert by `_id`). A rejected one - a violated unique index - was ignored like the other writes of MOR-059; it throws the `MorphiumDriverException` (`isDuplicateKey()`) now, after the cache was cleared. `storeList(list, collection, true)` (continue on error) sends the update unordered and reports every rejected entity as a `FailedStore` (index in the original list, the exception of that entity), the others are stored and get their `postStore` event. `StoreMongoCommand` has an `ordered` flag; the InMemoryDriver reports a rejected statement of an unordered `update` command in the reply (with its index) and goes on, like `mongod`. The switch `WriterSettings.raiseOnWriteErrors` applies here, too.
 

@@ -315,6 +315,7 @@ try {
 }
 jobs.f("id").eq(id).setRaiseOnWriteErrors(false).set("code", code);   // best effort: the reply is returned, nobody looks at it
 ```
+`Query.remove()` and `Morphium.remove(...)` raise the same way (MOR-065) for a delete the server rejects (an unknown query operator, an invalid collation) and with `WriteConcernNotSatisfiedException` for a delete that is applied but misses its write concern.
 Documents that an ordered multi update changed before the error are not rolled back. `WriterSettings.raiseOnWriteErrors` (deprecated, removed in 7.0) switches raising off for all writes.
 
 `LeaseManager<T>` packages the lease recipe (a job, a relay, a command that only one node may run):
