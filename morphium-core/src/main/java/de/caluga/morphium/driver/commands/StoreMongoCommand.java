@@ -13,6 +13,7 @@ import java.util.Map;
 
 public class StoreMongoCommand extends WriteMongoCommand<StoreMongoCommand> {
     private List<Map<String, Object>> docs;
+    private Boolean ordered;
 
     public StoreMongoCommand(MongoConnection d) {
         super(d);
@@ -25,6 +26,16 @@ public class StoreMongoCommand extends WriteMongoCommand<StoreMongoCommand> {
     public StoreMongoCommand setDocuments(List<Map<String, Object>> docs) {
         this.docs = docs;
         return this;
+    }
+
+    /** false: the documents after a rejected one are stored, too (the write errors of the reply carry the index of each rejected document); null or true: stops at the first one */
+    public StoreMongoCommand setOrdered(Boolean ordered) {
+        this.ordered = ordered;
+        return this;
+    }
+
+    public Boolean getOrdered() {
+        return ordered;
     }
 
     @Override
@@ -62,7 +73,7 @@ public class StoreMongoCommand extends WriteMongoCommand<StoreMongoCommand> {
             opsLst.add(up);
         }
         UpdateMongoCommand updateSettings = new UpdateMongoCommand(getConnection()).setDb(getDb()).setColl(getColl())
-                .setUpdates(opsLst).setWriteConcern(getWriteConcern());
+                .setUpdates(opsLst).setWriteConcern(getWriteConcern()).setOrdered(ordered);
         setMetaData(updateSettings.getMetaData());
         return updateSettings;
     }

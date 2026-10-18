@@ -4052,9 +4052,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 throw new RuntimeException("Update document must be a Map, got: " + (updateObj != null ? updateObj.getClass() : "null"));
             }
 
-            var res = update(cmd.getDb(), cmd.getColl(), (Map<String, Object>) queryObj, null,
+            Map<String, Object> res;
+
+            try {
+                res = update(cmd.getDb(), cmd.getColl(), (Map<String, Object>) queryObj, null,
                              (Map<String, Object>) updateObj, multi, upsert, collation, cmd.getWriteConcern(),
                              arrayFilters);
+            } catch (MorphiumDriverException e) {
+                if (cmd.getOrdered() == null || cmd.getOrdered() || e.getMongoCode() == null) {
+                    throw e;
+                }
+
+                // an unordered update goes on after a rejected statement, like mongod: the error is reported in the reply with the index of the statement
+                res = Doc.of("n", 0, "nModified", 0, "writeErrors", List.of(Doc.of("code", e.getMongoCode(), "errmsg", e.getMessage())));
+            }
 
             // accumulate matched and modified
             Object m = res.get("n");
