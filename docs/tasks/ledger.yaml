@@ -931,7 +931,7 @@ tasks:
 - id: MOR-043
   title: Query.f should resolve field paths with resolveFieldPath
   type: defect
-  status: open
+  status: done
   priority: 2
   effort: M
   description: Query.f returns the raw whole path after a List or Map segment (even the first segment) and the raw
@@ -945,6 +945,9 @@ tasks:
   - MOR-041
   source: &id001
   - docs/research/plan-mor-041.md
+  evidence: 'QueryFieldPathTranslationTest (6 tests, 12 invocations) on mongo:8 and the InMemoryDriver: a filter on a path behind a List (lineItems.label), behind a Map (labelMap.color) and through a single embedded field, a filter and a findOneAndUpdate on the same dotted path address the same stored field, an unknown first segment is still rejected, and an entity with @AdditionalData translates a known name and a known dotted path and takes a free-form key as written. Before the change 8 of the 12 invocations failed. Regression: 1486 test methods (core and messaging) on the InMemoryDriver with only the known flaky MultithreaddedMessagingTests, and the query, key translation and shape parity tests on mongo:8 and the InMemoryDriver. Decision on AdditionalData: free-form keys cannot be rejected, so the known part of a dotted path is resolved leniently with resolveFieldPath. Not covered: a Map key with a dot, and the field operators of MongoFieldImpl, which resolve a name again.'
+  commits:
+  - f966c6c76
 - id: MOR-044
   title: 'Version annotation with fieldName: store and filter disagree on the stored name'
   type: defect
