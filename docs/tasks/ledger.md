@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 37, done 28
+Status: open 36, done 29
 
 ## Overview
 
@@ -25,7 +25,6 @@ Status: open 37, done 28
 | MOR-034 | open | 2 | implementation | Quarkus testing module: real MongoDB test resource, data reset and fixtures | M |  |  |
 | MOR-036 | open | 2 | verification | Re-run the reproduction on other topologies and server versions | S |  |  |
 | MOR-037 | open | 2 | defect | Morphium.simplifyQueryObject loses predicates for repeated operator keys | S |  |  |
-| MOR-043 | open | 2 | defect | Query.f should resolve field paths with resolveFieldPath | M |  | MOR-041 |
 | MOR-055 | open | 2 | defect | InMemoryDriver: number and BSON comparison semantics of $inc, $mul, $min, $max and $addToSet | M |  |  |
 | MOR-063 | open | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
@@ -61,6 +60,7 @@ Status: open 37, done 28
 | MOR-010 | done | 2 | implementation | Typed duplicate-key exception and typed result for a lost conditional upsert | M |  | MOR-006 |
 | MOR-040 | done | 2 | defect | fieldNameCache: inner HashMap is not thread safe | S |  |  |
 | MOR-041 | done | 2 | implementation | Key translation for operator maps in findOneAndUpdate | M |  | MOR-002 |
+| MOR-043 | done | 2 | defect | Query.f should resolve field paths with resolveFieldPath | M |  | MOR-041 |
 | MOR-046 | done | 2 | defect | BufferedMorphiumWriterImpl does not marshal update values and emits push for a pull of a list | M |  | MOR-042 |
 | MOR-050 | done | 2 | implementation | Update builder: updateOne, updateMany and UpdateResult | M |  | MOR-006 |
 | MOR-053 | done | 2 | defect | InMemoryDriver: type checks of the update operators ($inc, $mul, $push, $addToSet, $pull, $pop) | M |  |  |
@@ -752,9 +752,11 @@ Commits: 508f64686, ffc8ba05c
 
 ### MOR-043 Query.f should resolve field paths with resolveFieldPath
 
-Status **open**, priority 2, type defect, effort M
+Status **done**, priority 2, type defect, effort M
 
 Query.f returns the raw whole path after a List or Map segment (even the first segment) and the raw string for entities with @AdditionalData, so a filter on a dotted path can miss the stored name while the update, which translates the leading segments, hits it. Use resolveFieldPath for the dotted branch and decide the AdditionalData behaviour.
+
+Evidence: QueryFieldPathTranslationTest (6 tests, 12 invocations) on mongo:8 and the InMemoryDriver: a filter on a path behind a List (lineItems.label), behind a Map (labelMap.color) and through a single embedded field, a filter and a findOneAndUpdate on the same dotted path address the same stored field, an unknown first segment is still rejected, and an entity with @AdditionalData translates a known name and a known dotted path and takes a free-form key as written. Before the change 8 of the 12 invocations failed. Regression: 1486 test methods (core and messaging) on the InMemoryDriver with only the known flaky MultithreaddedMessagingTests, and the query, key translation and shape parity tests on mongo:8 and the InMemoryDriver. Decision on AdditionalData: free-form keys cannot be rejected, so the known part of a dotted path is resolved leniently with resolveFieldPath. Not covered: a Map key with a dot, and the field operators of MongoFieldImpl, which resolve a name again.
 
 Acceptance:
 
@@ -764,6 +766,8 @@ Acceptance:
 Depends on: MOR-041
 
 Source: docs/research/plan-mor-041.md
+
+Commits: f966c6c76
 
 ### MOR-044 Version annotation with fieldName: store and filter disagree on the stored name
 
