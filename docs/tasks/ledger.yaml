@@ -1360,7 +1360,7 @@ tasks:
 - id: MOR-064
   title: 'store() of an existing entity swallows a rejected update (StoreMongoCommand)'
   type: defect
-  status: open
+  status: done
   priority: 2
   effort: M
   description: 'Follow-up of MOR-059, not covered by it: StoreMongoCommand.execute() delegates to UpdateMongoCommand, and the store paths of MorphiumWriterImpl (store, storeList, the non-versioned update half) do not look at the writeErrors of the reply. A unique index violation on the store() of an existing entity is presumably silent (the versioned paths raise since MOR-059). Verify on a real MongoDB, then raise like the other paths (switch, async callbacks, FailedStore for storeList with continueOnError).'
@@ -1368,6 +1368,9 @@ tasks:
   - store() and storeList() of an existing entity raise a MorphiumDriverException (isDuplicateKey) for a unique index violation, on a real MongoDB; with continueOnError the FailedStore carries it
   source:
   - docs/research/plan-mor-059.md
+  evidence: 'StoreRaisesOnRejectedUpdateTest (5 tests, 10 invocations, 1 skipped) on mongo:8 and the InMemoryDriver: store() of an existing entity raises the duplicate key and changes nothing, storeList raises and fires no postStore for the rejected entity, storeList(list, collection, true) reports exactly the rejected entity as a FailedStore (index in the original list, MorphiumDriverException with isDuplicateKey) and stores the entities before AND after it (unordered), a successful store still works, with WriterSettings.raiseOnWriteErrors off the rejection is ignored as before (real MongoDB). Regression: 1382 test methods (core and messaging tags) on the InMemoryDriver with only the known failures (LazyLoadingTest, ReferenceCascadeTest, ReferenceTest: Byte Buddy on Java 25; MultithreaddedMessagingTests: timing) plus WriteConcernErrorTest, whose provider was empty in an inmem-only run and now skips; 1263 invocations of the update, store, bulk, contract and reproduction classes on mongo:8 and the InMemoryDriver with the known failures only (ReferenceCascadeTest x2, CoreFunctionalityTests.cachedObjectOperationsTest, timing). The InMemoryDriver reports a rejected statement of an unordered update command in the reply (with its index) and goes on. Not covered: the async-callback store variants (the callback variant rethrows a RuntimeException as before), a write concern error during store.'
+  commits:
+  - a913b88e8
 - id: MOR-065
   title: 'Delete paths ignore the writeErrors of the delete reply'
   type: defect

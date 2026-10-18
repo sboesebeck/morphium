@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 41, done 24
+Status: open 40, done 25
 
 ## Overview
 
@@ -29,7 +29,6 @@ Status: open 41, done 24
 | MOR-046 | open | 2 | defect | BufferedMorphiumWriterImpl does not marshal update values and emits push for a pull of a list | M |  | MOR-042 |
 | MOR-055 | open | 2 | defect | InMemoryDriver: number and BSON comparison semantics of $inc, $mul, $min, $max and $addToSet | M |  |  |
 | MOR-063 | open | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
-| MOR-064 | open | 2 | defect | store() of an existing entity swallows a rejected update (StoreMongoCommand) | M |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
 | MOR-015 | open | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
@@ -71,6 +70,7 @@ Status: open 41, done 24
 | MOR-058 | done | 2 | defect | InMemoryDriver: findAndModify does not reject what the update command rejects | S |  |  |
 | MOR-060 | done | 2 | defect | Write paths that write the Java field name: inc/dec with a Map and dotted paths through embedded documents | S |  |  |
 | MOR-062 | done | 2 | defect | Morphium.dec(Query, Map) and dec(Map, Query) increment instead of decrement | S |  |  |
+| MOR-064 | done | 2 | defect | store() of an existing entity swallows a rejected update (StoreMongoCommand) | M |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-051 | done | 3 | defect | InMemoryDriver: reject path conflicts in update documents like MongoDB | S |  |  |
@@ -1069,15 +1069,19 @@ Source: docs/research/plan-mor-059.md
 
 ### MOR-064 store() of an existing entity swallows a rejected update (StoreMongoCommand)
 
-Status **open**, priority 2, type defect, effort M
+Status **done**, priority 2, type defect, effort M
 
 Follow-up of MOR-059, not covered by it: StoreMongoCommand.execute() delegates to UpdateMongoCommand, and the store paths of MorphiumWriterImpl (store, storeList, the non-versioned update half) do not look at the writeErrors of the reply. A unique index violation on the store() of an existing entity is presumably silent (the versioned paths raise since MOR-059). Verify on a real MongoDB, then raise like the other paths (switch, async callbacks, FailedStore for storeList with continueOnError).
+
+Evidence: StoreRaisesOnRejectedUpdateTest (5 tests, 10 invocations, 1 skipped) on mongo:8 and the InMemoryDriver: store() of an existing entity raises the duplicate key and changes nothing, storeList raises and fires no postStore for the rejected entity, storeList(list, collection, true) reports exactly the rejected entity as a FailedStore (index in the original list, MorphiumDriverException with isDuplicateKey) and stores the entities before AND after it (unordered), a successful store still works, with WriterSettings.raiseOnWriteErrors off the rejection is ignored as before (real MongoDB). Regression: 1382 test methods (core and messaging tags) on the InMemoryDriver with only the known failures (LazyLoadingTest, ReferenceCascadeTest, ReferenceTest: Byte Buddy on Java 25; MultithreaddedMessagingTests: timing) plus WriteConcernErrorTest, whose provider was empty in an inmem-only run and now skips; 1263 invocations of the update, store, bulk, contract and reproduction classes on mongo:8 and the InMemoryDriver with the known failures only (ReferenceCascadeTest x2, CoreFunctionalityTests.cachedObjectOperationsTest, timing). The InMemoryDriver reports a rejected statement of an unordered update command in the reply (with its index) and goes on. Not covered: the async-callback store variants (the callback variant rethrows a RuntimeException as before), a write concern error during store.
 
 Acceptance:
 
 - store() and storeList() of an existing entity raise a MorphiumDriverException (isDuplicateKey) for a unique index violation, on a real MongoDB; with continueOnError the FailedStore carries it
 
 Source: docs/research/plan-mor-059.md
+
+Commits: a913b88e8
 
 ### MOR-065 Delete paths ignore the writeErrors of the delete reply
 
