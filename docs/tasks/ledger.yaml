@@ -1374,7 +1374,7 @@ tasks:
 - id: MOR-065
   title: 'Delete paths ignore the writeErrors of the delete reply'
   type: defect
-  status: open
+  status: done
   priority: 3
   effort: S
   description: 'Follow-up of MOR-059: DeleteMongoCommand is the same hole as the update command; Query.remove and Morphium.delete do not look at the reply (the bulk context does since MOR-059). Verify which server errors a delete can report (a write concern error, a failing collation) and raise them like the update paths.'
@@ -1382,3 +1382,6 @@ tasks:
   - A rejected delete raises a MorphiumDriverException, on a real MongoDB
   source:
   - docs/research/plan-mor-059.md
+  evidence: 'DeleteRaisesOnRejectedDeleteTest (8 tests, 16 invocations, 2 skipped: the write concern tests on the InMemoryDriver) on a single-node replica set (mongo:8) and the InMemoryDriver: a delete with an unknown query operator raises the MorphiumDriverException with code 2 and deletes nothing (Query.remove and Morphium.remove), the async callback gets onOperationError once, the per-query override and the configuration switch bring the reply back, a successful remove of a query, an entity and a list still works, and a delete that misses its write concern (w:2 on one node) raises WriteConcernNotSatisfiedException with the data deleted, for a query and for an entity. The InMemoryDriver now reports an unparsable delete query as code 2 in the reply, like mongod. Regression: 1480 test methods (core and messaging) on the InMemoryDriver, only the known flaky MultithreaddedMessagingTests failed. Not covered: the delete of the bulk context (raises since MOR-059), cascade deletes and the TTL index.'
+  commits:
+  - 0026ad543
