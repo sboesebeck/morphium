@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 38, done 27
+Status: open 37, done 28
 
 ## Overview
 
@@ -42,7 +42,6 @@ Status: open 38, done 27
 | MOR-039 | open | 3 | documentation | Document pitfalls of update maps: $pull condition keys and mixed element shapes | S |  | MOR-027 |
 | MOR-044 | open | 3 | defect | Version annotation with fieldName: store and filter disagree on the stored name | S |  |  |
 | MOR-045 | open | 3 | defect | Update documents: a String value for _id of a MorphiumId entity is not coerced | S |  | MOR-041 |
-| MOR-047 | open | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
 | MOR-048 | open | 3 | defect | MorphiumBase.setEnum looks the value up by the map value instead of the key | S |  |  |
 | MOR-049 | open | 3 | implementation | Writer path has no guard for @Reference and @Encrypted fields | M |  | MOR-042 |
 | MOR-052 | open | 3 | defect | updateLastAccess writes the untranslated Java field name | S |  |  |
@@ -72,6 +71,7 @@ Status: open 38, done 27
 | MOR-064 | done | 2 | defect | store() of an existing entity swallows a rejected update (StoreMongoCommand) | M |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
+| MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
 | MOR-051 | done | 3 | defect | InMemoryDriver: reject path conflicts in update documents like MongoDB | S |  |  |
 | MOR-061 | done | 3 | defect | Query.dec(field, Integer) turns an int counter into a double | S |  |  |
 | MOR-065 | done | 3 | defect | Delete paths ignore the writeErrors of the delete reply | S |  |  |
@@ -812,9 +812,11 @@ Commits: 29651b94a
 
 ### MOR-047 MorphiumBulkContext.createUpdateRequest does not marshal update values
 
-Status **open**, priority 3, type defect, effort S
+Status **done**, priority 3, type defect, effort S
 
 The bulk context hands the values of its update requests to the driver as given (bulk/MorphiumBulkContext.java around lines 56-64), so embedded values, Sets and enums in a bulk update fail on a real MongoDB or are stored as live objects by the InMemoryDriver.
+
+Evidence: BulkUpdateValuesTest (5 tests, 10 invocations) on mongo:8 and the InMemoryDriver: a bulk set of an embedded object, an enum and a Set, the Map variant of addSetRequest, a push of an embedded object (the same raw document as Query.push), a java.time value (the same raw document as Query.set) and set plus unset stay as expected. Before the change 8 of the 10 invocations failed on both drivers (Unhandled Data type on mongo:8, ClassCastException and live objects on the InMemoryDriver). BulkRaiseOnWriteErrorsTest, WritePathAuditContractTest, BulkOperationTest, CurrentDateReproductionTest and BufferedWriterUpdateValuesTest are green. SendMessagesBulkTest fails on a standalone mongo:8 as before (messaging needs a replica set) and passes on the InMemoryDriver. Not covered: addCustomUpdateRequest, which sends the command map as given.
 
 Acceptance:
 
@@ -823,6 +825,8 @@ Acceptance:
 Depends on: MOR-042
 
 Source: docs/research/plan-mor-042.md
+
+Commits: 32215e4a2
 
 ### MOR-048 MorphiumBase.setEnum looks the value up by the map value instead of the key
 
