@@ -58,8 +58,7 @@ public class FieldOperatorContractTest extends MultiDriverTestBase {
             c("inc of an int by a double is a double").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$inc", d("a", 0.5))).expect(docs(d("_id", 1, "a", 1.5))),
             c("inc of an int by a long is a long").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$inc", d("a", 2L))).expect(docs(d("_id", 1, "a", 3L))),
             c("inc of a long by an int is a long").seed(d("_id", 1, "a", 1L)).filter(d("_id", 1)).update(d("$inc", d("a", 2))).expect(docs(d("_id", 1, "a", 3L))),
-            c("inc of an int that overflows becomes a long").seed(d("_id", 1, "a", Integer.MAX_VALUE)).filter(d("_id", 1)).update(d("$inc", d("a", 1))).expect(docs(d("_id", 1, "a", 2147483648L)))
-            .inMem("MOR-055", docs(d("_id", 1, "a", Integer.MIN_VALUE))),
+            c("inc of an int that overflows becomes a long").seed(d("_id", 1, "a", Integer.MAX_VALUE)).filter(d("_id", 1)).update(d("$inc", d("a", 1))).expect(docs(d("_id", 1, "a", 2147483648L))),
             c("inc of a double by an int is a double").seed(d("_id", 1, "a", 1.5)).filter(d("_id", 1)).update(d("$inc", d("a", 1))).expect(docs(d("_id", 1, "a", 2.5))),
             c("inc of a missing nested path creates the parents").seed(d("_id", 1)).filter(d("_id", 1)).update(d("$inc", d("a.b", 1))).expect(docs(d("_id", 1, "a", d("b", 1)))),
             c("inc of a string fails").seed(d("_id", 1, "a", "x")).filter(d("_id", 1)).update(d("$inc", d("a", 1))).expect(error(14)).unchanged(),
@@ -70,8 +69,7 @@ public class FieldOperatorContractTest extends MultiDriverTestBase {
             c("mul by a string fails").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$mul", d("a", "x"))).expect(error(14)).unchanged(),
             c("mul of an int by an int").seed(d("_id", 1, "a", 3)).filter(d("_id", 1)).update(d("$mul", d("a", 2))).expect(docs(d("_id", 1, "a", 6))),
             c("mul of a missing field creates zero of the type of the factor").seed(d("_id", 1)).filter(d("_id", 1)).update(d("$mul", d("a", 5))).expect(docs(d("_id", 1, "a", 0))),
-            c("mul of an int by a double is a double").seed(d("_id", 1, "a", 2)).filter(d("_id", 1)).update(d("$mul", d("a", 1.5))).expect(docs(d("_id", 1, "a", 3.0)))
-            .inMem("MOR-055", notADatabaseError()),
+            c("mul of an int by a double is a double").seed(d("_id", 1, "a", 2)).filter(d("_id", 1)).update(d("$mul", d("a", 1.5))).expect(docs(d("_id", 1, "a", 3.0))),
             c("mul of a string fails").seed(d("_id", 1, "a", "x")).filter(d("_id", 1)).update(d("$mul", d("a", 2))).expect(error(14)).unchanged(),
         };
         return new ArrayList<>(List.of(cases));
@@ -85,12 +83,9 @@ public class FieldOperatorContractTest extends MultiDriverTestBase {
             c("max takes the larger value").seed(d("_id", 1, "a", 5)).filter(d("_id", 1)).update(d("$max", d("a", 9))).expect(docs(d("_id", 1, "a", 9))),
             c("max keeps the larger existing value").seed(d("_id", 1, "a", 5)).filter(d("_id", 1)).update(d("$max", d("a", 2))).expect(docs(d("_id", 1, "a", 5))),
             c("max sets a missing field").seed(d("_id", 1)).filter(d("_id", 1)).update(d("$max", d("a", 2))).expect(docs(d("_id", 1, "a", 2))),
-            c("max compares across types in BSON order (string above number)").seed(d("_id", 1, "a", 5)).filter(d("_id", 1)).update(d("$max", d("a", "x"))).expect(docs(d("_id", 1, "a", "x")))
-            .inMem("MOR-055", notADatabaseError()),
-            c("min compares across types in BSON order (number below string)").seed(d("_id", 1, "a", 5)).filter(d("_id", 1)).update(d("$min", d("a", "x"))).expect(docs(d("_id", 1, "a", 5)))
-            .inMem("MOR-055", notADatabaseError()),
-            c("max of an equal value of another number type keeps the old value").seed(d("_id", 1, "a", 5)).filter(d("_id", 1)).update(d("$max", d("a", 5.0))).expect(docs(d("_id", 1, "a", 5)))
-            .inMem("MOR-055", notADatabaseError()),
+            c("max compares across types in BSON order (string above number)").seed(d("_id", 1, "a", 5)).filter(d("_id", 1)).update(d("$max", d("a", "x"))).expect(docs(d("_id", 1, "a", "x"))),
+            c("min compares across types in BSON order (number below string)").seed(d("_id", 1, "a", 5)).filter(d("_id", 1)).update(d("$min", d("a", "x"))).expect(docs(d("_id", 1, "a", 5))),
+            c("max of an equal value of another number type keeps the old value").seed(d("_id", 1, "a", 5)).filter(d("_id", 1)).update(d("$max", d("a", 5.0))).expect(docs(d("_id", 1, "a", 5))),
             c("rename moves a field").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$rename", d("a", "b"))).expect(docs(d("_id", 1, "b", 1))),
             c("rename of a missing field is a no-op").seed(d("_id", 1, "a", 1)).filter(d("_id", 1)).update(d("$rename", d("zz", "b"))).expect(docs(d("_id", 1, "a", 1))),
             c("rename overwrites an existing target").seed(d("_id", 1, "a", 1, "b", 2)).filter(d("_id", 1)).update(d("$rename", d("a", "b"))).expect(docs(d("_id", 1, "b", 1))),

@@ -41,10 +41,8 @@ public class ArrayOperatorContractTest extends MultiDriverTestBase {
             c("push with an each that is not an array fails").seed(d("_id", 1, "a", l())).filter(d("_id", 1)).update(d("$push", d("a", d("$each", 5)))).expect(error(2)).unchanged(),
             c("addToSet creates a missing array").seed(d("_id", 1)).filter(d("_id", 1)).update(d("$addToSet", d("a", 1))).expect(docs(d("_id", 1, "a", l(1)))),
             c("addToSet with each skips duplicates").seed(d("_id", 1, "a", l(1))).filter(d("_id", 1)).update(d("$addToSet", d("a", d("$each", l(1, 2, 2, 3))))).expect(docs(d("_id", 1, "a", l(1, 2, 3)))),
-            c("addToSet treats 1 and 1.0 as equal").seed(d("_id", 1, "a", l(1))).filter(d("_id", 1)).update(d("$addToSet", d("a", 1.0))).expect(docs(d("_id", 1, "a", l(1))))
-            .inMem("MOR-055", docs(d("_id", 1, "a", l(1, 1.0)))),
-            c("addToSet compares documents with the field order").seed(d("_id", 1, "a", l(d("x", 1, "y", 2)))).filter(d("_id", 1)).update(d("$addToSet", d("a", d("y", 2, "x", 1)))).expect(docs(d("_id", 1, "a", l(d("x", 1, "y", 2), d("y", 2, "x", 1)))))
-            .inMem("MOR-055", docs(d("_id", 1, "a", l(d("x", 1, "y", 2))))),
+            c("addToSet treats 1 and 1.0 as equal").seed(d("_id", 1, "a", l(1))).filter(d("_id", 1)).update(d("$addToSet", d("a", 1.0))).expect(docs(d("_id", 1, "a", l(1)))),
+            c("addToSet compares documents with the field order").seed(d("_id", 1, "a", l(d("x", 1, "y", 2)))).filter(d("_id", 1)).update(d("$addToSet", d("a", d("y", 2, "x", 1)))).expect(docs(d("_id", 1, "a", l(d("x", 1, "y", 2), d("y", 2, "x", 1))))),
             c("addToSet to a field that is not an array fails").seed(d("_id", 1, "a", "s")).filter(d("_id", 1)).update(d("$addToSet", d("a", 1))).expect(error(2)).unchanged(),
         };
         return new ArrayList<>(List.of(cases));
