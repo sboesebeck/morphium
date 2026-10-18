@@ -57,10 +57,32 @@ public class MorphiumBulkContext<T> {
         postEvents.forEach(Runnable::run);
     }
 
+    /**
+     * MOR-047: the value of an update request in the shape the other update paths write (the update-value walk of the mapper): a whole field for {@code $set}, {@code $min} and
+     * {@code $max}, a container element for {@code $push}. The numbers of {@code $inc} and {@code $mul}, the flags of {@code $currentDate} and {@code $unset}, the operand of
+     * {@code $pop} and the new name of {@code $rename} stay as they are.
+     */
+    private Object marshalled(String command, Object value) {
+        switch (command) {
+            case "$set":
+            case "$setOnInsert":
+            case "$min":
+            case "$max":
+                return ctx.getMorphium().getMapper().marshallUpdateValue(value);
+
+            case "$push":
+            case "$addToSet":
+                return ctx.getMorphium().getMapper().marshallUpdateElement(value);
+
+            default:
+                return value;
+        }
+    }
+
     private void createUpdateRequest(Query<T> query, String command, Map<String,Object> valuesToSet, boolean upsert, boolean multiple) {
         @SuppressWarnings("unchecked") Map<String, Object> values = new LinkedHashMap();
         for (Map.Entry<String,Object> e:valuesToSet.entrySet()){
-            values.put(ctx.getMorphium().getARHelper().getMongoFieldName(query.getType(),e.getKey(),true),e.getValue());
+            values.put(ctx.getMorphium().getARHelper().getMongoFieldName(query.getType(),e.getKey(),true), marshalled(command, e.getValue()));
         }
         UpdateBulkRequest up = ctx.addUpdateBulkRequest();
         up.setQuery(Doc.of(query.toQueryObject()));
