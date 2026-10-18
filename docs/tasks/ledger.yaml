@@ -997,7 +997,7 @@ tasks:
 - id: MOR-047
   title: MorphiumBulkContext.createUpdateRequest does not marshal update values
   type: defect
-  status: open
+  status: done
   priority: 3
   effort: S
   description: The bulk context hands the values of its update requests to the driver as given (bulk/MorphiumBulkContext.java
@@ -1008,6 +1008,9 @@ tasks:
   depends_on:
   - MOR-042
   source: *id002
+  evidence: 'BulkUpdateValuesTest (5 tests, 10 invocations) on mongo:8 and the InMemoryDriver: a bulk set of an embedded object, an enum and a Set, the Map variant of addSetRequest, a push of an embedded object (the same raw document as Query.push), a java.time value (the same raw document as Query.set) and set plus unset stay as expected. Before the change 8 of the 10 invocations failed on both drivers (Unhandled Data type on mongo:8, ClassCastException and live objects on the InMemoryDriver). BulkRaiseOnWriteErrorsTest, WritePathAuditContractTest, BulkOperationTest, CurrentDateReproductionTest and BufferedWriterUpdateValuesTest are green. SendMessagesBulkTest fails on a standalone mongo:8 as before (messaging needs a replica set) and passes on the InMemoryDriver. Not covered: addCustomUpdateRequest, which sends the command map as given.'
+  commits:
+  - 32215e4a2
 - id: MOR-048
   title: MorphiumBase.setEnum looks the value up by the map value instead of the key
   type: defect
