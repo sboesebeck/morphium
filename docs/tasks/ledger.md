@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 33, done 32
+Status: open 34, done 32
 
 ## Overview
 
@@ -26,6 +26,7 @@ Status: open 33, done 32
 | MOR-036 | open | 2 | verification | Re-run the reproduction on other topologies and server versions | S |  |  |
 | MOR-037 | open | 2 | defect | Morphium.simplifyQueryObject loses predicates for repeated operator keys | S |  |  |
 | MOR-063 | open | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
+| MOR-067 | open | 2 | defect | Query.toQueryObject puts the or queries into the $nor list when both are used | S |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
 | MOR-015 | open | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
@@ -1122,4 +1123,16 @@ Acceptance:
 Source: docs/research/plan-mor-059.md
 
 Commits: 0026ad543
+
+### MOR-067 Query.toQueryObject puts the or queries into the $nor list when both are used
+
+Status **open**, priority 2, type defect, effort S
+
+Found while testing MOR-037. Query.toQueryObject builds the $or list and then the $nor list from the same list variable without resetting it when the query has no $and expression: a query with one or() and one nor() becomes {$or: [A, B], $nor: [A, B]}, which matches nothing, instead of {$or: [A], $nor: [B]}. With an $and expression the or branch is fine and the nor branch has the same problem. Reproduced on the InMemoryDriver; the query object is built on the client, so every driver is affected.
+
+Acceptance:
+
+- A query with or() and nor() produces an $or with its own queries and a $nor with its own queries, shown by a test on a real MongoDB
+
+Source: morphium-core/src/main/java/de/caluga/morphium/query/Query.java
 

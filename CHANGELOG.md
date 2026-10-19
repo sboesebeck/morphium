@@ -32,6 +32,9 @@ An empty builder (it would replace the document), `setOnInsert` without `upsert(
 
 ### Changed
 
+#### A repeated operator key no longer drops a predicate when an upsert flattens its `$and` (MOR-037)
+`Morphium.simplifyQueryObject` turns a query that consists of one `$and` into a single map, so that the equalities can seed the document of an upsert (used by `Query.inc`, `push`, `pull` and their variants with `upsert`). It merged the branches with `putAll`, so a key that two branches share, such as two `$or` or two conditions on one field (`{k: {$gt: 1}}` and `{k: {$lt: 5}}`), replaced the earlier predicate and the update matched more than the query asked for. Branches that share a key with different predicates keep the `$and` now; branches with different keys, or with the same predicate, are flattened as before.
+
 #### InMemoryDriver: an upsert seeds a single-branch `$or`, and an insert keeps its own copy of the document (MOR-056, MOR-057)
 A real MongoDB collapses a `$or` with one branch to that branch, so its equalities seed the document of an upsert like those of an `$and`; the InMemoryDriver ignored it and inserted a document without the field. It seeds them now, also inside an `$and`. A `$or` with several branches and a `$nor` still seed nothing, as on a real MongoDB. The InMemoryDriver also stored the map that the caller passed to an insert: a later update through the driver changed the caller's own map, and a change of the caller's map changed the stored document. A wire driver serialises the document and can do neither. The collection keeps a copy now (with the order of the fields) and the generated `_id` is no longer written into the caller's map. `Morphium.store()` is not affected, the mapper creates a new map per call; raw command users and test fixtures are. With these two tasks the update contract suite has no pinned deviation of the InMemoryDriver left.
 
