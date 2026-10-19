@@ -474,6 +474,90 @@ public class AnnotationAndReflectionHelper {
      * @param clz class to get all fields for
      * @return list of fields in that class
      */
+    /**
+     * A class with {@code translateCamelCase=false} that holds an {@code @Embedded} class with the default {@code translateCamelCase=true} (MOR-014): the owner keeps the names of
+     * its fields, the embedded class is stored in snake_case.
+     *
+     * @param owner    the class with {@code translateCamelCase=false}: an entity or an embedded class
+     * @param field    the field of the owner that holds the embedded class
+     * @param embedded the embedded class that translates
+     */
+    public record EmbeddedNamingMismatch(Class<?> owner, String field, Class<?> embedded) {
+    }
+
+    /**
+     * Finds the places of a class, and of the embedded classes it holds (also behind a List, Set, Map, array), where a class with {@code translateCamelCase=false} holds an
+     * {@code @Embedded} class that translates. Fields that are {@code transient}, {@code @Transient} or {@code @Reference} are not stored as embedded documents and are skipped.
+     * Empty if camel case conversion is switched off for the whole mapper.
+     */
+    public List<EmbeddedNamingMismatch> findEmbeddedNamingMismatches(Class<?> type) {
+        List<EmbeddedNamingMismatch> found = new ArrayList<>();
+
+        if (!ccc || type == null) {
+            return found;
+        }
+
+        collectEmbeddedNamingMismatches(getRealClass(type), found, new java.util.HashSet<>());
+        return found;
+    }
+
+    private void collectEmbeddedNamingMismatches(Class<?> cls, List<EmbeddedNamingMismatch> found, java.util.Set<Class<?>> visited) {
+        if (cls == null || cls.isInterface() || cls.isPrimitive() || cls.isArray() || cls.isEnum() || !visited.add(cls)) {
+            return;
+        }
+
+        Entity entity = getAnnotationFromHierarchy(cls, Entity.class);
+        Embedded embedded = getAnnotationFromHierarchy(cls, Embedded.class);
+
+        if (entity == null && embedded == null) {
+            return;
+        }
+
+        boolean ownerKeepsNames = entity != null ? !entity.translateCamelCase() : !embedded.translateCamelCase();
+
+        for (Field f : getAllFields(cls)) {
+            if (java.lang.reflect.Modifier.isTransient(f.getModifiers()) || f.isAnnotationPresent(Transient.class) || f.isAnnotationPresent(Reference.class)) {
+                continue;
+            }
+
+            for (Class<?> held : heldClasses(f.getGenericType())) {
+                Class<?> real = getRealClass(held);
+                Embedded heldEmbedded = getAnnotationFromHierarchy(real, Embedded.class);
+
+                if (heldEmbedded == null || getAnnotationFromHierarchy(real, Entity.class) != null) {
+                    continue;
+                }
+
+                if (ownerKeepsNames && heldEmbedded.translateCamelCase()) {
+                    found.add(new EmbeddedNamingMismatch(cls, f.getName(), real));
+                }
+
+                collectEmbeddedNamingMismatches(real, found, visited);
+            }
+        }
+    }
+
+    /** the classes a field type holds: the type itself, the elements of a collection or array, the values of a map */
+    private static List<Class<?>> heldClasses(java.lang.reflect.Type type) {
+        List<Class<?>> classes = new ArrayList<>();
+
+        if (type instanceof Class<?> c) {
+            if (c.isArray()) {
+                classes.addAll(heldClasses(c.getComponentType()));
+            } else {
+                classes.add(c);
+            }
+        } else if (type instanceof java.lang.reflect.ParameterizedType pt) {
+            for (java.lang.reflect.Type arg : pt.getActualTypeArguments()) {
+                classes.addAll(heldClasses(arg));
+            }
+        } else if (type instanceof java.lang.reflect.GenericArrayType gat) {
+            classes.addAll(heldClasses(gat.getGenericComponentType()));
+        }
+
+        return classes;
+    }
+
     public List<Field> getAllFields(Class clz) {
         if (clz == null || Map.class.isAssignableFrom(clz)) return new ArrayList<Field>();
 
