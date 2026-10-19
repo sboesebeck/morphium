@@ -1647,6 +1647,9 @@ public class Query<T> implements Cloneable {
             }
         }
         if (!norQueries.isEmpty()) {
+            // MOR-067: the list of the or queries is already part of the result, the nor queries get their own
+            lst = new ArrayList<>();
+
             for (Query<T> ex : norQueries) {
                 lst.add(ex.toQueryObject());
             }
