@@ -663,7 +663,7 @@ tasks:
 - id: MOR-029
   title: 'InMemoryDriver: reject values BsonEncoder cannot encode'
   type: defect
-  status: open
+  status: done
   priority: 2
   effort: M
   description: 'The InMemoryDriver stores POJOs in $set as live Java objects (List, array, Map, Map-in-Map) and,
@@ -678,6 +678,9 @@ tasks:
   source:
   - docs/research/reproduction-results.md hypothesis 4
   - 'GitHub #336'
+  evidence: 'UnencodableValuesTest (6 tests, 12 invocations) on mongo:8 and the InMemoryDriver: an update command with a POJO in the six shapes (single value, List, Set, array, Map, Map in Map), a push, addToSet and setOnInsert operand, a findAndModify, an insert and a store fail with a MorphiumDriverException Error sending Request: caused by the RuntimeException Unhandled Data type: and the document is unchanged; the values the encoder takes (Set of strings, LocalDate, Date, UUID, Pattern, byte array, nested lists) are accepted on both drivers. Before the change the five refusal tests failed on the InMemoryDriver only. BsonEncoderRequireEncodableTest (6 tests) checks that requireEncodable agrees with encodeDocument, including the message. The reproduction note for hypothesis 4 is updated. Regression: 1508 test methods (core and messaging) on the InMemoryDriver, all passed. Not covered: Map keys that are not strings, and the update-with-pipeline form of u, which the check walks as a list of documents but no test covers.'
+  commits:
+  - b3d7d9340
 - id: MOR-030
   title: 'InMemoryDriver: honour the filter in conditional upsert and raise E11000'
   type: defect
