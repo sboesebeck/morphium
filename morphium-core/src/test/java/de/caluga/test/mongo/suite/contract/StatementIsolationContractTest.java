@@ -132,12 +132,7 @@ public class StatementIsolationContractTest extends MultiDriverTestBase {
                 cmd.execute();
                 String after = canon(doc);
 
-                if (isInMem(m)) {
-                    // pinned deviation MOR-057: the InMemoryDriver stores the inserted map itself, so a later update changes the caller's document
-                    assertEquals(canon(d("_id", 1, "n", 3, "a", l(1, 5))), after);
-                } else {
-                    assertEquals(before, after, "the caller's document is unchanged");
-                }
+                assertEquals(before, after, "the caller's document is unchanged");
 
                 assertEquals(canon(d("_id", 1, "n", 3, "a", l(1, 5))), canon(stored(m, con)));
             } finally {
