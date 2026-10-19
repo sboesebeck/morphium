@@ -271,13 +271,62 @@ Entity `VersionedDoc {@Id String id; String payload; @Version Long entityVersion
   logic breaks compound filters, the InMemoryDriver replaces instead of raising 11000 on a non-matching upsert, and the
   `writeErrors` of the update path are not turned into exceptions.
 
+## Topology and server version matrix (MOR-036)
+
+The reproduction ran on one standalone `mongo:8` with the `PooledDriver`. The suite below is the update path as it stands at the end of the work of
+MOR-001 to MOR-070: the reproduction tests (`suite/repro`), the update contract suite (`suite/contract`), and the tests of the marshalling, the key translation, the
+builder, the writer path, the write errors, the buffered writer and the bulk context, 41 classes with 338 invocations. It was run against every server with the
+`PooledDriver` and with the `SingleMongoConnectDriver`; the `InMemoryDriver` is the reference.
+
+```bash
+# -Dmorphium.driver=pooled | inmem | single (single also needs -Dmorphium.includeSingle=true)
+mvn -pl morphium-core test -Pexternal -Dmorphium.driver=pooled \
+    -Dmorphium.uri=mongodb://127.0.0.1:27017/morphium_matrix -Dtest='<the 41 classes>'
+```
+
+The classes: PojoInSetOperatorReproductionTest, EmbeddedCamelCaseReproductionTest, CurrentDateReproductionTest, ConditionalUpsertReproductionTest, UpsertSeedingProbeTest, EntityAndReferenceValueReproductionTest, ArrayOperatorContractTest, FieldOperatorContractTest, UpsertAndErrorContractTest, StatementIsolationContractTest, WritePathAuditContractTest, UpdateContractLedgerTest, UpdateValueMarshallingTest, UpdateKeyTranslationTest, FindOneAndUpdateCompoundFilterUpsertTest, UpdateValueShapeParityTest, WriterPathWiringTest, WriterPathMarshallingTest, ModifyLeaseAndCounterTest, ModifyValuesAndKeysTest, ModifyValidationTest, ModifyAutoValuesTest, ModifyCountTest, ModifyOutcomeTest, ModifyOptionsTest, ModifyOperatorsTest, LeaseManagerTest, RaiseOnWriteErrorsTest, BulkRaiseOnWriteErrorsTest, StoreRaisesOnRejectedUpdateTest, DeleteRaisesOnRejectedDeleteTest, BulkUpdateValuesTest, BufferedWriterUpdateValuesTest, UnencodableValuesTest, QueryFieldPathTranslationTest, QueryOrNorTest, SimplifyQueryObjectTest, FindOneAndUpdateArrayFiltersAndSortTest, JavaTimeInUpdateDocumentTest, WriteConcernErrorTest, BufferedWriteIsolationTest.
+
+Result: failed invocations out of 338 (skipped in brackets: tests that need a replica set, or the `InMemoryDriver`).
+
+| Server | Topology | `PooledDriver` | `SingleMongoConnectDriver` |
+|---|---|---|---|
+| `InMemoryDriver` | in process | 0 (17) | - |
+| MongoDB 7.0.45 | standalone | 0 (6) | 0 (6) |
+| MongoDB 8.3.11 | standalone | 0 (6) | 0 (6) |
+| MongoDB 8.3.11 | standalone, authentication (SCRAM) | 0 (6) | 0 (6) |
+| MongoDB 8.3.11 | single node replica set | 0 (0) | 0 (6) |
+| MongoDB 9.0.4 | standalone | 0 (6) | 0 (6) |
+| MongoDB 9.0.4 | single node replica set | 0 (0) | 0 (6) |
+| PoppyDB (this repository) | single node | 14 | 14 |
+
+The skips on a standalone server are the write concern tests (`WriteConcernErrorTest`, two cases of `DeleteRaisesOnRejectedDeleteTest`), which need a replica set;
+the `SingleMongoConnectDriver` does not report a replica set, so it skips them there too.
+
+What the matrix found:
+
+1. **`SingleMongoConnectDriver` could not connect to a standalone server** (NullPointerException on the missing `hosts` of `hello`), and **its bulk context kept the only
+   connection after a rejected request** (the next call waited for its timeout). Both are fixed (MOR-068). The driver is not part of the usual test run, which is why neither was seen.
+2. **PoppyDB differs from MongoDB in 14 test methods, with either driver** (so the cause is the server):
+   - All 56 rejection cases of the update contract suite are answered with error **11000** instead of the code of MongoDB (2, 9, 14, 40, 52, 56, 66). The statements are
+     rejected correctly and change nothing; only the code is wrong. `MongoCommandHandler.processUpdateDirect` writes a fixed 11000 for every exception, and it goes on after the
+     first error, so an ordered update applies the statements behind it (MOR-069).
+   - A delete with a query that MongoDB refuses (an unknown operator) looks successful: `processDeleteDirect` logs and swallows the exception (MOR-070).
+   - A hint for an index that does not exist is not rejected (PoppyDB has no query planner, like the `InMemoryDriver`), `$pull` with an operator condition on wrapped elements
+     does not match (MOR-066), and a replacement document cannot be applied (GitHub #399). These three are known deviations of the engine that PoppyDB embeds.
+3. **MongoDB 7.0, 8 and 9 give the same results** for everything the suite checks, including the cases that older versions treat differently in the code (52, 66). The suite
+   asserts error codes and the effect on the data; the texts of the messages are not compared.
+4. **Authentication changes nothing** for either driver.
+5. **Hypothesis 1 with `@Entity` and `@Reference` values** (`EntityAndReferenceValueReproductionTest`, same result on every server): an entity in an `Object` field or in a field of its
+   own class becomes a document with `_id` and `class_name` and reads back (a single `Object` field reads back as a Map after `store()` as well as after an update; the members of a
+   `List<Object>` read back typed). `findOneAndUpdate` and the update builder refuse an entity for a `@Reference` field. `Query.set` and `Query.push` do not: they embed the whole
+   entity in the reference field and the document cannot be read back any more (`ClassCastException`, MOR-049).
+6. Two of my own tests were wrong in a way that only the other topologies showed: one kept the only connection of the `SingleMongoConnectDriver` while it queried, and two
+   buffered writer tests called `dropCollection` for a `@WriteBuffer` entity. That call is queued with the other writes and runs asynchronously, so with the slower driver it could
+   delete the document of the test. A `Morphium` instance drops its database when it is created; the tests no longer drop.
+
 ## What could not be verified
 
-- Replica sets, authentication, and the `SingleMongoConnectDriver` were not exercised (single standalone `mongod`, `PooledDriver` only).
-- PoppyDB was not run; hypothesis 1 is client-side so it should behave like MongoDB, but PoppyDB's own handling of
-  `$currentDate`, E11000 on findAndModify and `writeErrors` is untested.
-- Only MongoDB 8 (v8.3.11) was used; older server versions word the code-52 and code-66 messages differently and MongoDB
-  versions before 5.0 treat `$`-prefixed field names in `$set` differently.
+- **Not run:** a replica set with authentication, a PoppyDB replica set (3 nodes), TLS, sharded clusters, Atlas, and MongoDB versions before 5.0 (which treat `$`-prefixed field
+  names in `$set` differently).
 - Whether a real-world lease filter has the `_id` at top level (which would avoid finding 5d) was not checked;
    the 11000 reproduction therefore used a pinned id and the raw command.
-- Hypothesis 1 was reproduced with `@Embedded` POJOs only; `@Entity` instances and `@Reference` fields in the same positions were not tried.
