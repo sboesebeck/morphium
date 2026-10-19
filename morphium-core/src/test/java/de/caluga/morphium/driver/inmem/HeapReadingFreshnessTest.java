@@ -215,7 +215,8 @@ public class HeapReadingFreshnessTest {
         double reading = baseline;
         int id = 0;
 
-        for (int round = 0; round < 400 && reading < target; round++) {
+        // the driver keeps a copy of an inserted document (MOR-057), which takes less heap per document than the caller's map did: allow more rounds, the loop ends at the target
+        for (int round = 0; round < 1500 && reading < target; round++) {
             List<Map<String, Object>> batch = new ArrayList<>();
 
             for (int i = 0; i < 2000; i++) {

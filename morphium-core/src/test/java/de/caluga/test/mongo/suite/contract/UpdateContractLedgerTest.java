@@ -14,7 +14,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -29,16 +28,24 @@ public class UpdateContractLedgerTest {
     private static final Path LEDGER = Path.of("..", "docs", "tasks", "ledger.yaml");
     private static final Path SOURCES = Path.of("src", "test", "java", "de", "caluga", "test", "mongo", "suite", "contract");
 
+    /** the ledger tasks named by the pins of a source text */
+    static TreeSet<String> pinsIn(String source) {
+        TreeSet<String> tasks = new TreeSet<>();
+        Matcher m = PIN.matcher(source);
+
+        while (m.find()) {
+            tasks.add(m.group(1));
+        }
+
+        return tasks;
+    }
+
     private static TreeSet<String> pinnedTasks() throws IOException {
         TreeSet<String> tasks = new TreeSet<>();
 
         try (Stream<Path> files = Files.list(SOURCES)) {
             for (Path f : files.filter(p -> p.getFileName().toString().endsWith("ContractTest.java")).toList()) {
-                Matcher m = PIN.matcher(Files.readString(f));
-
-                while (m.find()) {
-                    tasks.add(m.group(1));
-                }
+                tasks.addAll(pinsIn(Files.readString(f)));
             }
         }
 
@@ -56,7 +63,7 @@ public class UpdateContractLedgerTest {
         assumeTrue(Files.exists(LEDGER) && Files.isDirectory(SOURCES), "run from the morphium-core module of a full checkout");
         String ledger = Files.readString(LEDGER);
         TreeSet<String> tasks = pinnedTasks();
-        assertFalse(tasks.isEmpty(), "the suite pins deviations of the InMemoryDriver");
+        // no pin at all is the goal: the InMemoryDriver answers every case like a real MongoDB; a new deviation is pinned again with its task
         List<String> problems = new ArrayList<>();
 
         for (String id : tasks) {
@@ -78,5 +85,11 @@ public class UpdateContractLedgerTest {
         assertEquals("done", status(ledger, "MOR-001"));
         assertEquals("open", status(ledger, "MOR-002"));
         assertEquals(null, status(ledger, "MOR-003"));
+    }
+
+    @Test
+    public void thePinPatternFindsBothKindsOfPin() {
+        assertEquals(new TreeSet<>(List.of("MOR-101", "MOR-102")), pinsIn("c(\"x\").expect(a)\n.inMem(\"MOR-101\", r),\n// pinned deviation MOR-102: text\n.inMemFindAndModify(\"MOR-101\", r)"));
+        assertTrue(pinsIn("no pins here, MOR-103 only mentioned").isEmpty());
     }
 }

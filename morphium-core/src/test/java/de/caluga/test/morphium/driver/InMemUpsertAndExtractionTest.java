@@ -170,20 +170,30 @@ public class InMemUpsertAndExtractionTest {
     }
 
     @Test
-    public void orBranchesDoNotSeedUpsert() throws Exception {
-        // {$and:[{_id:"x"},{$or:[{role:"admin"}]}]} — $or is not seeded (documented divergence:
-        // MongoDB would collapse a single-branch $or and seed role:"admin").
-        Map<String, Object> filter = and(
+    public void aSingleBranchOrSeedsAndSeveralBranchesDoNot() throws Exception {
+        // mongod collapses a $or with one branch to that branch, so its equality seeds the upsert (MOR-056); a $or with several branches seeds nothing
+        Map<String, Object> single = and(
                 eq("_id", "x"),
                 Doc.of("$or", List.of(eq("role", "admin"))));
 
-        upsert(filter, set("name", "n"));
+        upsert(single, set("name", "n"));
 
         Map<String, Object> stored = onlyDocument();
         assertThat(stored.get("_id")).isEqualTo("x");
-        assertThat(stored.containsKey("role"))
-                .as("$or branches must not seed a value (documented divergence)")
-                .isFalse();
+        assertThat(stored.get("role")).as("a single branch of $or seeds like an $and").isEqualTo("admin");
+    }
+
+    @Test
+    public void severalOrBranchesDoNotSeedUpsert() throws Exception {
+        Map<String, Object> several = and(
+                eq("_id", "y"),
+                Doc.of("$or", List.of(eq("role", "admin"), eq("role", "owner"))));
+
+        upsert(several, set("name", "n"));
+
+        Map<String, Object> stored = onlyDocument();
+        assertThat(stored.get("_id")).isEqualTo("y");
+        assertThat(stored.containsKey("role")).as("$or branches must not seed a value").isFalse();
     }
 
     // --- helpers -------------------------------------------------------------
