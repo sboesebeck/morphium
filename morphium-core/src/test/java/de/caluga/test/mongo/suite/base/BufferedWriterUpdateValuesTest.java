@@ -54,7 +54,8 @@ public class BufferedWriterUpdateValuesTest extends MultiDriverTestBase {
     }
 
     private Buffered fresh(Morphium m) {
-        m.dropCollection(Buffered.class);
+        // no dropCollection: for a @WriteBuffer entity it is queued with the other writes and runs asynchronously, so it can arrive after the store below and delete the
+        // document. The database of the Morphium instance is dropped when the instance is created, the collection is empty.
         Buffered b = new Buffered();
         b.id = "b";
         b.tags = new ArrayList<>(List.of("a", "b", "c"));
