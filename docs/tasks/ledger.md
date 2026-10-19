@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 31, done 38
+Status: open 30, done 39
 
 ## Overview
 
@@ -20,7 +20,6 @@ Status: open 31, done 38
 | MOR-026 | open | 2 | infrastructure | Run the Jakarta Data TCK against morphium-jakarta-data | M |  |  |
 | MOR-031 | open | 2 | implementation | Quarkus: Micrometer / OpenTelemetry metrics for pool and update paths | M |  |  |
 | MOR-034 | open | 2 | implementation | Quarkus testing module: real MongoDB test resource, data reset and fixtures | M |  |  |
-| MOR-036 | open | 2 | verification | Re-run the reproduction on other topologies and server versions | S |  |  |
 | MOR-063 | open | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
 | MOR-069 | open | 2 | defect | PoppyDB: the update fast path reports every error as 11000 and ignores the ordered flag | S |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
@@ -56,6 +55,7 @@ Status: open 31, done 38
 | MOR-010 | done | 2 | implementation | Typed duplicate-key exception and typed result for a lost conditional upsert | M |  | MOR-006 |
 | MOR-014 | done | 2 | implementation | Option E: startup guard for @Embedded under @Entity(translateCamelCase=false) | S |  | MOR-001 |
 | MOR-029 | done | 2 | defect | InMemoryDriver: reject values BsonEncoder cannot encode | M |  |  |
+| MOR-036 | done | 2 | verification | Re-run the reproduction on other topologies and server versions | S |  |  |
 | MOR-037 | done | 2 | defect | Morphium.simplifyQueryObject loses predicates for repeated operator keys | S |  |  |
 | MOR-040 | done | 2 | defect | fieldNameCache: inner HashMap is not thread safe | S |  |  |
 | MOR-041 | done | 2 | implementation | Key translation for operator maps in findOneAndUpdate | M |  | MOR-002 |
@@ -655,15 +655,19 @@ Source: update-path research, 2026-10-15, docs/research/other-clients.md pattern
 
 ### MOR-036 Re-run the reproduction on other topologies and server versions
 
-Status **open**, priority 2, type verification, effort S
+Status **done**, priority 2, type verification, effort S
 
 The reproduction ran on a standalone mongo:8 with PooledDriver only. Re-run on a replica set, with auth, with SingleMongoConnectDriver, on PoppyDB and on an older MongoDB (error wording and $-field handling differ), and re-check hypothesis 1 with @Entity and @Reference values.
+
+Evidence: The update path suite (41 classes, 338 invocations, listed in docs/research/reproduction-results.md) ran against the InMemoryDriver, mongo:7.0.45, mongo:8.3.11 and mongo:9.0.4 standalone, mongo:8 with SCRAM authentication, single node replica sets of mongo:8 and mongo:9, and a single node PoppyDB, with the PooledDriver and the SingleMongoConnectDriver. Result: 0 failures on every MongoDB and on the InMemoryDriver, 14 failing methods on PoppyDB with either driver. The matrix is in reproduction-results.md. Findings: the SingleMongoConnectDriver could not connect to a standalone server and kept its connection after a rejected bulk request (MOR-068, fixed); PoppyDB answers all rejections of the update path with error 11000 and ignores ordered (MOR-069), and swallows the errors of a delete (MOR-070); hypothesis 1 for @Entity and @Reference values: findOneAndUpdate and the builder reject an entity for a @Reference field, Query.set and push embed it and the document cannot be read back (MOR-049, pinned in EntityAndReferenceValueReproductionTest). Not run: a replica set with authentication, a three node PoppyDB replica set, TLS, sharded clusters, Atlas, MongoDB before 5.0.
 
 Acceptance:
 
 - reproduction-results.md has a matrix of topology x result
 
 Source: docs/research/reproduction-results.md 'could not verify'
+
+Commits: 2fe674707
 
 ### MOR-037 Morphium.simplifyQueryObject loses predicates for repeated operator keys
 

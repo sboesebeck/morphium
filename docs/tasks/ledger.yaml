@@ -783,7 +783,7 @@ tasks:
 - id: MOR-036
   title: Re-run the reproduction on other topologies and server versions
   type: verification
-  status: open
+  status: done
   priority: 2
   effort: S
   description: The reproduction ran on a standalone mongo:8 with PooledDriver only. Re-run on a replica set, with
@@ -793,6 +793,9 @@ tasks:
   - reproduction-results.md has a matrix of topology x result
   source:
   - docs/research/reproduction-results.md 'could not verify'
+  evidence: 'The update path suite (41 classes, 338 invocations, listed in docs/research/reproduction-results.md) ran against the InMemoryDriver, mongo:7.0.45, mongo:8.3.11 and mongo:9.0.4 standalone, mongo:8 with SCRAM authentication, single node replica sets of mongo:8 and mongo:9, and a single node PoppyDB, with the PooledDriver and the SingleMongoConnectDriver. Result: 0 failures on every MongoDB and on the InMemoryDriver, 14 failing methods on PoppyDB with either driver. The matrix is in reproduction-results.md. Findings: the SingleMongoConnectDriver could not connect to a standalone server and kept its connection after a rejected bulk request (MOR-068, fixed); PoppyDB answers all rejections of the update path with error 11000 and ignores ordered (MOR-069), and swallows the errors of a delete (MOR-070); hypothesis 1 for @Entity and @Reference values: findOneAndUpdate and the builder reject an entity for a @Reference field, Query.set and push embed it and the document cannot be read back (MOR-049, pinned in EntityAndReferenceValueReproductionTest). Not run: a replica set with authentication, a three node PoppyDB replica set, TLS, sharded clusters, Atlas, MongoDB before 5.0.'
+  commits:
+  - 2fe674707
 - id: MOR-037
   title: Morphium.simplifyQueryObject loses predicates for repeated operator keys
   type: defect
