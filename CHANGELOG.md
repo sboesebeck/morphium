@@ -32,6 +32,14 @@ An empty builder (it would replace the document), `setOnInsert` without `upsert(
 
 ### Changed
 
+#### `Query.modify()`: `min`, `max`, `mul`, `rename`, `currentDate`, `push` and `addToSet` with `$each` (MOR-007)
+The update builder knows the remaining everyday update operators now, with the same rules as `set` and `inc`: Java names are translated, values are marshalled (a pushed element has the shape `store()` writes for an element), a path and its child or one path in two operators are rejected at the call, and `@Version` and `@LastChange` follow every operator but `setOnInsert` (a `min`, `max`, `push` or `rename` only update is a modification and bumps the version).
+- `min(field, value)`, `max(field, value)`: BSON order, numbers by value; `mul(field, factor)`: Integer, Long and Double like `inc`, a missing field becomes 0.
+- `rename(from, to)`: both names are translated to the stored names; the new name counts as a path of the update, so renaming onto a field that the update sets, onto a child or parent path, or onto itself is rejected at the call.
+- `currentDate(fields...)`: the date of the server as a BSON date.
+- `push(field, element)`, `pushEach(field, elements[, PushOptions])` and `addToSet(field, element)`, `addToSetEach(field, elements)`. New public type `PushOptions` with `slice`, `position`, `sortAscending`, `sortDescending` and `sortBy(field, ascending)`; the sort field names are those of the stored elements and are used as given.
+`$mul` on a field that holds an explicit `null` is refused by MongoDB (code 14), and by the InMemoryDriver since MOR-051; `store()` writes the null of an `Integer` field, so use `unset` first.
+
 #### InMemoryDriver: a command with a value the encoder cannot encode fails like a wire driver (MOR-029)
 A raw `update`, `findAndModify`, `insert` or `store` command with a POJO in it (alone, in a List, a Set, an array or a Map) failed on a real MongoDB with `Unhandled Data type` before anything was sent. The InMemoryDriver stored the live Java objects, or, for a Set or a single value, stored them and then failed with a `ClassCastException` out of the driver, which left a half-written document. It refuses the command now, before it changes anything, with the same exception: a `MorphiumDriverException` "Error sending Request: " whose cause is the `RuntimeException` "Unhandled Data type: <class>". The bulk context reports it as the failure of the rejected request. The check asks the `BsonEncoder` itself (`BsonEncoder.requireEncodable`), once per class, so it accepts exactly what the encoder accepts. Everything that Morphium writes goes through the mapper and is not affected; hand-built commands and test fixtures that put a POJO into a document are, and have to serialise it (`mapper.serialize`) as they have to against a real MongoDB.
 
