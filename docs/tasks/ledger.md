@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 29, done 37
+Status: open 31, done 38
 
 ## Overview
 
@@ -22,6 +22,7 @@ Status: open 29, done 37
 | MOR-034 | open | 2 | implementation | Quarkus testing module: real MongoDB test resource, data reset and fixtures | M |  |  |
 | MOR-036 | open | 2 | verification | Re-run the reproduction on other topologies and server versions | S |  |  |
 | MOR-063 | open | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
+| MOR-069 | open | 2 | defect | PoppyDB: the update fast path reports every error as 11000 and ignores the ordered flag | S |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
 | MOR-015 | open | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
@@ -39,6 +40,7 @@ Status: open 29, done 37
 | MOR-048 | open | 3 | defect | MorphiumBase.setEnum looks the value up by the map value instead of the key | S |  |  |
 | MOR-049 | open | 3 | implementation | Writer path has no guard for @Reference and @Encrypted fields | M |  | MOR-042 |
 | MOR-052 | open | 3 | defect | updateLastAccess writes the untranslated Java field name | S |  |  |
+| MOR-070 | open | 3 | defect | PoppyDB: the delete fast path swallows errors | S |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -68,6 +70,7 @@ Status: open 29, done 37
 | MOR-062 | done | 2 | defect | Morphium.dec(Query, Map) and dec(Map, Query) increment instead of decrement | S |  |  |
 | MOR-064 | done | 2 | defect | store() of an existing entity swallows a rejected update (StoreMongoCommand) | M |  |  |
 | MOR-067 | done | 2 | defect | Query.toQueryObject puts the or queries into the $nor list when both are used | S |  |  |
+| MOR-068 | done | 2 | defect | SingleMongoConnectDriver: cannot connect to a standalone server, and a rejected bulk request keeps its only connection | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
@@ -1155,4 +1158,46 @@ Acceptance:
 Source: morphium-core/src/main/java/de/caluga/morphium/query/Query.java
 
 Commits: 92455e3fd
+
+### MOR-068 SingleMongoConnectDriver: cannot connect to a standalone server, and a rejected bulk request keeps its only connection
+
+Status **done**, priority 2, type defect, effort S
+
+Found by the topology matrix of MOR-036. (1) connect() compared the host seed with HelloResult.getHosts(), which a standalone server does not send: a NullPointerException, reported as max retries exceeded, so the driver could not be used with a standalone mongod at all. (2) The bulk context of the driver claimed its one connection per request and released it only on success; a rejected insert throws from execute(), the connection stayed claimed and the next call of the driver waited until its timeout (MOR-059 made rejections throw more often). Not seen before because the test base excludes the SingleMongoConnectDriver unless it is asked for.
+
+Evidence: SingleConnectDriverTopologyTest (connect, store, inc, set, read) passes with the SingleMongoConnectDriver on a standalone mongo:8, a single node replica set and a mongo:8 with authentication; before the change it failed on the standalone server with the NullPointerException in connect(). BulkRaiseOnWriteErrorsTest, RaiseOnWriteErrorsTest and BufferedWriterUpdateValuesTest pass with the driver (before, aRejectedInsertIsRaisedToo ran into the 5 minute timeout because the next query waited for the connection that the rejected insert kept). The update path suite (41 classes, 338 invocations) with the SingleMongoConnectDriver: green on mongo:8 standalone. Found on the way and fixed in the tests: RaiseOnWriteErrorsTest kept the only connection of the driver while it queried, and two buffered writer tests called dropCollection for a @WriteBuffer entity, which is queued and runs asynchronously, so a late drop could delete the document of the test. Not covered: a replica set with authentication (the topology matrix has authentication on a standalone server only).
+
+Acceptance:
+
+- The SingleMongoConnectDriver connects to a standalone server, to a replica set and to a server with authentication, and writes and reads
+- A rejected bulk request does not block the next call of the driver
+
+Source: docs/research/reproduction-results.md (topology matrix)
+
+Commits: 23754ea9b
+
+### MOR-069 PoppyDB: the update fast path reports every error as 11000 and ignores the ordered flag
+
+Status **open**, priority 2, type defect, effort S
+
+Found by the topology matrix of MOR-036 (update contract suite against a single node PoppyDB, PooledDriver). MongoCommandHandler.processUpdateDirect catches every exception of driver.update and writes writeErrors with the fixed code 11000, although the driver sets the code of mongod (2, 9, 14, 40, 52, 56, 66): all 56 rejection cases of the contract suite come back as duplicate key errors. The statements ARE rejected, only the code is wrong. The loop also goes on after the first error, so an ordered update (the default) applies the statements behind it, which mongod does not. processInsertDirect uses the code of the exception when it has one; the update path should do the same, and stop at the first error unless ordered is false.
+
+Acceptance:
+
+- The update contract suite passes against PoppyDB with the PooledDriver except for the cases that depend on the query planner
+- An ordered update stops at the first rejected statement
+
+Source: poppydb/src/main/java/de/caluga/poppydb/netty/MongoCommandHandler.java
+
+### MOR-070 PoppyDB: the delete fast path swallows errors
+
+Status **open**, priority 3, type defect, effort S
+
+Found by the topology matrix of MOR-036. MongoCommandHandler.processDeleteDirect catches every exception of driver.delete, logs a warning and answers ok with the count of what was deleted, without writeErrors. A delete with a query mongod refuses (an unknown operator) looks successful to the client; DeleteRaisesOnRejectedDeleteTest fails against PoppyDB for this reason (the InMemoryDriver reports the rejection in its own command path since MOR-065).
+
+Acceptance:
+
+- A delete with an unparsable query is answered with a writeErrors entry (code 2) by PoppyDB, like by mongod
+
+Source: poppydb/src/main/java/de/caluga/poppydb/netty/MongoCommandHandler.java
 
