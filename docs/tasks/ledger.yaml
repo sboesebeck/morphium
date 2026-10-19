@@ -214,7 +214,7 @@ tasks:
 - id: MOR-007
   title: 'Option A extension: min, max, mul, rename, currentDate, addToSet/push with each'
   type: implementation
-  status: open
+  status: done
   priority: 2
   effort: M
   description: 'Close the update-operator gaps (no setOnInsert, no each, no min/max/mul/rename on Query) in the
@@ -230,6 +230,9 @@ tasks:
   source:
   - docs/research/reproduction-results.md (update API gaps)
   - docs/research/other-clients.md pattern 5
+  evidence: 'ModifyOperatorsTest (19 tests, 38 invocations) on mongo:8 and the InMemoryDriver, all reading the raw document: min, max and mul write the stored names and leave no stray field, min and max keep a value that is not beyond, max seeds a missing field and mul makes it 0, rename moves the stored field with both names translated, currentDate sets a BSON date (also in an upsert, also with the enum overload), push and pushEach store the same raw element as Query.push, pushEach with slice, position and sort (whole array and by a field of the elements) gives the arrays mongod gives, addToSetEach stores each element once and marshalled and recognises an element that store() wrote, the update document shows the operators, conflicts (push and addToSet on one field, min and set, a rename onto a set field or onto itself) are rejected at the call, and a max-only update bumps the version and the last change. Mutation check: with the old definition of a modifying operator the version test fails. The builder tests of earlier tasks (262 invocations) stay green. Regression: 1527 test methods (core and messaging) on the InMemoryDriver, all passed. Not covered: pull, pullAll and pop, $bit, array filters inside the builder, and the translation of the field names inside the sort of PushOptions (used as given, documented).'
+  commits:
+  - 4617f9763
 - id: MOR-008
   title: Options object for findAndModify and a defined result for upsert without returnNew
   type: implementation
