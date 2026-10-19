@@ -787,7 +787,7 @@ tasks:
 - id: MOR-037
   title: Morphium.simplifyQueryObject loses predicates for repeated operator keys
   type: defect
-  status: open
+  status: done
   priority: 2
   effort: S
   description: Morphium.java simplifyQueryObject merges the operator maps of a query with putAll, so a repeated
@@ -797,6 +797,9 @@ tasks:
   - A query that adds two $or conditions returns only documents matching both, shown by a test on a real MongoDB
   source:
   - docs/research/plan-mor-001-002-003.md
+  evidence: 'SimplifyQueryObjectTest (5 tests, 10 invocations) on mongo:8 and the InMemoryDriver: two $or conditions and two conditions on one field keep the $and, branches with different keys and equal predicates are still flattened, and an upsert-flag inc with two $or conditions updates only the documents that match both and inserts nothing. Without the change 6 of the 10 invocations fail, with it all pass. Regression: 1492 test methods (core and messaging) on the InMemoryDriver; 5 test classes failed (ChangeStreamMonitorHistoryLostBackoffTest, ReadCommandStepDownStubServerTest, SingleMongoConnectionTimeoutTest, WatchResumeTokenTest, DnsSrvResolverTest) and every one of them with Operation not permitted when it opens a server socket or resolves DNS, which the sandbox of that run did not allow; none touches the query object. They are expected to pass without the sandbox restriction and were not rerun. The acceptance names a real MongoDB; the integration case runs on it. Found on the way and filed as MOR-067: Query.toQueryObject puts the or queries into the $nor list when both are used. Not covered: the other writer methods that do not simplify the query (set).'
+  commits:
+  - 96ac49921
 - id: MOR-038
   title: Replacement documents, findOneAndUpdateEnums and Expr values still fail with POJOs in update maps
   type: defect
