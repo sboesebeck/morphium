@@ -140,8 +140,12 @@ public class MultiDriverTestBase {
         return getMorphiumAllInstances(true, false, true);
     }
 
+    /**
+     * Pooled and in-memory driver. With {@code -Dmorphium.includeSingle=true} (and {@code single} in {@code -Dmorphium.driver}) the {@code SingleMongoConnectDriver} is
+     * part of it, too: used to run a suite against that driver as well (MOR-036). Without the property nothing changes.
+     */
     public static Stream<Arguments> getMorphiumInstances() {
-        return getMorphiumAllInstances(false, true, true);
+        return getMorphiumAllInstances(Boolean.getBoolean("morphium.includeSingle"), true, true);
     }
 
     public static Stream<Arguments> getInMemInstanceOnly() {

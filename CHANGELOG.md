@@ -32,6 +32,9 @@ An empty builder (it would replace the document), `setOnInsert` without `upsert(
 
 ### Changed
 
+#### `SingleMongoConnectDriver`: connects to a standalone server, releases its connection after a rejected bulk request (MOR-068)
+Two defects of the driver that has one connection. `connect()` compared its host seed with the `hosts` of the answer to `hello`, which a standalone server does not send: a `NullPointerException`, reported as "max retries exceeded", so the driver could not be used with a standalone `mongod` at all (it worked with a replica set). And the bulk context claimed the connection per request and gave it back only on success: a rejected request throws from `execute()`, the connection stayed claimed, and the next call of the driver waited until its timeout. The bulk context releases the connection in a `finally` now, as the `PooledDriver` does. `MultiDriverTestBase.getMorphiumInstances()` takes the `SingleMongoConnectDriver` into the run with `-Dmorphium.includeSingle=true` (and `single` in `-Dmorphium.driver`), which is how both were found.
+
 #### Warning for an `@Embedded` class that translates camel case inside a class that does not (MOR-014)
 An `@Embedded` class with the default `translateCamelCase=true` that sits in an `@Entity(translateCamelCase=false)` (or in an `@Embedded(translateCamelCase=false)`) is stored in snake_case (`file_name`) while its owner keeps its names (`ownerName`). It reads back correctly, which is why it stays unnoticed until a raw query or an update uses the wrong name. The mapper now looks at an entity class once, the first time it is used (Morphium does that for every entity class it finds at startup), and logs a warning that names the owner, the field and the embedded class. Fields behind a List, Set, Map or array are included; `transient`, `@Transient` and `@Reference` fields are not. Nothing about the stored data changes. `ObjectMappingSettings.strictEmbeddedNaming` (default `false`) turns the warning into an `IllegalStateException`. New helper `StoredDocumentKeys.snakeCaseKeys(document)` lists the snake_case keys of a raw document, for tests. To keep camelCase keys, set `translateCamelCase=false` on the embedded class; that changes the stored keys of existing data, so it is not done by the check.
 
@@ -82,7 +85,7 @@ The `update` command reports a statement that the server rejects (duplicate key,
 
 #### Writer path and `findOneAndUpdate`: one convention for values (MOR-042)
 - A single `@Embedded` value in `findOneAndUpdate` now carries `class_name` and a single `@Entity` keeps its `_id`, like on the writer path (the first version of the
-  update-value walk left both out); the declared type of the field is not known to an update, and `class_name` is what lets an `Object` or `@AdditionalData` value be read back.
+  update-value walk left both out); the declared type of the field is not known to an update, so it always writes `class_name`. That is what makes the members of a `List<Object>` or `Map<String, Object>` read back typed, as they do after `store()`; a single `Object` field reads back as a Map after an update as after `store()`, the `class_name` is not used for it.
 - Values are marshalled on the calling thread, before the write is submitted. An invalid value (a map key that is neither a `String` nor an enum, at any depth) throws an `IllegalArgumentException` from
   the call itself (it used to arrive wrapped in a `RuntimeException` from the writer task, or at the callback), fires no update event and is not retried; a collection the caller changes after
   the call (also with a callback or the async writer) is not seen by the write. `@WriteBuffer` entities use the buffered writer on a real MongoDB, which still does not marshal values.

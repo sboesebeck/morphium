@@ -297,12 +297,13 @@ public class RaiseOnWriteErrorsTest extends MultiDriverTestBase {
                     // the InMemoryDriver reports a violated unique index as an exception, a real MongoDB in the reply; the state afterwards is the same
                     assertTrue(m.getDriver() instanceof InMemoryDriver && e.isDuplicateKey(), String.valueOf(e));
                 }
-
-                assertEquals(10, byId(m, "k0").get().counter, "the statement before the error stays applied");
-                assertEquals(2, byId(m, "k2").get().counter, "ordered: the statement after the error was not executed");
             } finally {
+                // before the queries below: the SingleMongoConnectDriver has ONE connection, a test that keeps it blocks its own reads
                 m.getDriver().releaseConnection(con);
             }
+
+            assertEquals(10, byId(m, "k0").get().counter, "the statement before the error stays applied");
+            assertEquals(2, byId(m, "k2").get().counter, "ordered: the statement after the error was not executed");
         }
     }
 }
