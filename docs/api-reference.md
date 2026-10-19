@@ -270,11 +270,25 @@ try {
 long hits = morphium.createQueryFor(Counter.class).f("id").eq(key).modify().inc("hits", 1).upsert()
                 .findOneAndUpdate(ReturnDocument.AFTER).hits;
 ```
-`set`, `setOnInsert`, `inc` and `unset` collect one update document; **nothing is written until `findOneAndUpdate(ReturnDocument)` is called**.
+`set`, `setOnInsert`, `inc`, `unset`, `min`, `max`, `mul`, `rename`, `currentDate`, `push`, `pushEach`, `addToSet` and `addToSetEach` collect one update document; **nothing is written until `findOneAndUpdate(ReturnDocument)` is called**.
 Field names are always translated to the stored names, values are marshalled at the call, a path and its child (or two operators on one path) are
 rejected at the call, an empty update is rejected (it would replace the document), and an `@Version` field is incremented (an insert starts at 1) unless the
-update touches it. `ReturnDocument` has no default: an upsert that inserts returns `null` for `BEFORE`. `@LastChange` and `@CreationTime` are not applied (MOR-009),
+update touches it. `ReturnDocument` has no default: an upsert that inserts returns `null` for `BEFORE`. `@LastChange` is set by every update that modifies a document and `@CreationTime` by an insert (MOR-009),
 no update events are fired, skip, limit above 1, hint and projection are rejected. See the Javadoc of `UpdateBuilder` for the complete contract.
+
+The array and number operators, with the shape of the element that `store()` writes:
+```java
+query.modify()
+     .min("bestScore", 3).max("peak", 9).mul("factor", 2)             // BSON order, numbers by value; a missing field is seeded (min, max) or becomes 0 (mul)
+     .rename("legacyName", "fullName")                                  // both names are translated; the new name must not collide with another path
+     .currentDate("lastSeen")                                           // the date of the server
+     .push("lines", new Line("a", 1))                                   // one element, marshalled
+     .pushEach("scores", List.of(4, 5, 6), PushOptions.options().slice(-10).position(0).sortDescending())
+     .addToSetEach("tags", List.of("x", "y"))                           // each element once; documents are equal with the same field order
+     .findOneAndUpdate(ReturnDocument.AFTER);
+```
+`PushOptions` has `slice`, `position`, `sortAscending`, `sortDescending` and `sortBy(field, ascending)`; the sort field names are those of the stored elements and are used as given.
+A `$rename` target counts as a path of the update, so renaming onto a field that the update sets, or onto itself, is rejected at the call.
 
 `updateOne()` and `updateMany()` run the same update as one `update` command and return an `UpdateResult` (`getMatchedCount()`, `getModifiedCount()`, `getUpsertedId()`, `isAcknowledged()`):
 ```java
