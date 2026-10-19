@@ -376,6 +376,21 @@ public class MorphiumConfigTest {
 
 
     @Test
+    public void strictEmbeddedNamingIsOffByDefaultAndSurvivesPropertiesAndCopy() {
+        MorphiumConfig cfg = getConfig();
+        assertFalse(cfg.objectMappingSettings().isStrictEmbeddedNaming());
+        assertTrue(cfg.asProperties().keySet().stream().noneMatch(k -> k.toString().endsWith("strictEmbeddedNaming")), "default values are not written to properties");
+
+        cfg.objectMappingSettings().setStrictEmbeddedNaming(true);
+        Properties p = cfg.asProperties();
+        assertEquals(1, p.keySet().stream().filter(k -> k.toString().endsWith("strictEmbeddedNaming")).count(), String.valueOf(p.keySet()));
+        assertTrue(MorphiumConfig.fromProperties(p).objectMappingSettings().isStrictEmbeddedNaming());
+        de.caluga.morphium.config.ObjectMappingSettings copy = cfg.objectMappingSettings().copy();
+        assertTrue(copy.isStrictEmbeddedNaming());
+        cfg.objectMappingSettings().setStrictEmbeddedNaming(false);
+    }
+
+    @Test
     public void translateUpdateFieldNamesIsOnByDefaultAndSurvivesPropertiesAndCopy() {
         MorphiumConfig cfg = getConfig();
         assertTrue(cfg.objectMappingSettings().isTranslateUpdateFieldNames());

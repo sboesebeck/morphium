@@ -53,6 +53,8 @@ import sun.misc.Unsafe;
 @SuppressWarnings({"ConstantConditions", "MismatchedQueryAndUpdateOfCollection", "unchecked", "RedundantCast"})
 public class ObjectMapperImpl implements MorphiumObjectMapper {
     private final Logger log = LoggerFactory.getLogger(ObjectMapperImpl.class);
+    /** the entity classes whose embedded classes were checked for a naming mismatch (MOR-014), once per class */
+    private final java.util.Set<Class<?>> embeddedNamingChecked = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     /**
      * {@code Unsafe} is used solely for {@link Unsafe#allocateInstance(Class)} — creating entity
@@ -469,6 +471,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
         try {
             cls = annotationHelper.getRealClass(cls);
+            checkEmbeddedNaming(cls);
             NameProvider np = getNameProviderForClass(cls, p);
             return np.getCollectionName(cls, this, p.translateCamelCase(), p.useFQN(), p.collectionName().equals(".") ? null : p.collectionName(), morphium);
         } catch (InstantiationException e) {
@@ -478,6 +481,50 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             log.error("Illegal Access during instanciation of NameProvider: " + p.nameProvider().getName(), e);
             throw new RuntimeException("Illegal Access during instanciation", e);
         }
+    }
+
+    /**
+     * MOR-014: an {@code @Embedded} class that translates camel case, in a class that does not, is stored in snake_case while its owner keeps its names. Warned about once per
+     * entity class, or - with {@code ObjectMappingSettings.strictEmbeddedNaming} - an {@link IllegalStateException}. The stored data is the same either way.
+     */
+    private void checkEmbeddedNaming(Class<?> entityClass) {
+        boolean strict = morphium != null && morphium.getConfig() != null && morphium.getConfig().objectMappingSettings().isStrictEmbeddedNaming();
+
+        // in strict mode the answer is given every time, a class that was refused must be refused again
+        if (!strict && !embeddedNamingChecked.add(entityClass)) {
+            return;
+        }
+
+        List<AnnotationAndReflectionHelper.EmbeddedNamingMismatch> mismatches;
+
+        try {
+            mismatches = annotationHelper.findEmbeddedNamingMismatches(entityClass);
+        } catch (RuntimeException e) {
+            // a lint must never keep an entity from being used
+            log.debug("Could not check the embedded naming of {}", entityClass.getName(), e);
+            return;
+        }
+
+        if (mismatches.isEmpty()) {
+            return;
+        }
+
+        StringBuilder text = new StringBuilder();
+
+        for (var mismatch : mismatches) {
+            text.append("\n  - ").append(mismatch.owner().getName()).append(" (translateCamelCase=false) holds the field '").append(mismatch.field()).append("' of the @Embedded class ")
+                .append(mismatch.embedded().getName()).append(" (translateCamelCase=true, the default)");
+        }
+
+        String message = "The entity " + entityClass.getName() + " has a field whose @Embedded class translates camel case where its owner does not: the keys of the embedded class are stored "
+                         + "in snake_case (file_name) while the keys of the owner keep their names (ownerName)." + text
+                         + "\nSet translateCamelCase=false on the @Embedded class if camelCase keys are intended. The stored data is not changed by this check.";
+
+        if (strict) {
+            throw new IllegalStateException(message);
+        }
+
+        log.warn(message);
     }
 
     public AnnotationAndReflectionHelper getARHelper() {
