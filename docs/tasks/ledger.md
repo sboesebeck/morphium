@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 33, done 33
+Status: open 32, done 34
 
 ## Overview
 
@@ -25,7 +25,6 @@ Status: open 33, done 33
 | MOR-034 | open | 2 | implementation | Quarkus testing module: real MongoDB test resource, data reset and fixtures | M |  |  |
 | MOR-036 | open | 2 | verification | Re-run the reproduction on other topologies and server versions | S |  |  |
 | MOR-063 | open | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
-| MOR-067 | open | 2 | defect | Query.toQueryObject puts the or queries into the $nor list when both are used | S |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
 | MOR-015 | open | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
@@ -68,6 +67,7 @@ Status: open 33, done 33
 | MOR-060 | done | 2 | defect | Write paths that write the Java field name: inc/dec with a Map and dotted paths through embedded documents | S |  |  |
 | MOR-062 | done | 2 | defect | Morphium.dec(Query, Map) and dec(Map, Query) increment instead of decrement | S |  |  |
 | MOR-064 | done | 2 | defect | store() of an existing entity swallows a rejected update (StoreMongoCommand) | M |  |  |
+| MOR-067 | done | 2 | defect | Query.toQueryObject puts the or queries into the $nor list when both are used | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
@@ -1130,13 +1130,17 @@ Commits: 0026ad543
 
 ### MOR-067 Query.toQueryObject puts the or queries into the $nor list when both are used
 
-Status **open**, priority 2, type defect, effort S
+Status **done**, priority 2, type defect, effort S
 
 Found while testing MOR-037. Query.toQueryObject builds the $or list and then the $nor list from the same list variable without resetting it when the query has no $and expression: a query with one or() and one nor() becomes {$or: [A, B], $nor: [A, B]}, which matches nothing, instead of {$or: [A], $nor: [B]}. With an $and expression the or branch is fine and the nor branch has the same problem. Reproduced on the InMemoryDriver; the query object is built on the client, so every driver is affected.
+
+Evidence: QueryOrNorTest (4 tests, 8 invocations) on mongo:8 and the InMemoryDriver: a query with or() and nor() builds {$or: [own queries], $nor: [own queries]}, with an $and condition both stay inside the $and, a query with only or() or only nor() is unchanged, and the documents that the query returns from mongo:8 and from the InMemoryDriver are the ones that match the or and not the nor. Without the change 5 of the 8 invocations fail (the query object contained the or and the nor queries in both lists). Regression: 1496 test methods (core and messaging) on the InMemoryDriver, all passed.
 
 Acceptance:
 
 - A query with or() and nor() produces an $or with its own queries and a $nor with its own queries, shown by a test on a real MongoDB
 
 Source: morphium-core/src/main/java/de/caluga/morphium/query/Query.java
+
+Commits: 92455e3fd
 
