@@ -397,7 +397,7 @@ tasks:
 - id: MOR-014
   title: 'Option E: startup guard for @Embedded under @Entity(translateCamelCase=false)'
   type: implementation
-  status: open
+  status: done
   priority: 2
   effort: S
   description: 'Flag an @Embedded class with default translateCamelCase that is nested in an @Entity with translateCamelCase=false.
@@ -413,6 +413,9 @@ tasks:
   source:
   - docs/research/reproduction-results.md hypothesis 2
   - docs/research/reproduction-results.md (option E)
+  evidence: 'EmbeddedNamingGuardTest (7 tests, 14 invocations) on mongo:8 and the InMemoryDriver: the analysis names owner, field and embedded class; an embedded with translateCamelCase=false, a translating owner and transient, @Transient and @Reference fields give no finding; fields behind a List, a Map and an array and a mismatch nested in an embedded owner are found; a fresh mapper warns exactly once per entity class with a message that names both classes and the field; the stored keys of such an entity are unchanged (owner keeps ownerName, the embedded is stored as file_name) and the document reads back; strictEmbeddedNaming throws an IllegalStateException with the same names and is off by default. StoredDocumentKeysTest (3) covers the helper, MorphiumConfigTest the setting through properties and copy. EmbeddedCamelCaseReproductionTest keeps documenting the unchanged storage. Mutation check: without the call of the check 4 of the 14 invocations fail. Two details found on the way: Morphium looks at every entity class of the classpath at startup, so the warning is logged then, and the analysis skips interfaces (the mapper checks internal classes in its constructor). Regression: 1538 test methods (core and messaging) on the InMemoryDriver, all passed. Not covered: the opposite combination (a translating owner with an embedded that opts out), which the research documents but the task does not flag, and a check at registration of classes that are not used.'
+  commits:
+  - dfe3f118c
 - id: MOR-015
   title: 'Option D: opt-in INHERIT mode for @Embedded translateCamelCase'
   type: implementation

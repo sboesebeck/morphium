@@ -4,14 +4,13 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 30, done 36
+Status: open 29, done 37
 
 ## Overview
 
 | ID | Status | Prio | Type | Title | Effort | Ticket | Depends on |
 |---|---|---|---|---|---|---|---|
 | MOR-027 | open | 1 | documentation | Documentation page: raw commands, embedded objects and lifecycle contract | S |  |  |
-| MOR-014 | open | 2 | implementation | Option E: startup guard for @Embedded under @Entity(translateCamelCase=false) | S |  | MOR-001 |
 | MOR-017 | open | 2 | implementation | Jakarta Data: JDQL DELETE FROM | M |  |  |
 | MOR-018 | open | 2 | implementation | Jakarta Data: JDQL UPDATE ... SET ... WHERE as one atomic update | L |  | MOR-006, MOR-007 |
 | MOR-019 | open | 2 | defect | Jakarta Data: reject unsupported @Find/@Delete parameter styles at build time | S |  |  |
@@ -53,6 +52,7 @@ Status: open 30, done 36
 | MOR-008 | done | 2 | implementation | Options object for findAndModify and a defined result for upsert without returnNew | S |  | MOR-006 |
 | MOR-009 | done | 2 | implementation | Lifecycle handling in the builder: @LastChange, @CreationTime, @Version | M |  | MOR-006 |
 | MOR-010 | done | 2 | implementation | Typed duplicate-key exception and typed result for a lost conditional upsert | M |  | MOR-006 |
+| MOR-014 | done | 2 | implementation | Option E: startup guard for @Embedded under @Entity(translateCamelCase=false) | S |  | MOR-001 |
 | MOR-029 | done | 2 | defect | InMemoryDriver: reject values BsonEncoder cannot encode | M |  |  |
 | MOR-037 | done | 2 | defect | Morphium.simplifyQueryObject loses predicates for repeated operator keys | S |  |  |
 | MOR-040 | done | 2 | defect | fieldNameCache: inner HashMap is not thread safe | S |  |  |
@@ -326,9 +326,11 @@ Source: docs/research/other-clients.md pattern 3
 
 ### MOR-014 Option E: startup guard for @Embedded under @Entity(translateCamelCase=false)
 
-Status **open**, priority 2, type implementation, effort S
+Status **done**, priority 2, type implementation, effort S
 
 Flag an @Embedded class with default translateCamelCase that is nested in an @Entity with translateCamelCase=false. Reproduced: nested keys silently become snake_case (file_name, item_version_id, ...). Non-breaking: warn (and offer a strict mode) at entity registration; also expose a test helper that asserts no snake_case key in a stored document.
+
+Evidence: EmbeddedNamingGuardTest (7 tests, 14 invocations) on mongo:8 and the InMemoryDriver: the analysis names owner, field and embedded class; an embedded with translateCamelCase=false, a translating owner and transient, @Transient and @Reference fields give no finding; fields behind a List, a Map and an array and a mismatch nested in an embedded owner are found; a fresh mapper warns exactly once per entity class with a message that names both classes and the field; the stored keys of such an entity are unchanged (owner keeps ownerName, the embedded is stored as file_name) and the document reads back; strictEmbeddedNaming throws an IllegalStateException with the same names and is off by default. StoredDocumentKeysTest (3) covers the helper, MorphiumConfigTest the setting through properties and copy. EmbeddedCamelCaseReproductionTest keeps documenting the unchanged storage. Mutation check: without the call of the check 4 of the 14 invocations fail. Two details found on the way: Morphium looks at every entity class of the classpath at startup, so the warning is logged then, and the analysis skips interfaces (the mapper checks internal classes in its constructor). Regression: 1538 test methods (core and messaging) on the InMemoryDriver, all passed. Not covered: the opposite combination (a translating owner with an embedded that opts out), which the research documents but the task does not flag, and a check at registration of classes that are not used.
 
 Acceptance:
 
@@ -339,6 +341,8 @@ Acceptance:
 Depends on: MOR-001
 
 Source: docs/research/reproduction-results.md hypothesis 2, docs/research/reproduction-results.md (option E)
+
+Commits: dfe3f118c
 
 ### MOR-015 Option D: opt-in INHERIT mode for @Embedded translateCamelCase
 
