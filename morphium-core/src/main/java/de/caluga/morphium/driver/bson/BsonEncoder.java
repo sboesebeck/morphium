@@ -61,6 +61,71 @@ public class BsonEncoder {
         }
     }
 
+    /** the leaf classes that were found encodable (true) or not (false); the answer depends on the class only */
+    private static final java.util.concurrent.ConcurrentHashMap<Class<?>, Boolean> ENCODABLE_LEAF_CLASSES = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * Throws the exception that {@link #encodeDocument(Map)} throws for a value it cannot encode ({@code RuntimeException "Unhandled Data type: <class>"}), without producing the
+     * bytes of the whole document: Maps and Collections are walked, and for every other kind of value the encoder itself is asked once per class and the answer is remembered.
+     * The InMemoryDriver uses it to refuse a command before it changes anything, as a wire driver does when it encodes the command.
+     */
+    public static void requireEncodable(Map<String, Object> doc) {
+        if (doc == null) {
+            return;
+        }
+
+        for (Object v : doc.values()) {
+            requireEncodableValue(v);
+        }
+    }
+
+    public static void requireEncodableValue(Object v) {
+        if (v == null || v instanceof String || v instanceof Integer || v instanceof Long || v instanceof Double || v instanceof Boolean || v instanceof java.util.Date) {
+            return;
+        }
+
+        if (v instanceof Map<?, ?> map) {
+            for (Object member : map.values()) {
+                requireEncodableValue(member);
+            }
+
+            return;
+        }
+
+        if (v instanceof java.util.Collection<?> collection) {
+            for (Object member : collection) {
+                requireEncodableValue(member);
+            }
+
+            return;
+        }
+
+        Class<?> type = v.getClass();
+
+        if (type.isArray() && !(v instanceof byte[])) {
+            // the elements decide, so the answer is not remembered for the array class; the encoder's own exception is the answer
+            new BsonEncoder().encodeObject("f", v);
+            return;
+        }
+
+        Boolean known = ENCODABLE_LEAF_CLASSES.get(type);
+
+        if (known == null) {
+            try {
+                new BsonEncoder().encodeObject("f", v);
+                known = Boolean.TRUE;
+            } catch (RuntimeException e) {
+                known = Boolean.FALSE;
+            }
+
+            ENCODABLE_LEAF_CLASSES.put(type, known);
+        }
+
+        if (!known) {
+            throw new RuntimeException("Unhandled Data type: " + type.getName());
+        }
+    }
+
     public static byte[] encodeDocument(Map<String, Object> m, UUIDRepresentation representation) {
         // Use a single encoder for all fields — avoids N allocations for N fields
         BsonEncoder enc = new BsonEncoder();

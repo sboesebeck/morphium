@@ -4007,6 +4007,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             log.debug("First update element type: {}", cmd.getUpdates().get(0).getClass());
         }
         int ret = commandNumber.incrementAndGet();
+
+        if (cmd.getUpdates() != null) {
+            for (var statement : cmd.getUpdates()) {
+                requireEncodableCommand(statement.get("q"), statement.get("u"), statement.get("arrayFilters"));
+            }
+        }
+
         Map<String, Object> stats = new HashMap<>();
         int totalMatched = 0;
         int totalModified = 0;
@@ -4221,6 +4228,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // log.info(cmd.getCommandName() + " - incoming (" +
         // cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
+        requireEncodableCommand(cmd.getDocs());
         var stats = store(cmd.getDb(), cmd.getColl(), cmd.getDocs(), null);
         Map<String, Object> result = new HashMap<>();
         result.put("ok", 1.0);
@@ -4586,6 +4594,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         boolean ordered = cmd.getOrdered() == null || cmd.getOrdered();
+        requireEncodableCommand(cmd.getDocuments());
         List<Map<String, Object>> writeErrors = insert(cmd.getDb(), cmd.getColl(), cmd.getDocuments(),
             cmd.getWriteConcern(), ordered);
         var m = prepareResult();
@@ -4788,6 +4797,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // log.info(cmd.getCommandName() + " - incoming (" +
         // cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
+        requireEncodableCommand(cmd.getQuery(), cmd.getUpdate(), cmd.getSort(), cmd.getArrayFilters());
 
         if (cmd.isRemove()) {
             var list = find(cmd.getDb(), cmd.getColl(), cmd.getQuery(), cmd.getSort(), null, 0, 1);
@@ -5929,6 +5939,32 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         this.maxBsonObjectSize = maxBsonObjectSize;
+    }
+
+    /**
+     * MOR-029: a wire driver encodes the command before it sends it and fails on a value the encoder cannot encode (a POJO, in a List, a Set, an array, a Map, or alone) with a
+     * MorphiumDriverException "Error sending Request: " caused by {@code RuntimeException "Unhandled Data type: ..."}; nothing has reached the server then. The InMemoryDriver does the
+     * same check on the parts of a command, before it changes anything, instead of storing live Java objects (or failing with a ClassCastException after a partial write).
+     * Each part is a document, a list of documents, or null.
+     */
+    private static void requireEncodableCommand(Object... parts) throws MorphiumDriverException {
+        try {
+            for (Object part : parts) {
+                if (part instanceof Map<?, ?> doc) {
+                    @SuppressWarnings("unchecked") Map<String, Object> typed = (Map<String, Object>) doc;
+                    de.caluga.morphium.driver.bson.BsonEncoder.requireEncodable(typed);
+                } else if (part instanceof Collection<?> docs) {
+                    for (Object d : docs) {
+                        if (d instanceof Map<?, ?> doc) {
+                            @SuppressWarnings("unchecked") Map<String, Object> typed = (Map<String, Object>) doc;
+                            de.caluga.morphium.driver.bson.BsonEncoder.requireEncodable(typed);
+                        }
+                    }
+                }
+            }
+        } catch (RuntimeException e) {
+            throw new MorphiumDriverException("Error sending Request: ", e);
+        }
     }
 
     // mongod's BSONObjMaxUserSize; update RESULTS get mongod's additional 16KB internal
@@ -13715,6 +13751,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 try {
                     for (BulkRequest r : requests) {
                         try {
+                        // MOR-029: refused like a wire driver refuses it, as the failure of this request
+                        if (r instanceof InsertBulkRequest ibrCheck) {
+                            requireEncodableCommand(ibrCheck.getToInsert());
+                        } else if (r instanceof UpdateBulkRequest upCheck) {
+                            requireEncodableCommand(upCheck.getQuery(), upCheck.getCmd());
+                        } else if (r instanceof DeleteBulkRequest delCheck) {
+                            requireEncodableCommand(delCheck.getQuery());
+                        }
+
                         if (r instanceof InsertBulkRequest) {
                             InsertBulkRequest ibr = (InsertBulkRequest) r;
                             // the list holds the write errors of the rejected documents (empty if all were inserted)
