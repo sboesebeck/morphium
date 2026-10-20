@@ -4,13 +4,12 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 30, done 39
+Status: open 30, done 40
 
 ## Overview
 
 | ID | Status | Prio | Type | Title | Effort | Ticket | Depends on |
 |---|---|---|---|---|---|---|---|
-| MOR-027 | open | 1 | documentation | Documentation page: raw commands, embedded objects and lifecycle contract | S |  |  |
 | MOR-017 | open | 2 | implementation | Jakarta Data: JDQL DELETE FROM | M |  |  |
 | MOR-018 | open | 2 | implementation | Jakarta Data: JDQL UPDATE ... SET ... WHERE as one atomic update | L |  | MOR-006, MOR-007 |
 | MOR-019 | open | 2 | defect | Jakarta Data: reject unsupported @Find/@Delete parameter styles at build time | S |  |  |
@@ -40,11 +39,13 @@ Status: open 30, done 39
 | MOR-049 | open | 3 | implementation | Writer path has no guard for @Reference and @Encrypted fields | M |  | MOR-042 |
 | MOR-052 | open | 3 | defect | updateLastAccess writes the untranslated Java field name | S |  |  |
 | MOR-070 | open | 3 | defect | PoppyDB: the delete fast path swallows errors | S |  |  |
+| MOR-071 | open | 3 | defect | Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange | S |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
 | MOR-004 | done | 1 | defect | MorphiumBase.currentDate sends $set: {$currentDate: ...} and fails silently | S |  |  |
 | MOR-006 | done | 1 | implementation | Option A core: mapper-aware update builder (set, setOnInsert, inc, unset) with findOneAndUpdate terminal | L |  | MOR-001, MOR-002 |
+| MOR-027 | done | 1 | documentation | Documentation page: raw commands, embedded objects and lifecycle contract | S |  |  |
 | MOR-028 | done | 1 | infrastructure | Contract tests InMem vs real MongoDB for all update paths | M |  |  |
 | MOR-030 | done | 1 | defect | InMemoryDriver: honour the filter in conditional upsert and raise E11000 | M |  |  |
 | MOR-059 | done | 1 | defect | Query, entity and bulk write paths swallow the writeErrors of the update reply | M |  |  |
@@ -526,9 +527,11 @@ Source: docs/research/other-clients.md pattern 14
 
 ### MOR-027 Documentation page: raw commands, embedded objects and lifecycle contract
 
-Status **open**, priority 1, type documentation, effort S
+Status **done**, priority 1, type documentation, effort S
 
 Write a page (docs/howtos/) on the pitfalls reproduced so far: POJOs in raw update maps, embedded translateCamelCase default, the @Version trap, E11000 on a conditional upsert, null result of an inserting upsert, findOneAndUpdate skipping lifecycle events, raw Maps staying raw by contract. Add it to mkdocs nav. Also correct quarkus-morphium/README.md which names M3 as the latest Jakarta Data milestone (M4 exists) and docs/jakarta-data.md where needed.
+
+Evidence: docs/howtos/update-pitfalls.md (seven pitfalls: raw commands stay raw, POJOs in a raw $set, @Embedded naming under translateCamelCase=false, the @Version trap after $setOnInsert, the duplicate key of a lost conditional upsert, null for BEFORE on an inserting upsert, lifecycle of the query-based updates), each with its reproduction test, in the mkdocs nav; the Quarkus README names M4. New UpdateEntryPointsLifecycleTest (5 tests) on mongo:8 and the InMemoryDriver pins which entry point calls the callbacks and maintains @Version and @LastChange; it found that Query.set and findOneAndUpdate(Map) maintain neither the version nor a field-only @LastChange (MOR-071). docs/jakarta-data.md needed no change (it names no milestone). NOT verified: mkdocs is not installed here, so the build was not run; the nav entry points to an existing file.
 
 Acceptance:
 
@@ -536,6 +539,8 @@ Acceptance:
 - mkdocs build succeeds
 
 Source: docs/research/reproduction-results.md, update-path research, 2026-10-15
+
+Commits: ef135f9ae
 
 ### MOR-028 Contract tests InMem vs real MongoDB for all update paths
 
@@ -1204,4 +1209,17 @@ Acceptance:
 - A delete with an unparsable query is answered with a writeErrors entry (code 2) by PoppyDB, like by mongod
 
 Source: poppydb/src/main/java/de/caluga/poppydb/netty/MongoCommandHandler.java
+
+### MOR-071 Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange
+
+Status **open**, priority 3, type defect, effort S
+
+Found while writing docs/howtos/update-pitfalls.md (MOR-027). The builder (MOR-009) increments @Version and sets @LastChange also when the annotation sits on the field only. The writer path (Query.set, push, ... and findOneAndUpdate(Map)) does not touch the version, and handleLastChange in MorphiumWriterImpl looks for the annotation on the class, so a field-only @LastChange (which store() and the builder accept) is not set. UpdateEntryPointsLifecycleTest pins the current behaviour on mongo:8 and the InMemoryDriver. Decide: bring the writer path to the builder rule, or document the difference as the contract.
+
+Acceptance:
+
+- Query.set and findOneAndUpdate(Map) set a field-only @LastChange, or the contract page says why not
+- The pins in UpdateEntryPointsLifecycleTest flip to the decision
+
+Source: morphium-core/src/main/java/de/caluga/morphium/writer/MorphiumWriterImpl.java handleLastChange, morphium-core/src/test/java/de/caluga/test/mongo/suite/base/UpdateEntryPointsLifecycleTest.java
 
