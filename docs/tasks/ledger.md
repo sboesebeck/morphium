@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 30, done 42
+Status: open 29, done 43
 
 ## Overview
 
@@ -17,7 +17,6 @@ Status: open 30, done 42
 | MOR-024 | open | 2 | defect | Jakarta Data: support ordinal parameters (?1) in @Query | S |  |  |
 | MOR-025 | open | 2 | defect | Jakarta Data: @Update is not atomic and throws IllegalStateException | M |  |  |
 | MOR-026 | open | 2 | infrastructure | Run the Jakarta Data TCK against morphium-jakarta-data | M |  |  |
-| MOR-034 | open | 2 | implementation | Quarkus testing module: real MongoDB test resource, data reset and fixtures | M |  |  |
 | MOR-063 | open | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
 | MOR-069 | open | 2 | defect | PoppyDB: the update fast path reports every error as 11000 and ignores the ordered flag | S |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
@@ -57,6 +56,7 @@ Status: open 30, done 42
 | MOR-014 | done | 2 | implementation | Option E: startup guard for @Embedded under @Entity(translateCamelCase=false) | S |  | MOR-001 |
 | MOR-029 | done | 2 | defect | InMemoryDriver: reject values BsonEncoder cannot encode | M |  |  |
 | MOR-031 | done | 2 | implementation | Quarkus: Micrometer / OpenTelemetry metrics for pool and update paths | M |  |  |
+| MOR-034 | done | 2 | implementation | Quarkus testing module: real MongoDB test resource, data reset and fixtures | M |  |  |
 | MOR-036 | done | 2 | verification | Re-run the reproduction on other topologies and server versions | S |  |  |
 | MOR-037 | done | 2 | defect | Morphium.simplifyQueryObject loses predicates for repeated operator keys | S |  |  |
 | MOR-040 | done | 2 | defect | fieldNameCache: inner HashMap is not thread safe | S |  |  |
@@ -640,9 +640,11 @@ Source: review of quarkus-morphium
 
 ### MOR-034 Quarkus testing module: real MongoDB test resource, data reset and fixtures
 
-Status **open**, priority 2, type implementation, effort M
+Status **done**, priority 2, type implementation, effort M
 
 The testing module offers only InMemMorphiumTestProfile. Add a MongoDB test resource (container or URI), a reset helper between tests and simple fixtures, so applications can run the contract-style tests of MOR-028.
+
+Evidence: quarkus-morphium-testing now has MongoDB test profile MongoMorphiumTestProfile (pooled driver; a mongo container from Dev Services, or the server named by MORPHIUM_TEST_HOSTS; own database, hooks database() and replicaSet()), MorphiumTestSupport.reset (deletes the documents of all collections, keeps the collections and their indexes, clears the cache) and load (fixtures through Morphium.store), and the JUnit extension ResetMorphiumExtension. AbstractMorphiumTestSupportTest in the integration tests is an application-style test: two tests that leave data behind both start with an empty database, fixtures get ids and are queryable, reset keeps the collections. It runs on the in-memory driver (MorphiumTestSupportInMemTest) and on a real mongo:8 started by Dev Services (MorphiumTestSupportRealMongoTest), 8 tests. Mutation check: with the delete of reset commented out four of the eight fail. The whole runtime (82), deployment (31) and integration-tests (264) suites pass. Docs: section Testing against a real MongoDB in docs/quarkus-extension.md and the extension CHANGELOG. Not verified: MORPHIUM_TEST_HOSTS against an existing server (only the container path ran), a replica set profile, and the reset against a database with unique indexes.
 
 Acceptance:
 
@@ -650,6 +652,8 @@ Acceptance:
 - Verified against a real MongoDB (not only the InMemoryDriver).
 
 Source: review of quarkus-morphium
+
+Commits: ce8c34616
 
 ### MOR-035 Records and value objects in the mapper
 
