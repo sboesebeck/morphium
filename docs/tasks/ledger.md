@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 31, done 41
+Status: open 30, done 42
 
 ## Overview
 
@@ -40,7 +40,6 @@ Status: open 31, done 41
 | MOR-070 | open | 3 | defect | PoppyDB: the delete fast path swallows errors | S |  |  |
 | MOR-071 | open | 3 | defect | Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange | S |  |  |
 | MOR-072 | open | 3 | defect | The update builder, findOneAndUpdate(Map), updateOne and updateMany fire no storage-listener update events | M |  |  |
-| MOR-073 | open | 3 | defect | Query.push, pull and addToSet fire the update events twice, and the post event is always PUSH | S |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -82,6 +81,7 @@ Status: open 31, done 41
 | MOR-057 | done | 3 | defect | InMemoryDriver: an inserted document is stored by reference | S |  |  |
 | MOR-061 | done | 3 | defect | Query.dec(field, Integer) turns an int counter into a double | S |  |  |
 | MOR-065 | done | 3 | defect | Delete paths ignore the writeErrors of the delete reply | S |  |  |
+| MOR-073 | done | 3 | defect | Query.push, pull and addToSet fire the update events twice, and the post event is always PUSH | S |  |  |
 
 ## Details
 
@@ -1243,13 +1243,17 @@ Source: morphium-core/src/main/java/de/caluga/morphium/query/UpdateBuilder.java,
 
 ### MOR-073 Query.push, pull and addToSet fire the update events twice, and the post event is always PUSH
 
-Status **open**, priority 3, type defect, effort S
+Status **done**, priority 3, type defect, effort S
 
 Found by MOR-031 (a timer count of 2 for one push). MorphiumWriterImpl.pushPull fires firePreUpdateEvent(type) and pushIt fires it again, pushIt fires the post event and pushPull fires it a second time, with UpdateTypes.PUSH hard-coded, so a pull or an addToSet is followed by a post event of type PUSH. A listener counts every push, pull and addToSet twice and cannot pair a pull. Fire each event once, with the real type.
+
+Evidence: UpdateEventsTest (6 tests) records the events of a MorphiumStorageListener: push, pull, addToSet, pushAll, pullAll, set and inc each fire exactly one preUpdate and one postUpdate with the type of the call. Before the fix four of them failed (push and addToSet fired pre/post twice, pull and pullAll ended with post PUSH). Fix in MorphiumWriterImpl: pushIt no longer fires the pre event and fires the post event with the real type, pushPull no longer fires a second post event, pushPullAll fires post with its type. Runs on the InMemoryDriver and on mongo:8; the quarkus timer test now asserts exactly 1 for a push. Regression: 1556 test methods (core and messaging) on the InMemoryDriver, all passed.
 
 Acceptance:
 
 - A listener sees one preUpdate and one postUpdate per Query.push, pull and addToSet, with the type of the call
 
 Source: morphium-core/src/main/java/de/caluga/morphium/writer/MorphiumWriterImpl.java pushPull and pushIt
+
+Commits: 1358b433d
 
