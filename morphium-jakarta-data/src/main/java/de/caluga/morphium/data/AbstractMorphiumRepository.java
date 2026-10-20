@@ -1,9 +1,12 @@
 package de.caluga.morphium.data;
 
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.VersionMismatchException;
+import de.caluga.morphium.annotations.Version;
 import de.caluga.morphium.query.Query;
 import jakarta.data.Order;
 import jakarta.data.Sort;
+import jakarta.data.exceptions.OptimisticLockingFailureException;
 import jakarta.data.page.CursoredPage;
 import jakarta.data.page.Page;
 import jakarta.data.page.PageRequest;
@@ -305,25 +308,30 @@ public abstract class AbstractMorphiumRepository<T, K> {
     }
 
     /**
-     * Updates a single entity via {@code Morphium.store()}, but only if an entity with the same
-     * id already exists.
+     * Updates a single entity, but only if an entity with the same id already exists.
      * <p>
      * Unlike {@link #doSave(Object)}, this method implements the {@code CrudRepository.update()}
-     * semantics defined by Jakarta Data: updating a non-existent entity must fail rather than
-     * silently insert a new document (which is what a bare {@code Morphium.store()} call would do,
-     * since it performs an upsert). To enforce this, the entity's id is extracted via
-     * {@code morphium.getARHelper().getId(Object)} and an existence check is performed with
-     * {@link Morphium#findById(Class, Object, String)} before storing. This costs one extra
-     * {@code findById} roundtrip per update call, which is an accepted trade-off for correct CRUD
-     * semantics.
+     * semantics defined by Jakarta Data: updating a non-existent entity, or an entity whose version is
+     * stale, fails with {@link OptimisticLockingFailureException} rather than silently inserting a new
+     * document (which a bare {@code Morphium.store()} would do).
+     * <ul>
+     * <li>An entity with a {@code @Version} field is written by the versioned {@code store()} alone: the
+     * server matches id and version in one command, so the check is atomic and costs no extra round trip.</li>
+     * <li>An entity without a version has nothing to match but its id. The id is looked up with
+     * {@code findById} first, which is not atomic: an entity that is deleted between the lookup and the
+     * store is inserted again.</li>
+     * </ul>
      *
      * @param entity the entity to update
      * @return the same entity instance
-     * @throws IllegalStateException if no entity with the same id currently exists
+     * @throws OptimisticLockingFailureException if no entity with the same id exists, or its version is not the one of {@code entity}
      */
     public Object doUpdate(Object entity) {
-        requireExists(entity);
-        morphium.store(entity);
+        if (!isVersioned(entity)) {
+            requireExists(entity);
+        }
+
+        storeExisting(entity);
         return entity;
     }
 
@@ -331,38 +339,58 @@ public abstract class AbstractMorphiumRepository<T, K> {
      * Updates a list of entities via {@code Morphium.storeList()}, but only if every entity in the
      * list already exists.
      * <p>
-     * Like {@link #doUpdate(Object)}, this enforces {@code CrudRepository.updateAll()} semantics:
-     * updating a non-existent entity must fail rather than silently insert it. Every entity in the
-     * list is checked for existence (one extra {@code findById} roundtrip per entity, accepted as a
-     * trade-off for correctness) before any entity is stored, so that a violation for one entity
-     * does not leave the list partially updated.
+     * Like {@link #doUpdate(Object)}, this enforces {@code CrudRepository.updateAll()} semantics. The
+     * entities without a version are checked for existence before any entity is stored, so that a missing
+     * one does not leave the list partially updated. The versions are checked by the store itself; if one
+     * is stale, the entities that were stored before it stay updated.
      *
      * @param entities the entities to update
      * @return the same list of entities
-     * @throws IllegalStateException if any entity in the list does not currently exist
+     * @throws OptimisticLockingFailureException if an entity does not exist or has a stale version
      */
     @SuppressWarnings("unchecked")
     public List<Object> doUpdateAll(List<?> entities) {
         for (Object entity : entities) {
-            requireExists(entity);
+            if (!isVersioned(entity)) {
+                requireExists(entity);
+            }
         }
-        morphium.storeList((List) entities);
+
+        try {
+            morphium.storeList((List) entities);
+        } catch (VersionMismatchException e) {
+            throw new OptimisticLockingFailureException("Cannot update: " + e.getMessage(), e);
+        }
+
         return (List<Object>) entities;
+    }
+
+    private void storeExisting(Object entity) {
+        try {
+            morphium.store(entity);
+        } catch (VersionMismatchException e) {
+            throw new OptimisticLockingFailureException(
+                "Cannot update: the entity with id '" + morphium.getARHelper().getId(entity) + "' does not exist or has a different version", e);
+        }
+    }
+
+    private boolean isVersioned(Object entity) {
+        List<String> fields = morphium.getARHelper().getFields(entity.getClass(), Version.class);
+        return fields != null && !fields.isEmpty();
     }
 
     /**
      * Verifies that an entity with the same id as the given entity currently exists, throwing if not.
-     * Used by {@link #doUpdate(Object)} and {@link #doUpdateAll(List)} to reject updates of
-     * non-existent entities instead of silently upserting them.
+     * Used for the entities without a version, which cannot be matched by the store itself.
      *
      * @param entity the entity whose id is checked for existence
-     * @throws IllegalStateException if no entity with that id currently exists
+     * @throws OptimisticLockingFailureException if no entity with that id currently exists
      */
     private void requireExists(Object entity) {
         Object id = morphium.getARHelper().getId(entity);
         Object existing = morphium.findById(entityClass(), id, null);
         if (existing == null) {
-            throw new IllegalStateException("Cannot update: no entity with id '" + id + "' exists");
+            throw new OptimisticLockingFailureException("Cannot update: no entity with id '" + id + "' exists");
         }
     }
 

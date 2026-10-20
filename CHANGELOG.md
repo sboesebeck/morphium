@@ -122,6 +122,12 @@ context keep their own key handling.
 
 ### Fixed
 
+#### Jakarta Data `@Update`: `OptimisticLockingFailureException` for a missing entity and a stale version (MOR-025)
+`@Update` threw an `IllegalStateException` when the entity did not exist, and the `VersionMismatchException` of Morphium when its version was
+stale. Both are now `jakarta.data.exceptions.OptimisticLockingFailureException`, as the specification says. An entity with a `@Version` field is
+written by the versioned `store()` alone, so the check is atomic and the extra `findById` is gone; an entity without a version is still looked up
+first. Code that caught `IllegalStateException` or `VersionMismatchException` around an `@Update` has to catch the new exception.
+
 #### `Query.push`, `pull`, `addToSet` and `pullAll` fire their update events once, with the type of the call (MOR-073)
 `push`, `pull` and `addToSet` fired `preUpdate` and `postUpdate` twice, and the `postUpdate` of `pull`, `addToSet` and `pullAll` was always
 `PUSH`. A `MorphiumStorageListener` counted every push twice and could not pair a pull with its end. Each call fires one `preUpdate` and one
