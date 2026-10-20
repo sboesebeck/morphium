@@ -3273,7 +3273,7 @@ See How‑To: <a href="../howtos/aggregation-examples/">Aggregation Examples</a>
 <tr>
 <td><code>WAIT_FOR_ALL_SLAVES</code></td>
 <td>number of <strong>reachable</strong> members</td>
-<td>every member the driver can currently talk to (see caveat)</td>
+<td>every member the driver can currently talk to; on a one-member set <code>"majority"</code> (see caveat)</td>
 </tr>
 </tbody>
 </table>
@@ -3290,6 +3290,13 @@ driver currently considers reachable. Reachable means the driver's heartbeat has
 its last contact did not fail. That is what makes the level survive a member loss at all: with a plain
 <code>w:3</code> on a three-member set, one member down means every write waits out <code>wtimeout</code> until the member is
 back. With <code>WAIT_FOR_ALL_SLAVES</code> the <code>w</code> drops to <code>2</code> as soon as the heartbeat has noticed the loss.</p>
+<p>On a replica set that is <em>configured</em> with a single data-bearing member the derived <code>w</code> would be <code>1</code>, which
+the server acknowledges before the majority commit point moves; the entity's own majority read concern
+(the <code>@Entity</code> default) could then miss a write it just made. Morphium therefore sends <code>"majority"</code> there,
+which on a one-member set is that same member, journaled. This is keyed on the configured set size
+(<code>MorphiumDriver.getReplicaSetSize()</code>, the <code>hosts</code> list of the server's hello), not on the reachable count:
+a larger set reduced to one reachable member keeps the numeric <code>w</code>, because a server-side majority can not
+be satisfied there and would only run into <code>wtimeout</code>.</p>
 <p>The price is a <strong>detection window</strong>. Between the moment a member goes away and the first failed heartbeat
 against it (at most one <code>heartbeatFrequency</code>, default 1 s, plus the connect timeout), writes are still sent
 with the old <code>w</code> and block for their <code>wtimeout</code>. A member that was never reachable since the client
