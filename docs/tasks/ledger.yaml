@@ -581,7 +581,7 @@ tasks:
 - id: MOR-024
   title: 'Jakarta Data: support ordinal parameters (?1) in @Query'
   type: defect
-  status: open
+  status: done
   priority: 2
   effort: S
   description: MorphiumDataProcessor rejects ordinal parameters, but the spec and TCK use them (SET length = length
@@ -591,6 +591,9 @@ tasks:
   - Verified against a real MongoDB (not only the InMemoryDriver).
   source:
   - docs/research/jakarta-data-1.1.md section 4
+  evidence: 'JdqlOrdinalParametersTest (7: detection, rewrite, string literals are skipped, binding skips Sort/Order/PageRequest/Limit, out-of-range and ?0 rejected, mixed styles, highest ordinal) and JdqlOrdinalParametersQueryTest (4 tests, 8 invocations: ?1/?2 bound by position, one ordinal used twice and out of order, BETWEEN, IN and LIKE, a Limit before the first parameter is not counted, a missing argument and mixed styles rejected) on the InMemoryDriver and on mongo:8 with the pooled driver. Quarkus: the build no longer refuses ?1 (MorphiumDataProcessor.validateJdqlSyntax now rejects mixed styles and an ordinal without a parameter, Sort/Order/PageRequest/Limit not counted); AbstractMorphiumDataOrdinalQueryTest in the integration tests (4 tests: ?1/?2, BETWEEN, a Sort parameter is not counted, ordinals out of order) runs on the InMemoryDriver and on a real mongo:8 from Dev Services. Spring: two proxy tests (ordinals by position, Sort skipped) in MorphiumRepositoryProxyTest; the Spring module (25) passes. Whole suites: jakarta-data 107, Quarkus runtime 82, deployment 31, integration 272. Docs: docs/jakarta-data.md, the Quarkus README, CHANGELOG. Decision to confirm: ordinal n counts the method parameters without Sort, Order, PageRequest and Limit; the Jakarta Data text was not available offline, so this is not checked against the TCK. Not covered: the Spring tests run on the InMemoryDriver only (they use the same bridge that runs on mongo:8 in the jakarta-data module), and ordinals in UPDATE statements (MOR-018: the parser has no UPDATE yet).'
+  commits:
+  - 69581ba25
 - id: MOR-025
   title: 'Jakarta Data: @Update is not atomic and throws IllegalStateException'
   type: defect

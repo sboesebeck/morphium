@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 28, done 44
+Status: open 27, done 45
 
 ## Overview
 
@@ -14,7 +14,6 @@ Status: open 28, done 44
 | MOR-018 | open | 2 | implementation | Jakarta Data: JDQL UPDATE ... SET ... WHERE as one atomic update | L |  | MOR-006, MOR-007 |
 | MOR-019 | open | 2 | defect | Jakarta Data: reject unsupported @Find/@Delete parameter styles at build time | S |  |  |
 | MOR-021 | open | 2 | implementation | Morphium extension: atomic update and find-and-modify repository annotations | L |  | MOR-008, MOR-010 |
-| MOR-024 | open | 2 | defect | Jakarta Data: support ordinal parameters (?1) in @Query | S |  |  |
 | MOR-026 | open | 2 | infrastructure | Run the Jakarta Data TCK against morphium-jakarta-data | M |  |  |
 | MOR-063 | open | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
 | MOR-069 | open | 2 | defect | PoppyDB: the update fast path reports every error as 11000 and ignores the ordered flag | S |  |  |
@@ -53,6 +52,7 @@ Status: open 28, done 44
 | MOR-009 | done | 2 | implementation | Lifecycle handling in the builder: @LastChange, @CreationTime, @Version | M |  | MOR-006 |
 | MOR-010 | done | 2 | implementation | Typed duplicate-key exception and typed result for a lost conditional upsert | M |  | MOR-006 |
 | MOR-014 | done | 2 | implementation | Option E: startup guard for @Embedded under @Entity(translateCamelCase=false) | S |  | MOR-001 |
+| MOR-024 | done | 2 | defect | Jakarta Data: support ordinal parameters (?1) in @Query | S |  |  |
 | MOR-025 | done | 2 | defect | Jakarta Data: @Update is not atomic and throws IllegalStateException | M |  |  |
 | MOR-029 | done | 2 | defect | InMemoryDriver: reject values BsonEncoder cannot encode | M |  |  |
 | MOR-031 | done | 2 | implementation | Quarkus: Micrometer / OpenTelemetry metrics for pool and update paths | M |  |  |
@@ -488,9 +488,11 @@ Source: docs/research/jakarta-data-1.1.md 'could not be verified'
 
 ### MOR-024 Jakarta Data: support ordinal parameters (?1) in @Query
 
-Status **open**, priority 2, type defect, effort S
+Status **done**, priority 2, type defect, effort S
 
 MorphiumDataProcessor rejects ordinal parameters, but the spec and TCK use them (SET length = length + ?1).
+
+Evidence: JdqlOrdinalParametersTest (7: detection, rewrite, string literals are skipped, binding skips Sort/Order/PageRequest/Limit, out-of-range and ?0 rejected, mixed styles, highest ordinal) and JdqlOrdinalParametersQueryTest (4 tests, 8 invocations: ?1/?2 bound by position, one ordinal used twice and out of order, BETWEEN, IN and LIKE, a Limit before the first parameter is not counted, a missing argument and mixed styles rejected) on the InMemoryDriver and on mongo:8 with the pooled driver. Quarkus: the build no longer refuses ?1 (MorphiumDataProcessor.validateJdqlSyntax now rejects mixed styles and an ordinal without a parameter, Sort/Order/PageRequest/Limit not counted); AbstractMorphiumDataOrdinalQueryTest in the integration tests (4 tests: ?1/?2, BETWEEN, a Sort parameter is not counted, ordinals out of order) runs on the InMemoryDriver and on a real mongo:8 from Dev Services. Spring: two proxy tests (ordinals by position, Sort skipped) in MorphiumRepositoryProxyTest; the Spring module (25) passes. Whole suites: jakarta-data 107, Quarkus runtime 82, deployment 31, integration 272. Docs: docs/jakarta-data.md, the Quarkus README, CHANGELOG. Decision to confirm: ordinal n counts the method parameters without Sort, Order, PageRequest and Limit; the Jakarta Data text was not available offline, so this is not checked against the TCK. Not covered: the Spring tests run on the InMemoryDriver only (they use the same bridge that runs on mongo:8 in the jakarta-data module), and ordinals in UPDATE statements (MOR-018: the parser has no UPDATE yet).
 
 Acceptance:
 
@@ -498,6 +500,8 @@ Acceptance:
 - Verified against a real MongoDB (not only the InMemoryDriver).
 
 Source: docs/research/jakarta-data-1.1.md section 4
+
+Commits: 69581ba25
 
 ### MOR-025 Jakarta Data: @Update is not atomic and throws IllegalStateException
 
