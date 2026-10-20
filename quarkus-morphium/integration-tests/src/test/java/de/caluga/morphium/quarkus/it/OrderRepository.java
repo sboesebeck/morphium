@@ -86,6 +86,20 @@ public interface OrderRepository extends BasicRepository<OrderEntity, String> {
     @Query("WHERE customerId IS NOT NULL ORDER BY customerId ASC")
     List<OrderEntity> queryAllWithCustomerId();
 
+    // -- ordinal parameters (?1), MOR-024 --
+
+    @Query("WHERE status = ?1 AND amount > ?2 ORDER BY amount ASC")
+    List<OrderEntity> queryOrdinal(String status, double minAmount);
+
+    @Query("WHERE amount BETWEEN ?1 AND ?2 ORDER BY amount DESC")
+    List<OrderEntity> queryOrdinalRange(double min, double max);
+
+    @Query("WHERE status = ?1")
+    List<OrderEntity> queryOrdinalSorted(String status, Sort<OrderEntity> sort);
+
+    @Query("WHERE status = ?2 AND amount >= ?1")
+    long countOrdinalReversed(double minAmount, String status);
+
     @Query("WHERE status = :s1 OR status = :s2")
     List<OrderEntity> queryByEitherStatus(@Param("s1") String status1,
                                            @Param("s2") String status2);

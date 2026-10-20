@@ -52,6 +52,16 @@ public interface TestEntityRepository extends MorphiumRepository<TestEntity, Mor
     @Find
     CompletionStage<List<TestEntity>> findAsyncByStatus(@By("status") String status);
 
+    // --- Ordinal parameters in @Query (MOR-024) ---
+
+    /** ?1 and ?2 are the first and the second method parameter, in any order of use. */
+    @Query("WHERE priority >= ?2 AND status = ?1 ORDER BY priority ASC")
+    List<TestEntity> queryOrdinal(String status, int minCount);
+
+    /** A Sort parameter is not counted: ?1 is the status. */
+    @Query("WHERE status = ?1")
+    List<TestEntity> queryOrdinalSorted(String status, Sort<TestEntity> sort);
+
     // --- Regression coverage: default method dispatch (review finding 4) ---
 
     /**

@@ -181,6 +181,30 @@ class MorphiumRepositoryProxyTest {
         assertEquals(1, repository.findByStatus("inactive").size());
     }
 
+    // ---- MOR-024: ordinal parameters (?1) in @Query ----
+
+    @Test
+    void jdqlQueryWithOrdinalParametersBindsThemByPosition() {
+        repository.save(new TestEntity("a", "active", 1));
+        repository.save(new TestEntity("b", "active", 5));
+        repository.save(new TestEntity("c", "inactive", 9));
+
+        List<TestEntity> found = repository.queryOrdinal("active", 2);
+
+        assertEquals(1, found.size());
+        assertEquals("b", found.get(0).getName());
+    }
+
+    @Test
+    void jdqlQueryWithOrdinalParametersSkipsTheSortParameter() {
+        repository.save(new TestEntity("low", "active", 1));
+        repository.save(new TestEntity("high", "active", 9));
+
+        List<TestEntity> found = repository.queryOrdinalSorted("active", Sort.desc("priority"));
+
+        assertEquals(List.of("high", "low"), found.stream().map(TestEntity::getName).toList());
+    }
+
     // ---- Review finding 3: @Query / @Find with CompletionStage ran synchronously ----
 
     @Test
