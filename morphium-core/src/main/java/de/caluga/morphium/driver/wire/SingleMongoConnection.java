@@ -286,41 +286,34 @@ public class SingleMongoConnection implements MongoConnection {
      * otherwise dead-host detection takes minutes.
      */
     public HelloResult getHelloResult(boolean includeClient, int timeoutMs) throws MorphiumDriverException {
-        OpMsg result = null;
-        long start = System.currentTimeMillis();
+        // pass this connection so the client metadata (driver name, appName) can be resolved
+        HelloCommand cmd = new HelloCommand(this);
 
-        while (null == result) {
-            // pass this connection so the client metadata (driver name, appName) can be resolved
-            HelloCommand cmd = new HelloCommand(this);
-
-            if (authDb != null) {
-                cmd.setUser(user);
-                cmd.setSaslSupportedMechs(authDb + "." + user);
-            }
-
-            if (!includeClient) {
-                cmd.setIncludeClient(false);
-            }
-
-            cmd.setLoadBalanced(false);
-            OpMsg msg = new OpMsg();
-            msg.setMessageId(msgId.incrementAndGet());
-            msg.setFirstDoc(cmd.asMap());
-            result = sendAndWaitForReply(msg, timeoutMs);
-
-            if (result == null && System.currentTimeMillis() - start > timeoutMs) {
-                throw new MorphiumDriverException("Hello result is null");
-            }
-
-            try {
-                if (result == null) Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                // swallow
-            }
+        if (authDb != null) {
+            cmd.setUser(user);
+            cmd.setSaslSupportedMechs(authDb + "." + user);
         }
+
+        if (!includeClient) {
+            cmd.setIncludeClient(false);
+        }
+
+        cmd.setLoadBalanced(false);
+        OpMsg msg = new OpMsg();
+        msg.setMessageId(msgId.incrementAndGet());
+        msg.setFirstDoc(cmd.asMap());
+        // A missing hello reply now throws MorphiumDriverNoReplyException (and closed the
+        // socket), so there is nothing to retry here: the old sleep-and-retry loop below only
+        // ever slept a second before the next send failed on the already-closed socket.
+        OpMsg result = sendAndWaitForReply(msg, timeoutMs);
 
         Map<String, Object> firstDoc = result.getFirstDoc();
         var hello = HelloResult.fromMsg(firstDoc);
+
+        if (hello == null) {
+            close();
+            throw new MorphiumDriverNoReplyException("Hello reply from " + connectedTo + " carried no document");
+        }
 
         String mechanism = driver.getAuthMechanism();
 
@@ -749,7 +742,20 @@ public class SingleMongoConnection implements MongoConnection {
     private OpMsg readReplyFor(int requestId, int timeout) throws MorphiumDriverException {
         OpMsg reply = readNextMessage(timeout);
 
-        if (reply != null && reply.getResponseTo() != requestId) {
+        if (reply == null) {
+            // No reply for OUR request. Two causes, one meaning: this connection cannot serve
+            // the request any more. Either the peer closed it at a message boundary - typically
+            // a connection that sat idle in the pool until the server dropped it (its own pool
+            // expiry, a restart, a load balancer's idle timeout) - or the reply missed the
+            // caller's deadline. readNextMessage() has already closed the socket in both cases;
+            // returning null used to leak "no answer" up as an NPE in the command wrappers or
+            // as a silently empty result set on reads, so throw a retryable network error here
+            // instead: every caller can retry the request on a fresh connection.
+            throw new MorphiumDriverNoReplyException("No reply from " + connectedTo + ":" + getSourcePort()
+                    + " for request " + requestId + " - connection closed by peer or reply timed out");
+        }
+
+        if (reply.getResponseTo() != requestId) {
             // lastReadReplyOrigin names the command whose caller abandoned this reply without
             // closing the connection - the actual bug to hunt, this here is only the backstop
             log.error("Connection to {} out of sync: expected reply to request {}, got reply to {} "
@@ -767,17 +773,35 @@ public class SingleMongoConnection implements MongoConnection {
     public Map<String, Object> readSingleAnswer(int id) throws MorphiumDriverException {
         OpMsg reply = readReplyFor(id, driver.getMaxWaitTime());
 
-        if (reply == null) {
-            return null;
-        }
-
         if (reply.hasCursor()) {
             return getSingleDocAndKillCursor(reply);
         }
 
-        if (reply.getFirstDoc().get("ok").equals(0.0)) {
-            String errmsg = (String) reply.getFirstDoc().get("errmsg");
-            Object codeObj = reply.getFirstDoc().get("code");
+        Map<String, Object> doc = reply.getFirstDoc();
+
+        if (doc == null) {
+            // a reply without any document cannot be an answer to the command we sent
+            close();
+            throw new MorphiumDriverNoReplyException("Empty reply from " + connectedTo + " for request " + id);
+        }
+
+        Object okObj = doc.get("ok");
+
+        if (okObj == null) {
+            // Every command reply carries "ok" - a document without it is not a command reply
+            // we know how to judge. Hand it up as-is (a throw here would turn an unknown reply
+            // shape into a hard failure), but say so: silently treating it as success used to
+            // hide exactly this kind of protocol surprise.
+            log.warn("Reply from {} for request {} carries no 'ok' field - treating as success, keys: {}",
+                     connectedTo, id, doc.keySet());
+        } else if (!(okObj instanceof Number)) {
+            log.warn("Reply from {} for request {} has a non-numeric 'ok' ({}) - treating as success",
+                     connectedTo, id, okObj.getClass().getSimpleName());
+        }
+
+        if (okObj instanceof Number && ((Number) okObj).doubleValue() == 0.0) {
+            String errmsg = (String) doc.get("errmsg");
+            Object codeObj = doc.get("code");
             int code = codeObj instanceof Number ? ((Number) codeObj).intValue() : -1;
             String formattedMsg = "Error: " + code + " - " + errmsg;
 
@@ -805,7 +829,7 @@ public class SingleMongoConnection implements MongoConnection {
             throw ex;
         }
 
-        return reply.getFirstDoc();
+        return doc;
     }
 
     @SuppressWarnings("unchecked")
@@ -1140,21 +1164,26 @@ public class SingleMongoConnection implements MongoConnection {
         OpMsg reply = readReplyFor(queryId, driver.getMaxWaitTime());
         checkForError(reply);
 
-        if (reply == null) {
-            return new SingleBatchCursor(List.of());
-        }
-
         if (reply.hasCursor()) {
             return new SingleMongoConnectionCursor(this, batchSize, true, reply).setServer(connectedTo);
         }
 
-        else if (reply.getFirstDoc().containsKey("results")) {
+        Map<String, Object> doc = reply.getFirstDoc();
+
+        if (doc == null) {
+            // no document at all - not "an empty batch". Returning an empty cursor here used to
+            // end a result set silently, which is indistinguishable from "no more documents".
+            close();
+            throw new MorphiumDriverNoReplyException("Empty reply from " + connectedTo + " for request " + queryId);
+        }
+
+        if (doc.containsKey("results")) {
             @SuppressWarnings("unchecked")
-            List<Map<String, Object>> results = (List<Map<String, Object>>) reply.getFirstDoc().get("results");
+            List<Map<String, Object>> results = (List<Map<String, Object>>) doc.get("results");
             return new SingleBatchCursor(results);
         }
 
-        return new SingleElementCursor(reply.getFirstDoc());
+        return new SingleElementCursor(doc);
     }
 
     private void checkForError(OpMsg msg) throws MorphiumDriverException {

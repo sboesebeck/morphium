@@ -316,7 +316,12 @@ public abstract class DriverBase implements MorphiumDriver {
     @Override
     public List<String> listDatabases() throws MorphiumDriverException {
         if (!isConnected()) {
-            return null;
+            // Returning null here was indistinguishable from "there are no databases" and made
+            // callers null-check an API that already declares a checked exception. Not being
+            // connected (startup before primary discovery, a pool drained by a failover, or a
+            // server that dropped our connections) is an error the caller has to see.
+            throw new MorphiumDriverException("Not connected - cannot list databases, no connection to "
+                    + getHostSeed() + " yet");
         }
 
         MongoConnection primaryConnection = getPrimaryConnection(null);
@@ -327,6 +332,11 @@ public abstract class DriverBase implements MorphiumDriver {
             var msg = primaryConnection.sendCommand(cmd);
             Map<String, Object> res = primaryConnection.readSingleAnswer(msg);
             List<String> ret = new ArrayList<>();
+
+            if (res == null) {
+                throw new MorphiumDriverNoReplyException("No answer to listDatabases from "
+                        + primaryConnection.getConnectedTo());
+            }
 
             if (res.get("databases") != null) {
                 @SuppressWarnings("unchecked")

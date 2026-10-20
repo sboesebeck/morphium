@@ -2585,6 +2585,16 @@ public class Query<T> implements Cloneable {
 
             while (running) {
                 var answer = con.readNextMessage(maxWait); //con.getReplyFor(msgId, maxWait);
+
+                if (answer == null) {
+                    // readNextMessage returns null (and has closed the connection) when the peer
+                    // went away or the deadline passed: there is no reply to look for a cursor in,
+                    // so end the tailing instead of NPE-ing on answer.getFirstDoc(). Same
+                    // outcome as the "no cursor in result" break below - the cursor is gone.
+                    log.debug("Tail: no message received - ending tailing");
+                    break;
+                }
+
                 List<Map<String, Object>> batch = null;
                 Map<String, Object> cursor = (Map<String, Object>) answer.getFirstDoc().get("cursor");
 

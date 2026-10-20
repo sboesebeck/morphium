@@ -64,7 +64,9 @@ public class ControlChannelTest {
      * socket cleanly - without replying - to the next one. Models a real mongod closing the
      * connection instead of answering (e.g. some replSetStepDown paths) via a clean FIN at a
      * message boundary: {@code WireProtocolMessage#parseFromStream} returns null there rather
-     * than throwing, so {@code SingleMongoConnection#sendAndWaitForReply} returns null too. */
+     * than throwing, so {@code SingleMongoConnection#sendAndWaitForReply} reports it as a
+     * retryable {@code MorphiumDriverNoReplyException} - which {@code ControlChannel} translates
+     * back into its {@code ConnectionClosedWithoutReplyException}. */
     private int startCannedBackendThatClosesAfterHello() throws IOException {
         listener = new ServerSocket();
         listener.bind(new InetSocketAddress("localhost", 0));

@@ -6,6 +6,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.MorphiumDriverNoReplyException;
 import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.morphium.driver.wire.SingleMongoConnection;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
@@ -35,14 +36,17 @@ public class ControlChannel implements AutoCloseable {
         OpMsg msg = new OpMsg();
         msg.setMessageId(MSG_ID.incrementAndGet());
         msg.setFirstDoc(cmd);
-        OpMsg reply = con.sendAndWaitForReply(msg);
-        // A clean EOF (peer closes at a message boundary, e.g. some replSetStepDown paths) makes
-        // SingleMongoConnection.sendAndWaitForReply return null rather than throw - it is not an
-        // I/O error, just "no reply came". Without this check, callers (including
-        // commandTolerateClose) would NPE on reply.getFirstDoc() instead of seeing a clean,
-        // catchable failure.
-        if (reply == null) {
-            throw new ConnectionClosedWithoutReplyException("connection closed without a reply, cmd=" + cmd);
+        OpMsg reply;
+
+        try {
+            reply = con.sendAndWaitForReply(msg);
+        } catch (MorphiumDriverNoReplyException e) {
+            // A clean EOF (peer closes at a message boundary, e.g. some replSetStepDown paths) is
+            // not an I/O error, just "no reply came": the driver reports it as a
+            // MorphiumDriverNoReplyException (retryable elsewhere) and closes the connection.
+            // Translate it back into the one case callers of this helper care about, so
+            // commandTolerateClose can swallow exactly this and nothing else.
+            throw new ConnectionClosedWithoutReplyException("connection closed without a reply, cmd=" + cmd, e);
         }
         Map<String, Object> doc = reply.getFirstDoc();
         Object ok = doc == null ? null : doc.get("ok");
@@ -71,6 +75,10 @@ public class ControlChannel implements AutoCloseable {
     public static class ConnectionClosedWithoutReplyException extends MorphiumDriverException {
         public ConnectionClosedWithoutReplyException(String message) {
             super(message);
+        }
+
+        public ConnectionClosedWithoutReplyException(String message, Throwable cause) {
+            super(message, cause);
         }
     }
 

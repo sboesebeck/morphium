@@ -25,6 +25,7 @@ import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumDriverNetworkException;
+import de.caluga.morphium.driver.MorphiumDriverNoReplyException;
 import de.caluga.morphium.driver.MorphiumTransactionContext;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.ReadPreferenceType;
@@ -880,6 +881,14 @@ public class SingleMongoConnectDriver extends DriverBase {
         while (true) {
             OpMsg reply = connection.readNextMessage(getMaxWaitTime());//connection.getReplyFor(waitingfor, getMaxWaitTime());
 
+            if (reply == null) {
+                // no reply for our request - the connection is gone (closed by the peer or by the
+                // read deadline inside readNextMessage). Callers wrap this in a NetworkCallHelper,
+                // so a retryable network error is what they need - not an NPE on getResponseTo().
+                throw new MorphiumDriverNoReplyException("No reply from " + connection.getConnectedTo()
+                                                         + " for request " + waitingfor);
+            }
+
             if (reply.getResponseTo() != waitingfor) {
                 log.error("Wrong answer - waiting for {} but got {}", waitingfor, reply.getResponseTo());
                 log.error("Document: {}", Utils.toJsonString(reply.getFirstDoc()));
@@ -970,6 +979,12 @@ public class SingleMongoConnectDriver extends DriverBase {
             msg.setFirstDoc(v);
             connection.sendQuery(msg);
             OpMsg reply = connection.readNextMessage(getMaxWaitTime());//connection.getReplyFor(msg.getMessageId(), getMaxWaitTime());
+
+            if (reply == null) {
+                throw new MorphiumDriverNoReplyException("No reply from " + connection.getConnectedTo()
+                                                         + " for request " + msg.getMessageId());
+            }
+
             return reply.getFirstDoc();
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries(), (t)-> {
             close();
