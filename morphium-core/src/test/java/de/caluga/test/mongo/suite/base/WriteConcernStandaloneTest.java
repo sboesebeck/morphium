@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -89,6 +90,31 @@ public class WriteConcernStandaloneTest {
         WriteConcern wc = morphium.getWriteConcernForClass(WaitForSlaveEntity.class);
         assertNotNull(wc);
         assertEquals(2, wc.getW(), "WAIT_FOR_SLAVE (w:2) should remain w:2 on replica set");
+    }
+
+    @Test
+    void replicaSetWithOneReachableMemberUsesMajorityForWaitForAllSlaves() {
+        // one-node set (or a cluster reduced to one reachable member): "all available copies"
+        // would collapse to w:1, which is acknowledged before the majority commit point moves -
+        // the entity's own majority reads then miss the write. w:majority is the same single
+        // member, journaled, and therefore visible to a majority read.
+        morphium = createMorphium(true);
+        assertTrue(morphium.getDriver().getNumReachableHosts() <= 1, "precondition: at most one reachable member");
+        WriteConcern wc = morphium.getWriteConcernForClass(WaitForAllSlavesEntity.class);
+        assertNotNull(wc);
+        assertTrue(wc.getW() < 0, "WAIT_FOR_ALL_SLAVES with one reachable member must become w:majority, got w=" + wc.getW());
+        assertEquals("majority", wc.asMap().get("w"));
+    }
+
+    @Test
+    void replicaSetWithSeveralReachableMembersKeepsCountingForWaitForAllSlaves() {
+        morphium = createMorphium(true);
+        morphium.getConfig().clusterSettings().setHostSeed(new ArrayList<>(List.of("h1:27017", "h2:27017", "h3:27017")));
+        morphium.getDriver().setHostSeed("h1:27017", "h2:27017", "h3:27017");
+        assertEquals(3, morphium.getDriver().getNumReachableHosts(), "precondition: driver default counts the seed");
+        WriteConcern wc = morphium.getWriteConcernForClass(WaitForAllSlavesEntity.class);
+        assertNotNull(wc);
+        assertEquals(3, wc.getW(), "with several reachable members w still follows their count");
     }
 
     @Test
