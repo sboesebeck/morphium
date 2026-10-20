@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 30, done 40
+Status: open 31, in_progress 1, done 40
 
 ## Overview
 
@@ -17,7 +17,7 @@ Status: open 30, done 40
 | MOR-024 | open | 2 | defect | Jakarta Data: support ordinal parameters (?1) in @Query | S |  |  |
 | MOR-025 | open | 2 | defect | Jakarta Data: @Update is not atomic and throws IllegalStateException | M |  |  |
 | MOR-026 | open | 2 | infrastructure | Run the Jakarta Data TCK against morphium-jakarta-data | M |  |  |
-| MOR-031 | open | 2 | implementation | Quarkus: Micrometer / OpenTelemetry metrics for pool and update paths | M |  |  |
+| MOR-031 | in_progress | 2 | implementation | Quarkus: Micrometer / OpenTelemetry metrics for pool and update paths | M |  |  |
 | MOR-034 | open | 2 | implementation | Quarkus testing module: real MongoDB test resource, data reset and fixtures | M |  |  |
 | MOR-063 | open | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
 | MOR-069 | open | 2 | defect | PoppyDB: the update fast path reports every error as 11000 and ignores the ordered flag | S |  |  |
@@ -40,6 +40,8 @@ Status: open 30, done 40
 | MOR-052 | open | 3 | defect | updateLastAccess writes the untranslated Java field name | S |  |  |
 | MOR-070 | open | 3 | defect | PoppyDB: the delete fast path swallows errors | S |  |  |
 | MOR-071 | open | 3 | defect | Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange | S |  |  |
+| MOR-072 | open | 3 | defect | The update builder, findOneAndUpdate(Map), updateOne and updateMany fire no storage-listener update events | M |  |  |
+| MOR-073 | open | 3 | defect | Query.push, pull and addToSet fire the update events twice, and the post event is always PUSH | S |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -597,7 +599,7 @@ Commits: e2a1167a8
 
 ### MOR-031 Quarkus: Micrometer / OpenTelemetry metrics for pool and update paths
 
-Status **open**, priority 2, type implementation, effort M
+Status **in_progress**, priority 2, type implementation, effort M
 
 Applications currently write their own connection pool metrics. Provide connection pool metrics and counters/timers for update paths in quarkus-morphium, building on docs/monitoring-metrics-guide.md.
 
@@ -1222,4 +1224,28 @@ Acceptance:
 - The pins in UpdateEntryPointsLifecycleTest flip to the decision
 
 Source: morphium-core/src/main/java/de/caluga/morphium/writer/MorphiumWriterImpl.java handleLastChange, morphium-core/src/test/java/de/caluga/test/mongo/suite/base/UpdateEntryPointsLifecycleTest.java
+
+### MOR-072 The update builder, findOneAndUpdate(Map), updateOne and updateMany fire no storage-listener update events
+
+Status **open**, priority 3, type defect, effort M
+
+Found by MOR-031. MorphiumStorageListener.preUpdate/postUpdate (Morphium.firePreUpdateEvent) are fired by the writer path (Query.set, inc, push, ...), the bulk context and the buffered writer, but not by Query.modify() (UpdateBuilder), Query.findOneAndUpdate(Map, ...), updateOne and updateMany. Listeners and metrics (morphium.operations.duration in quarkus-morphium) do not see the newest update path. Decide whether they fire the events (a veto from preUpdate then blocks them) or the contract says why not.
+
+Acceptance:
+
+- A listener sees preUpdate and postUpdate for the builder terminals, findOneAndUpdate(Map) and the count terminals, or the contract page says they are not fired
+
+Source: morphium-core/src/main/java/de/caluga/morphium/query/UpdateBuilder.java, quarkus-morphium/runtime/src/main/java/de/caluga/morphium/quarkus/observability/MorphiumOperationMetrics.java
+
+### MOR-073 Query.push, pull and addToSet fire the update events twice, and the post event is always PUSH
+
+Status **open**, priority 3, type defect, effort S
+
+Found by MOR-031 (a timer count of 2 for one push). MorphiumWriterImpl.pushPull fires firePreUpdateEvent(type) and pushIt fires it again, pushIt fires the post event and pushPull fires it a second time, with UpdateTypes.PUSH hard-coded, so a pull or an addToSet is followed by a post event of type PUSH. A listener counts every push, pull and addToSet twice and cannot pair a pull. Fire each event once, with the real type.
+
+Acceptance:
+
+- A listener sees one preUpdate and one postUpdate per Query.push, pull and addToSet, with the type of the call
+
+Source: morphium-core/src/main/java/de/caluga/morphium/writer/MorphiumWriterImpl.java pushPull and pushIt
 

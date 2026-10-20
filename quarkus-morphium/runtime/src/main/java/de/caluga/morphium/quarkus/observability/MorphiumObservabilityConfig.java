@@ -40,14 +40,10 @@ import io.smallrye.config.WithDefault;
  * top-level {@code @ConfigMapping} for the same {@code quarkus.morphium.*} property tree. Same
  * property path and defaults the plan specifies; different Java-level composition.
  *
- * <p><b>Phase 1 (MVP) scope note:</b> only {@link #enabled()} is implemented in this phase. The
- * plan's Section 7 also specifies {@code poll-interval}, {@code per-host-connections}, and
- * {@code include-storage-listener-metrics} — those govern behaviour (per-host connection tags,
- * the Counter/Timer metrics sourced from {@code MorphiumStorageListener}/
- * {@code MorphiumTransactionEvent}) that Phase 1 does not implement yet (deferred to a later
- * phase per the plan's Section 4.1/8), so adding those properties now would document
- * configuration knobs with nothing behind them. They will be added alongside the phase that
- * implements the behaviour they control.
+ * <p><b>Scope note:</b> {@link #enabled()} and {@link #includeStorageListenerMetrics()} are
+ * implemented. The plan's Section 7 also specifies {@code poll-interval} and
+ * {@code per-host-connections}; those govern behaviour (per-host connection tags, push backends)
+ * that is not implemented yet, so the properties are not added until the behaviour they control is.
  */
 public interface MorphiumObservabilityConfig {
 
@@ -61,4 +57,13 @@ public interface MorphiumObservabilityConfig {
      */
     @WithDefault("true")
     boolean enabled();
+
+    /**
+     * Times the update operations of the writer path as {@code morphium.operations.duration}
+     * (tags {@code database}, {@code operation}, {@code update_type}, {@code entity}). The timer
+     * needs a storage listener on the Morphium instance; switch it off where the per-write overhead
+     * matters. The pool and cache gauges are not affected.
+     */
+    @WithDefault("true")
+    boolean includeStorageListenerMetrics();
 }

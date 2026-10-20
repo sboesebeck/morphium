@@ -650,7 +650,7 @@ public class MorphiumProducer {
             MorphiumMetricsBinder binder = binderHandle.get();
             binder.close();
             if (config.observability().enabled()) {
-                binder.bindTo(m, config.database());
+                binder.bindTo(m, config.database(), config.observability().includeStorageListenerMetrics());
             }
         }
 
