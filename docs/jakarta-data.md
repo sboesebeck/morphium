@@ -253,6 +253,17 @@ public interface ProductRepository extends MorphiumRepository<Product, MorphiumI
 `morphium.delete(entity)` (`FindMethodBridge.java:251-254`) — unlike derived
 `deleteBy*` methods, which use a bulk `query.delete()`.
 
+## `@Update` and optimistic locking
+
+`@Update` replaces an entity that exists. If no entity with that id exists, or its `@Version` is not the one of the entity you pass,
+the call fails with `jakarta.data.exceptions.OptimisticLockingFailureException` and nothing is written.
+
+- With a `@Version` field the check is atomic: the id and the version are matched by the store itself, there is no extra lookup.
+- Without a version only the id can be matched. Morphium looks the id up first (`findById`), which is not atomic: an entity that is deleted
+  between the lookup and the store is inserted again. Give the entity a `@Version` where that matters.
+- `updateAll` rejects the whole list when an entity without a version is missing. A stale version is found by the store, so the entities
+  stored before it stay updated.
+
 ## Pagination
 
 Three types cover pagination: `jakarta.data.page.Page<T>`,
