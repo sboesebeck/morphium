@@ -131,8 +131,7 @@ registers these meters, all tagged with `database`:
 
 The timer covers the writer path (`Query.set`, `inc`, `push`, `pull`, ..., the bulk context). The update builder
 (`Query.modify()`), `findOneAndUpdate(Map)` and `updateOne`/`updateMany` fire no storage-listener events in
-morphium-core and are not timed yet (MOR-072); `push`, `pull` and `addToSet` fire them twice, so their count is too high
-(MOR-073). A write that fails is not timed, because no event follows it. A write that a buffered writer flushes on another
+morphium-core and are not timed yet (MOR-072). A write that fails is not timed, because no event follows it. A write that a buffered writer flushes on another
 thread is not timed either.
 
 ## Quick Example

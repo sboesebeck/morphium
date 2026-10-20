@@ -96,8 +96,7 @@ class MorphiumOperationMetricsWithMorphiumTest {
         assertThat(timer("inc")).isNotNull();
         assertThat(timer("inc").count()).isEqualTo(2);
         assertThat(timer("set").count()).isEqualTo(1);
-        // morphium-core fires the events of push, pull and addToSet twice (MOR-073), so the count is not exact yet
-        assertThat(timer("push").count()).isGreaterThanOrEqualTo(1);
+        assertThat(timer("push").count()).isEqualTo(1);
         assertThat(timer("inc").totalTime(java.util.concurrent.TimeUnit.NANOSECONDS)).isPositive();
         assertThat(morphium.createQueryFor(Counter.class).f("id").eq("c1").get().hits).isEqualTo(10);
     }
