@@ -97,10 +97,13 @@ filter that matches nothing. `ReturnDocument.AFTER` returns the document; `tryFi
 
 Test: `ConditionalUpsertReproductionTest` (5b).
 
-## 7. Query-based updates: no callbacks, and not every annotation is maintained
+## 7. Query-based updates: no entity callbacks, and not every annotation is maintained
 
 `store()` calls `@PreStore` and `@PostStore` on the entity. A query-based update has no entity instance and calls neither. If a
 `@PreStore` method derives a field (a hash, a normalised name), an update that changes its inputs must set the field too.
+
+The storage-listener events are another thing: `preUpdate` and `postUpdate` of a `MorphiumStorageListener` fire for every query-based update, the
+builder and `findOneAndUpdate(Map)` included, once per call.
 
 The annotations that describe the document differ by entry point:
 

@@ -129,10 +129,10 @@ registers these meters, all tagged with `database`:
 | `morphium.cache.hit_ratio`, `.entries`, `morphium.write_buffer.entries` | gauge | cache and write buffer |
 | `morphium.operations.duration` | timer | update operations; tags `operation=update`, `update_type` (`set`, `inc`, `push`, ...) and `entity` |
 
-The timer covers the writer path (`Query.set`, `inc`, `push`, `pull`, ..., the bulk context). The update builder
-(`Query.modify()`), `findOneAndUpdate(Map)` and `updateOne`/`updateMany` fire no storage-listener events in
-morphium-core and are not timed yet (MOR-072). A write that fails is not timed, because no event follows it. A write that a buffered writer flushes on another
-thread is not timed either.
+The timer covers every update that fires the storage-listener events: the writer path (`Query.set`, `inc`, `push`, `pull`, ..., the bulk
+context), the update builder (`Query.modify()`) and `findOneAndUpdate(Map)`, `updateOne` and `updateMany`. The `update_type` is the operator of the call
+(`set`, `inc`, `push`, ...), `custom` for an update with several operators. A write that fails is not timed, because no event follows it. A write that a
+buffered writer flushes on another thread is not timed either.
 
 ## Quick Example
 

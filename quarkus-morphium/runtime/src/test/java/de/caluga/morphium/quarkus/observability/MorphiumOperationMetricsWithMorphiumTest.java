@@ -115,4 +115,22 @@ class MorphiumOperationMetricsWithMorphiumTest {
 
         assertThat(timer("inc")).isNull();
     }
+
+    @Test
+    @DisplayName("the update builder, findOneAndUpdate(Map) and updateMany are timed, several operators as custom")
+    void theNewerUpdatePathsAreTimed() {
+        Counter c = new Counter();
+        c.id = "c3";
+        c.tags = new java.util.ArrayList<>();
+        morphium.store(c);
+
+        morphium.createQueryFor(Counter.class).f("id").eq("c3").modify().inc("hits", 1).findOneAndUpdate(de.caluga.morphium.query.ReturnDocument.AFTER);
+        morphium.createQueryFor(Counter.class).f("id").eq("c3").modify().set("hits", 5).updateMany();
+        morphium.createQueryFor(Counter.class).f("id").eq("c3").findOneAndUpdate(java.util.Map.of("$set", java.util.Map.of("hits", 6)), false, true);
+        morphium.createQueryFor(Counter.class).f("id").eq("c3").modify().set("hits", 7).push("tags", "x").updateOne();
+
+        assertThat(timer("inc").count()).isEqualTo(1);
+        assertThat(timer("set").count()).isEqualTo(2);
+        assertThat(timer("custom").count()).isEqualTo(1);
+    }
 }
