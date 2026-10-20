@@ -719,7 +719,7 @@ tasks:
 - id: MOR-031
   title: 'Quarkus: Micrometer / OpenTelemetry metrics for pool and update paths'
   type: implementation
-  status: open
+  status: in_progress
   priority: 2
   effort: M
   description: Applications currently write their own connection pool metrics. Provide connection pool metrics and
@@ -729,6 +729,8 @@ tasks:
   - Verified against a real MongoDB (not only the InMemoryDriver).
   source:
   - review of quarkus-morphium
+  commits: []
+  notes: 'Pool, cache and write-buffer meters existed (MorphiumMetricsBinder, #332). Added: the timer morphium.operations.duration for the update operations of the writer path (MorphiumOperationMetrics), the switch quarkus.morphium.observability.include-storage-listener-metrics, the docs section. Unit tests and a test against a real Morphium run on the InMemoryDriver and on mongo:8. Still open: the acceptance test on the Quarkus metrics endpoint (/q/metrics) needs quarkus-micrometer-registry-prometheus in the integration tests. Coverage is limited by MOR-072 and MOR-073.'
 - id: MOR-032
   title: 'Quarkus: named Morphium instances'
   type: implementation
@@ -1486,3 +1488,26 @@ tasks:
   source:
   - morphium-core/src/main/java/de/caluga/morphium/writer/MorphiumWriterImpl.java handleLastChange
   - morphium-core/src/test/java/de/caluga/test/mongo/suite/base/UpdateEntryPointsLifecycleTest.java
+- id: MOR-072
+  title: 'The update builder, findOneAndUpdate(Map), updateOne and updateMany fire no storage-listener update events'
+  type: defect
+  status: open
+  priority: 3
+  effort: M
+  description: 'Found by MOR-031. MorphiumStorageListener.preUpdate/postUpdate (Morphium.firePreUpdateEvent) are fired by the writer path (Query.set, inc, push, ...), the bulk context and the buffered writer, but not by Query.modify() (UpdateBuilder), Query.findOneAndUpdate(Map, ...), updateOne and updateMany. Listeners and metrics (morphium.operations.duration in quarkus-morphium) do not see the newest update path. Decide whether they fire the events (a veto from preUpdate then blocks them) or the contract says why not.'
+  acceptance:
+  - A listener sees preUpdate and postUpdate for the builder terminals, findOneAndUpdate(Map) and the count terminals, or the contract page says they are not fired
+  source:
+  - morphium-core/src/main/java/de/caluga/morphium/query/UpdateBuilder.java
+  - quarkus-morphium/runtime/src/main/java/de/caluga/morphium/quarkus/observability/MorphiumOperationMetrics.java
+- id: MOR-073
+  title: 'Query.push, pull and addToSet fire the update events twice, and the post event is always PUSH'
+  type: defect
+  status: open
+  priority: 3
+  effort: S
+  description: 'Found by MOR-031 (a timer count of 2 for one push). MorphiumWriterImpl.pushPull fires firePreUpdateEvent(type) and pushIt fires it again, pushIt fires the post event and pushPull fires it a second time, with UpdateTypes.PUSH hard-coded, so a pull or an addToSet is followed by a post event of type PUSH. A listener counts every push, pull and addToSet twice and cannot pair a pull. Fire each event once, with the real type.'
+  acceptance:
+  - A listener sees one preUpdate and one postUpdate per Query.push, pull and addToSet, with the type of the call
+  source:
+  - morphium-core/src/main/java/de/caluga/morphium/writer/MorphiumWriterImpl.java pushPull and pushIt

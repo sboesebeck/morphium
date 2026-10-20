@@ -28,6 +28,7 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -78,6 +79,11 @@ public class MorphiumMetricsBinder {
 
     private final List<Meter.Id> registeredMeters = new ArrayList<>();
 
+    // The listener that times the update operations and the Morphium instance it was added to. The
+    // instance is held weakly, like the gauges do (see the class Javadoc).
+    private MorphiumOperationMetrics operationMetrics;
+    private WeakReference<Morphium> operationMetricsOwner;
+
     /**
      * Registers all in-scope gauges against the given, already-connected {@link Morphium}
      * instance. Idempotent with respect to prior registrations on this bean: callers on a
@@ -91,6 +97,15 @@ public class MorphiumMetricsBinder {
      *                 (deprecated in {@code MorphiumConfig}).
      */
     public synchronized void bindTo(Morphium m, String database) {
+        bindTo(m, database, true);
+    }
+
+    /**
+     * Like {@link #bindTo(Morphium, String)}; with {@code operationMetrics} the update operations of
+     * the writer path are timed as well ({@code morphium.operations.duration}, see
+     * {@link MorphiumOperationMetrics}), which adds a storage listener to {@code m}.
+     */
+    public synchronized void bindTo(Morphium m, String database, boolean operationMetrics) {
         Tags tags = Tags.of(DATABASE_TAG, database);
 
         registerDriverGauge(m, tags, "morphium.driver.connections.pool",
@@ -111,6 +126,12 @@ public class MorphiumMetricsBinder {
         registerStatisticGauge(m, tags, "morphium.cache.hit_ratio", StatisticKeys.CHITSPERC);
         registerStatisticGauge(m, tags, "morphium.cache.entries", StatisticKeys.CACHE_ENTRIES);
         registerStatisticGauge(m, tags, "morphium.write_buffer.entries", StatisticKeys.WRITE_BUFFER_ENTRIES);
+
+        if (operationMetrics) {
+            this.operationMetrics = new MorphiumOperationMetrics(registry, tags);
+            this.operationMetricsOwner = new WeakReference<>(m);
+            m.addListener(this.operationMetrics);
+        }
 
         log.debug("Morphium: registered {} Micrometer meters for database '{}'",
                 registeredMeters.size(), database);
@@ -168,6 +189,15 @@ public class MorphiumMetricsBinder {
      * (Section 6.4 of the observability plan).
      */
     public synchronized void close() {
+        if (operationMetrics != null) {
+            Morphium owner = operationMetricsOwner.get();
+            if (owner != null) {
+                owner.removeListener(operationMetrics);
+            }
+            operationMetrics.close();
+            operationMetrics = null;
+            operationMetricsOwner = null;
+        }
         for (Meter.Id id : registeredMeters) {
             registry.remove(id);
         }
