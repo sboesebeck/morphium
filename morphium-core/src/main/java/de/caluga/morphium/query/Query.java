@@ -28,6 +28,7 @@ import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.FilterExpression;
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumStorageListener;
 import de.caluga.morphium.MorphiumAccessVetoException;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.UtilsMap;
@@ -503,6 +504,9 @@ public class Query<T> implements Cloneable {
         morphium.inc(StatisticKeys.NO_CACHED_READS);
         // mapped before a connection is acquired: an invalid update must not leak one
         update = newUpdateMapper().map(update);
+        MorphiumStorageListener.UpdateTypes eventType = updateTypeOf(update);
+        morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(type), eventType);
+        boolean sent = false;
         Map<String, Object> ret = null;
         MongoConnection con = null;
         FindAndModifyMongoCommand settings = null;
@@ -524,6 +528,7 @@ public class Query<T> implements Cloneable {
             }
 
             ret = settings.execute();
+            sent = true;
             settings.releaseConnection();
             settings = null;
             con = null;
@@ -535,6 +540,11 @@ public class Query<T> implements Cloneable {
             } else if (con != null) {
                 morphium.getDriver().releaseConnection(con);
             }
+        }
+
+        if (sent) {
+            morphium.getCache().clearCacheIfNecessary(type);
+            morphium.firePostUpdateEvent(morphium.getARHelper().getRealClass(type), eventType);
         }
 
         if (ret == null) {
@@ -618,6 +628,32 @@ public class Query<T> implements Cloneable {
     }
 
     /**
+     * The type of the storage-listener update events for an update document: the type of the operator if it has exactly one, {@code CUSTOM} otherwise
+     * (several operators, {@code $setOnInsert}, {@code $bit}, ...).
+     */
+    private static MorphiumStorageListener.UpdateTypes updateTypeOf(Map<String, Object> update) {
+        if (update == null || update.size() != 1) {
+            return MorphiumStorageListener.UpdateTypes.CUSTOM;
+        }
+
+        return switch (update.keySet().iterator().next()) {
+            case "$set" -> MorphiumStorageListener.UpdateTypes.SET;
+            case "$unset" -> MorphiumStorageListener.UpdateTypes.UNSET;
+            case "$inc" -> MorphiumStorageListener.UpdateTypes.INC;
+            case "$mul" -> MorphiumStorageListener.UpdateTypes.MUL;
+            case "$min" -> MorphiumStorageListener.UpdateTypes.MIN;
+            case "$max" -> MorphiumStorageListener.UpdateTypes.MAX;
+            case "$rename" -> MorphiumStorageListener.UpdateTypes.RENAME;
+            case "$currentDate" -> MorphiumStorageListener.UpdateTypes.CURRENTDATE;
+            case "$push" -> MorphiumStorageListener.UpdateTypes.PUSH;
+            case "$pull", "$pullAll" -> MorphiumStorageListener.UpdateTypes.PULL;
+            case "$addToSet" -> MorphiumStorageListener.UpdateTypes.ADD_TO_SET;
+            case "$pop" -> MorphiumStorageListener.UpdateTypes.POP;
+            default -> MorphiumStorageListener.UpdateTypes.CUSTOM;
+        };
+    }
+
+    /**
      * Like {@link #findOneAndUpdateMapped(Map, boolean, boolean)}, but the result says what the update did (inserted, updated, not matched) and a lost upsert
      * ({@link MorphiumDriverException#isDuplicateKey()}) is returned as {@link UpdateOutcome.Kind#DUPLICATE_KEY}. Only an upsert can lose the insert of this call, so
      * a duplicate key of an update without upsert (a unique index on a modified field) is thrown. Any other failure is thrown, too.
@@ -662,6 +698,9 @@ public class Query<T> implements Cloneable {
         // on a cache hit, which for an upsert would DELETE the matched document instead of upserting
         // it (silent data loss) - hence it is intentionally not replicated here.
         morphium.inc(StatisticKeys.NO_CACHED_READS);
+        // like the writer path: a listener can veto the update before anything is sent (MOR-072)
+        MorphiumStorageListener.UpdateTypes eventType = updateTypeOf(update);
+        morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(type), eventType);
 
         Map<String, Object> queryObject = toQueryObject();
         Map<String, Object> effectiveUpdate = update;
@@ -736,6 +775,7 @@ public class Query<T> implements Cloneable {
             morphium.getCache().clearCacheIfNecessary(type);
         }
 
+        morphium.firePostUpdateEvent(morphium.getARHelper().getRealClass(type), eventType);
         return reply;
     }
 
@@ -787,6 +827,8 @@ public class Query<T> implements Cloneable {
      */
     UpdateResult updateMapped(Map<String, Object> update, boolean upsert, boolean multiple) {
         morphium.inc(StatisticKeys.NO_CACHED_READS);
+        MorphiumStorageListener.UpdateTypes eventType = updateTypeOf(update);
+        morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(type), eventType);
         Map<String, Object> queryObject = toQueryObject();
         Map<String, Object> effectiveUpdate = upsert ? addGeneratedIdOnInsertIfNeeded(queryObject, update) : update;
         Map<String, Object> reply;
@@ -821,6 +863,8 @@ public class Query<T> implements Cloneable {
             morphium.getCache().clearCacheIfNecessary(type);
         }
 
+        // fired before the reply is turned into an exception, like the writer path does for a rejected write
+        morphium.firePostUpdateEvent(morphium.getARHelper().getRealClass(type), eventType);
         return toUpdateResult(reply);
     }
 

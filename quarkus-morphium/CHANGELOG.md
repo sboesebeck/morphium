@@ -25,8 +25,8 @@ Micrometer timer with the tags `database`, `operation`, `update_type` and `entit
 adds one storage listener to the Morphium instance. A write that fails, and a write that a buffered
 writer flushes on another thread, are not timed.
 
-Not covered yet, because morphium-core fires no event for them: `Query.modify()`, `findOneAndUpdate(Map)`,
-`updateOne` and `updateMany` (MOR-072). The meters are listed in `docs/quarkus-extension.md`.
+The builder (`Query.modify()`), `findOneAndUpdate(Map)`, `updateOne` and `updateMany` are timed too, since morphium-core fires the events for them
+(MOR-072). The meters are listed in `docs/quarkus-extension.md`.
 
 #### `quarkus.morphium.use-bson-date-for-java-time` reaches all four `java.time` types
 The extension could configure the on-disk format of exactly one of the four types the object
