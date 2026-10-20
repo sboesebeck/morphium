@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Testing module: a real MongoDB profile, a reset between tests and fixtures
+`quarkus-morphium-testing` had only `InMemMorphiumTestProfile`. `MongoMorphiumTestProfile` runs a `@QuarkusTest` against a real
+MongoDB: a container from Dev Services, or the server named by `MORPHIUM_TEST_HOSTS`. `MorphiumTestSupport.reset(Morphium)` empties
+all collections of the database and clears the cache, keeping the collections and their indexes; `ResetMorphiumExtension` runs it
+before each test. `MorphiumTestSupport.load(Morphium, entities...)` stores fixtures. See "Testing against a real MongoDB" in
+`docs/quarkus-extension.md`.
+
 #### Timer for the update operations: `morphium.operations.duration`
 The extension already exported the pool, cache and write-buffer meters. It now times the update
 operations of the writer path (`Query.set`, `inc`, `push`, `pull`, ..., the bulk context) as a

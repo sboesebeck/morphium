@@ -186,6 +186,33 @@ quarkus.morphium.database=my-app-db
 against it with no container and no external MongoDB, exactly like the core Morphium
 test suite.
 
+## Testing against a real MongoDB
+
+The module `quarkus-morphium-testing` (test scope) has the helpers for application tests:
+
+```java
+@QuarkusTest
+@TestProfile(MongoMorphiumTestProfile.class)      // a real MongoDB, see below
+@ExtendWith(ResetMorphiumExtension.class)          // an empty database before each test
+class OrderServiceTest {
+    @Inject Morphium morphium;
+
+    @Test
+    void cancelsAnOrder() {
+        MorphiumTestSupport.load(morphium, order("o1"), order("o2"));   // fixtures, stored like the application stores
+        ...
+    }
+}
+```
+
+- `MongoMorphiumTestProfile` runs the test with the pooled driver against a MongoDB container that Dev Services starts. With
+  `MORPHIUM_TEST_HOSTS=host:27017` (environment variable or system property) it uses that server instead. The tests use their
+  own database (`morphium-test`, override `database()` in a subclass); a subclass can also ask for a replica set (`replicaSet()`),
+  which transactions need. `InMemMorphiumTestProfile` stays the choice for tests without a server.
+- `MorphiumTestSupport.reset(morphium)` removes the documents of all collections of the database and clears the cache. It deletes
+  instead of dropping, so the collections keep their indexes. `ResetMorphiumExtension` calls it before each test.
+- `MorphiumTestSupport.load(morphium, entities...)` stores the entities with `Morphium.store`.
+
 ## Full Documentation
 
 This page is an overview. The complete documentation — getting started, entity

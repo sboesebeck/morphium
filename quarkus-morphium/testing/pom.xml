@@ -13,7 +13,9 @@
   <description>
     Test utilities for applications using the quarkus-morphium extension.
     Provides InMemMorphiumTestProfile to run Quarkus tests against the
-    Morphium in-memory driver without starting a MongoDB container.
+    Morphium in-memory driver without starting a MongoDB container,
+    MongoMorphiumTestProfile for a real MongoDB, and a reset between tests
+    and fixtures (MorphiumTestSupport, ResetMorphiumExtension).
   </description>
 
   <dependencies>
