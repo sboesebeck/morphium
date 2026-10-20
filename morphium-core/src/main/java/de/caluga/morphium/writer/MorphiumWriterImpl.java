@@ -2873,19 +2873,17 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 long start = System.currentTimeMillis();
 
                 try {
-                    boolean push = type.equals(MorphiumStorageListener.UpdateTypes.PUSH) || type.equals(MorphiumStorageListener.UpdateTypes.ADD_TO_SET);
-
                     if (query.getLimit() != 0) {
                         LoggerFactory.getLogger(MorphiumWriterImpl.class).warn("Limit on push/pull queries not useful!");
                     }
 
-                    ret = pushIt(push, upsert, multiple, cls, coll, qobj, update, query.getCollation(), query.getArrayFilters(), query.isRaiseOnWriteErrors());
+                    ret = pushIt(type, upsert, multiple, cls, coll, qobj, update, query.getCollation(), query.getArrayFilters(), query.isRaiseOnWriteErrors());
 
                     if (ret.containsKey("ok") && ret.get("ok").equals(0.0)) {
                         throw new RuntimeException("Error: " + ret.get("code") + " - " + ret.get("errmsg"));
                     }
 
-                    morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
+                    // the post event is fired by pushIt, with the type of the call
 
                     if (callback != null) {
                         callback.onOperationSucceeded(AsyncOperationType.PUSH, query, System.currentTimeMillis() - start, null, null, field, value, upsert, multiple);
@@ -2933,9 +2931,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     }
 
     @SuppressWarnings("CommentedOutCode")
-    private Map<String, Object> pushIt(boolean push, boolean upsert, boolean multiple, Class<?> cls, String coll, Map<String, Object> qobj, Map<String, Object> update, Collation collation,
+    private Map<String, Object> pushIt(MorphiumStorageListener.UpdateTypes type, boolean upsert, boolean multiple, Class<?> cls, String coll, Map<String, Object> qobj, Map<String, Object> update, Collation collation,
                                        List<Map<String, Object>> arrayFilters, boolean raise) {
-        morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(cls), push ? MorphiumStorageListener.UpdateTypes.PUSH : MorphiumStorageListener.UpdateTypes.PULL);
+        // the pre event is fired by pushPull, once
         Entity en = morphium.getARHelper().getAnnotationFromHierarchy(cls, Entity.class);
 
         if (coll == null) {
@@ -2982,7 +2980,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         // upsert,
         // multiple ? WriteAccessType.BULK_UPDATE : WriteAccessType.SINGLE_UPDATE);
         morphium.getCache().clearCacheIfNecessary(cls);
-        morphium.firePostUpdateEvent(morphium.getARHelper().getRealClass(cls), push ? MorphiumStorageListener.UpdateTypes.PUSH : MorphiumStorageListener.UpdateTypes.PULL);
+        morphium.firePostUpdateEvent(morphium.getARHelper().getRealClass(cls), type);
 
         if (rejection != null) {
             throw rejection;
@@ -3128,7 +3126,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     // ? WriteAccessType.BULK_UPDATE
                     // : WriteAccessType.SINGLE_UPDATE);
                     morphium.getCache().clearCacheIfNecessary(cls);
-                    morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
+                    morphium.firePostUpdateEvent(query.getType(), type);
 
                     if (rejection != null) {
                         throw rejection;
