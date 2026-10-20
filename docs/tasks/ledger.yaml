@@ -594,7 +594,7 @@ tasks:
 - id: MOR-025
   title: 'Jakarta Data: @Update is not atomic and throws IllegalStateException'
   type: defect
-  status: open
+  status: done
   priority: 2
   effort: M
   description: '@Update does findById then store(): an extra round trip, not atomic, and a missing entity or version
@@ -606,6 +606,9 @@ tasks:
   - Verified against a real MongoDB (not only the InMemoryDriver).
   source:
   - docs/research/jakarta-data-1.1.md sections 3, 4
+  evidence: 'AbstractMorphiumRepositoryOptimisticLockingTest (5 tests, 10 invocations) on the InMemoryDriver and on mongo:8 with the pooled driver (MORPHIUM_TEST_MONGO): a versioned entity is updated and its version grows, a stale version is an OptimisticLockingFailureException that changes nothing, a versioned entity that was deleted is one too and is not created again, an unversioned missing entity is one and is not created, updateAll rejects a batch with a missing unversioned entity before it stores any and raises the same exception for a stale version. Against the old code 8 of the 10 fail. AbstractMorphiumRepositoryUpdateTest now expects the new exception; the whole jakarta-data module (92) passes with the mongo:8 variant, and the Quarkus runtime (82), deployment (31) and integration suites (264) pass (one run had two timing failures in MorphiumMigrationTest, which passed alone and in the repeated full run). Fix in AbstractMorphiumRepository: a versioned entity goes to the versioned store() alone and its VersionMismatchException becomes the Jakarta exception, so the extra findById is gone for it; an unversioned entity is still looked up first, which stays non-atomic (documented in docs/jakarta-data.md and the Javadoc). Not covered: updateAll with a stale version leaves the entities stored before it updated, a replica set, the async repository variants.'
+  commits:
+  - 998dda853
 - id: MOR-026
   title: Run the Jakarta Data TCK against morphium-jakarta-data
   type: infrastructure
