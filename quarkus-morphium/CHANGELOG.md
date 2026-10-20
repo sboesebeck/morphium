@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Timer for the update operations: `morphium.operations.duration`
+The extension already exported the pool, cache and write-buffer meters. It now times the update
+operations of the writer path (`Query.set`, `inc`, `push`, `pull`, ..., the bulk context) as a
+Micrometer timer with the tags `database`, `operation`, `update_type` and `entity`, from the
+`preUpdate`/`postUpdate` events of `MorphiumStorageListener`. The new switch
+`quarkus.morphium.observability.include-storage-listener-metrics` (default `true`) turns it off; it
+adds one storage listener to the Morphium instance. A write that fails, and a write that a buffered
+writer flushes on another thread, are not timed.
+
+Not covered yet, because morphium-core fires no event for them: `Query.modify()`, `findOneAndUpdate(Map)`,
+`updateOne` and `updateMany` (MOR-072). `push`, `pull` and `addToSet` fire their events twice, so
+their count is too high (MOR-073). The meters are listed in `docs/quarkus-extension.md`.
+
 #### `quarkus.morphium.use-bson-date-for-java-time` reaches all four `java.time` types
 The extension could configure the on-disk format of exactly one of the four types the object
 mapper maps specially. `quarkus.morphium.local-date-time.use-bson-date` replaced the registered
