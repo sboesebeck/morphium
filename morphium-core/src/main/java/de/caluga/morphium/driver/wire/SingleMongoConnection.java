@@ -751,8 +751,9 @@ public class SingleMongoConnection implements MongoConnection {
             // returning null used to leak "no answer" up as an NPE in the command wrappers or
             // as a silently empty result set on reads, so throw a retryable network error here
             // instead: every caller can retry the request on a fresh connection.
-            throw new MorphiumDriverNoReplyException("No reply from " + connectedTo + ":" + getSourcePort()
-                    + " for request " + requestId + " - connection closed by peer or reply timed out");
+            throw new MorphiumDriverNoReplyException("No reply from " + connectedTo + ":" + connectedToPort
+                    + " (local port " + getSourcePort() + ") for request " + requestId
+                    + " - connection closed by peer or reply timed out");
         }
 
         if (reply.getResponseTo() != requestId) {
