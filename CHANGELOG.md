@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Jakarta Data: ordinal parameters (`?1`) in `@Query` (MOR-024)
+A JDQL `@Query` can use ordinal parameters instead of named ones, as the specification allows. `?n` is the *n*-th method parameter that is not a
+`Sort`, `Order`, `PageRequest` or `Limit`. `JdqlMethodBridge` rewrites the query to named parameters, so the Quarkus and the Spring Boot module both
+get it. Mixing the two styles in one query, or an ordinal without a parameter, is rejected: at build time in Quarkus, on the first call in Spring.
+Before, the Quarkus build refused every `@Query` with `?1`.
+
 #### `Query.modify()`: a mapper-aware builder for one atomic update (MOR-006, incubating)
 `query.modify().set("ownerName", me).set("expiresAt", at).inc("hits", 1).setOnInsert(...).unset(...).upsert().findOneAndUpdate(ReturnDocument.AFTER)` replaces the hand-built
 `FindAndModifyMongoCommand` with raw `Map` updates for leases, counters and create-if-absent. New public types in `de.caluga.morphium.query`: `UpdateBuilder`, `ReturnDocument`.

@@ -1,0 +1,85 @@
+/*
+ * Copyright 2025 The Quarkiverse Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package de.caluga.morphium.quarkus.it;
+
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.quarkus.testing.ResetMorphiumExtension;
+import jakarta.data.Sort;
+import jakarta.inject.Inject;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * MOR-024: {@code @Query} methods with ordinal parameters ({@code ?1}) in the generated repository. The subclasses run them on the
+ * in-memory driver and on a real MongoDB.
+ */
+@ExtendWith(ResetMorphiumExtension.class)
+abstract class AbstractMorphiumDataOrdinalQueryTest {
+
+    @Inject
+    OrderRepository repository;
+
+    @Inject
+    Morphium morphium;
+
+    @BeforeEach
+    void seed() {
+        create("C1", 100.0, "OPEN");
+        create("C2", 250.0, "OPEN");
+        create("C3", 50.0, "CLOSED");
+        create("C4", 300.0, "CLOSED");
+    }
+
+    private void create(String customerId, double amount, String status) {
+        var order = new OrderEntity();
+        order.setCustomerId(customerId);
+        order.setAmount(amount);
+        order.setStatus(status);
+        morphium.store(order);
+    }
+
+    @Test
+    @DisplayName("?1 and ?2 are the first and the second method parameter")
+    void ordinalsAreBound() {
+        List<OrderEntity> result = repository.queryOrdinal("OPEN", 150.0);
+
+        assertThat(result).extracting(OrderEntity::getCustomerId).containsExactly("C2");
+    }
+
+    @Test
+    @DisplayName("BETWEEN with ordinals")
+    void between() {
+        assertThat(repository.queryOrdinalRange(100.0, 250.0)).extracting(OrderEntity::getCustomerId).containsExactly("C2", "C1");
+    }
+
+    @Test
+    @DisplayName("a Sort parameter is not counted: ?1 is the status")
+    void sortIsNotCounted() {
+        assertThat(repository.queryOrdinalSorted("CLOSED", Sort.desc("amount"))).extracting(OrderEntity::getCustomerId).containsExactly("C4", "C3");
+    }
+
+    @Test
+    @DisplayName("the ordinals need not follow the order of the parameters")
+    void reversed() {
+        assertThat(repository.countOrdinalReversed(100.0, "OPEN")).isEqualTo(2L);
+    }
+}
