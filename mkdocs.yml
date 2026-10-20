@@ -106,6 +106,7 @@ nav:
     - Cache Patterns: howtos/cache-patterns.md
     - Field Name Mapping: howtos/field-names.md
     - Optimistic Locking: howtos/optimistic-locking.md
+    - Update Pitfalls: howtos/update-pitfalls.md
     - References & Relationships: howtos/references-and-relationships.md
   - Core Features:
     - Messaging System: messaging.md
