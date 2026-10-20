@@ -124,7 +124,7 @@ public class ProductService {
 > **Note:** `@By` currently only supports equality conditions. Jakarta Data's `@Is(Operator)`
 > annotation for non-equality `@By` conditions (e.g. `@By("price") @Is(GreaterThanEqual)`)
 > requires Jakarta Data 1.1, which is not yet finalized (latest available artifact as of this
-> writing is the `1.1.0-M3` milestone) — this module targets the stable `jakarta.data-api:1.0.0`.
+> writing is the `1.1.0-M4` milestone) — this module targets the stable `jakarta.data-api:1.0.0`.
 > Support for `@Is` is a natural candidate once Jakarta Data 1.1 ships as a final release; for
 > non-equality conditions today, use query derivation (`findByPriceGreaterThan(...)`) or `@Query`
 > (JDQL) instead.
