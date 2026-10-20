@@ -7,6 +7,7 @@ import com.ongres.scram.common.exception.ScramInvalidServerSignatureException;
 import com.ongres.scram.common.exception.ScramParseException;
 import com.ongres.scram.common.exception.ScramServerErrorException;
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.driver.CommandStatus;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.commands.GenericCommand;
@@ -131,9 +132,15 @@ public class SaslAuthCommand extends MongoCommand<SaslAuthCommand> {
 
             id = getConnection().sendCommand(cmd);
             answer = getConnection().readSingleAnswer(id);
-            if (!answer.get("ok").equals(1.0)) {
-                throw new MorphiumDriverException((String) answer.get("errmsg"));
+
+            // strict on purpose: this is the authentication handshake, so a reply whose status we
+            // cannot judge (no ok / non-numeric ok) must fail closed, unlike the read paths that
+            // let an inconclusive reply's payload through
+            if (!CommandStatus.of(answer).isOk()) {
+                throw new MorphiumDriverException("Error authentication: " + answer.get("ok") + " - "
+                                                  + answer.get("errmsg"));
             }
+
             payload = new String((byte[]) answer.get("payload"));
             scramClient.serverFinalMessage(payload);
         } finally {

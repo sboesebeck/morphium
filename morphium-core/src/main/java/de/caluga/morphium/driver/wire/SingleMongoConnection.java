@@ -786,20 +786,23 @@ public class SingleMongoConnection implements MongoConnection {
         }
 
         Object okObj = doc.get("ok");
+        CommandStatus status = CommandStatus.of(okObj);
 
-        if (okObj == null) {
-            // Every command reply carries "ok" - a document without it is not a command reply
-            // we know how to judge. Hand it up as-is (a throw here would turn an unknown reply
-            // shape into a hard failure), but say so: silently treating it as success used to
-            // hide exactly this kind of protocol surprise.
-            log.warn("Reply from {} for request {} carries no 'ok' field - treating as success, keys: {}",
-                     connectedTo, id, doc.keySet());
-        } else if (!(okObj instanceof Number)) {
-            log.warn("Reply from {} for request {} has a non-numeric 'ok' ({}) - treating as success",
-                     connectedTo, id, okObj.getClass().getSimpleName());
+        if (status == CommandStatus.UNKNOWN) {
+            if (okObj == null) {
+                // Every command reply carries "ok" - a document without it is not a command reply
+                // we know how to judge. Hand it up as-is (a throw here would turn an unknown reply
+                // shape into a hard failure), but say so: silently treating it as success used to
+                // hide exactly this kind of protocol surprise.
+                log.warn("Reply from {} for request {} carries no 'ok' field - treating as success, keys: {}",
+                         connectedTo, id, doc.keySet());
+            } else {
+                log.warn("Reply from {} for request {} has a non-numeric 'ok' ({}) - treating as success",
+                         connectedTo, id, okObj.getClass().getSimpleName());
+            }
         }
 
-        if (okObj instanceof Number && ((Number) okObj).doubleValue() == 0.0) {
+        if (status == CommandStatus.FAILURE) {
             String errmsg = (String) doc.get("errmsg");
             Object codeObj = doc.get("code");
             int code = codeObj instanceof Number ? ((Number) codeObj).intValue() : -1;
@@ -1191,10 +1194,13 @@ public class SingleMongoConnection implements MongoConnection {
             return;
         }
 
-        if (msg.getFirstDoc().containsKey("ok") && !msg.getFirstDoc().get("ok").equals(1.0)) {
-            Object codeObj = msg.getFirstDoc().get("code");
+        Map<String, Object> doc = msg.getFirstDoc();
+        CommandStatus status = CommandStatus.of(doc);
+
+        if (status == CommandStatus.FAILURE) {
+            Object codeObj = doc.get("code");
             int code = codeObj instanceof Number ? ((Number) codeObj).intValue() : -1;
-            String errmsg = "Error: " + codeObj + " - " + msg.getFirstDoc().get("errmsg");
+            String errmsg = "Error: " + codeObj + " - " + doc.get("errmsg");
 
             // Error 251 (NoSuchTransaction): the server-side session on this connection
             // has an aborted transaction (e.g. from a previous write conflict or timeout).
@@ -1212,6 +1218,11 @@ public class SingleMongoConnection implements MongoConnection {
             ex.setMongoCode(codeObj);
             throw ex;
         }
+
+        // OK, or a reply whose "ok" we cannot judge (no field / not a number): the payload is what
+        // the caller came for, and a literal equals(1.0) here used to report an int32 ok:1 as a
+        // bogus failure. Deliberately no per-reply WARN - this runs on every read, and a backend
+        // that encodes ok differently would flood the log; the single-answer path warns instead.
     }
 
     @Override

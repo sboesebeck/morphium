@@ -54,7 +54,7 @@ public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoComm
             MorphiumCursor crs = openCursor(activeCon, driver.getDefaultBatchSize());
             while (crs.hasNext()) {
                 List<Map<String, Object>> batch = crs.getBatch();
-                if (batch.size() == 1 && batch.get(0).containsKey("ok") && batch.get(0).get("ok").equals((double) 0)) {
+                if (batch.size() == 1 && CommandStatus.of(batch.get(0)).isFailure()) {
                     throw new MorphiumDriverException("Error: " + batch.get(0).get("code") + ": " + batch.get(0).get("errmsg"));
                 }
                 ret.addAll(batch);

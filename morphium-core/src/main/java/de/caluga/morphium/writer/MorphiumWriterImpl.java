@@ -47,6 +47,7 @@ import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.config.CollectionCheckSettings.CappedCheck;
 import de.caluga.morphium.config.CollectionCheckSettings.IndexCheck;
+import de.caluga.morphium.driver.CommandStatus;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumId;
@@ -1529,7 +1530,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         con = null;
 
                         if (ret != null) {
-                            if (ret.containsKey("ok") && ret.get("ok").equals(0.0)) {
+                            if (CommandStatus.of(ret).isFailure()) {
                                 throw new MorphiumDriverException("Error: " + ret.get("code") + " - " + ret.get("errmsg"));
                             }
 
@@ -1900,7 +1901,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     Map<String, Object> ret = settings.execute();
                     settings.releaseConnection();
 
-                    if (ret.containsKey("ok") && ret.get("ok").equals(0.0)) {
+                    if (CommandStatus.of(ret).isFailure()) {
                         throw new MorphiumDriverException("Error: " + ret.get("code") + " - " + ret.get("errmsg"));
                     }
 
@@ -2227,7 +2228,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     settings.releaseConnection();
 
-                    if (ret.containsKey("ok") && ret.get("ok").equals(0.0)) {
+                    if (CommandStatus.of(ret).isFailure()) {
                         throw new MorphiumDriverException("Error: " + ret.get("code") + " - " + ret.get("errmsg"));
                     }
 
@@ -2707,7 +2708,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     ret = pushIt(push, upsert, multiple, cls, coll, qobj, update, query.getCollation(), query.getArrayFilters());
 
-                    if (ret.containsKey("ok") && ret.get("ok").equals(0.0)) {
+                    if (CommandStatus.of(ret).isFailure()) {
                         throw new RuntimeException("Error: " + ret.get("code") + " - " + ret.get("errmsg"));
                     }
 
@@ -2875,7 +2876,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             settings.releaseConnection();
             sumUp(r, result);
 
-            if (result.containsKey("ok") && result.get("ok").equals(0.0)) {
+            if (CommandStatus.of(result).isFailure()) {
                 throw new MorphiumDriverException("Error: " + result.get("code") + " - " + result.get("errmsg"));
             }
 
@@ -2997,7 +2998,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                         settings.releaseConnection();
 
-                        if (ret.containsKey("ok") && ret.get("ok").equals(0.0)) {
+                        if (CommandStatus.of(ret).isFailure()) {
                             throw new MorphiumDriverException("Error: " + ret.get("code") + " - " + ret.get("errmsg"));
                         }
 
@@ -3170,7 +3171,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     // CI logs) was the one left behind.
                     con = null;
 
-                    if (res != null && res.containsKey("ok") && res.get("ok").equals(Double.valueOf(0))) {
+                    if (CommandStatus.of(res).isFailure()) {
                         if (((String) res.get("errmsg")).contains("already exists")) {
                             logger.warn("could not create index - already exists");
                         } else {

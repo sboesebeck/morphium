@@ -75,6 +75,7 @@ import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.Driver;
+import de.caluga.morphium.driver.CommandStatus;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.FunctionNotSupportedException;
@@ -3934,7 +3935,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         "errmsg", e.getMessage() == null ? e.toString() : e.getMessage());
             }
 
-            boolean isError = Double.valueOf(0.0).equals(opResult.get("ok"));
+            // CommandStatus, not a literal equals(0.0): the same helper the wire paths use, so the
+            // op results of this bulk write and a real server's replies are judged alike
+            boolean isError = CommandStatus.of(opResult).isFailure();
 
             if (isError) {
                 nErrors++;

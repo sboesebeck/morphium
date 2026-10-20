@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import de.caluga.morphium.IndexDescription;
+import de.caluga.morphium.driver.CommandStatus;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.wire.MongoConnection;
@@ -28,7 +29,7 @@ public class ListIndexesCommand extends MongoCommand<ListIndexesCommand> {
         while (crs.hasNext()) {
             Map<String, Object> next = crs.next();
 
-            if (next.get("ok") != null && next.get("ok").equals(Double.valueOf(0))) continue;
+            if (CommandStatus.of(next).isFailure()) continue;
 
             var idx = IndexDescription.fromMap(next);
 
