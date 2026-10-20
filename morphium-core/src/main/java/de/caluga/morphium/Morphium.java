@@ -1834,15 +1834,20 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 activeNodes = 50;
             }
 
-            if (activeNodes == 1) {
-                // "All available copies" has collapsed to the one member we can reach - a
-                // single-node set, or a cluster that lost every other member. A plain w:1 is
+            if (activeNodes == 1 && getDriver().getReplicaSetSize() <= 1) {
+                // A genuine one-member set: "all copies" is this one node, and a plain w:1 is
                 // acknowledged as soon as the write is applied in memory, BEFORE the majority
                 // commit point moves, so the entity's own majority read concern (the @Entity
                 // default) may not see the write yet: count/find right after store() came back
                 // empty under load (ListTests.listStoringTest on the single-node rs0). w:majority
                 // on a one-member set is that same member, journaled - what WAIT_FOR_ALL_SLAVES
                 // means here anyway, and the only way the write is visible to its own reads.
+                //
+                // Deliberately NOT for a larger set reduced to one reachable member: there the
+                // server computes majority against its configuration (e.g. PSA with the
+                // secondary gone), the concern is unsatisfiable, the write only runs into
+                // wtimeout and - as the majority commit point does not move either - gains no
+                // visibility. That case keeps the documented "reachable count" behaviour.
                 w = SafetyLevel.MAJORITY.getValue();
             } else {
                 // Wait for all active slaves

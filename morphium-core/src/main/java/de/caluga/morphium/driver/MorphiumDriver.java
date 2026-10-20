@@ -106,6 +106,25 @@ public interface MorphiumDriver extends Closeable {
         return seed == null ? 0 : seed.size();
     }
 
+    /**
+     * Number of data-bearing members the replica set is <em>configured</em> with, dead ones
+     * included - as opposed to {@link #getNumReachableHosts()}, which counts only the members the
+     * driver can currently talk to.
+     * <p>
+     * Drivers that see the server's hello report the {@code hosts} list from it (arbiters are not
+     * part of it). {@code @WriteSafety(level = WAIT_FOR_ALL_SLAVES)} uses this to tell a genuine
+     * one-member set (where "all copies" is one node and a plain {@code w:1} is acknowledged before
+     * the majority commit point moves, so the entity's own majority reads miss the write) from a
+     * larger set that is temporarily reduced to one reachable member (where a server-side majority
+     * can not be satisfied and the write would only run into {@code wtimeout}).
+     * <p>
+     * Default: the size of the seed list.
+     */
+    default int getReplicaSetSize() {
+        List<String> seed = getHostSeed();
+        return seed == null ? 0 : seed.size();
+    }
+
     void setHostSeed(List<String> hosts);
 
     void setHostSeed(String... host);

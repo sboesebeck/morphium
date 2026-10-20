@@ -2444,6 +2444,22 @@ public class PooledDriver extends DriverBase {
         return seed == null ? 0 : seed.size();
     }
 
+    /**
+     * The configured data-bearing membership as the server last advertised it in hello
+     * ({@code hosts}, arbiters excluded) - dead members included, which is exactly the
+     * difference to {@link #getNumReachableHosts()}. Falls back to the seed size before the
+     * first hello has been seen.
+     */
+    @Override
+    public int getReplicaSetSize() {
+        List<String> advertised = lastHostsFromHello;
+        if (advertised != null && !advertised.isEmpty()) {
+            return advertised.size();
+        }
+        List<String> seed = getHostSeed();
+        return seed == null ? 0 : seed.size();
+    }
+
     @Override
     public Map<String, Integer> getNumConnectionsByHost() {
         Map<String, Integer> ret = new HashMap<>();

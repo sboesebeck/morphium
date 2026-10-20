@@ -240,7 +240,7 @@ See How‑To: [Aggregation Examples](./howtos/aggregation-examples.md) for more 
 | `BASIC`               | `1`                                   | acknowledged by the primary                                  |
 | `WAIT_FOR_SLAVE`      | `2`                                   | primary plus one secondary                                   |
 | `MAJORITY`            | `"majority"`                          | MongoDB majority commit, the recommended durable setting     |
-| `WAIT_FOR_ALL_SLAVES` | number of **reachable** members       | every member the driver can currently talk to (see caveat)   |
+| `WAIT_FOR_ALL_SLAVES` | number of **reachable** members       | every member the driver can currently talk to; on a one-member set `"majority"` (see caveat) |
 
 `timeout` is the `wtimeout` in ms (`0` = wait forever), `waitForJournalCommit` sets `j: true`. Against a
 standalone server everything above `w:1` is downgraded to `w:1`, because the server could never satisfy it.
@@ -258,6 +258,14 @@ driver currently considers reachable. Reachable means the driver's heartbeat has
 its last contact did not fail. That is what makes the level survive a member loss at all: with a plain
 `w:3` on a three-member set, one member down means every write waits out `wtimeout` until the member is
 back. With `WAIT_FOR_ALL_SLAVES` the `w` drops to `2` as soon as the heartbeat has noticed the loss.
+
+On a replica set that is *configured* with a single data-bearing member the derived `w` would be `1`, which
+the server acknowledges before the majority commit point moves; the entity's own majority read concern
+(the `@Entity` default) could then miss a write it just made. Morphium therefore sends `"majority"` there,
+which on a one-member set is that same member, journaled. This is keyed on the configured set size
+(`MorphiumDriver.getReplicaSetSize()`, the `hosts` list of the server's hello), not on the reachable count:
+a larger set reduced to one reachable member keeps the numeric `w`, because a server-side majority can not
+be satisfied there and would only run into `wtimeout`.
 
 The price is a **detection window**. Between the moment a member goes away and the first failed heartbeat
 against it (at most one `heartbeatFrequency`, default 1 s, plus the connect timeout), writes are still sent

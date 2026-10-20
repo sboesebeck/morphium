@@ -92,29 +92,78 @@ public class WriteConcernStandaloneTest {
         assertEquals(2, wc.getW(), "WAIT_FOR_SLAVE (w:2) should remain w:2 on replica set");
     }
 
+    /**
+     * Stub with set size and reachable count decoupled - the InMemoryDriver can not tell a
+     * one-member set from a larger set reduced to one reachable member, which is exactly the
+     * distinction that decides between progress and a wtimeout stall.
+     */
+    private Morphium createMorphiumWithTopology(int replicaSetSize, int reachable) {
+        Morphium m = createMorphium(true);
+        InMemoryDriver stub = new InMemoryDriver() {
+            @Override
+            public boolean isReplicaSet() {
+                return true;
+            }
+
+            @Override
+            public int getReplicaSetSize() {
+                return replicaSetSize;
+            }
+
+            @Override
+            public int getNumReachableHosts() {
+                return reachable;
+            }
+        };
+        m.setDriver(stub);
+        return m;
+    }
+
     @Test
-    void replicaSetWithOneReachableMemberUsesMajorityForWaitForAllSlaves() {
-        // one-node set (or a cluster reduced to one reachable member): "all available copies"
-        // would collapse to w:1, which is acknowledged before the majority commit point moves -
-        // the entity's own majority reads then miss the write. w:majority is the same single
-        // member, journaled, and therefore visible to a majority read.
-        morphium = createMorphium(true);
-        assertTrue(morphium.getDriver().getNumReachableHosts() <= 1, "precondition: at most one reachable member");
+    void oneMemberSetUsesMajorityForWaitForAllSlaves() {
+        // a genuine one-node set: "all copies" is w:1, which is acknowledged before the majority
+        // commit point moves - the entity's own majority reads then miss the write. w:majority is
+        // the same single member, journaled, and therefore visible to a majority read.
+        morphium = createMorphiumWithTopology(1, 1);
         WriteConcern wc = morphium.getWriteConcernForClass(WaitForAllSlavesEntity.class);
         assertNotNull(wc);
-        assertTrue(wc.getW() < 0, "WAIT_FOR_ALL_SLAVES with one reachable member must become w:majority, got w=" + wc.getW());
+        assertTrue(wc.getW() < 0, "WAIT_FOR_ALL_SLAVES on a one-member set must become w:majority, got w=" + wc.getW());
         assertEquals("majority", wc.asMap().get("w"));
     }
 
     @Test
+    void largerSetReducedToOneReachableMemberKeepsW1ForWaitForAllSlaves() {
+        // three configured members, one reachable (PSA with the secondary gone, or inside the
+        // detection window): a server-side majority can not be satisfied, w:majority would only
+        // run into wtimeout without the write becoming any more visible. The documented
+        // "reachable count" behaviour must hold here.
+        morphium = createMorphiumWithTopology(3, 1);
+        WriteConcern wc = morphium.getWriteConcernForClass(WaitForAllSlavesEntity.class);
+        assertNotNull(wc);
+        assertEquals(1, wc.getW(), "a reduced cluster must keep w = reachable count, not majority");
+        assertEquals(1, wc.asMap().get("w"));
+    }
+
+    @Test
     void replicaSetWithSeveralReachableMembersKeepsCountingForWaitForAllSlaves() {
-        morphium = createMorphium(true);
-        morphium.getConfig().clusterSettings().setHostSeed(new ArrayList<>(List.of("h1:27017", "h2:27017", "h3:27017")));
-        morphium.getDriver().setHostSeed("h1:27017", "h2:27017", "h3:27017");
-        assertEquals(3, morphium.getDriver().getNumReachableHosts(), "precondition: driver default counts the seed");
+        morphium = createMorphiumWithTopology(3, 3);
         WriteConcern wc = morphium.getWriteConcernForClass(WaitForAllSlavesEntity.class);
         assertNotNull(wc);
         assertEquals(3, wc.getW(), "with several reachable members w still follows their count");
+    }
+
+    @Test
+    void unknownTopologyCountsAsOneMemberSet() {
+        // no seed, no hello: set size and reachable count are both 0 (the InMemoryDriver with an
+        // empty seed; a wire driver always has a seed and sees a hello at connect). Nothing larger
+        // can ever be waited for, so this is the one-member case and gets majority - the
+        // reduced-cluster path needs a known set size larger than one.
+        morphium = createMorphium(true);
+        assertEquals(0, morphium.getDriver().getNumReachableHosts(), "precondition: empty seed, nothing reachable");
+        assertEquals(0, morphium.getDriver().getReplicaSetSize(), "precondition: empty seed, size unknown");
+        WriteConcern wc = morphium.getWriteConcernForClass(WaitForAllSlavesEntity.class);
+        assertNotNull(wc);
+        assertEquals("majority", wc.asMap().get("w"));
     }
 
     @Test
