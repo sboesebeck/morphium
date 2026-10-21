@@ -2382,8 +2382,21 @@ public class MorphiumDataProcessor {
             return result;
         }
 
-        String component = returnType.asArrayType().component().name().toString();
-        ResultHandle array = mc.invokeStaticMethod(MethodDescriptor.ofMethod(ResultShapes.class, "toArray", Object.class, Object.class, Class.class), result, mc.loadClass(component));
+        Type componentType = returnType.asArrayType().component();
+        // Class.forName cannot load "int", so a primitive component is loaded by its class constant
+        ResultHandle componentClass = componentType.kind() == Type.Kind.PRIMITIVE
+                ? mc.loadClass(switch (componentType.asPrimitiveType().primitive()) {
+                    case BOOLEAN -> boolean.class;
+                    case BYTE -> byte.class;
+                    case SHORT -> short.class;
+                    case INT -> int.class;
+                    case LONG -> long.class;
+                    case FLOAT -> float.class;
+                    case DOUBLE -> double.class;
+                    case CHAR -> char.class;
+                })
+                : mc.loadClass(componentType.name().toString());
+        ResultHandle array = mc.invokeStaticMethod(MethodDescriptor.ofMethod(ResultShapes.class, "toArray", Object.class, Object.class, Class.class), result, componentClass);
         return mc.checkCast(array, toDescriptorName(returnType));
     }
 
