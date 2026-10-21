@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [6.3.15] - 2026-10-21
+
 ### Fixed
 
 #### PoppyDB: a resume whose replay does not fit the cursor queue is answered `ChangeStreamHistoryLost` instead of looping kill/resume
