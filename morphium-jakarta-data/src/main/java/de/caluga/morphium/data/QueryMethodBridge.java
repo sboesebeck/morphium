@@ -152,31 +152,9 @@ public final class QueryMethodBridge {
         Query query = morphium.createQueryFor(entityClass);
         QueryExecutor.applyConditions(query, descriptor, args, morphium, entityClass);
 
-        // Static (method-name-derived / @OrderBy) ordering first -- a dynamic Sort/Order
-        // argument below overrides it, same precedence as FindMethodBridge.executeFind.
-        if (descriptor.orderBy() != null && !descriptor.orderBy().isEmpty()) {
-            QueryExecutor.applySorting(query, descriptor.orderBy(), morphium, entityClass);
-        }
+        // The static order (method name, @OrderBy) first, then every dynamic Sort / Sort... / Order in the order of the parameters (MOR-081)
+        SortPlan.apply(query, SortPlan.merge(SortPlan.fromOrderSpecs(descriptor.orderBy()), SortPlan.dynamic(args)), morphium, entityClass);
 
-        if (sortParamIndex >= 0 && args[sortParamIndex] != null) {
-            Sort sort = (Sort) args[sortParamIndex];
-            Map<String, Integer> sortMap = new LinkedHashMap<>();
-            String mongoField = QueryExecutor.resolveMongoField(morphium, entityClass, sort.property());
-            sortMap.put(mongoField, sort.isAscending() ? 1 : -1);
-            query.sort(sortMap);
-        }
-        if (orderParamIndex >= 0 && args[orderParamIndex] != null) {
-            Order order = (Order) args[orderParamIndex];
-            if (!order.sorts().isEmpty()) {
-                Map<String, Integer> sortMap = new LinkedHashMap<>();
-                for (Object s : order.sorts()) {
-                    Sort sort = (Sort) s;
-                    String mongoField = QueryExecutor.resolveMongoField(morphium, entityClass, sort.property());
-                    sortMap.put(mongoField, sort.isAscending() ? 1 : -1);
-                }
-                query.sort(sortMap);
-            }
-        }
         // findFirstBy... / findFirst3By... has its own limit: the specification does not combine it with a Limit or PageRequest parameter
         if (descriptor.limit() > 0) {
             if (limitParamIndex >= 0 || pageRequestParamIndex >= 0) {

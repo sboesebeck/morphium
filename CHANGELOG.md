@@ -158,6 +158,11 @@ context keep their own key handling.
 
 ### Fixed
 
+#### Jakarta Data: the static order stays, several `Sort` parameters and `Sort...` count (MOR-081)
+A dynamic `Sort` or `Order` replaced the order of the method name or of `@OrderBy`, and of several `Sort` parameters only the last one counted; a `Sort...` varargs parameter was bound as a
+condition. The order is now the static one first, then every dynamic sort in the order of the parameters (`Sort`, several `Sort`, `Sort...`, `Order`); a property that is sorted by already keeps its
+first position. The same list is the keyset of a `CursoredPage`. A method that relied on the dynamic sort replacing the static one sorts by both now.
+
 #### A `char` or `Character` field is read back (MOR-078)
 A character is written as its number, as `store()` always did, but reading it back into a `char` field failed with "Field has type char got type class java.lang.Integer": an entity
 with a `char` could be written and not read. The number is converted to the character now, also after an update.

@@ -2,6 +2,7 @@ package de.caluga.morphium.spring.autoconfigure;
 
 import de.caluga.morphium.data.MorphiumRepository;
 import de.caluga.morphium.driver.MorphiumId;
+import jakarta.data.Order;
 import jakarta.data.Sort;
 import jakarta.data.page.Page;
 import jakarta.data.page.PageRequest;
@@ -95,6 +96,13 @@ public interface TestEntityRepository extends MorphiumRepository<TestEntity, Mor
 
     @de.caluga.morphium.data.AtomicUpdate(where = "name = :name", set = @de.caluga.morphium.data.Assign(field = "status", value = "'done'"))
     boolean finish(@jakarta.data.repository.Param("name") String name);
+
+    /** several Sort parameters, a Sort... parameter, and a static order that comes first (MOR-081) */
+    List<TestEntity> findByStatus(String status, Sort<TestEntity> first, Sort<TestEntity> second);
+
+    List<TestEntity> findByStatus(String status, Sort<TestEntity>... sorts);
+
+    List<TestEntity> findByStatusOrderByPriorityAsc(String status, Order<TestEntity> order);
 
     /** an array of the entity as the result (MOR-080) */
     TestEntity[] findByStatusOrderByPriorityAsc(String status);
