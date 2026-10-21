@@ -62,6 +62,50 @@ public final class JdqlMethodBridge {
      * @param resultRecordClass  FQCN of a Java Record for GROUP BY result mapping, null otherwise
      * @return the query result
      */
+    /**
+     * Executes a {@code DELETE FROM Entity [WHERE ...]} statement (MOR-017) as one server-side delete and returns the number of removed documents. The
+     * conditions are the ones of a query, named or ordinal parameters alike. The entity name has to be the simple name of the entity of the repository.
+     * Like the derived {@code deleteBy}, the delete runs no lifecycle callbacks of the entities ({@code @PreRemove}, {@code @PostRemove}: there is no instance);
+     * the storage listeners get {@code preRemove(Query)} and {@code postRemove(Query)}.
+     *
+     * @param paramMapSpec encoded param name-to-index mapping, see {@link #executeJdql}
+     * @return the number of removed documents
+     * @throws IllegalArgumentException if the statement names another entity, has an ORDER BY, GROUP BY or HAVING, or is not valid
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static long executeJdqlDelete(AbstractMorphiumRepository<?, ?> repo, String jdql, String paramMapSpec, Object[] args) {
+        Morphium morphium = repo.getMorphium();
+        Class entityClass = repo.getMetadata().entityClass();
+        String entityName = JdqlDelete.entityName(jdql);
+
+        if (entityName != null && !entityName.equals(entityClass.getSimpleName())) {
+            throw new IllegalArgumentException("The statement \"" + jdql + "\" deletes from " + entityName + ", but the repository is for " + entityClass.getSimpleName());
+        }
+
+        String where = JdqlDelete.whereClause(jdql);
+
+        if (JdqlDelete.hasForbiddenClause(where)) {
+            throw new IllegalArgumentException("A DELETE statement has no ORDER BY, GROUP BY or HAVING: \"" + jdql + "\"");
+        }
+
+        if (JdqlOrdinalParameters.has(where)) {
+            if (JdqlOrdinalParameters.mixesStyles(where)) {
+                throw new IllegalArgumentException("The statement \"" + jdql + "\" mixes named and ordinal parameters; use one style");
+            }
+
+            paramMapSpec = JdqlOrdinalParameters.paramMapSpec(where, args.length, -1, -1, -1, -1);
+            where = JdqlOrdinalParameters.rewrite(where);
+        }
+
+        JdqlQuery query = JdqlParser.parse(where);
+        Map<String, Object> paramValues = buildParamMap(paramMapSpec, args);
+        Query mQuery = morphium.createQueryFor(entityClass);
+        applyConditions(mQuery, query, paramValues, morphium, entityClass);
+        Map<String, Object> result = mQuery.delete();
+        Object n = result == null ? null : result.get("n");
+        return n instanceof Number num ? num.longValue() : 0L;
+    }
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static Object executeJdql(AbstractMorphiumRepository<?, ?> repo,
                                      String jdql,

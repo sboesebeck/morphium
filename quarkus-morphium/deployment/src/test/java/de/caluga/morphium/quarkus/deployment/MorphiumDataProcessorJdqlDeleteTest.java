@@ -1,0 +1,169 @@
+/*
+ * Copyright 2025 The Quarkiverse Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package de.caluga.morphium.quarkus.deployment;
+
+import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.data.MorphiumRepository;
+import io.quarkus.deployment.annotations.BuildProducer;
+import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
+import io.quarkus.gizmo.ClassCreator;
+import io.quarkus.gizmo.ClassOutput;
+import jakarta.data.Sort;
+import jakarta.data.repository.Param;
+import jakarta.data.repository.Query;
+import jakarta.data.repository.Repository;
+import org.jboss.jandex.ClassInfo;
+import org.jboss.jandex.DotName;
+import org.jboss.jandex.IndexView;
+import org.jboss.jandex.Indexer;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import java.io.InputStream;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.HashSet;
+import java.util.Set;
+
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+/** MOR-017: the build accepts {@code @Query("DELETE FROM ...")} with void, int and long, and refuses what cannot work. */
+@DisplayName("MorphiumDataProcessor — @Query DELETE FROM statements")
+class MorphiumDataProcessorJdqlDeleteTest {
+
+    @Entity
+    public static class Fixture {
+        @Id
+        public String id;
+        public String name;
+    }
+
+    @Repository
+    public interface Accepted extends MorphiumRepository<Fixture, String> {
+        @Query("DELETE FROM Fixture WHERE name = :n")
+        long asLong(@Param("n") String n);
+
+        @Query("DELETE FROM Fixture WHERE name = ?1")
+        int asInt(String n);
+
+        @Query("DELETE FROM Fixture")
+        void everything();
+
+        @Query("DELETE FROM WHERE name = :n")
+        void withoutEntityName(@Param("n") String n);
+    }
+
+    @Repository
+    public interface BooleanResult extends MorphiumRepository<Fixture, String> {
+        @Query("DELETE FROM Fixture WHERE name = :n")
+        boolean del(@Param("n") String n);
+    }
+
+    @Repository
+    public interface WrapperResult extends MorphiumRepository<Fixture, String> {
+        @Query("DELETE FROM Fixture WHERE name = :n")
+        Long del(@Param("n") String n);
+    }
+
+    @Repository
+    public interface OtherEntity extends MorphiumRepository<Fixture, String> {
+        @Query("DELETE FROM Other WHERE name = :n")
+        long del(@Param("n") String n);
+    }
+
+    @Repository
+    public interface WithSort extends MorphiumRepository<Fixture, String> {
+        @Query("DELETE FROM Fixture WHERE name = :n")
+        long del(@Param("n") String n, Sort<Fixture> sort);
+    }
+
+    @Repository
+    public interface WithOrderBy extends MorphiumRepository<Fixture, String> {
+        @Query("DELETE FROM Fixture WHERE name = :n ORDER BY name")
+        long del(@Param("n") String n);
+    }
+
+    @Repository
+    public interface OrdinalWithoutParameter extends MorphiumRepository<Fixture, String> {
+        @Query("DELETE FROM Fixture WHERE name = ?2")
+        long del(String n);
+    }
+
+    private static class Collecting implements BuildProducer<ReflectiveClassBuildItem> {
+        @Override
+        public void produce(ReflectiveClassBuildItem item) {
+        }
+    }
+
+    private static void generate(Class<?> repo) throws Exception {
+        Indexer indexer = new Indexer();
+
+        for (Class<?> c : new Class<?>[] {Fixture.class, repo, MorphiumRepository.class}) {
+            try (InputStream in = c.getClassLoader().getResourceAsStream(c.getName().replace('.', '/') + ".class")) {
+                indexer.index(in);
+            }
+        }
+
+        IndexView index = indexer.complete();
+        ClassInfo repoInfo = index.getClassByName(DotName.createSimple(repo.getName()));
+        Method collect = MorphiumDataProcessor.class.getDeclaredMethod("collectEntityFields", ClassInfo.class, IndexView.class);
+        collect.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        Set<String> fields = (Set<String>) collect.invoke(new MorphiumDataProcessor(), index.getClassByName(DotName.createSimple(Fixture.class.getName())), index);
+        Method m = MorphiumDataProcessor.class.getDeclaredMethod("generateCustomQueryMethods", ClassCreator.class, ClassInfo.class, IndexView.class, String.class, Set.class,
+                BuildProducer.class);
+        m.setAccessible(true);
+        ClassOutput discard = (name, data) -> {
+        };
+
+        try (ClassCreator cc = ClassCreator.builder().classOutput(discard).className(repo.getName() + "_Impl")
+                .superClass(de.caluga.morphium.data.AbstractMorphiumRepository.class.getName()).interfaces(repo.getName()).build()) {
+            try {
+                m.invoke(new MorphiumDataProcessor(), cc, repoInfo, index, Fixture.class.getName(), new HashSet<>(fields), new Collecting());
+            } catch (InvocationTargetException e) {
+                if (e.getCause() instanceof RuntimeException re) {
+                    throw re;
+                }
+
+                throw e;
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("long, int, void, and a statement without an entity name are generated")
+    void accepted() {
+        assertThatCode(() -> generate(Accepted.class)).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("boolean and Long are refused: void, int or long only")
+    void returnTypes() {
+        assertThatThrownBy(() -> generate(BooleanResult.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("void, int or long");
+        assertThatThrownBy(() -> generate(WrapperResult.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("void, int or long");
+    }
+
+    @Test
+    @DisplayName("another entity, a Sort parameter, ORDER BY and an ordinal without a parameter are refused")
+    void otherMistakes() {
+        assertThatThrownBy(() -> generate(OtherEntity.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("Other").hasMessageContaining("Fixture");
+        assertThatThrownBy(() -> generate(WithSort.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("Sort");
+        assertThatThrownBy(() -> generate(WithOrderBy.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("ORDER BY");
+        assertThatThrownBy(() -> generate(OrdinalWithoutParameter.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("?2");
+    }
+}
