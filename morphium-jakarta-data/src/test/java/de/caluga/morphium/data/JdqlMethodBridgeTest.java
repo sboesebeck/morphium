@@ -138,4 +138,24 @@ class JdqlMethodBridgeTest {
 
         assertThat(found).extracting(Product::getName).containsExactlyInAnyOrder("Widget", "Gadget");
     }
+
+    @Test
+    @DisplayName("the ORDER BY of the query comes first, the dynamic Sorts follow in the order of the parameters (MOR-081)")
+    void orderByThenDynamicSorts() {
+        morphium.store(new Product("p1", "B", "x"));
+        morphium.store(new Product("p2", "A", "y"));
+        morphium.store(new Product("p3", "B", "z"));
+        morphium.store(new Product("p4", "A", "x"));
+
+        Object result = JdqlMethodBridge.executeJdql(
+                repo, "WHERE name <> :none ORDER BY code ASC", "none:0",
+                1, -1, -1, -1, new Object[]{"zzz", jakarta.data.Sort.desc("name"), jakarta.data.Sort.desc("id")},
+                false, false, false, false, false, "", false, null);
+
+        @SuppressWarnings("unchecked")
+        List<Product> found = (List<Product>) result;
+
+        // code ascending first (A, A, B, B), inside a code the name descending (y before x; z before x), the id only breaks what is left
+        assertThat(found).extracting(Product::getId).containsExactly("p2", "p4", "p3", "p1");
+    }
 }
