@@ -111,6 +111,17 @@ public interface OrderRepository extends BasicRepository<OrderEntity, String> {
     @Query("DELETE FROM OrderEntity WHERE customerId = :cid")
     void deleteJdqlByCustomer(@Param("cid") String customerId);
 
+    // -- UPDATE ... SET, MOR-018 --
+
+    @Query("UPDATE OrderEntity SET status = :status, amount = amount + 1 WHERE customerId = :cid")
+    long updateJdqlStatusAndAmount(@Param("status") String status, @Param("cid") String customerId);
+
+    @Query("UPDATE OrderEntity SET amount = amount * ?2 WHERE status = ?1")
+    int updateJdqlScaleByStatus(String status, double factor);
+
+    @Query("UPDATE OrderEntity SET status = 'ARCHIVED', customerId = NULL WHERE status = :s")
+    void updateJdqlArchive(@Param("s") String status);
+
     @Query("WHERE status = :s1 OR status = :s2")
     List<OrderEntity> queryByEitherStatus(@Param("s1") String status1,
                                            @Param("s2") String status2);

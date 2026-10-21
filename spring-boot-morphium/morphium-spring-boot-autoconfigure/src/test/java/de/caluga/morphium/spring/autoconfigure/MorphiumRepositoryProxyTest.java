@@ -237,6 +237,41 @@ class MorphiumRepositoryProxyTest {
         assertEquals(1, repository.findByStatus("active").size());
     }
 
+    // ---- MOR-018: @Query("UPDATE ... SET ...") ----
+
+    @Test
+    void jdqlUpdateSetsAndIncrementsAndReturnsTheMatchedCount() {
+        repository.save(new TestEntity("a", "active", 1));
+        repository.save(new TestEntity("b", "active", 5));
+
+        assertEquals(1L, repository.updateJdql("inactive", "a"));
+        assertEquals(0L, repository.updateJdql("inactive", "nobody"));
+
+        List<TestEntity> inactive = repository.findByStatus("inactive");
+        assertEquals(1, inactive.size());
+        assertEquals(2, inactive.get(0).getPriority());
+    }
+
+    @Test
+    void jdqlUpdateWithOrdinalParametersAndIntResult() {
+        repository.save(new TestEntity("a", "active", 2));
+        repository.save(new TestEntity("b", "active", 3));
+        repository.save(new TestEntity("c", "inactive", 4));
+
+        assertEquals(2, repository.updateJdqlOrdinal("active", 10));
+        assertEquals(List.of(20, 30), repository.findByStatus("active").stream().map(TestEntity::getPriority).sorted().toList());
+        assertEquals(4, repository.findByStatus("inactive").get(0).getPriority());
+    }
+
+    @Test
+    void jdqlUpdateWithVoidResult() {
+        repository.save(new TestEntity("a", "active", 1));
+
+        repository.updateJdqlVoid("a");
+
+        assertEquals(1, repository.findByStatus("done").size());
+    }
+
     // ---- Review finding 3: @Query / @Find with CompletionStage ran synchronously ----
 
     @Test
