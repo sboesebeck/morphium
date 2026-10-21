@@ -4,13 +4,12 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 26, done 47
+Status: open 25, done 48
 
 ## Overview
 
 | ID | Status | Prio | Type | Title | Effort | Ticket | Depends on |
 |---|---|---|---|---|---|---|---|
-| MOR-017 | open | 2 | implementation | Jakarta Data: JDQL DELETE FROM | M |  |  |
 | MOR-018 | open | 2 | implementation | Jakarta Data: JDQL UPDATE ... SET ... WHERE as one atomic update | L |  | MOR-006, MOR-007 |
 | MOR-019 | open | 2 | defect | Jakarta Data: reject unsupported @Find/@Delete parameter styles at build time | S |  |  |
 | MOR-021 | open | 2 | implementation | Morphium extension: atomic update and find-and-modify repository annotations | L |  | MOR-008, MOR-010 |
@@ -51,6 +50,7 @@ Status: open 26, done 47
 | MOR-009 | done | 2 | implementation | Lifecycle handling in the builder: @LastChange, @CreationTime, @Version | M |  | MOR-006 |
 | MOR-010 | done | 2 | implementation | Typed duplicate-key exception and typed result for a lost conditional upsert | M |  | MOR-006 |
 | MOR-014 | done | 2 | implementation | Option E: startup guard for @Embedded under @Entity(translateCamelCase=false) | S |  | MOR-001 |
+| MOR-017 | done | 2 | implementation | Jakarta Data: JDQL DELETE FROM | M |  |  |
 | MOR-024 | done | 2 | defect | Jakarta Data: support ordinal parameters (?1) in @Query | S |  |  |
 | MOR-025 | done | 2 | defect | Jakarta Data: @Update is not atomic and throws IllegalStateException | M |  |  |
 | MOR-029 | done | 2 | defect | InMemoryDriver: reject values BsonEncoder cannot encode | M |  |  |
@@ -384,9 +384,11 @@ Source: update-path research, 2026-10-15
 
 ### MOR-017 Jakarta Data: JDQL DELETE FROM
 
-Status **open**, priority 2, type implementation, effort M
+Status **done**, priority 2, type implementation, effort M
 
 DELETE FROM is part of Jakarta Data 1.0 (not 1.1). JdqlParser only accepts SELECT/WHERE/GROUP BY/HAVING/ORDER BY. Add DELETE FROM [WHERE] returning void/int/long (matched count) in JdqlParser, the Spring proxy path and MorphiumDataProcessor. Query.delete() already returns n. State whether lifecycle callbacks run (derived deleteBy skips them).
+
+Evidence: JdqlDeleteTest (11 invocations: statement recognition, entity name and WHERE clause split, malformed statements, then on the InMemoryDriver and on mongo:8 with the pooled driver: delete by named parameters returns the count and removes only the matches, no WHERE removes all, ordinal parameters work, zero matches, another entity name and ORDER BY are refused and delete nothing). Quarkus: the build generates the method for void, int and long and refuses boolean, Long, another entity name, a Sort parameter, ORDER BY and an ordinal without a parameter (MorphiumDataProcessorJdqlDeleteTest, 3 tests); AbstractMorphiumDataJdqlDeleteTest (long, int with ordinals, void) runs on the InMemoryDriver and on a real mongo:8 from Dev Services. Spring: three proxy tests (long, int with ordinals, void) in MorphiumRepositoryProxyTest, a wrong return type fails when the proxy is created. Whole suites: jakarta-data 118, Quarkus runtime 83, deployment 34, integration 278, Spring 28. Lifecycle: the delete runs no @PreRemove/@PostRemove callbacks of the entities (there is no instance), the storage listeners get preRemove(Query) and postRemove(Query); documented in docs/jakarta-data.md and the Javadoc. Not covered: the Spring tests run on the InMemoryDriver only (the bridge runs on mongo:8 in the jakarta-data module), async (CompletionStage) DELETE methods are refused by the return type rule, UPDATE statements (MOR-018), the listener events were not asserted by a test.
 
 Acceptance:
 
@@ -395,6 +397,8 @@ Acceptance:
 - Verified against a real MongoDB (not only the InMemoryDriver).
 
 Source: docs/research/jakarta-data-1.1.md section 1
+
+Commits: 8b3b80eda
 
 ### MOR-018 Jakarta Data: JDQL UPDATE ... SET ... WHERE as one atomic update
 
