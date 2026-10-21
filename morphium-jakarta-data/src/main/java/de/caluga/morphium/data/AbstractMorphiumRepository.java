@@ -375,7 +375,7 @@ public abstract class AbstractMorphiumRepository<T, K> {
      */
     private void requireExists(Object entity) {
         Object id = morphium.getARHelper().getId(entity);
-        Object existing = morphium.findById(entity.getClass(), id, null);
+        Object existing = morphium.findById(morphium.getARHelper().getRealClass(entity.getClass()), id, null);
         if (existing == null) {
             throw new OptimisticLockingFailureException("Cannot update: no entity with id '" + id + "' exists");
         }

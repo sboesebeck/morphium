@@ -9,7 +9,8 @@ import java.util.Locale;
 /**
  * The lifecycle methods of a repository (MOR-077): {@code @Insert}, {@code @Save}, {@code @Update} and a {@code @Delete} that takes entities, under any name and with any of the shapes that
  * Jakarta Data allows. The parameter is one entity, a collection of entities, or an array or varargs of entities; the result is nothing, the entity, the entities as a list or an array, or for
- * {@code @Update} and {@code @Delete} a {@code boolean}, an {@code int} or a {@code long}. The work is done by the {@code doXxx()} methods of {@link AbstractMorphiumRepository}, which do not
+ * {@code @Update} and {@code @Delete} a {@code boolean}, an {@code int} or a {@code long} (the number of entities that the method was given, as {@code Morphium.delete()} does not tell whether a document was
+ * there). The work is done by the {@code doXxx()} methods of {@link AbstractMorphiumRepository}, which do not
  * depend on the entity of the repository: a lifecycle method can store any entity, so a repository without a primary entity can have them.
  */
 public final class LifecycleBridge {
@@ -65,6 +66,10 @@ public final class LifecycleBridge {
      * @throws IllegalArgumentException if the shape does not fit the kind or the parameter ({@code ENTITY} for a collection, for example)
      */
     public static Object execute(AbstractMorphiumRepository<?, ?> repo, String kind, Object argument, String returns) {
+        if (argument == null) {
+            throw new IllegalArgumentException("A lifecycle method needs an entity, entities or an array; got null");
+        }
+
         boolean many = argument instanceof Collection<?> || argument instanceof Object[];
         List<?> entities = many ? asList(argument) : List.of(argument);
         String k = kind.toUpperCase(Locale.ROOT);

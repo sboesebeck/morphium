@@ -135,6 +135,7 @@ class LifecycleBridgeTest {
         assertThatThrownBy(() -> LifecycleBridge.execute(repo, "INSERT", List.of(new Box("a", 1)), LifecycleBridge.ENTITY)).isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("several entities");
         assertThatThrownBy(() -> LifecycleBridge.execute(repo, "MERGE", new Box("a", 1), LifecycleBridge.VOID)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> LifecycleBridge.execute(repo, "INSERT", null, LifecycleBridge.VOID)).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("null");
     }
 
     @Test
