@@ -195,12 +195,7 @@ public final class QueryExecutor {
                              List<OrderSpec> orderSpecs,
                              Morphium morphium,
                              Class entityClass) {
-        Map<String, Integer> sortMap = new LinkedHashMap<>();
-        for (OrderSpec spec : orderSpecs) {
-            String mongoField = resolveMongoField(morphium, entityClass, spec.field());
-            sortMap.put(mongoField, spec.direction() == Direction.ASC ? 1 : -1);
-        }
-        query.sort(sortMap);
+        SortPlan.apply(query, SortPlan.fromOrderSpecs(orderSpecs), morphium, entityClass);
     }
 
     @SuppressWarnings("unchecked")
