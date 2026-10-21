@@ -158,6 +158,10 @@ context keep their own key handling.
 
 ### Fixed
 
+#### Jakarta Data: an enum in `Not`, `In`, `NotIn` and range operators of a derived query (MOR-090)
+`findByKindNot(Kind.PRIME)` returned every document and `findByKindIn(Set.of(...))` none: only a plain equality encoded the enum by its name, a value inside `{$ne: ...}`, `{$in: [...]}` or
+`{$gt: ...}` was not converted. The derived-query conditions convert an enum to its name in every operator.
+
 #### Jakarta Data: a one-character string literal compares with a `char` field as the character (MOR-089)
 `letter = 'b'`, `letter IN ('a', 'c')` and `letter BETWEEN 'a' AND 'b'` compared the text with the number that a character is stored as and matched nothing, so `NOT IN ('E', 'G')` excluded nothing.
 The literal is read by the type of the field: a `char` or `Character` field gets the character, every other field keeps the text.

@@ -299,6 +299,11 @@ public final class QueryExecutor {
      * contract above.
      */
     private static Object mapValue(Morphium morphium, Object value) {
+        // an enum is stored by its name; a plain equality is encoded that way later, but a value inside {$ne: ...}, {$in: [...]} or {$gt: ...} is not (MOR-090)
+        if (value instanceof Enum<?> constant) {
+            return constant.name();
+        }
+
         return morphium.getMapper().marshallIfCustomMapped(value);
     }
 
