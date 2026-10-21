@@ -215,6 +215,12 @@ class MorphiumDataProcessorAtomicUpdateTest {
 
         @jakarta.data.repository.Save
         void save(Lease lease);
+
+        @jakarta.data.repository.Update
+        Boolean changeBoxed(Lease lease);
+
+        @jakarta.data.repository.Delete
+        Long removeBoxed(List<Lease> leases);
     }
 
     @Repository
