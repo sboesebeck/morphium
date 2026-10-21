@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 23, in_progress 1, done 54
+Status: open 23, in_progress 1, done 55
 
 ## Overview
 
@@ -77,6 +77,7 @@ Status: open 23, in_progress 1, done 54
 | MOR-076 | done | 2 | defect | Jakarta Data: derived queries without By (countAll and similar) are unsupported | S |  |  |
 | MOR-078 | done | 2 | defect | A char or Character field cannot be read back | S |  |  |
 | MOR-079 | done | 2 | defect | Jakarta Data: findFirstBy and findFirstNBy are unsupported | S |  |  |
+| MOR-080 | done | 2 | defect | Jakarta Data: a repository method that returns an array of the entity is unsupported | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
@@ -1382,4 +1383,20 @@ Acceptance:
 Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/MethodNameParser.java
 
 Commits: 3c2cd7e13
+
+### MOR-080 Jakarta Data: a repository method that returns an array of the entity is unsupported
+
+Status **done**, priority 2, type defect, effort S
+
+Found by the TCK of MOR-026: NaturalNumbers.findByIdLessThan(...) returns NaturalNumber[]. The Quarkus build and the Spring proxy took an array for a single entity: ClassCastException of the entity to the array (3 TCK tests). An array is now answered like a List and converted by ResultShapes.toArray.
+
+Evidence: ResultShapesTest (List, Stream, single value, empty, array stays, null, primitive component); Quarkus integration test arrays (derived, @Find, @Query; empty result) on the InMemoryDriver and on a real mongo:8; Spring proxy test aMethodMayReturnAnArray. Reviewed in two passes until no finding was left that could be fixed; the branch for a primitive component (long[]) is not covered by a test because no repository can return such an array yet (skipped, noted in the review).
+
+Acceptance:
+
+- A derived query, @Find and @Query method may return an array of the entity in the Quarkus and the Spring module
+
+Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/ResultShapes.java
+
+Commits: e1870e2c3
 
