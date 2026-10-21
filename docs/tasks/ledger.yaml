@@ -499,7 +499,7 @@ tasks:
 - id: MOR-019
   title: 'Jakarta Data: reject unsupported @Find/@Delete parameter styles at build time'
   type: defect
-  status: open
+  status: done
   priority: 2
   effort: S
   description: FindMethodBridge and MorphiumDataProcessor turn every @Find/@Delete parameter into an equality. With
@@ -512,6 +512,9 @@ tasks:
   - The Spring proxy path throws at startup with the same message
   source:
   - docs/research/jakarta-data-1.1.md section 4
+  evidence: 'UnsupportedParameterStyles (morphium-jakarta-data) checks class names, so it needs no Jakarta Data 1.1 API: @Is on a parameter, a parameter of a jakarta.data.constraint or jakarta.data.restrict type, @First on a method (UnsupportedParameterStylesTest, 2 tests). Quarkus: MorphiumDataProcessor.rejectUnsupportedParameterStyles runs for every @Find, @Delete and @Query method and fails the build with a message that names the method and the way out; MorphiumDataProcessorJdqlDeleteTest has a test with @Is on a @Find and on a @Delete, a Restriction on a @Find and @First on a @Query (each names the method) and one that a plain @Find is generated. The 1.1 types do not exist in the 1.0 API of the build, so the tests use stand-in annotations and types with the same names in the test sources. Spring: the repository is checked when its invocation handler is created, not at the first call (UnsupportedParameterStylesTest in the Spring module, 4 tests: @Is on @Find and @Delete, Restriction, @First on @Query, and a repository without them is fine). Whole suites: jakarta-data 118 (without the MongoDB variants), Quarkus runtime 83, deployment 38, integration 284, Spring 35. Docs: docs/jakarta-data.md and CHANGELOG. Not covered: derived query methods (findBy...) with such parameters are not checked, the stand-in types would clash with the real ones once the build uses Jakarta Data 1.1 (they can then be deleted), and the Spring check covers the methods of the interface that carry @Find, @Delete or @Query.'
+  commits:
+  - 39b01aed2
 - id: MOR-020
   title: 'Jakarta Data 1.1: @Is, constraints, @First and attribute-only Restriction'
   type: implementation
