@@ -4,13 +4,12 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 23, done 50
+Status: open 23, done 51
 
 ## Overview
 
 | ID | Status | Prio | Type | Title | Effort | Ticket | Depends on |
 |---|---|---|---|---|---|---|---|
-| MOR-021 | open | 2 | implementation | Morphium extension: atomic update and find-and-modify repository annotations | L |  | MOR-008, MOR-010 |
 | MOR-026 | open | 2 | infrastructure | Run the Jakarta Data TCK against morphium-jakarta-data | M |  |  |
 | MOR-063 | open | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
 | MOR-069 | open | 2 | defect | PoppyDB: the update fast path reports every error as 11000 and ignores the ordered flag | S |  |  |
@@ -33,6 +32,7 @@ Status: open 23, done 50
 | MOR-052 | open | 3 | defect | updateLastAccess writes the untranslated Java field name | S |  |  |
 | MOR-070 | open | 3 | defect | PoppyDB: the delete fast path swallows errors | S |  |  |
 | MOR-071 | open | 3 | defect | Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange | S |  |  |
+| MOR-075 | open | 3 | defect | JdqlParser accepts an operand that is neither a parameter nor a literal | S |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -51,6 +51,7 @@ Status: open 23, done 50
 | MOR-017 | done | 2 | implementation | Jakarta Data: JDQL DELETE FROM | M |  |  |
 | MOR-018 | done | 2 | implementation | Jakarta Data: JDQL UPDATE ... SET ... WHERE as one atomic update | L |  | MOR-006, MOR-007 |
 | MOR-019 | done | 2 | defect | Jakarta Data: reject unsupported @Find/@Delete parameter styles at build time | S |  |  |
+| MOR-021 | done | 2 | implementation | Morphium extension: atomic update and find-and-modify repository annotations | L |  | MOR-008, MOR-010 |
 | MOR-024 | done | 2 | defect | Jakarta Data: support ordinal parameters (?1) in @Query | S |  |  |
 | MOR-025 | done | 2 | defect | Jakarta Data: @Update is not atomic and throws IllegalStateException | M |  |  |
 | MOR-029 | done | 2 | defect | InMemoryDriver: reject values BsonEncoder cannot encode | M |  |  |
@@ -457,9 +458,11 @@ Source: docs/research/jakarta-data-1.1.md, GitHub #302
 
 ### MOR-021 Morphium extension: atomic update and find-and-modify repository annotations
 
-Status **open**, priority 2, type implementation, effort L
+Status **done**, priority 2, type implementation, effort L
 
 The Jakarta Data spec has no upsert or find-and-modify annotation, so this is a vendor extension. Provide an annotation pair in morphium-jakarta-data and MorphiumDataProcessor: a count-returning update and a document-returning find-and-modify with upsert, returnDocument and sort, using structured set / setOnInsert / inc arrays of field and parameter pairs (compile-time field-name check) instead of JSON strings. Return-type convention: numeric, boolean or void gives the count form, entity or Optional gives the find-and-modify form, collections are rejected. Parameters are bound through the builder (MOR-006).
+
+Evidence: AtomicUpdateTest (11 invocations on the InMemoryDriver and on mongo:8 with the pooled driver): the lease of the task is ONE conditional upsert that acquires (fencing token 1, createdBy set on insert only), loses against the holder (empty, nothing changed), renews (token 2) and takes over after the expiry (token 3, createdBy stays); BEFORE returns the old state and null for an upsert that inserts; without upsert nothing is created; an order picks the document; the count form returns matched or inserted, 0 for a lost upsert, and many updates all matches; a missing argument and a non-number for inc are refused and change nothing. Quarkus: the build generates both forms with void, boolean, int, long, the entity and Optional, and refuses Collection, Long, Stream, an unknown field, a parameter that does not exist (assignment and condition), a condition that is not valid JDQL, ordinals in the condition, no assignment, param and value together, a text for inc, setOnInsert without upsert, many on the document form, an order on the count form and a Sort parameter, each naming the method (MorphiumDataProcessorAtomicUpdateTest, 5 tests). AbstractMorphiumAtomicUpdateTest (lease lifecycle through Optional, the boolean and int count forms, the entity with BEFORE) runs on the InMemoryDriver and on a real mongo:8 from Dev Services. Spring: two proxy tests and a test that a wrong @AtomicUpdate refuses the repository when it is created. Documented as non-portable in docs/jakarta-data.md, the Quarkus README and the CHANGELOG. Found on the way: JdqlParser takes whatever stands after the operator as the operand, so WHERE id == :id is the condition id = "= :id" and matches nothing silently; JdqlOperands now refuses that for @AtomicUpdate and for DELETE and UPDATE statements (JdqlOperandsTest), the parser itself is MOR-075. Whole suites: jakarta-data 149 (with the MongoDB variants), Quarkus runtime 83, deployment 43, integration 290, Spring 38. Not covered: a replica set, sort for the count form (refused by design), @AtomicUpdate on a derived-query name, ordinals in the condition (refused), the Spring tests run on the InMemoryDriver only.
 
 Acceptance:
 
@@ -471,6 +474,21 @@ Acceptance:
 Depends on: MOR-008, MOR-010
 
 Source: docs/research/jakarta-data-1.1.md section 3, docs/research/other-clients.md patterns 10, 13
+
+Commits: cdb6f5153
+
+### MOR-075 JdqlParser accepts an operand that is neither a parameter nor a literal
+
+Status **open**, priority 3, type defect, effort S
+
+Found by MOR-021. JdqlParser takes whatever stands after the operator as the operand: WHERE id == :id is the condition id = "= :id", WHERE price >> 5 is price > "> 5", WHERE id = :id garbage is an operand "id garbage" that fails at the call. Such a condition matches nothing and nobody tells; in a SELECT it returns an empty list. JdqlOperands (MOR-021) refuses it for @AtomicUpdate, DELETE and UPDATE at build time; a plain @Query SELECT and the parser itself still accept it. Make the parser throw a JDQL parse error with the position, like it does for a condition it cannot split.
+
+Acceptance:
+
+- JdqlParser.parse throws a parse error with the position for the three examples above
+- The existing JdqlParserTest cases still pass
+
+Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlOperands.java, morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlParser.java
 
 ### MOR-022 Jakarta Data: derived update methods (updateByX)
 
