@@ -1656,3 +1656,22 @@ tasks:
   commits:
   - 4ba59d0da
   - ca6cdab43
+- id: MOR-082
+  title: 'Jakarta Data: JDQL — AND binds stronger than OR, literals are text, NOT before BETWEEN/IN/LIKE, IN lists of literals'
+  type: defect
+  status: done
+  priority: 2
+  effort: S
+  description: 'Found by the TCK of MOR-026: a mixed AND/OR condition was split at the OR and the AND part failed, a keyword or operator inside a string literal (ORDER BY, IN, a quote written as two quotes) broke the query, NOT BETWEEN and NOT LIKE put the NOT into the field name, and IN took no list of literals. The parser now searches keywords, operators and parentheses in a text whose string literals are masked, AND binds stronger than OR, NOT may stand before BETWEEN/LIKE, IN takes a list of literals and parameters, and a qualified enum constant compares by its name for an enum field. Also fixes the operand typos for the common case of MOR-075 only where the literal handling touches it; MOR-075 stays open.'
+  acceptance:
+  - 'a OR b AND c is a OR (b AND c), also inside parentheses'
+  - 'a keyword, operator, comma or parenthesis inside a string literal is text, and two quotes are one quote'
+  - 'NOT BETWEEN, NOT LIKE and NOT IN (...) work, IN takes a list of literals and parameters'
+  - 'a qualified constant compares by the name of the constant for an enum field only'
+  source:
+  - morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlParser.java
+  - morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlLiterals.java
+  evidence: 'JdqlParserLiteralsTest (7), JdqlLiteralsExecutionTest (6, on the InMemoryDriver; red before the change), JdqlOperandsTest.listsAndConstants, all existing Jdql tests green. Reviewed in two passes: the first found a dotted-name-as-enum by shape, an untested collection parameter in a list and a changelog overstatement (all fixed), the second had no finding.'
+  commits:
+  - 6b339657b
+  - f95bdae97
