@@ -7200,12 +7200,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     continue;
                 }
 
+                // a missing value or null is smaller than any value: first when ascending, last when descending (as mongod does, MOR-085)
+                int direction = sort.get(f) instanceof Number dir && dir.intValue() < 0 ? -1 : 1;
+
                 if (o1.get(f) == null && o2.get(f) != null) {
-                    return -1;
+                    return -direction;
                 }
 
                 if (o1.get(f) != null && o2.get(f) == null) {
-                    return 1;
+                    return direction;
                 }
 
                 if (sort.get(f) instanceof Integer) {
