@@ -667,6 +667,23 @@ public final class JdqlMethodBridge {
             }
             return paramValues.get(paramName);
         }
+        // a list of operands, as after IN: ('a', 'b', :p)
+        if (JdqlLiterals.isList(valueRef)) {
+            List<Object> items = new ArrayList<>();
+            for (String item : JdqlLiterals.splitList(valueRef)) {
+                Object value = resolveValue(item, paramValues);
+                // a parameter inside the list that holds a collection contributes its elements
+                if (item.startsWith(":") && value instanceof Collection<?> c) {
+                    items.addAll(c);
+                } else {
+                    items.add(value);
+                }
+            }
+            return items;
+        }
+        if (JdqlLiterals.isStringLiteral(valueRef)) {
+            return JdqlLiterals.unquote(valueRef);
+        }
         // Try numeric literal
         try {
             if (valueRef.contains(".")) {
@@ -674,10 +691,12 @@ public final class JdqlMethodBridge {
             }
             return Long.parseLong(valueRef);
         } catch (NumberFormatException e) {
-            // Return as string literal (strip quotes if present)
-            if ((valueRef.startsWith("'") && valueRef.endsWith("'"))
-                    || (valueRef.startsWith("\"") && valueRef.endsWith("\""))) {
+            if (valueRef.startsWith("\"") && valueRef.endsWith("\"") && valueRef.length() >= 2) {
                 return valueRef.substring(1, valueRef.length() - 1);
+            }
+            // the constant of an enum is stored by its name
+            if (JdqlLiterals.isQualifiedName(valueRef)) {
+                return JdqlLiterals.constantName(valueRef);
             }
             return valueRef;
         }

@@ -158,6 +158,12 @@ context keep their own key handling.
 
 ### Fixed
 
+#### Jakarta Data: JDQL, AND binds stronger than OR, literals are text, NOT before BETWEEN/IN/LIKE, IN lists of literals (MOR-082)
+`a OR b AND c` was split at the OR and the part `b AND c` was parsed as one condition, so it failed or matched nothing; AND now binds stronger than OR, also inside parentheses. The keywords
+and operators were searched in the raw text, so an `ORDER BY`, an `IN`, a comma or a parenthesis inside a string literal broke the query (`'it''s'` was read as `'it'` and `'s'`); they are searched
+with the content of the literals masked now, and `''` is a quote. `field NOT BETWEEN`, `NOT LIKE` and `NOT IN (...)` are read as the negated operator, `IN` takes a list of literals and parameters
+(`IN ('a', 'b', :p)`), and the qualified constant of an enum (`kind = com.example.Kind.PRIME`) compares by the name of the constant. The write statements accept the same operands.
+
 #### Jakarta Data: the static order stays, several `Sort` parameters and `Sort...` count (MOR-081)
 A dynamic `Sort` or `Order` replaced the order of the method name or of `@OrderBy`, and of several `Sort` parameters only the last one counted; a `Sort...` varargs parameter was bound as a
 condition. The order is now the static one first, then every dynamic sort in the order of the parameters (`Sort`, several `Sort`, `Sort...`, `Order`); a property that is sorted by already keeps its

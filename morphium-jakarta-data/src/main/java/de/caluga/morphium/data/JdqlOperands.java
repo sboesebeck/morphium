@@ -14,6 +14,15 @@ public final class JdqlOperands {
     private JdqlOperands() {
     }
 
+    /** a parameter or a literal, a list of them after IN, or the qualified constant of an enum */
+    private static boolean isOperand(String ref) {
+        if (JdqlLiterals.isList(ref)) {
+            return JdqlLiterals.splitList(ref).stream().allMatch(JdqlOperands::isOperand);
+        }
+
+        return OPERAND.matcher(ref).matches() || JdqlLiterals.isQualifiedName(ref);
+    }
+
     /**
      * @param whereClause a {@code WHERE ...} clause (or the condition without the keyword)
      * @return null if the clause is fine, otherwise a message that names the operand
@@ -35,7 +44,7 @@ public final class JdqlOperands {
 
         for (JdqlQuery.JdqlCondition c : conditions) {
             for (String ref : new String[] {c.valueRef(), c.valueRef2()}) {
-                if (ref != null && !OPERAND.matcher(ref.strip()).matches()) {
+                if (ref != null && !isOperand(ref.strip())) {
                     return "the operand \"" + ref + "\" of the condition on " + c.fieldName() + " is neither a parameter (:name) nor a literal";
                 }
             }
