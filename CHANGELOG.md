@@ -158,6 +158,10 @@ context keep their own key handling.
 
 ### Fixed
 
+#### InMemoryDriver: a missing value or null sorts last when descending (MOR-085)
+MongoDB sorts a missing value or null before every number, so it comes first in an ascending sort and last in a descending one; the InMemoryDriver put it first in both. Found by the TCK of
+the Jakarta Data module.
+
 #### A `short` or `Short` field is stored as a number (MOR-084)
 `ShortMapper` existed but was never registered, so a `short` or `Short` field was written as a Base64 Java-serialization blob (`{_b64data: ...}`): the database could not compare, sort or
 increment it. It is written as a number like an int now; documents that were written as a blob are still read (the blob may only hold a `Short`, any other class is refused).
