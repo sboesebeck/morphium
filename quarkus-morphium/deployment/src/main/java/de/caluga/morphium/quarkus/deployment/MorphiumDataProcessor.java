@@ -1003,6 +1003,14 @@ public class MorphiumDataProcessor {
                             + "code instead.");
         }
 
+        // findFirstBy... / findFirst3By... has its own limit (MOR-079); the specification does not combine it with a Limit or PageRequest parameter
+        if (descriptor.limit() > 0 && (pageRequestParamIndex >= 0 || limitParamIndex >= 0)) {
+            throw new IllegalStateException(
+                    "Unsupported repository method " + method.declaringClass().name() + "." + methodName
+                            + "() -- findFirst... cannot be combined with a " + (pageRequestParamIndex >= 0 ? "PageRequest" : "Limit")
+                            + " parameter. Use findBy... with the parameter, or drop it.");
+        }
+
         // Determine return type for the descriptor (based on effective/inner type)
         boolean returnsPage = effectiveReturnType.name().equals(PAGE_TYPE);
         boolean returnsOptional = isOptional(effectiveReturnType);
