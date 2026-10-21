@@ -2660,11 +2660,12 @@ non-POSIX filesystems (Windows) the check is skipped.</p>
 </span><span id="__span-3-50"><a id="__codelineno-3-50" name="__codelineno-3-50" href="#__codelineno-3-50"></a><span class="c1">#replay-buffer = 256m</span>
 </span><span id="__span-3-51"><a id="__codelineno-3-51" name="__codelineno-3-51" href="#__codelineno-3-51"></a><span class="c1">#event-queue-budget = 256m</span>
 </span><span id="__span-3-52"><a id="__codelineno-3-52" name="__codelineno-3-52" href="#__codelineno-3-52"></a><span class="c1">#cursor-queue-budget = 64m</span>
-</span><span id="__span-3-53"><a id="__codelineno-3-53" name="__codelineno-3-53" href="#__codelineno-3-53"></a><span class="c1">#global-cursor-budget = 0</span>
-</span><span id="__span-3-54"><a id="__codelineno-3-54" name="__codelineno-3-54" href="#__codelineno-3-54"></a><span class="c1">#replication-flow-control = true</span>
-</span><span id="__span-3-55"><a id="__codelineno-3-55" name="__codelineno-3-55" href="#__codelineno-3-55"></a><span class="c1">#replication-flow-control-high-water = 50</span>
-</span><span id="__span-3-56"><a id="__codelineno-3-56" name="__codelineno-3-56" href="#__codelineno-3-56"></a><span class="c1">#replication-flow-control-low-water = 25</span>
-</span><span id="__span-3-57"><a id="__codelineno-3-57" name="__codelineno-3-57" href="#__codelineno-3-57"></a><span class="c1">#replication-flow-control-max-wait = 10s</span>
+</span><span id="__span-3-53"><a id="__codelineno-3-53" name="__codelineno-3-53" href="#__codelineno-3-53"></a><span class="c1">#cursor-queue-events = 10000</span>
+</span><span id="__span-3-54"><a id="__codelineno-3-54" name="__codelineno-3-54" href="#__codelineno-3-54"></a><span class="c1">#global-cursor-budget = 0</span>
+</span><span id="__span-3-55"><a id="__codelineno-3-55" name="__codelineno-3-55" href="#__codelineno-3-55"></a><span class="c1">#replication-flow-control = true</span>
+</span><span id="__span-3-56"><a id="__codelineno-3-56" name="__codelineno-3-56" href="#__codelineno-3-56"></a><span class="c1">#replication-flow-control-high-water = 50</span>
+</span><span id="__span-3-57"><a id="__codelineno-3-57" name="__codelineno-3-57" href="#__codelineno-3-57"></a><span class="c1">#replication-flow-control-low-water = 25</span>
+</span><span id="__span-3-58"><a id="__codelineno-3-58" name="__codelineno-3-58" href="#__codelineno-3-58"></a><span class="c1">#replication-flow-control-max-wait = 10s</span>
 </span></code></pre></div>
 <p>Load it explicitly, or drop it at one of the default search paths:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>java<span class="w"> </span>-jar<span class="w"> </span>poppydb-cli.jar<span class="w"> </span>--cfg<span class="w"> </span>/etc/poppydb/config
@@ -3060,6 +3061,11 @@ replay buffer frees nothing while a cursor still references the payload:</p>
 <td><code>--cursor-queue-budget</code></td>
 <td><code>64m</code></td>
 <td>one watch cursor's buffered, undelivered events</td>
+</tr>
+<tr>
+<td><code>--cursor-queue-events</code></td>
+<td><code>10000</code></td>
+<td>one watch cursor's queue, as an event count; a resume whose replay would not fit either bound is answered <code>ChangeStreamHistoryLost</code> (286) up front</td>
 </tr>
 <tr>
 <td><code>--global-cursor-budget</code></td>
