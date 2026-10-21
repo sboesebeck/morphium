@@ -272,6 +272,31 @@ class MorphiumRepositoryProxyTest {
         assertEquals(1, repository.findByStatus("done").size());
     }
 
+    // ---- MOR-021: @AtomicUpdate ----
+
+    @Test
+    void atomicUpdateUpsertsAndReturnsTheDocument() {
+        var first = repository.touch("job", "running");
+        assertTrue(first.isPresent());
+        assertEquals(1, first.get().getPriority());
+
+        var second = repository.touch("job", "again");
+        assertEquals(2, second.get().getPriority());
+        assertEquals("again", second.get().getStatus());
+        assertEquals(1, repository.findByStatus("again").size());
+    }
+
+    @Test
+    void atomicUpdateCountForms() {
+        repository.save(new TestEntity("a", "active", 1));
+        repository.save(new TestEntity("b", "active", 5));
+
+        assertEquals(2, repository.bumpAll("active", 10));
+        assertEquals(List.of(11, 15), repository.findByStatus("active").stream().map(TestEntity::getPriority).sorted().toList());
+        assertTrue(repository.finish("a"));
+        assertFalse(repository.finish("nobody"));
+    }
+
     // ---- Review finding 3: @Query / @Find with CompletionStage ran synchronously ----
 
     @Test

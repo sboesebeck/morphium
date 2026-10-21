@@ -88,4 +88,33 @@ class UnsupportedParameterStylesTest {
     void aRepositoryWithoutThemIsFine() {
         assertDoesNotThrow(() -> create(Fine.class));
     }
+
+    // ------------------------------------------------------------------ MOR-021: @AtomicUpdate is checked when the repository is created, too
+
+    interface AtomicUnknownField extends jakarta.data.repository.BasicRepository<TestEntity, de.caluga.morphium.driver.MorphiumId> {
+        @de.caluga.morphium.data.AtomicUpdate(set = @de.caluga.morphium.data.Assign(field = "nope", value = "1"))
+        void bad();
+    }
+
+    interface AtomicCollection extends jakarta.data.repository.BasicRepository<TestEntity, de.caluga.morphium.driver.MorphiumId> {
+        @de.caluga.morphium.data.AtomicUpdate(set = @de.caluga.morphium.data.Assign(field = "status", value = "'x'"))
+        List<TestEntity> bad();
+    }
+
+    interface AtomicUnknownParam extends jakarta.data.repository.BasicRepository<TestEntity, de.caluga.morphium.driver.MorphiumId> {
+        @de.caluga.morphium.data.AtomicUpdate(where = "name = :ghost", set = @de.caluga.morphium.data.Assign(field = "status", value = "'x'"))
+        void bad(@jakarta.data.repository.Param("name") String name);
+    }
+
+    @Test
+    void aWrongAtomicUpdateRefusesTheRepository() {
+        IllegalStateException field = assertThrows(IllegalStateException.class, () -> create(AtomicUnknownField.class));
+        assertTrue(field.getMessage().contains("AtomicUnknownField.bad") && field.getMessage().contains("nope"), field.getMessage());
+
+        IllegalStateException type = assertThrows(IllegalStateException.class, () -> create(AtomicCollection.class));
+        assertTrue(type.getMessage().contains("AtomicCollection.bad") && type.getMessage().contains("not supported"), type.getMessage());
+
+        IllegalStateException param = assertThrows(IllegalStateException.class, () -> create(AtomicUnknownParam.class));
+        assertTrue(param.getMessage().contains(":ghost"), param.getMessage());
+    }
 }

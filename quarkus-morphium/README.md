@@ -113,6 +113,7 @@ public class ProductService {
 | **Query derivation** | `findBy`, `countBy`, `existsBy`, `deleteBy` with operators: Equals, Not, GreaterThan, LessThan, Between, In, NotIn, Like, StartsWith, EndsWith, Null, NotNull, True, False — combined with And/Or |
 | **@Find + @By** | Explicit field binding via parameter annotations; each `@By`-bound parameter is applied as an equality condition |
 | **@Query (JDQL)** | Jakarta Data Query Language with WHERE, ORDER BY, named (`:param`) or ordinal (`?1`) parameters, comparison operators, BETWEEN, IN, LIKE, IS NULL, NOT, string literals, GROUP BY (single + multi-field), HAVING (AND/OR), aggregate functions (COUNT/SUM/AVG/MIN/MAX), `DELETE FROM Entity [WHERE ...]` and `UPDATE Entity SET ... [WHERE ...]` (one update command: assignment, `NULL`, `f = f + n`, `f = f * n`) returning void/int/long |
+| **@AtomicUpdate** | Morphium extension (not portable): one atomic conditional update or find-and-modify with structured `set`/`setOnInsert`/`inc` assignments and upsert, for example a lease in one command; see `docs/jakarta-data.md` |
 | **@OrderBy** | Static sort annotation on query methods |
 | **Pagination** | `Page<T>`, `PageRequest` with total counts, `Limit`, `CursoredPage<T>` (keyset pagination), `Page<Record>` for GROUP BY results |
 | **Sorting** | `Sort<T>`, `Order<T>` as method parameters |

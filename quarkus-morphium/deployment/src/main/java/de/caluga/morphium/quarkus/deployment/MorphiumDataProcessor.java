@@ -1,12 +1,15 @@
 package de.caluga.morphium.quarkus.deployment;
 
 import de.caluga.morphium.data.AbstractMorphiumRepository;
+import de.caluga.morphium.data.AtomicUpdateSpec;
 import de.caluga.morphium.data.FindMethodBridge;
 import de.caluga.morphium.data.JdqlDelete;
 import de.caluga.morphium.data.JdqlMethodBridge;
+import de.caluga.morphium.data.JdqlOperands;
+import de.caluga.morphium.data.JdqlOrdinalParameters;
+import de.caluga.morphium.data.JdqlParser;
 import de.caluga.morphium.data.JdqlUpdate;
 import de.caluga.morphium.data.UnsupportedParameterStyles;
-import de.caluga.morphium.data.JdqlOrdinalParameters;
 import de.caluga.morphium.data.MethodNameParser;
 import de.caluga.morphium.data.QueryDescriptor;
 import de.caluga.morphium.data.QueryMethodBridge;
@@ -91,6 +94,7 @@ public class MorphiumDataProcessor {
             "jakarta.data.repository.Save");
     private static final DotName UPDATE_ANNOTATION = DotName.createSimple(
             "jakarta.data.repository.Update");
+    private static final DotName ATOMIC_UPDATE_ANNOTATION = DotName.createSimple("de.caluga.morphium.data.AtomicUpdate");
     private static final DotName QUERY_ANNOTATION = DotName.createSimple(
             "jakarta.data.repository.Query");
     private static final DotName PARAM_ANNOTATION = DotName.createSimple(
@@ -803,6 +807,12 @@ public class MorphiumDataProcessor {
             // and none of the generators below (Query/Find/Delete/Insert/Save/Update/derived)
             // has any notion of how to implement them.
             if (isObjectMethodRedeclaration(method)) continue;
+
+            // Morphium extension (MOR-021): one atomic update with structured assignments
+            if (method.hasAnnotation(ATOMIC_UPDATE_ANNOTATION)) {
+                generateAtomicUpdateMethod(cc, method, entityClassName, entityFields);
+                continue;
+            }
 
             // Phase 5: @Query with JDQL
             if (method.hasAnnotation(QUERY_ANNOTATION)) {
@@ -1909,6 +1919,133 @@ public class MorphiumDataProcessor {
     }
 
     /**
+     * Generates a {@code @AtomicUpdate} method (MOR-021, a Morphium extension): one atomic update command through
+     * {@link JdqlMethodBridge#executeAtomicCount} (return type void, boolean, int, long) or {@link JdqlMethodBridge#executeAtomicDocument} (the entity or an
+     * Optional of it). The build fails for another return type, a special parameter, an unknown field, an assignment or a condition that names no method
+     * parameter, an assignment that is not exactly one of param and value, an increment by a non-number, no assignment at all, {@code many} or an
+     * order in the wrong form, and a condition that is not valid JDQL.
+     */
+    private void generateAtomicUpdateMethod(ClassCreator cc, MethodInfo method, String entityClassName, Set<String> entityFields) {
+        String where = method.declaringClass().name() + "." + method.name();
+        AnnotationInstance ann = method.annotation(ATOMIC_UPDATE_ANNOTATION);
+        String condition = ann.value("where") != null ? ann.value("where").asString() : "";
+        boolean upsert = ann.value("upsert") != null && ann.value("upsert").asBoolean();
+        boolean many = ann.value("many") != null && ann.value("many").asBoolean();
+        String returns = ann.value("returns") != null ? ann.value("returns").asEnum() : "AFTER";
+
+        // the parameters: names (for the condition and the assignments), no special parameters
+        StringBuilder paramMapSpec = new StringBuilder();
+        Set<String> paramNames = new HashSet<>();
+        List<MethodParameterInfo> params = method.parameters();
+
+        for (int i = 0; i < method.parametersCount(); i++) {
+            DotName type = method.parameterType(i).name();
+
+            if (type.equals(SORT_TYPE) || type.equals(ORDER_TYPE) || type.equals(PAGE_REQUEST_TYPE) || type.equals(LIMIT_TYPE)) {
+                throw new IllegalStateException("@AtomicUpdate on " + where + ": takes no Sort, Order, PageRequest or Limit parameter (use @OrderBy for the order)");
+            }
+
+            AnnotationInstance paramAnn = params.get(i).annotation(PARAM_ANNOTATION);
+            String name = paramAnn != null ? paramAnn.value().asString() : params.get(i).name();
+
+            if (name != null) {
+                paramNames.add(name);
+
+                if (paramMapSpec.length() > 0) {
+                    paramMapSpec.append(",");
+                }
+
+                paramMapSpec.append(name).append(":").append(i);
+            }
+        }
+
+        List<String> set = atomicAssignments(ann, "set", where);
+        List<String> setOnInsert = atomicAssignments(ann, "setOnInsert", where);
+        List<String> inc = atomicAssignments(ann, "inc", where);
+
+        // the return type chooses the form
+        Type returnType = method.returnType();
+        boolean returnsVoid = returnType.kind() == Type.Kind.VOID;
+        PrimitiveType.Primitive primitive = returnType.kind() == Type.Kind.PRIMITIVE ? returnType.asPrimitiveType().primitive() : null;
+        boolean returnsBoolean = primitive == PrimitiveType.Primitive.BOOLEAN;
+        boolean returnsInt = primitive == PrimitiveType.Primitive.INT;
+        boolean returnsLong = primitive == PrimitiveType.Primitive.LONG;
+        boolean countForm = returnsVoid || returnsBoolean || returnsInt || returnsLong;
+        boolean returnsOptional = isOptional(returnType) && returnType.kind() == Type.Kind.PARAMETERIZED_TYPE
+                && returnType.asParameterizedType().arguments().get(0).name().toString().equals(entityClassName);
+        boolean returnsEntity = returnType.name().toString().equals(entityClassName);
+
+        if (!countForm && !returnsOptional && !returnsEntity) {
+            throw new IllegalStateException("@AtomicUpdate on " + where + ": the return type " + returnType + " is not supported. void, boolean, int or long give the count form "
+                    + "(an update command), " + entityClassName + " or Optional<" + entityClassName + "> the find-and-modify form; collections, streams and everything else are refused");
+        }
+
+        String orderBySpec = buildOrderBySpec(method);
+
+        AtomicUpdateSpec spec = new AtomicUpdateSpec(condition, set, setOnInsert, inc, upsert, many, de.caluga.morphium.query.ReturnDocument.valueOf(returns), orderBySpec, paramMapSpec.toString());
+        spec.validate(where, countForm ? AtomicUpdateSpec.Form.COUNT : AtomicUpdateSpec.Form.DOCUMENT, paramNames, entityFields);
+        String encoded = spec.encode();
+
+        String[] paramTypeNames = new String[method.parametersCount()];
+
+        for (int i = 0; i < method.parametersCount(); i++) {
+            paramTypeNames[i] = toDescriptorName(method.parameterType(i));
+        }
+
+        try (MethodCreator mc = cc.getMethodCreator(MethodDescriptor.ofMethod(cc.getClassName(), method.name(), toDescriptorName(returnType), paramTypeNames))) {
+            mc.setModifiers(Modifier.PUBLIC);
+            ResultHandle argsArray = mc.newArray(Object.class, mc.load(method.parametersCount()));
+
+            for (int i = 0; i < method.parametersCount(); i++) {
+                ResultHandle param = mc.getMethodParam(i);
+                Type paramType = method.parameterType(i);
+
+                if (paramType.kind() == Type.Kind.PRIMITIVE) {
+                    param = boxPrimitive(mc, param, paramType.asPrimitiveType());
+                }
+
+                mc.writeArrayValue(argsArray, i, param);
+            }
+
+            String bridge = returnsBoolean ? "executeAtomicBoolean" : returnsInt ? "executeAtomicInt" : countForm ? "executeAtomicCount" : returnsOptional ? "executeAtomicOptional" : "executeAtomicDocument";
+            Class<?> bridgeReturn = returnsBoolean ? boolean.class : returnsInt ? int.class : countForm ? long.class : returnsOptional ? java.util.Optional.class : Object.class;
+            ResultHandle result = mc.invokeStaticMethod(
+                    MethodDescriptor.ofMethod(JdqlMethodBridge.class, bridge, bridgeReturn, AbstractMorphiumRepository.class, String.class, Object[].class),
+                    mc.getThis(), mc.load(encoded), argsArray);
+
+            if (returnsVoid) {
+                mc.returnVoid();
+            } else {
+                mc.returnValue(result);
+            }
+        }
+
+        log.infof("Generated @AtomicUpdate method: %s (%s form)", where, countForm ? "count" : "find-and-modify");
+    }
+
+    /** the assignments of one attribute of {@code @AtomicUpdate} as {@code field=:param} / {@code field=literal}; {@link AtomicUpdateSpec#validate} checks them */
+    private List<String> atomicAssignments(AnnotationInstance ann, String attribute, String where) {
+        List<String> result = new ArrayList<>();
+
+        if (ann.value(attribute) == null) {
+            return result;
+        }
+
+        for (AnnotationInstance assign : ann.value(attribute).asNestedArray()) {
+            String param = assign.value("param") != null ? assign.value("param").asString() : "";
+            String value = assign.value("value") != null ? assign.value("value").asString() : "";
+
+            try {
+                result.add(AtomicUpdateSpec.assignment(assign.value("field").asString(), param, value));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalStateException("@AtomicUpdate on " + where + ": " + attribute + ": " + e.getMessage(), e);
+            }
+        }
+
+        return result;
+    }
+
+    /**
      * Generates a {@code @Query("DELETE FROM Entity [WHERE ...]")} (MOR-017) or {@code @Query("UPDATE Entity SET ... [WHERE ...]")} (MOR-018) method:
      * one server-side command through {@link JdqlMethodBridge#executeJdqlDelete} or {@link JdqlMethodBridge#executeJdqlUpdate}. The return type is
      * {@code void}, {@code int} or {@code long} (the number of deleted or matched documents, as Jakarta Data prescribes for {@code @Query} update and delete
@@ -1955,6 +2092,16 @@ public class MorphiumDataProcessor {
 
         if (whereClause.toUpperCase(java.util.Locale.ROOT).matches(".*\\b(ORDER BY|GROUP BY|HAVING)\\b.*")) {
             throw new IllegalStateException("@Query on " + where + ": a " + statementKind + " statement has no ORDER BY, GROUP BY or HAVING: \"" + jdql + "\"");
+        }
+
+        try {
+            String operandProblem = JdqlOperands.check(whereClause);
+
+            if (operandProblem != null) {
+                throw new IllegalStateException("@Query on " + where + ": the " + statementKind + " statement is not valid JDQL: " + operandProblem + ": \"" + jdql + "\"");
+            }
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("@Query on " + where + ": the " + statementKind + " statement is not valid JDQL: " + e.getMessage(), e);
         }
 
         StringBuilder paramMapSpec = new StringBuilder();

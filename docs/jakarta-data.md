@@ -296,6 +296,46 @@ the call fails with `jakarta.data.exceptions.OptimisticLockingFailureException` 
 - `updateAll` rejects the whole list when an entity without a version is missing. A stale version is found by the store, so the entities
   stored before it stay updated.
 
+## Atomic updates and find-and-modify: `@AtomicUpdate` (Morphium extension, not portable)
+
+The Jakarta Data specification has no upsert and no find-and-modify. `@AtomicUpdate` is a Morphium-specific annotation for exactly that, with structured
+assignments instead of a JSON string. Code that uses it does not run on another Jakarta Data provider.
+
+```java
+@Repository
+public interface Leases extends BasicRepository<Lease, String> {
+
+    @AtomicUpdate(where = "id = :id AND (expiresAt < :now OR owner = :owner)",
+                  set = {@Assign(field = "owner", param = "owner"), @Assign(field = "expiresAt", param = "until")},
+                  setOnInsert = @Assign(field = "createdBy", param = "owner"),
+                  inc = @Assign(field = "fencingToken", value = "1"),
+                  upsert = true)
+    Optional<Lease> tryAcquire(@Param("id") String id, @Param("owner") String owner, @Param("now") Date now, @Param("until") Date until);
+}
+```
+
+That is one atomic conditional upsert: it acquires a free lease, renews your own, takes over an expired one, and returns an empty `Optional` if somebody else holds it
+(the insert of the upsert collides with the document that the condition excluded; that is not an exception here).
+
+The return type chooses the form:
+
+| return type | command | result |
+|---|---|---|
+| `void`, `boolean`, `int`, `long` | `update` | the number of documents matched or inserted by the upsert (`boolean`: at least one); a lost conditional upsert is 0 / `false` |
+| the entity, `Optional<Entity>` | `findAndModify` | the document as `returns` says (`AFTER`, the default, or `BEFORE`); null / empty if nothing matched, the upsert was lost, or `BEFORE` was asked for an upsert that inserted |
+| anything else, collections and streams included | | fails the build |
+
+`where` is a JDQL condition over named parameters (with or without `WHERE`); `set`, `setOnInsert` and `inc` are lists of `@Assign`, each with a `field` of the entity
+and either the `param` that holds the value or a literal `value` (a number, a string in single quotes, `TRUE`, `FALSE`). `many = true` updates every match in the count
+form; an `@OrderBy` on the method chooses the document in the find-and-modify form. The values go through the update builder (`Query.modify()`), so field names are
+translated, values are marshalled, `@Version` is incremented and `@LastChange` is set.
+
+The build fails (Quarkus), or the repository cannot be created (Spring), for an unknown field, a parameter that the method does not have, a condition that is not
+valid JDQL (the operands must be parameters or literals), no assignment, `setOnInsert` without `upsert`, an increment by something that is not a number, `many` on the
+find-and-modify form, an `@OrderBy` on the count form, a `Sort`, `Order`, `PageRequest` or `Limit` parameter, and every return type not in the table.
+
+The same operand check now applies to the conditions of `DELETE` and `UPDATE` statements in `@Query`.
+
 ## Pagination
 
 Three types cover pagination: `jakarta.data.page.Page<T>`,

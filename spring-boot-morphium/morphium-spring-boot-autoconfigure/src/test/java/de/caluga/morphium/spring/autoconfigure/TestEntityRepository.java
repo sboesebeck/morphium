@@ -84,6 +84,18 @@ public interface TestEntityRepository extends MorphiumRepository<TestEntity, Mor
     @Query("UPDATE TestEntity SET status = 'done' WHERE name = :name")
     void updateJdqlVoid(@jakarta.data.repository.Param("name") String name);
 
+    // --- @AtomicUpdate (MOR-021) ---
+
+    @de.caluga.morphium.data.AtomicUpdate(where = "name = :name", set = @de.caluga.morphium.data.Assign(field = "status", param = "status"),
+                                          inc = @de.caluga.morphium.data.Assign(field = "priority", value = "1"), upsert = true)
+    java.util.Optional<TestEntity> touch(@jakarta.data.repository.Param("name") String name, @jakarta.data.repository.Param("status") String status);
+
+    @de.caluga.morphium.data.AtomicUpdate(where = "status = :status", inc = @de.caluga.morphium.data.Assign(field = "priority", param = "by"), many = true)
+    int bumpAll(@jakarta.data.repository.Param("status") String status, @jakarta.data.repository.Param("by") int by);
+
+    @de.caluga.morphium.data.AtomicUpdate(where = "name = :name", set = @de.caluga.morphium.data.Assign(field = "status", value = "'done'"))
+    boolean finish(@jakarta.data.repository.Param("name") String name);
+
     // --- Regression coverage: default method dispatch (review finding 4) ---
 
     /**

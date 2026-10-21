@@ -49,6 +49,11 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
             if (!method.isDefault() && (method.isAnnotationPresent(Find.class) || method.isAnnotationPresent(Delete.class) || method.isAnnotationPresent(Query.class))) {
                 rejectUnsupportedParameterStyles(method);
             }
+
+            // so does a wrong @AtomicUpdate (MOR-021)
+            if (!method.isDefault() && method.isAnnotationPresent(AtomicUpdate.class)) {
+                handlers.put(method, buildAtomicUpdateHandler(method, method.getAnnotation(AtomicUpdate.class)));
+            }
         }
     }
 
@@ -81,6 +86,11 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
     private MethodHandler analyzeMethod(Method method) {
         String name = method.getName();
         Class<?> returnType = method.getReturnType();
+
+        // Morphium extension (MOR-021): one atomic update with structured assignments
+        if (method.isAnnotationPresent(AtomicUpdate.class)) {
+            return buildAtomicUpdateHandler(method, method.getAnnotation(AtomicUpdate.class));
+        }
 
         // --- CrudRepository standard methods ---
         if (name.equals("findById") && method.getParameterCount() == 1) {
@@ -244,6 +254,84 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
         }
     }
 
+    /**
+     * The handler of an {@link AtomicUpdate} method (MOR-021). Everything that can be checked without a call is checked here, so a wrong annotation fails when the
+     * repository is created.
+     */
+    private MethodHandler buildAtomicUpdateHandler(Method method, AtomicUpdate au) {
+        String where = method.getDeclaringClass().getName() + "." + method.getName();
+        Class<?> returnType = method.getReturnType();
+        List<String> parameterNames = new ArrayList<>();
+
+        for (java.lang.reflect.Parameter p : method.getParameters()) {
+            Class<?> t = p.getType();
+
+            if (t == Sort.class || t == Order.class || t == PageRequest.class || t == Limit.class) {
+                throw new IllegalStateException("@AtomicUpdate on " + where + ": takes no Sort, Order, PageRequest or Limit parameter (use @OrderBy for the order)");
+            }
+        }
+
+        boolean countForm = returnType == void.class || returnType == boolean.class || returnType == int.class || returnType == long.class;
+        Class<?> entityClass = delegate.getMetadata().entityClass();
+        boolean optional = returnType == Optional.class;
+
+        if (!countForm && !optional && returnType != entityClass) {
+            throw new IllegalStateException("@AtomicUpdate on " + where + ": the return type " + returnType.getName() + " is not supported. void, boolean, int or long give the count form "
+                    + "(an update command), " + entityClass.getName() + " or Optional<" + entityClass.getName() + "> the find-and-modify form; collections, streams and everything else are refused");
+        }
+
+        String paramMapSpec = buildParamMapSpec(method);
+        java.util.Set<String> paramNames = new java.util.HashSet<>();
+
+        if (!paramMapSpec.isEmpty()) {
+            for (String entry : paramMapSpec.split(",")) {
+                paramNames.add(entry.split(":")[0]);
+            }
+        }
+
+        AtomicUpdateSpec spec = new AtomicUpdateSpec(au.where(), assignments(au.set(), where), assignments(au.setOnInsert(), where), assignments(au.inc(), where), au.upsert(), au.many(),
+                au.returns(), getOrderBySpec(method), paramMapSpec);
+        java.util.Set<String> entityFields = new java.util.HashSet<>();
+
+        for (java.lang.reflect.Field f : delegate.getMorphium().getARHelper().getAllFields(entityClass)) {
+            entityFields.add(f.getName());
+        }
+
+        spec.validate(where, countForm ? AtomicUpdateSpec.Form.COUNT : AtomicUpdateSpec.Form.DOCUMENT, paramNames, entityFields);
+        String encoded = spec.encode();
+
+        if (returnType == void.class) {
+            return args -> {
+                JdqlMethodBridge.executeAtomicCount(delegate, encoded, args != null ? args : new Object[0]);
+                return null;
+            };
+        } else if (returnType == boolean.class) {
+            return args -> JdqlMethodBridge.executeAtomicBoolean(delegate, encoded, args != null ? args : new Object[0]);
+        } else if (returnType == int.class) {
+            return args -> JdqlMethodBridge.executeAtomicInt(delegate, encoded, args != null ? args : new Object[0]);
+        } else if (returnType == long.class) {
+            return args -> JdqlMethodBridge.executeAtomicCount(delegate, encoded, args != null ? args : new Object[0]);
+        } else if (optional) {
+            return args -> JdqlMethodBridge.executeAtomicOptional(delegate, encoded, args != null ? args : new Object[0]);
+        }
+
+        return args -> JdqlMethodBridge.executeAtomicDocument(delegate, encoded, args != null ? args : new Object[0]);
+    }
+
+    private static List<String> assignments(Assign[] assigns, String where) {
+        List<String> result = new ArrayList<>();
+
+        for (Assign a : assigns) {
+            try {
+                result.add(AtomicUpdateSpec.assignment(a.field(), a.param(), a.value()));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalStateException("@AtomicUpdate on " + where + ": " + e.getMessage(), e);
+            }
+        }
+
+        return result;
+    }
+
     private MethodHandler buildJdqlHandler(Method method, Query queryAnno) {
         rejectUnsupportedParameterStyles(method);
         String jdql = queryAnno.value();
@@ -261,12 +349,15 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
                         + returnType.getName() + ": \"" + jdql + "\"");
             }
 
-            if (isUpdate) {
-                try {
-                    JdqlUpdate.parse(jdql);
-                } catch (IllegalArgumentException e) {
-                    throw new IllegalStateException("@Query on " + method + ": " + e.getMessage(), e);
+            try {
+                String whereClause = isUpdate ? JdqlUpdate.parse(jdql).where() : JdqlDelete.whereClause(jdql);
+                String operandProblem = JdqlOperands.check(whereClause);
+
+                if (operandProblem != null) {
+                    throw new IllegalStateException("@Query on " + method + ": the statement is not valid JDQL: " + operandProblem + ": \"" + jdql + "\"");
                 }
+            } catch (IllegalArgumentException e) {
+                throw new IllegalStateException("@Query on " + method + ": " + e.getMessage(), e);
             }
 
             return args -> {
