@@ -131,6 +131,38 @@ public abstract class AbstractMorphiumRepository<T, K> {
         return (Class<T>) metadata.entityClass();
     }
 
+    // -- the repository of another entity (MOR-077) ----------------------------
+
+    private final java.util.concurrent.ConcurrentHashMap<Class<?>, AbstractMorphiumRepository<?, ?>> siblings = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * The repository for another entity of the same Morphium. A repository with several entities works on one of them per method: a statement that names its entity, a lifecycle method, a method
+     * that returns an entity. The bridges take the repository for the entity from here.
+     *
+     * @param entity the entity class
+     * @return this repository if it is the one for the entity, otherwise a repository for it that is created once
+     */
+    public AbstractMorphiumRepository<?, ?> forEntity(Class<?> entity) {
+        if (metadata != null && metadata.entityClass() == entity) {
+            return this;
+        }
+
+        return siblings.computeIfAbsent(entity, e -> {
+            java.lang.reflect.Field id;
+
+            try {
+                id = morphium.getARHelper().getIdField(e);
+            } catch (IllegalArgumentException noId) {
+                id = null;
+            }
+
+            AbstractMorphiumRepository<Object, Object> sibling = new AbstractMorphiumRepository<>(new RepositoryMetadata(e, id == null ? Object.class : id.getType(), id == null ? "id" : id.getName())) {
+            };
+            sibling.setMorphium(morphium);
+            return sibling;
+        });
+    }
+
     // -- BasicRepository CRUD operations -------------------------------------
 
     /**
@@ -343,7 +375,7 @@ public abstract class AbstractMorphiumRepository<T, K> {
      */
     private void requireExists(Object entity) {
         Object id = morphium.getARHelper().getId(entity);
-        Object existing = morphium.findById(entityClass(), id, null);
+        Object existing = morphium.findById(entity.getClass(), id, null);
         if (existing == null) {
             throw new OptimisticLockingFailureException("Cannot update: no entity with id '" + id + "' exists");
         }
