@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+#### PoppyDB: a resume whose replay does not fit the cursor queue is answered `ChangeStreamHistoryLost` instead of looping kill/resume
+A client that fell more than one queue (10,000 events or the byte budget) behind was killed, resumed with its last token, got the whole backlog replayed into the fresh cursor, overflowed again - one kill per second, no events delivered, the primary's heap spent on replays. The replay-backlog gate that answers 286 up front existed only for the replication watch and only checked bytes. `MongoCommandHandler.replayBacklogGate` now covers every resume by a PoppyDB `_data` token and checks events and bytes; a client stream is judged by its own namespace (`InMemoryDriver.estimateReplayBacklog`). Every gate reply's `errmsg` starts with `ChangeStreamHistoryLost:` so `ChangeStreamMonitor` discards the token and starts fresh. Pinned by the client cases in `ReplayBacklogGateTest`.
+
+#### PoppyDB: cursor-kill log lines name namespace and client
+`cursor 1174 (geniosMessageBus.msg client 10.101.6.13:51736)` instead of a bare cursor id, for the count-cap, byte-budget and global-budget kills; `replication watch of <member>` for a secondary.
+
+### Added
+
+#### PoppyDB: `cursor-queue-events`
+The per-cursor event count cap (previously a constant 10,000) as an option: `--cursor-queue-events <n>` / config key `cursor-queue-events`, default 10000, `>= 1`. The replay-backlog gate uses the same value.
+
 ### Changed
 
 #### `listDatabases()` throws when the driver is not connected instead of returning `null`

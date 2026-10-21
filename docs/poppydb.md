@@ -186,6 +186,7 @@ max-bson-size = 16777216
 #replay-buffer = 256m
 #event-queue-budget = 256m
 #cursor-queue-budget = 64m
+#cursor-queue-events = 10000
 #global-cursor-budget = 0
 #replication-flow-control = true
 #replication-flow-control-high-water = 50
@@ -421,6 +422,7 @@ replay buffer frees nothing while a cursor still references the payload:
 | Option | Default | Bounds |
 |---|---|---|
 | `--cursor-queue-budget` | `64m` | one watch cursor's buffered, undelivered events |
+| `--cursor-queue-events` | `10000` | one watch cursor's queue, as an event count; a resume whose replay would not fit either bound is answered `ChangeStreamHistoryLost` (286) up front |
 | `--global-cursor-budget` | `0` (off) | the fleet total across ALL watch cursors |
 
 `0` disables the bound. On overflow a cursor is killed (the client sees it die and re-establishes

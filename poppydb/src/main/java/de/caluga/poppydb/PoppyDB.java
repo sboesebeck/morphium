@@ -343,6 +343,14 @@ public class PoppyDB {
     }
 
     /**
+     * Count cap of one watch cursor's event queue ({@code cursor-queue-events}) - see
+     * WatchCursorManager.setMaxCursorQueueSize. Applies to cursors created from now on.
+     */
+    public void setCursorQueueEvents(int maxEvents) {
+        cursorManager.setMaxCursorQueueSize(maxEvents);
+    }
+
+    /**
      * Replication flow control (brake writers while the slowest secondary's replication watch is
      * backed up) - see WatchCursorManager.setReplicationFlowControlSettings. Call before
      * {@link #start()}: the setter replaces the gate instance the command handlers register on.

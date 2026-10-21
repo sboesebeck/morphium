@@ -282,13 +282,35 @@ public class WatchCursorManager {
         return totalQueuedBytes.get();
     }
 
-    /** Count cap for newly created cursors' event queues (existing cursors keep theirs). */
-    void setMaxCursorQueueSizeForTest(int maxEvents) {
+    /**
+     * Count cap for newly created cursors' event queues (existing cursors keep theirs) - the
+     * {@code cursor-queue-events} option. A replay or a live backlog that does not fit kills the
+     * cursor, and the resume gate in {@code MongoCommandHandler} answers HistoryLost up front to a
+     * resume whose replay would not fit.
+     */
+    public void setMaxCursorQueueSize(int maxEvents) {
         if (maxEvents < 1) {
             throw new IllegalArgumentException("maxCursorQueueSize must be >= 1");
         }
 
         this.maxCursorQueueSize = maxEvents;
+    }
+
+    void setMaxCursorQueueSizeForTest(int maxEvents) {
+        setMaxCursorQueueSize(maxEvents);
+    }
+
+    /** The count cap a newly created cursor's event queue gets. */
+    public int getMaxCursorQueueSize() {
+        return maxCursorQueueSize;
+    }
+
+    /** Namespace and owner of a cursor for log lines: {@code db.coll client 10.1.2.3:4567} or {@code db.coll replication watch of host:port}. */
+    static String describe(WatchCursorState state) {
+        String owner = state.replication
+                ? "replication watch of " + state.memberAddress
+                : "client " + (state.clientAddress == null ? "unknown" : state.clientAddress);
+        return state.db + "." + state.collection + " " + owner;
     }
 
     /** Estimated bytes a watch cursor currently holds undelivered; -1 if it no longer exists. */
@@ -466,9 +488,22 @@ public class WatchCursorManager {
      *         it is logged - this method does not log it a second time.
      */
     public long createWatchCursor(InMemoryDriver driver, WatchCommand wcmd, boolean replication, String memberAddress) {
+        return createWatchCursor(driver, wcmd, replication, memberAddress, null);
+    }
+
+    /**
+     * Create a new watch cursor for a change stream, remembering who registered it.
+     *
+     * @param clientAddress the remote address of the registering connection (reporting only, may
+     *        be null); every kill log names it, so a slow or looping consumer can be identified
+     *        from the server log alone
+     * @see #createWatchCursor(InMemoryDriver, WatchCommand, boolean, String)
+     */
+    public long createWatchCursor(InMemoryDriver driver, WatchCommand wcmd, boolean replication, String memberAddress,
+                                  String clientAddress) {
         long cursorId = nextCursorId();
         WatchCursorState state = new WatchCursorState(cursorId, wcmd.getDb(), wcmd.getColl(), maxCursorQueueSize,
-                replication, memberAddress);
+                replication, memberAddress, clientAddress);
         watchCursors.put(cursorId, state);
 
         if (replication) {
@@ -1166,8 +1201,8 @@ public class WatchCursorManager {
             WatchCursorState victim = largestQueuedCursor();
 
             if (victim != null) {
-                log.warn("Total queued change-stream bytes {} + {} exceed the global budget {} - killing the largest holder (cursor {}, {} bytes buffered, fleet-wide slow consumer)",
-                        totalQueuedBytes.get(), bytes, globalBudget, victim.cursorId, victim.queuedBytes.get());
+                log.warn("Total queued change-stream bytes {} + {} exceed the global budget {} - killing the largest holder (cursor {}, {}, {} bytes buffered, fleet-wide slow consumer)",
+                        totalQueuedBytes.get(), bytes, globalBudget, victim.cursorId, describe(victim), victim.queuedBytes.get());
                 WatchCursorState removedVictim = removeWatchCursor(victim.cursorId);
 
                 if (removedVictim != null) {
@@ -1201,8 +1236,8 @@ public class WatchCursorManager {
             // accepted while the queue is empty (newest-event-survives, like the replay buffer) -
             // killing there would impose a document-size cap MongoDB does not have.
             if (budget > 0 && !state.events.isEmpty() && state.queuedBytes.get() + bytes > budget) {
-                log.warn("Change stream cursor {} exceeded its byte budget ({} bytes buffered + {} incoming > {}) - killing cursor (slow/absent consumer)",
-                        state.cursorId, state.queuedBytes.get(), bytes, budget);
+                log.warn("Change stream cursor {} ({}) exceeded its byte budget ({} bytes buffered + {} incoming > {}) - killing cursor (slow/absent consumer)",
+                        state.cursorId, describe(state), state.queuedBytes.get(), bytes, budget);
                 WatchCursorState removed = removeWatchCursor(state.cursorId);
                 if (removed != null) {
                     failPending(removed.pendingGetMores,
@@ -1217,8 +1252,8 @@ public class WatchCursorManager {
                 reportAfterOffer = true;
                 queuedBytesAfterOffer = state.queuedBytes.get();
             } else {
-                log.warn("Change stream cursor {} exceeded max buffer size {} - killing cursor (slow/absent consumer)",
-                        state.cursorId, maxCursorQueueSize);
+                log.warn("Change stream cursor {} ({}) exceeded max buffer size {} ({} bytes buffered) - killing cursor (slow/absent consumer)",
+                        state.cursorId, describe(state), maxCursorQueueSize, state.queuedBytes.get());
                 WatchCursorState removed = removeWatchCursor(state.cursorId);
                 if (removed != null) {
                     failPending(removed.pendingGetMores,
@@ -1518,6 +1553,11 @@ public class WatchCursorManager {
         // The secondary's own host:port as it reported it (same address as reportProgress), null
         // for client streams. Only ever read for reporting; never used to identify a cursor.
         final String memberAddress;
+        // The remote address of the connection that registered this cursor, null when unknown.
+        // Reporting only: a kill log that names cursor 1174 and nothing else cost an hour of
+        // cross-referencing on the production bus (21.10.2026) - the consumer in the kill/resume
+        // livelock could not be told apart from 30 other participants.
+        final String clientAddress;
         // The command the watch runs under: it carries the reason when the stream ended because
         // it could not be served, which getMore turns into an error instead of an empty batch.
         volatile WatchCommand wcmd;
@@ -1532,11 +1572,17 @@ public class WatchCursorManager {
 
         WatchCursorState(long cursorId, String db, String collection, int queueCapacity,
                          boolean replication, String memberAddress) {
+            this(cursorId, db, collection, queueCapacity, replication, memberAddress, null);
+        }
+
+        WatchCursorState(long cursorId, String db, String collection, int queueCapacity,
+                         boolean replication, String memberAddress, String clientAddress) {
             this.cursorId = cursorId;
             this.db = db;
             this.collection = collection;
             this.replication = replication;
             this.memberAddress = memberAddress;
+            this.clientAddress = clientAddress;
             this.events = new LinkedBlockingQueue<>(queueCapacity);
         }
     }

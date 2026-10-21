@@ -82,6 +82,7 @@ public class ConfigLoader {
         define("replay-buffer", Type.STRING, "--replay-buffer");
         define("event-queue-budget", Type.STRING, "--event-queue-budget");
         define("cursor-queue-budget", Type.STRING, "--cursor-queue-budget");
+        define("cursor-queue-events", Type.INT, "--cursor-queue-events");
         define("global-cursor-budget", Type.STRING, "--global-cursor-budget");
         // A value-taking option, not a bare boolean flag: toArgs() emits bare flags for true
         // only, which could never switch a default-on setting off from a config file.

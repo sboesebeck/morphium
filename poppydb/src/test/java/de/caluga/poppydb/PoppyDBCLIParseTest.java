@@ -261,6 +261,25 @@ public class PoppyDBCLIParseTest {
         assertThat(opts.sourceOf("global-cursor-budget")).isEqualTo(ServerOptions.Source.CLI);
     }
 
+    // --- cursor-queue-events (count cap of one watch cursor's queue) ---
+
+    @Test
+    void cursorQueueEventsDefaultsToTenThousandAndIsParsedFromCli() {
+        ServerOptions defaults = PoppyDBCLI.parse(new String[0], 0);
+        assertThat(defaults.cursorQueueEvents).isEqualTo(10_000);
+        assertThat(defaults.sourceOf("cursor-queue-events")).isEqualTo(ServerOptions.Source.DEFAULT);
+
+        ServerOptions opts = PoppyDBCLI.parse(new String[] {"--cursor-queue-events", "50000"}, 0);
+        assertThat(opts.cursorQueueEvents).isEqualTo(50_000);
+        assertThat(opts.sourceOf("cursor-queue-events")).isEqualTo(ServerOptions.Source.CLI);
+    }
+
+    @Test
+    void cursorQueueEventsBelowOneIsAConfigError() {
+        ServerOptions opts = PoppyDBCLI.parse(new String[] {"--cursor-queue-events", "0"}, 0);
+        assertThat(ConfigInspector.validate(opts).errors()).anyMatch(e -> e.contains("cursor-queue-events must be >= 1"));
+    }
+
     // --- replication flow control (brake writers while the slowest secondary is backed up) ---
 
     @Test

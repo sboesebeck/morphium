@@ -61,6 +61,12 @@ class ServerOptions {
     // frees nothing while a stalled cursor still references it). Overflow kills the cursor,
     // same policy as the count cap; 0 = byte cap off.
     String cursorQueueBudget = "64m";
+    // Count cap of one watch cursor's event queue: more undelivered events than this kill the
+    // cursor, and a resume whose replay would not fit is answered ChangeStreamHistoryLost up front
+    // instead (see MongoCommandHandler.replayBacklogGate). At ~1,000 events/s on a busy bus the
+    // default is ~10 s of consumer lag; raise it together with cursor-queue-budget if consumers
+    // legitimately pause longer (GC, batch processing) and the heap has the room.
+    int cursorQueueEvents = 10_000;
     // Global byte budget across ALL live watch cursors' buffered events (addendum to #321). The
     // per-cursor budget bounds one slow consumer; the fleet total is otherwise unbounded. Same
     // size syntax; overflow kills the newest offending cursor. 0 = global cap off (default).

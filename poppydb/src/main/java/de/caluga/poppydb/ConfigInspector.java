@@ -80,6 +80,9 @@ class ConfigInspector {
         if (opts.maxConnections < 1) {
             errors.add("max-connections must be >= 1, got: " + opts.maxConnections);
         }
+        if (opts.cursorQueueEvents < 1) {
+            errors.add("cursor-queue-events must be >= 1, got: " + opts.cursorQueueEvents);
+        }
         if (opts.socketTimeoutSec < 0) {
             errors.add("socket-timeout must be >= 0, got: " + opts.socketTimeoutSec);
         }
@@ -249,6 +252,8 @@ class ConfigInspector {
         } catch (IllegalArgumentException e) {
             // invalid value - validate() reports it, nothing to resolve here
         }
+
+        appendKey(sb, opts, "cursor-queue-events", String.valueOf(opts.cursorQueueEvents));
 
         appendKey(sb, opts, "global-cursor-budget", opts.globalCursorBudget);
 

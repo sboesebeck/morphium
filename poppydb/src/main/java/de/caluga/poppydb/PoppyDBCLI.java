@@ -323,6 +323,12 @@ public class PoppyDBCLI {
                     idx += 2;
                     break;
 
+                case "--cursor-queue-events":
+                    opts.cursorQueueEvents = intValue(effectiveArgs, idx);
+                    opts.sources.put("cursor-queue-events", src);
+                    idx += 2;
+                    break;
+
                 case "--global-cursor-budget":
                     opts.globalCursorBudget = value(effectiveArgs, idx);
                     opts.sources.put("global-cursor-budget", src);
@@ -600,6 +606,9 @@ public class PoppyDBCLI {
         log.info("Watch cursor queue byte budget (all cursors): {} ({} bytes{})", opts.globalCursorBudget,
             globalCursorBudgetBytes, globalCursorBudgetBytes == 0 ? ", global cap off" : "");
 
+        srv.setCursorQueueEvents(opts.cursorQueueEvents);
+        log.info("Watch cursor queue capacity (per cursor): {} events", opts.cursorQueueEvents);
+
         de.caluga.poppydb.netty.ReplicationFlowControlSettings flowControl;
 
         try {
@@ -785,6 +794,9 @@ public class PoppyDBCLI {
         System.out.println("  --cursor-queue-budget <size>: Per-cursor byte budget for a watch cursor's buffered events (same size syntax");
         System.out.println("                               as --replay-buffer, default 64m, 0 = byte cap off). A slow consumer whose");
         System.out.println("                               buffered events exceed the budget is killed, same policy as the count cap.");
+        System.out.println("  --cursor-queue-events <n>  : Count cap of one watch cursor's event queue (default 10000). A consumer further");
+        System.out.println("                               behind is killed; a resume whose replay would not fit is answered");
+        System.out.println("                               ChangeStreamHistoryLost (286) up front so the client re-registers fresh.");
         System.out.println("  --global-cursor-budget <size>: Global byte budget across ALL watch cursors' buffered events (same size syntax");
         System.out.println("                               as --replay-buffer, default 0 = disabled (global cap off)). Prevents the fleet");
         System.out.println("                               from pinning unbounded memory across many cursors; overflow kills the newest cursor.");

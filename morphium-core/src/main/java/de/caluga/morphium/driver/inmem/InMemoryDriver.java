@@ -11154,6 +11154,64 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return sum;
     }
 
+    /** The replay a resume would push into one cursor's queue: how many events, how many estimated bytes. */
+    public record ReplayBacklog(long events, long bytes) {}
+
+    /**
+     * Estimated replay backlog after {@code resumeToken} for ONE change stream's namespace - the
+     * events (and their estimated bytes) that {@code replayHistory} would deliver to a subscription
+     * on {@code db}.{@code collection} resuming at that token. Namespace matching follows
+     * {@code ChangeStreamSubscription.matches}: {@code db == null} or the cluster-wide
+     * {@code admin.1} covers every event, {@code collection == null} or {@code "1"} covers the whole
+     * database, otherwise the exact collection.
+     *
+     * <p>Why per namespace, unlike {@link #estimateReplayBacklogBytes}: that method serves the
+     * replication watch, which receives every event. A client change stream on one collection
+     * only ever receives that collection's events, so judging its resume by the namespace-blind
+     * total would answer HistoryLost to a consumer of a quiet collection just because the bus
+     * next door is busy - and silently drop the handful of events it could have replayed.
+     *
+     * <p>Counts and sums until both bounds are exceeded ({@code 0} = that bound is not checked):
+     * the caller only needs to know <em>that</em> the backlog does not fit, not how badly, so an
+     * oversized backlog is cheaper to detect than to replay. A byte overflow is reported as
+     * {@code Long.MAX_VALUE} bytes.
+     */
+    public ReplayBacklog estimateReplayBacklog(long resumeToken, String db, String collection,
+                                               long stopAfterEvents, long stopAfterBytes) {
+        long newest = changeStreamSequence.get();
+        if (resumeToken >= newest) {
+            return new ReplayBacklog(0, 0);
+        }
+        boolean allNamespaces = db == null || ("admin".equals(db) && "1".equals(collection));
+        boolean wholeDb = collection == null || "1".equals(collection);
+        long events = 0L;
+        long bytes = 0L;
+        for (ChangeStreamEventInfo info : changeStreamHistory) {
+            if (info.token <= resumeToken) {
+                continue;
+            }
+            if (!allNamespaces) {
+                if (!Objects.equals(db, info.db)) {
+                    continue;
+                }
+                if (!wholeDb && !Objects.equals(collection, info.collection)) {
+                    continue;
+                }
+            }
+            events++;
+            bytes += info.estimatedBytes;
+            if (bytes < 0) {
+                bytes = Long.MAX_VALUE; // overflow - caller treats as oversized, safe direction
+            }
+            boolean eventsOver = stopAfterEvents > 0 && events > stopAfterEvents;
+            boolean bytesOver = stopAfterBytes > 0 && bytes > stopAfterBytes;
+            if (eventsOver || bytesOver) {
+                return new ReplayBacklog(events, bytes); // early stop: already does not fit
+            }
+        }
+        return new ReplayBacklog(events, bytes);
+    }
+
     /**
      * Book one removed history entry out of the size/byte counters - at most once per entry, no
      * matter how many removal paths touch it (see {@link ChangeStreamEventInfo#removalAccounted}).

@@ -260,6 +260,28 @@ public class ChangeStreamMonitorErrorHandlingTest {
             "the token the server declared dead must stay discarded - re-adopting the echo loops forever");
     }
 
+    // PoppyDB 6.3.15 answers a resume whose replay would not fit the cursor queue with 286 at
+    // registration (MongoCommandHandler.replayBacklogGate). The driver's exception message is
+    // "Error: <code> - <errmsg>", so the classifier only sees the errmsg - it has to carry the
+    // marker, and the monitor has to discard the token, or the client retries the very token
+    // the server just refused (the production bus livelock of 2026-10-21, one kill per second).
+    @Test
+    public void replayBacklogGateAnswerDiscardsTheTokenAndRetriesFresh() throws Exception {
+        var stale = java.util.Map.<String, Object>of("_data", "000000000000a1b2");
+        var cmd = new de.caluga.morphium.driver.commands.WatchCommand(null);
+        cmd.setResumeAfter(stale);
+        monitor.adoptResumeTokenFrom(cmd);
+
+        boolean cont = monitor.handleWatchError(new MorphiumDriverException(
+            "Error: 286 - ChangeStreamHistoryLost: resume backlog of 14823 events exceeds the cursor queue"
+            + " capacity of 10000 (cursor-queue-events)"));
+        assertTrue(cont, "a gated resume must retry with a fresh stream, not terminate the monitor");
+
+        monitor.adoptResumeTokenAfterIteration(cmd);
+
+        assertTrue(monitorToken() == null, "the refused token must be discarded, otherwise the resume loops");
+    }
+
     @Test
     public void discardSkipsExactlyOneAdoption() throws Exception {
         monitor.handleWatchError(new MorphiumDriverException(

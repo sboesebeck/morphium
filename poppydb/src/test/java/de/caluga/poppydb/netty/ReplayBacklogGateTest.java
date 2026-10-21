@@ -132,11 +132,15 @@ public class ReplayBacklogGateTest {
     }
 
     /**
-     * Client change streams (no marker) resuming by _data keep their previous behaviour: the
-     * gate stays out of their way, the resume is served.
+     * The production bus livelock of 21.10.2026: a client change stream (no marker) resuming by
+     * _data over a backlog larger than the cursor's byte budget. Admitting it meant: replay fills
+     * the queue past the budget, the cursor is killed within a second, the driver re-sends the
+     * aggregate with the same token - once per second for twenty minutes, the consumer never saw
+     * another event. The gate now answers 286 to clients too, and the errmsg carries the marker
+     * the Morphium client classifies by (ChangeStreamMonitor discards its token and starts fresh).
      */
     @Test
-    public void unmarkedClientResumeByDataTokenIsNotGated() throws Exception {
+    public void unmarkedClientResumeOverAnOversizedByteBacklogIsAnsweredHistoryLost() throws Exception {
         long resumeFrom = drv.getChangeStreamSequence();
         for (int i = 0; i < 20; i++) {
             drv.store(DB, COLL, List.of(Doc.of("_id", i, "payload", "x".repeat(1024))), null);
@@ -145,7 +149,94 @@ public class ReplayBacklogGateTest {
 
         Map<String, Object> reply = sendCommand(changeStreamRegistration(dataOnlyToken(resumeFrom)));
 
-        assertThat(reply.get("ok")).as("a client resume must not be gated: " + reply).isEqualTo(1.0);
+        assertThat(reply.get("ok")).as("full reply was: " + reply).isEqualTo(0.0);
+        assertThat(codeOf(reply)).as("a doomed client replay must get 286: " + reply).isEqualTo(286);
+        assertThat(reply.get("codeName")).isEqualTo("ChangeStreamHistoryLost");
+        assertThat(String.valueOf(reply.get("errmsg")))
+                .as("the client classifies by message text, so the errmsg has to carry the marker")
+                .startsWith("ChangeStreamHistoryLost");
+    }
+
+    /**
+     * The count cap is the second bound: with small events the byte budget is nowhere near, but a
+     * replay of more events than the queue holds is killed just the same. On the production bus
+     * 10,000 small bus events were ~37 MB against a 256 MB budget - the byte-only gate let every
+     * one of those resumes through.
+     */
+    @Test
+    public void clientResumeOverMoreEventsThanTheQueueHoldsIsAnsweredHistoryLost() throws Exception {
+        long resumeFrom = drv.getChangeStreamSequence();
+        for (int i = 0; i < 20; i++) {
+            drv.store(DB, COLL, List.of(Doc.of("_id", i, "v", i)), null);
+        }
+        cursorManager.setCursorQueueByteBudget(0);          // byte bound off
+        cursorManager.setMaxCursorQueueSizeForTest(5);      // 20 events do not fit
+
+        Map<String, Object> reply = sendCommand(changeStreamRegistration(dataOnlyToken(resumeFrom)));
+
+        assertThat(reply.get("ok")).as("full reply was: " + reply).isEqualTo(0.0);
+        assertThat(codeOf(reply)).as("more replay events than queue capacity must 286: " + reply).isEqualTo(286);
+        assertThat(String.valueOf(reply.get("errmsg"))).contains("cursor-queue-events");
+    }
+
+    /** A backlog that fits both bounds is served exactly as before - the gate is size-based, not an always-reject. */
+    @Test
+    public void clientResumeOverAFittingBacklogIsServed() throws Exception {
+        long resumeFrom = drv.getChangeStreamSequence();
+        for (int i = 0; i < 3; i++) {
+            drv.store(DB, COLL, List.of(Doc.of("_id", i, "v", i)), null);
+        }
+        cursorManager.setCursorQueueByteBudget(64 * 1024);
+        cursorManager.setMaxCursorQueueSizeForTest(5);
+
+        Map<String, Object> reply = sendCommand(changeStreamRegistration(dataOnlyToken(resumeFrom)));
+
+        assertThat(reply.get("ok")).as("full reply was: " + reply).isEqualTo(1.0);
+        assertThat(reply).containsKey("cursor");
+    }
+
+    /**
+     * A client stream is judged by ITS namespace only: a consumer of a quiet collection resuming
+     * while another collection in the same database was busy has next to nothing to replay and
+     * must be served - sending it away would silently drop the few events it could have replayed.
+     * The replication watch stays namespace-blind, it receives everything.
+     */
+    @Test
+    public void clientResumeOnAQuietCollectionIsNotGatedByABusyNeighbour() throws Exception {
+        long resumeFrom = drv.getChangeStreamSequence();
+        drv.store(DB, COLL, List.of(Doc.of("_id", "mine", "v", 1)), null);
+        for (int i = 0; i < 20; i++) {
+            drv.store(DB, "busy_neighbour", List.of(Doc.of("_id", i, "payload", "x".repeat(1024))), null);
+        }
+        cursorManager.setCursorQueueByteBudget(2048);
+        cursorManager.setMaxCursorQueueSizeForTest(5);
+
+        Map<String, Object> reply = sendCommand(changeStreamRegistration(dataOnlyToken(resumeFrom)));
+
+        assertThat(reply.get("ok")).as("the quiet collection's backlog is one event: " + reply).isEqualTo(1.0);
+        assertThat(reply).containsKey("cursor");
+
+        Map<String, Object> replication = sendCommand(markedRegistration(dataOnlyToken(resumeFrom)));
+        assertThat(codeOf(replication))
+                .as("the replication watch receives every namespace and is gated on the total: " + replication)
+                .isEqualTo(286);
+    }
+
+    /**
+     * A token that is not a PoppyDB sequence (a foreign primary's, a malformed one) stays ungated
+     * here: the existing asynchronous path (#320/#383 - failHistoryLost at replay, 286 on the first
+     * getMore, driver backoff) handles it, and this gate must not change that choreography.
+     */
+    @Test
+    public void clientResumeWithAForeignTokenStaysOnTheAsynchronousPath() throws Exception {
+        for (int i = 0; i < 20; i++) {
+            drv.store(DB, COLL, List.of(Doc.of("_id", i, "payload", "x".repeat(1024))), null);
+        }
+        cursorManager.setCursorQueueByteBudget(2048);
+
+        Map<String, Object> reply = sendCommand(changeStreamRegistration(Doc.of("_data", "826F1A2B3C0000000129")));
+
+        assertThat(reply.get("ok")).as("a foreign token is not this gate's business: " + reply).isEqualTo(1.0);
         assertThat(reply).containsKey("cursor");
     }
 

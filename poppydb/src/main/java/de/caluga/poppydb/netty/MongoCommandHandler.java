@@ -1619,7 +1619,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 if (pipelineObj instanceof List && !((List<?>) pipelineObj).isEmpty()) {
                     Object firstStage = ((List<?>) pipelineObj).get(0);
                     if (firstStage instanceof Map && ((Map<?, ?>) firstStage).containsKey("$changeStream")) {
-                        sendResponse(ctx, requestId, processChangeStream(doc));
+                        sendResponse(ctx, requestId, processChangeStream(doc, String.valueOf(ctx.channel().remoteAddress())));
                         return;
                     }
                 }
@@ -1994,7 +1994,7 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> processChangeStream(Map<String, Object> doc) {
+    private Map<String, Object> processChangeStream(Map<String, Object> doc, String clientAddress) {
         try {
             WatchCommand wcmd = new WatchCommand(driver).fromMap(doc);
 
@@ -2023,66 +2023,42 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             // the sequence. Those restarts used to bypass this gate entirely: the replay was
             // admitted, blew the budget, the cursor died, the connection restarted - the kill storm
             // seen on the testrunner (39 kills in 2.5 s). The replication marker now identifies
-            // them, so the gate reads the sequence from _data for marked watches. Unmarked client
-            // streams resuming by _data keep their previous, ungated behaviour.
+            // them, so the gate reads the sequence from _data for marked watches.
+            //
+            // Client change streams resuming by a PoppyDB _data token get the SAME backlog gate
+            // since the production bus go-live of 21.10.2026: a bus participant that fell ~10 s
+            // behind was killed ("slow/absent consumer"), its driver re-sent the aggregate with the
+            // last token, the replay of >10,000 events / >256 MB was admitted and killed the fresh
+            // cursor within a second, and so on - ~1 kill per second for 20 minutes, the consumer
+            // never saw another event and the primary spent its heap on replays (live set 4 % ->
+            // 87 %). Only the "window lost" answer is left to the existing asynchronous path for
+            // clients (replayHistory's failHistoryLost, #320/#383): that path is what the
+            // failover-burst backoff in the driver is built around and it stays as it is.
             Map<String, Object> resumeAfter = wcmd.getResumeAfter();
             Long gatedResumeSeq = null;
+            boolean replicationResume = replication;
             if (resumeAfter != null) {
                 if (resumeAfter.get("poppyResumeSequence") instanceof Number seqNum) {
                     gatedResumeSeq = seqNum.longValue();
-                } else if (replication) {
+                    replicationResume = true;
+                } else {
                     gatedResumeSeq = sequenceOfDataToken(resumeAfter.get("_data"));
                 }
             }
             if (gatedResumeSeq != null) {
                 long resumeSeq = gatedResumeSeq;
-                if (!driver.canResumeChangeStream(resumeSeq)) {
+                if (replicationResume && !driver.canResumeChangeStream(resumeSeq)) {
                     log.warn("Resume window lost for secondary (resume sequence {} no longer buffered) — signalling re-sync", resumeSeq);
                     return historyLostReply("resume window lost: sequence " + resumeSeq
                             + " is no longer in the replay buffer");
                 }
-                // The window is still replayable, but a replay backlog larger than the effective
-                // byte budget is doomed either way: the replay pushes every buffered event after
-                // the resume sequence into the cursor queue, the byte budget is exhausted mid-replay,
-                // and the cursor is killed with a "slow/absent consumer" error. The consumer then
-                // retries the same token, the window is still contiguous, and it loops - a seconds-
-                // long full re-sync is far cheaper than the minutes-long livelock. Answer HistoryLost
-                // up front so the secondary falls back to a full re-sync instead of admitting the
-                // oversized replay.
-                //
-                // The effective bound is the tighter of the per-cursor budget and the fleet headroom
-                // under the global budget (see WatchCursorManager): with `global-cursor-budget` the
-                // binding constraint is the headroom, and a replay that fits this cursor but pushes
-                // the fleet over the global cap would be admitted and then killed mid-replay by the
-                // global check - the same livelock, one layer up. Disabled budgets (0) contribute no
-                // bound; when both are 0 the estimate is skipped entirely (no O(backlog) scan).
-                long cursorBudget = cursorManager.getCursorQueueByteBudget();
-                long globalBudget = cursorManager.getGlobalCursorByteBudget();
-                long effective = cursorBudget;
-
-                if (globalBudget > 0) {
-                    long headroom = globalBudget - cursorManager.getTotalQueuedBytes();
-                    if (headroom <= 0) {
-                        log.warn("Resume window for secondary (seq {}) has no global-cursor-budget headroom ({} used of {}) - signalling re-sync instead of an oversized replay",
-                                resumeSeq, cursorManager.getTotalQueuedBytes(), globalBudget);
-                        return historyLostReply("resume has no global cursor budget headroom ("
-                                + cursorManager.getTotalQueuedBytes() + " of " + globalBudget + " bytes already queued)");
-                    }
-                    effective = cursorBudget == 0 ? headroom : Math.min(cursorBudget, headroom);
-                }
-
-                if (effective > 0) {
-                    long backlogBytes = driver.estimateReplayBacklogBytes(resumeSeq, effective);
-                    if (backlogBytes > effective) {
-                        log.warn("Resume window for secondary (seq {}) covers ~{} bytes of backlog > {} byte effective cursor budget - signalling re-sync instead of an oversized replay",
-                                resumeSeq, backlogBytes, effective);
-                        return historyLostReply("resume backlog " + backlogBytes
-                                + " bytes exceeds effective cursor budget " + effective);
-                    }
+                Map<String, Object> gateReply = replayBacklogGate(wcmd, resumeSeq, replicationResume, clientAddress);
+                if (gateReply != null) {
+                    return gateReply;
                 }
             }
 
-            long cursorId = cursorManager.createWatchCursor(driver, wcmd, replication, memberAddress);
+            long cursorId = cursorManager.createWatchCursor(driver, wcmd, replication, memberAddress, clientAddress);
             channelCursors.add(cursorId);
 
             // Read the current sequence right after the subscription is registered (inside
@@ -2137,11 +2113,82 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     }
 
     private static Map<String, Object> historyLostReply(String errmsg) {
+        // The errmsg carries the code name as well: a Morphium client classifies the failure by
+        // message text (ChangeStreamMonitor.handleWatchError looks for "ChangeStreamHistoryLost"),
+        // and the driver's exception message is "Error: <code> - <errmsg>" - without the marker in
+        // the errmsg a gated resume would be handled as an unclassified error and retried with the
+        // very token that was just refused.
+        String msg = errmsg.startsWith("ChangeStreamHistoryLost") ? errmsg : "ChangeStreamHistoryLost: " + errmsg;
         return Doc.of(
                 "ok", 0.0,
                 "code", 286,
                 "codeName", "ChangeStreamHistoryLost",
-                "errmsg", errmsg);
+                "errmsg", msg);
+    }
+
+    /**
+     * The replay-backlog gate for a resume whose window is still replayable: a backlog that does not
+     * fit the cursor queue is doomed either way - the replay pushes every buffered event after the
+     * resume sequence into the queue, the count cap or the byte budget is exhausted mid-replay, the
+     * cursor is killed with a "slow/absent consumer" error, the consumer retries the same token, the
+     * window is still contiguous, and it loops. Answering HistoryLost up front costs the consumer a
+     * fresh registration (a secondary: a seconds-long full re-sync) instead of a livelock in which
+     * it never receives another event.
+     *
+     * <p>Two bounds, both have to fit:
+     * <ul>
+     *   <li>the count cap ({@code cursor-queue-events}, the queue's capacity), and</li>
+     *   <li>the effective byte bound: the tighter of the per-cursor budget and the fleet headroom
+     *       under the global budget (see WatchCursorManager). With {@code global-cursor-budget} the
+     *       binding constraint is the headroom - a replay that fits this cursor but pushes the fleet
+     *       over the global cap would be admitted and then killed mid-replay by the global check,
+     *       the same livelock one layer up. Disabled budgets (0) contribute no byte bound.</li>
+     * </ul>
+     * A replication watch receives every event, so its backlog is counted namespace-blind; a client
+     * change stream only receives its own namespace's events and is judged by those alone - a
+     * consumer of a quiet collection must not be sent away because the bus next door is busy.
+     *
+     * @return the ChangeStreamHistoryLost reply when the backlog does not fit, null when the resume
+     *         can be served
+     */
+    private Map<String, Object> replayBacklogGate(WatchCommand wcmd, long resumeSeq, boolean replicationResume,
+                                                  String clientAddress) {
+        long cursorBudget = cursorManager.getCursorQueueByteBudget();
+        long globalBudget = cursorManager.getGlobalCursorByteBudget();
+        long effective = cursorBudget;
+        String who = replicationResume
+                ? "secondary " + wcmd.getPoppyMember()
+                : "client " + clientAddress + " on " + wcmd.getDb() + "." + wcmd.getColl();
+
+        if (globalBudget > 0) {
+            long headroom = globalBudget - cursorManager.getTotalQueuedBytes();
+            if (headroom <= 0) {
+                log.warn("Resume (seq {}) of {} has no global-cursor-budget headroom ({} used of {}) - answering HistoryLost instead of an oversized replay",
+                        resumeSeq, who, cursorManager.getTotalQueuedBytes(), globalBudget);
+                return historyLostReply("resume has no global cursor budget headroom ("
+                        + cursorManager.getTotalQueuedBytes() + " of " + globalBudget + " bytes already queued)");
+            }
+            effective = cursorBudget == 0 ? headroom : Math.min(cursorBudget, headroom);
+        }
+
+        int maxEvents = cursorManager.getMaxCursorQueueSize();
+        InMemoryDriver.ReplayBacklog backlog = replicationResume
+                ? driver.estimateReplayBacklog(resumeSeq, null, null, maxEvents, effective)
+                : driver.estimateReplayBacklog(resumeSeq, wcmd.getDb(), wcmd.getColl(), maxEvents, effective);
+
+        if (backlog.events() > maxEvents) {
+            log.warn("Resume (seq {}) of {} would replay {} events > cursor queue capacity {} - answering HistoryLost instead of a replay that is killed mid-way",
+                    resumeSeq, who, backlog.events(), maxEvents);
+            return historyLostReply("resume backlog of " + backlog.events()
+                    + " events exceeds the cursor queue capacity of " + maxEvents + " (cursor-queue-events)");
+        }
+        if (effective > 0 && backlog.bytes() > effective) {
+            log.warn("Resume (seq {}) of {} covers ~{} bytes of backlog > {} byte effective cursor budget - answering HistoryLost instead of a replay that is killed mid-way",
+                    resumeSeq, who, backlog.bytes(), effective);
+            return historyLostReply("resume backlog " + backlog.bytes()
+                    + " bytes exceeds effective cursor budget " + effective);
+        }
+        return null;
     }
 
     /**
