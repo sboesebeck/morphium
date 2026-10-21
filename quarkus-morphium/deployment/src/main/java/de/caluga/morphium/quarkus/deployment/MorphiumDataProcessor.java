@@ -5,6 +5,7 @@ import de.caluga.morphium.data.FindMethodBridge;
 import de.caluga.morphium.data.JdqlDelete;
 import de.caluga.morphium.data.JdqlMethodBridge;
 import de.caluga.morphium.data.JdqlUpdate;
+import de.caluga.morphium.data.UnsupportedParameterStyles;
 import de.caluga.morphium.data.JdqlOrdinalParameters;
 import de.caluga.morphium.data.MethodNameParser;
 import de.caluga.morphium.data.QueryDescriptor;
@@ -1210,9 +1211,48 @@ public class MorphiumDataProcessor {
      * Parameters annotated with {@code @By} become equality conditions.
      * Special parameters (Sort, Order, PageRequest, Limit) are detected by type.
      */
+    /**
+     * Fails the build for a Jakarta Data 1.1 feature that the generated {@code @Find}, {@code @Delete} and {@code @Query} methods do not implement (MOR-019):
+     * {@code @Is}, a constraint or {@code Restriction} parameter and {@code @First}. Without this check the parameter would be bound as an equality. The check
+     * works on the names in the Jandex index, so it does not need the 1.1 API.
+     */
+    private void rejectUnsupportedParameterStyles(MethodInfo method) {
+        List<String> methodAnnotations = new ArrayList<>();
+        List<List<String>> parameterAnnotations = new ArrayList<>();
+
+        for (int i = 0; i < method.parametersCount(); i++) {
+            parameterAnnotations.add(new ArrayList<>());
+        }
+
+        for (AnnotationInstance annotation : method.annotations()) {
+            if (annotation.target().kind() == org.jboss.jandex.AnnotationTarget.Kind.METHOD) {
+                methodAnnotations.add(annotation.name().toString());
+            } else if (annotation.target().kind() == org.jboss.jandex.AnnotationTarget.Kind.METHOD_PARAMETER) {
+                int position = annotation.target().asMethodParameter().position();
+
+                if (position >= 0 && position < parameterAnnotations.size()) {
+                    parameterAnnotations.get(position).add(annotation.name().toString());
+                }
+            }
+        }
+
+        List<UnsupportedParameterStyles.Param> params = new ArrayList<>();
+
+        for (int i = 0; i < method.parametersCount(); i++) {
+            params.add(new UnsupportedParameterStyles.Param(method.parameterType(i).name().toString(), parameterAnnotations.get(i)));
+        }
+
+        String problem = UnsupportedParameterStyles.check(method.declaringClass().name() + "." + method.name(), methodAnnotations, params);
+
+        if (problem != null) {
+            throw new IllegalStateException(problem);
+        }
+    }
+
     private void generateFindAnnotatedMethod(ClassCreator cc, MethodInfo method,
                                               String entityClassName,
                                               Set<String> entityFields) {
+        rejectUnsupportedParameterStyles(method);
         // Build conditions spec and identify special params
         StringBuilder conditionsSpec = new StringBuilder();
         int conditionCount = 0;
@@ -1363,6 +1403,7 @@ public class MorphiumDataProcessor {
      */
     private void generateDeleteAnnotatedMethod(ClassCreator cc, MethodInfo method,
                                                 String entityClassName) {
+        rejectUnsupportedParameterStyles(method);
         // Check if this is entity-parameter delete or @By-condition delete
         boolean hasByParams = false;
         StringBuilder conditionsSpec = new StringBuilder();
@@ -1676,6 +1717,7 @@ public class MorphiumDataProcessor {
                                                String entityClassName,
                                                IndexView index,
                                                BuildProducer<ReflectiveClassBuildItem> reflectiveClasses) {
+        rejectUnsupportedParameterStyles(method);
         // Extract JDQL string from @Query annotation
         AnnotationInstance queryAnn = method.annotation(QUERY_ANNOTATION);
         String jdql = queryAnn.value().asString();
