@@ -4,6 +4,7 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.annotations.Version;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.query.ReturnDocument;
 import org.junit.jupiter.api.DisplayName;
@@ -11,6 +12,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Stream;
@@ -42,6 +45,23 @@ class AtomicUpdateTest {
             this.owner = owner;
             this.priority = priority;
             this.expiresAt = new Date(0);
+        }
+    }
+
+    @Entity
+    static class VersionedLease {
+        @Id
+        private String id;
+        private String ownerName;
+        private Instant expiresAt;
+        @Version
+        private Long version;
+    }
+
+    static class VersionedLeaseRepo extends AbstractMorphiumRepository<VersionedLease, String> {
+        VersionedLeaseRepo(Morphium morphium) {
+            super(new RepositoryMetadata(VersionedLease.class, String.class, "id"));
+            setMorphium(morphium);
         }
     }
 
@@ -211,6 +231,51 @@ class AtomicUpdateTest {
             AtomicUpdateSpec text = new AtomicUpdateSpec("id = :id", List.of(), List.of(), List.of("priority=:id"), false, false, ReturnDocument.AFTER, "", "id:0");
             assertThatThrownBy(() -> JdqlMethodBridge.executeAtomicCount(repo, text.encode(), new Object[] {"a"})).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("needs a number");
             assertThat(m.findById(Lease.class, "a", null).priority).isEqualTo(1);
+        }
+    }
+
+    // ------------------------------------------------------------------ the same as LeaseManager
+
+    @ParameterizedTest
+    @MethodSource("drivers")
+    @DisplayName("declared like the LeaseManager, with the @Version as fencing token, it answers the same as the LeaseManager")
+    void sameAsTheLeaseManager(String driver) throws Exception {
+        try (Morphium m = morphium(driver)) {
+            VersionedLeaseRepo repo = new VersionedLeaseRepo(m);
+            de.caluga.morphium.query.LeaseManager<VersionedLease> manager = de.caluga.morphium.query.LeaseManager.of(m, VersionedLease.class, "ownerName", "expiresAt");
+            String acquire = new AtomicUpdateSpec("id = :id AND (expiresAt < :now OR ownerName = :owner)", List.of("ownerName=:owner", "expiresAt=:until"), List.of(), List.of(), true, false,
+                    ReturnDocument.AFTER, "", "id:0,owner:1,now:2,until:3").encode();
+            String release = new AtomicUpdateSpec("id = :id AND ownerName = :owner", List.of("expiresAt=:expired"), List.of(), List.of(), false, false, ReturnDocument.AFTER, "",
+                    "id:0,owner:1,expired:2").encode();
+
+            Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+            Duration ttl = Duration.ofSeconds(30);
+
+            // the annotation on "job-a", the manager on "job-b": the same steps, the same answers
+            for (String id : new String[] {"job-a", "job-b"}) {
+                boolean viaAnnotation = id.equals("job-a");
+
+                java.util.function.BiFunction<String, Instant, Object> acquireAt = (owner, now) -> viaAnnotation
+                    ? JdqlMethodBridge.executeAtomicDocument(repo, acquire, new Object[] {id, owner, now, now.plus(ttl)})
+                    : manager.tryAcquire(id, owner, ttl, now).isAcquired() ? m.findById(VersionedLease.class, id, null) : null;
+
+                VersionedLease first = (VersionedLease) acquireAt.apply("A", t0);
+                assertThat(first.version).as(id + " first grant").isEqualTo(1L);
+                assertThat(acquireAt.apply("B", t0.plusSeconds(10))).as(id + " held by A").isNull();
+                VersionedLease renewed = (VersionedLease) acquireAt.apply("A", t0.plusSeconds(20));
+                assertThat(renewed.version).as(id + " renewed").isEqualTo(2L);
+                VersionedLease takenOver = (VersionedLease) acquireAt.apply("B", t0.plusSeconds(60));
+                assertThat(takenOver.ownerName).as(id + " taken over").isEqualTo("B");
+                assertThat(takenOver.version).isEqualTo(3L);
+
+                boolean released = viaAnnotation
+                    ? (long) JdqlMethodBridge.executeAtomicCount(repo, release, new Object[] {id, "B", Instant.EPOCH}) > 0
+                    : manager.release(id, "B");
+                assertThat(released).as(id + " released by the holder").isTrue();
+                assertThat(viaAnnotation ? JdqlMethodBridge.executeAtomicCount(repo, release, new Object[] {id, "A", Instant.EPOCH}) > 0 : manager.release(id, "A"))
+                    .as(id + " released by somebody else").isFalse();
+                assertThat(acquireAt.apply("A", t0.plusSeconds(61))).as(id + " free again").isNotNull();
+            }
         }
     }
 }
