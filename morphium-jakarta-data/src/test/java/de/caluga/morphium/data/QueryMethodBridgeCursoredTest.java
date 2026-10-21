@@ -128,6 +128,17 @@ class QueryMethodBridgeCursoredTest {
     }
 
     @Test
+    @DisplayName("the async form answers a CursoredPage too")
+    @SuppressWarnings("unchecked")
+    void async() throws Exception {
+        CursoredPage<Row> first = (CursoredPage<Row>) QueryMethodBridge.executeQueryAsync(repo, "findByGrpOrderByAmountAsc", new Object[] {"g", PageRequest.ofSize(2)}, false, false, false, false, "", -1, -1, 1,
+                -1, true).toCompletableFuture().get(10, java.util.concurrent.TimeUnit.SECONDS);
+
+        assertThat(ids(first)).containsExactly("r1", "r2");
+        assertThat(first.hasNext()).isTrue();
+    }
+
+    @Test
     @DisplayName("without any order there is no keyset: the bridge says so")
     void noKeyset() {
         CursoredPage<Row> first = page("findByGrpOrderByAmountAsc", new Object[] {"g", PageRequest.ofSize(2)}, "", -1, 1);
