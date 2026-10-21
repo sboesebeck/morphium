@@ -44,6 +44,16 @@ public final class MethodNameParser {
     private static final Pattern PREFIX_PATTERN = Pattern.compile(
             "^(find|count|exists|delete)(?:First(\\d*))?By(.*)$");
 
+    private static final Pattern DERIVED_NAME = Pattern.compile("^((find|count|exists|delete)(First\\d*)?By.*|countAll)$");
+
+    /**
+     * Whether the method name is one that this parser handles ({@code findBy...}, {@code findFirstBy...}, {@code findFirst3By...}, {@code countBy...},
+     * {@code existsBy...}, {@code deleteBy...}, {@code countAll}): the Quarkus build and the Spring proxy use it to route a method to the derived-query code.
+     */
+    public static boolean isDerivedQueryName(String methodName) {
+        return DERIVED_NAME.matcher(methodName).matches();
+    }
+
     private static final Pattern ORDER_BY_SPLIT = Pattern.compile(
             "^(.+?)OrderBy(.+)$");
 

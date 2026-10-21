@@ -843,8 +843,7 @@ public class MorphiumDataProcessor {
             }
 
             // Phase 2: Try to parse as query derivation method
-            if (name.matches("find(First\\d*)?By.*") || name.startsWith("countBy")
-                    || name.startsWith("existsBy") || name.startsWith("deleteBy") || name.equals("countAll")) {
+            if (MethodNameParser.isDerivedQueryName(name)) {
                 generateQueryMethod(cc, method, entityClassName, entityFields);
                 continue;
             }

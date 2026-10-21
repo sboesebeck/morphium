@@ -177,8 +177,12 @@ public final class QueryMethodBridge {
                 query.sort(sortMap);
             }
         }
-        // findFirstBy... / findFirst3By...; a dynamic Limit below replaces it
+        // findFirstBy... / findFirst3By... has its own limit: the specification does not combine it with a Limit or PageRequest parameter
         if (descriptor.limit() > 0) {
+            if (limitParamIndex >= 0 || pageRequestParamIndex >= 0) {
+                throw new IllegalArgumentException(methodName + ": findFirst... cannot be combined with a Limit or PageRequest parameter");
+            }
+
             query.limit(descriptor.limit());
         }
 
