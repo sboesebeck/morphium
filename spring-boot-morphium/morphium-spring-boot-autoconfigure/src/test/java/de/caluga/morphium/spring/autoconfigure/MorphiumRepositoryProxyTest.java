@@ -298,6 +298,16 @@ class MorphiumRepositoryProxyTest {
     }
 
     @Test
+    void aMethodMayReturnAnArray() {
+        repository.save(new TestEntity("a", "active", 2));
+        repository.save(new TestEntity("b", "active", 1));
+
+        assertEquals(List.of("b", "a"), java.util.Arrays.stream(repository.findByStatusOrderByPriorityAsc("active")).map(TestEntity::getName).toList());
+        assertEquals(List.of("a", "b"), java.util.Arrays.stream(repository.arrayQueryByStatus("active")).map(TestEntity::getName).toList());
+        assertEquals(0, repository.findByStatusOrderByPriorityAsc("none").length);
+    }
+
+    @Test
     void findFirstLimitsTheResult() {
         repository.save(new TestEntity("a", "active", 1));
         repository.save(new TestEntity("b", "active", 5));

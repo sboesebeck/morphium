@@ -14,6 +14,7 @@ import de.caluga.morphium.data.MethodNameParser;
 import de.caluga.morphium.data.QueryDescriptor;
 import de.caluga.morphium.data.QueryMethodBridge;
 import de.caluga.morphium.data.RepositoryMetadata;
+import de.caluga.morphium.data.ResultShapes;
 import de.caluga.morphium.quarkus.data.QuarkusMorphiumRepository;
 import io.quarkus.arc.deployment.AdditionalBeanBuildItem;
 import io.quarkus.arc.deployment.GeneratedBeanBuildItem;
@@ -1130,6 +1131,10 @@ public class MorphiumDataProcessor {
                     result = unboxPrimitive(mc, result, returnType.asPrimitiveType());
                 }
 
+                if (!isAsync) {
+                    result = adaptArrayResult(mc, result, returnType);
+                }
+
                 mc.returnValue(result);
             }
         }
@@ -1401,6 +1406,13 @@ public class MorphiumDataProcessor {
 
             if (!isAsync && returnType.kind() == Type.Kind.PRIMITIVE) {
                 result = unboxPrimitive(mc, result, returnType.asPrimitiveType());
+            }
+
+
+            if (!isAsync) {
+
+                result = adaptArrayResult(mc, result, returnType);
+
             }
 
             mc.returnValue(result);
@@ -1918,6 +1930,10 @@ public class MorphiumDataProcessor {
                 result = unboxPrimitive(mc, result, returnType.asPrimitiveType());
             }
 
+            if (!isAsync) {
+                result = adaptArrayResult(mc, result, returnType);
+            }
+
             mc.returnValue(result);
         }
 
@@ -2356,7 +2372,19 @@ public class MorphiumDataProcessor {
     }
 
     private boolean isList(Type type) {
-        return type.name().toString().equals("java.util.List");
+        // an array of the entity is answered like a List and converted at the end (MOR-080)
+        return type.name().toString().equals("java.util.List") || type.kind() == Type.Kind.ARRAY;
+    }
+
+    /** {@code ResultShapes.toArray} for a method that returns an array; the result unchanged for every other return type */
+    private ResultHandle adaptArrayResult(MethodCreator mc, ResultHandle result, Type returnType) {
+        if (returnType.kind() != Type.Kind.ARRAY) {
+            return result;
+        }
+
+        String component = returnType.asArrayType().component().name().toString();
+        ResultHandle array = mc.invokeStaticMethod(MethodDescriptor.ofMethod(ResultShapes.class, "toArray", Object.class, Object.class, Class.class), result, mc.loadClass(component));
+        return mc.checkCast(array, toDescriptorName(returnType));
     }
 
     private boolean isStream(Type type) {
