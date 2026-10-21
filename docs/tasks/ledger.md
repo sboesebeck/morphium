@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 23, in_progress 1, done 61
+Status: open 23, in_progress 1, done 62
 
 ## Overview
 
@@ -84,6 +84,7 @@ Status: open 23, in_progress 1, done 61
 | MOR-084 | done | 2 | defect | A short or Short field is stored as a number, not as a Java-serialization blob | S |  |  |
 | MOR-085 | done | 2 | defect | InMemoryDriver: a missing value or null sorts last when descending | S |  |  |
 | MOR-086 | done | 2 | defect | Jakarta Data: a derived query may return a CursoredPage, one cursor paging for all four callers | S |  |  |
+| MOR-087 | done | 2 | defect | Jakarta Data: the keyset of a cursored @Query includes the dynamic sorts | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
@@ -1513,4 +1514,21 @@ Acceptance:
 Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/CursorHelper.java, morphium-jakarta-data/src/main/java/de/caluga/morphium/data/QueryMethodBridge.java
 
 Commits: e5e3e642d, af008022b
+
+### MOR-087 Jakarta Data: the keyset of a cursored @Query includes the dynamic sorts
+
+Status **done**, priority 2, type defect, effort S
+
+Found by the TCK of MOR-026: a @Query without ORDER BY and with an Order or Sort parameter that returns a CursoredPage had no keyset (the cursor was made from the ORDER BY of the query or @OrderBy only) and failed with "No values were provided". The keyset is the ORDER BY of the query (or @OrderBy), then every dynamic Sort, Sort... and Order.
+
+Evidence: JdqlCursoredSortTest (2, red before the change); the other Jdql and cursor tests stay green. Reviewed in one pass without finding.
+
+Acceptance:
+
+- A dynamic Order is the keyset when the query has no ORDER BY
+- A dynamic Sort comes after the ORDER BY of the query
+
+Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlMethodBridge.java
+
+Commits: 5c5059479
 
