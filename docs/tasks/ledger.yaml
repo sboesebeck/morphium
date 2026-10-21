@@ -655,7 +655,7 @@ tasks:
 - id: MOR-076
   title: 'Jakarta Data: derived queries without By (countAll and similar) are unsupported'
   type: defect
-  status: open
+  status: done
   priority: 2
   effort: S
   description: 'Found by the TCK spike of MOR-026. The Jakarta Data TCK repository NaturalNumbers declares long countAll() without an annotation, and its tests call it in @BeforeEach, so every standalone TCK test fails on it. MethodNameParser only knows find/count/exists/delete followed by By; the Quarkus processor and the Spring handler throw "Unsupported repository method" for countAll. Check which no-By forms the specification names (countAll, findAll, existsAll, deleteAll) and support them in both modules.'
@@ -663,6 +663,9 @@ tasks:
   - countAll() and the other no-By forms the specification names work in the Quarkus and the Spring module
   source:
   - morphium-jakarta-data/src/main/java/de/caluga/morphium/data/MethodNameParser.java
+  evidence: 'The TCK repositories were searched for derived names without By: countAll() is the only one that is not annotated (findAll and deleteAll are CRUD names, the others carry @Query or @Find). MethodNameParser.parse("countAll") is a count without conditions (MethodNameParserTest, red without the change); the Quarkus processor and the Spring handler route countAll to the derived-query generation. Quarkus: OrderRepository.countAll() counts all documents on the InMemoryDriver and on a real mongo:8 (AbstractMorphiumDataOrdinalQueryTest, 5 tests each); Spring: countAllHasNoByAndCountsEveryDocument. Suites: jakarta-data 129, Quarkus runtime 83, deployment 43, integration 294 (one failure, MorphiumMigrationTest.renewLockBetweenChangeUnitsAdvancesExpiry, which fails the same without this change on a busy machine, see MOR-074), Spring 41. Only countAll is supported, not existsAll or other invented forms.'
+  commits:
+  - c39dbab99
 - id: MOR-077
   title: 'Jakarta Data: repositories without a single primary entity are unsupported'
   type: verification
