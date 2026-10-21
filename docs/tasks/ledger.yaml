@@ -682,6 +682,14 @@ tasks:
   source:
   - morphium-jakarta-data/src/main/java/de/caluga/morphium/data/RepositoryMetadata.java
   evidence: 'Decision: supported. Three gaps were behind it: the Spring module knew @Insert/@Save/@Update/@Delete(entities) only by the names insert, save and so on, and its registrar skipped BasicRepository and repositories that extend nothing; a repository without type arguments had no entity; a repository with several entities had one entity for all methods. Now LifecycleBridge runs the lifecycle methods in every shape (one entity, collection, array or varargs; nothing, entity, list, array, boolean, int, long), the primary entity of a repository that extends nothing is the one of its lifecycle methods, and RepositoryEntities / JandexEntities give every method its entity (statement, parameter, result) with AbstractMorphiumRepository.forEntity. The TCK tests needed also: UPDATE ... SET f = f / n (as $mul by the inverse), boolean as the result of DELETE and UPDATE statements, numeric literals with the suffix 0.0d, 7L. Tests: RepositoryEntitiesTest, LifecycleBridgeTest, JdqlUpdateDivisionTest, JandexEntitiesTest, NoPrimaryEntityRepositoryTest (Spring), MorphiumNoPrimaryEntityInMemTest and MorphiumNoPrimaryEntityRealMongoTest (Quarkus, mongo:8). JakartaDataTckTest: 68 of 73, the three exclusions of this task are gone.'
+  commits:
+  - 501128543
+  - 2d5f46f47
+  - 0b620126a
+  - c878f62d7
+  - 9aec21b91
+  - 8d3be2673
+  - 869760159
 
 - id: MOR-027
   title: 'Documentation page: raw commands, embedded objects and lifecycle contract'
