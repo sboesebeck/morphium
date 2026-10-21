@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 23, in_progress 1, done 65
+Status: open 23, in_progress 1, done 66
 
 ## Overview
 
@@ -88,6 +88,7 @@ Status: open 23, in_progress 1, done 65
 | MOR-088 | done | 2 | defect | Jakarta Data: COUNT(THIS) is the keyword in any case | S |  |  |
 | MOR-089 | done | 2 | defect | Jakarta Data: a one-character string literal compares with a char field as the character | S |  |  |
 | MOR-090 | done | 2 | defect | Jakarta Data: an enum in Not, In, NotIn and range operators of a derived query is its name | S |  |  |
+| MOR-091 | done | 2 | defect | Jakarta Data: several ORs in one query narrow each other | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
@@ -1583,4 +1584,21 @@ Acceptance:
 Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/QueryExecutor.java
 
 Commits: 12b162db2
+
+### MOR-091 Jakarta Data: several ORs in one query narrow each other
+
+Status **done**, priority 2, type defect, effort S
+
+Found by the TCK of MOR-026 (the second page of a cursored query with an OR showed the first page again) and by the review of that fix. Query.or(...) adds its branches to the one list of or-queries of the query, so (a OR b) AND (c OR d), an OR group next to NOT BETWEEN and the cursor condition on a query with an OR all became one OR of every branch. OrFilter adds every OR as a filter of its own, ANDed with the rest; JDQL, derived queries and the cursor condition use it.
+
+Evidence: JdqlCursoredSortTest.orInTheQueryAndTheCursor and JdqlLiteralsExecutionTest.severalOrsAreAnded (both red before the change); Spring module and the Quarkus query integration tests stay green. Reviewed in one pass: the JDQL group merge was found and fixed.
+
+Acceptance:
+
+- The next page of a cursored query with an OR continues after the cursor
+- Two OR groups in an AND chain, and an OR group next to NOT BETWEEN, narrow each other
+
+Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/OrFilter.java
+
+Commits: 9a94434d3
 
