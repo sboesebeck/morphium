@@ -280,6 +280,11 @@ public interface ProductRepository extends MorphiumRepository<Product, MorphiumI
 `morphium.delete(entity)` (`FindMethodBridge.java:251-254`) — unlike derived
 `deleteBy*` methods, which use a bulk `query.delete()`.
 
+Every parameter is bound as an equality, so the Jakarta Data 1.1 ways to say something else are refused instead of being run as an equality: a parameter with
+`@Is` (`@Is(AtLeast.class) int min` would become `price = min`), a parameter of a `jakarta.data.constraint` type or a `Restriction`, and a method with `@First`
+(also on `@Query`). The Quarkus build fails with a message that names the method; the Spring repository fails when its proxy is created. Use a derived query
+(`findByPriceGreaterThan`) or `@Query` instead. The check works on the names, so it needs no 1.1 API; support for these features is MOR-020.
+
 ## `@Update` and optimistic locking
 
 `@Update` replaces an entity that exists. If no entity with that id exists, or its `@Version` is not the one of the entity you pass,
