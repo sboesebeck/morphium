@@ -8,6 +8,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * MOR-078: a {@code char} or {@code Character} field is written as a number (as {@code store()} always did) and read back as the same character. Before, the number was
@@ -91,6 +92,22 @@ public class CharacterFieldTest extends MultiDriverTestBase {
             Letters strings = m.createQueryFor(Letters.class).f("id").eq("l1").get();
             assertEquals('q', strings.letter);
             assertEquals('R', strings.boxed);
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void aNumberThatIsNoCharacterIsRefusedInsteadOfWrappingAround(Morphium m) throws Exception {
+        try (m) {
+            Letters l = new Letters();
+            l.id = "l1";
+            m.store(l);
+
+            m.createQueryFor(Letters.class).f("id").eq("l1").set(java.util.Map.of("boxed", 70000L, "letter", 65L), false, false);
+            assertThrows(RuntimeException.class, () -> m.createQueryFor(Letters.class).f("id").eq("l1").get());
+
+            m.createQueryFor(Letters.class).f("id").eq("l1").set(java.util.Map.of("boxed", 66L, "letter", -1), false, false);
+            assertThrows(RuntimeException.class, () -> m.createQueryFor(Letters.class).f("id").eq("l1").get());
         }
     }
 }
