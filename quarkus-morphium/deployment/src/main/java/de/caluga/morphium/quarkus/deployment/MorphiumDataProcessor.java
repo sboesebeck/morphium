@@ -2379,7 +2379,10 @@ public class MorphiumDataProcessor {
                 case LONG -> "LONG";
                 default -> throw new IllegalStateException("Unsupported repository method " + where + "() -- a lifecycle method cannot return " + returnType);
             };
-            default -> isList(returnType) || returnType.name().toString().equals("java.util.Collection") ? "LIST" : "ENTITY";
+            default -> isList(returnType) || returnType.name().toString().equals("java.util.Collection") ? "LIST"
+                    : returnType.name().toString().equals("java.lang.Boolean") ? "BOOLEAN"
+                    : returnType.name().toString().equals("java.lang.Integer") ? "INT"
+                    : returnType.name().toString().equals("java.lang.Long") ? "LONG" : "ENTITY";
         };
 
         DotName parameterElement = JandexEntities.element(parameter);
