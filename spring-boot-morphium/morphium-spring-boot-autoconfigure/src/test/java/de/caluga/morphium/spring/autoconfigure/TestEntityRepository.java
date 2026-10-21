@@ -62,6 +62,17 @@ public interface TestEntityRepository extends MorphiumRepository<TestEntity, Mor
     @Query("WHERE status = ?1")
     List<TestEntity> queryOrdinalSorted(String status, Sort<TestEntity> sort);
 
+    // --- DELETE FROM in @Query (MOR-017) ---
+
+    @Query("DELETE FROM TestEntity WHERE status = :status")
+    long deleteJdqlByStatus(@jakarta.data.repository.Param("status") String status);
+
+    @Query("DELETE FROM TestEntity WHERE status = ?1 AND priority < ?2")
+    int deleteJdqlOrdinal(String status, int maxPriority);
+
+    @Query("DELETE FROM TestEntity WHERE name = :name")
+    void deleteJdqlByName(@jakarta.data.repository.Param("name") String name);
+
     // --- Regression coverage: default method dispatch (review finding 4) ---
 
     /**

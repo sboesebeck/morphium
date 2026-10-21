@@ -205,6 +205,38 @@ class MorphiumRepositoryProxyTest {
         assertEquals(List.of("high", "low"), found.stream().map(TestEntity::getName).toList());
     }
 
+    // ---- MOR-017: @Query("DELETE FROM ...") ----
+
+    @Test
+    void jdqlDeleteReturnsTheNumberOfDeletedDocuments() {
+        repository.save(new TestEntity("a", "active", 1));
+        repository.save(new TestEntity("b", "active", 5));
+        repository.save(new TestEntity("c", "inactive", 9));
+
+        assertEquals(2L, repository.deleteJdqlByStatus("active"));
+        assertEquals(1, repository.findByStatus("inactive").size());
+        assertEquals(0, repository.findByStatus("active").size());
+    }
+
+    @Test
+    void jdqlDeleteWithOrdinalParametersAndIntResult() {
+        repository.save(new TestEntity("a", "active", 1));
+        repository.save(new TestEntity("b", "active", 5));
+
+        assertEquals(1, repository.deleteJdqlOrdinal("active", 3));
+        assertEquals(List.of("b"), repository.findByStatus("active").stream().map(TestEntity::getName).toList());
+    }
+
+    @Test
+    void jdqlDeleteWithVoidResult() {
+        repository.save(new TestEntity("a", "active", 1));
+        repository.save(new TestEntity("b", "active", 5));
+
+        repository.deleteJdqlByName("a");
+
+        assertEquals(1, repository.findByStatus("active").size());
+    }
+
     // ---- Review finding 3: @Query / @Find with CompletionStage ran synchronously ----
 
     @Test
