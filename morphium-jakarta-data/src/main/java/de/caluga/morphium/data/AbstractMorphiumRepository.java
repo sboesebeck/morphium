@@ -142,12 +142,13 @@ public abstract class AbstractMorphiumRepository<T, K> {
      * @param entity the entity class
      * @return this repository if it is the one for the entity, otherwise a repository for it that is created once
      */
-    public AbstractMorphiumRepository<?, ?> forEntity(Class<?> entity) {
+    @SuppressWarnings("unchecked")
+    public AbstractMorphiumRepository<Object, Object> forEntity(Class<?> entity) {
         if (metadata != null && metadata.entityClass() == entity) {
-            return this;
+            return (AbstractMorphiumRepository<Object, Object>) this;
         }
 
-        return siblings.computeIfAbsent(entity, e -> {
+        return (AbstractMorphiumRepository<Object, Object>) siblings.computeIfAbsent(entity, e -> {
             java.lang.reflect.Field id;
 
             try {

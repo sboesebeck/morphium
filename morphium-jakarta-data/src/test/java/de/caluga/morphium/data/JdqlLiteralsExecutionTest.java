@@ -168,4 +168,14 @@ class JdqlLiteralsExecutionTest {
         assertThat(ids("WHERE id NOT BETWEEN 2 AND 5 AND (id = 1 OR id = 3)")).containsExactly(1L);
         assertThat(ids("WHERE (id = 1 OR id = 3) AND id NOT BETWEEN 2 AND 5 AND (id = 1 OR id = 6)")).containsExactly(1L);
     }
+
+    @Test
+    @DisplayName("numeric literals with the suffix of Java and with an exponent: 2L, 4.5d, 3f, 1e1")
+    void numericLiterals() {
+        assertThat(ids("WHERE id >= 2L AND id < 4.5d")).containsExactly(2L, 3L, 4L);
+        assertThat(ids("WHERE id <= 3f AND id > 0.0d")).containsExactly(1L, 2L, 3L);
+        assertThat(ids("WHERE id < 1e1 AND id > 4E0")).containsExactly(5L, 6L);
+        assertThat(ids("WHERE id BETWEEN 2L AND 3.0f")).containsExactly(2L, 3L);
+        assertThat(ids("WHERE id IN (1L, 2d, 3)")).containsExactly(1L, 2L, 3L);
+    }
 }
