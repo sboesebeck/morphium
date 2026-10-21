@@ -102,6 +102,14 @@ public class ShortFieldTest extends MultiDriverTestBase {
     }
 
     @Test
+    public void aNumberThatDoesNotFitIsRefusedInsteadOfWrappingAround() {
+        assertThrows(IllegalArgumentException.class, () -> new ShortMapper().unmarshall(70000));
+        assertThrows(IllegalArgumentException.class, () -> new ShortMapper().unmarshall(-32769L));
+        assertThrows(IllegalArgumentException.class, () -> new ShortMapper().unmarshall(1.5));
+        assertEquals(Short.valueOf(Short.MIN_VALUE), new ShortMapper().unmarshall(-32768));
+    }
+
+    @Test
     public void aBlobThatIsNoShortIsRefused() throws Exception {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
 
