@@ -14,7 +14,16 @@ public class CharacterMapper implements MorphiumTypeMapper<Character> {
             return null;
         }
 
-        return Character.valueOf((char)((int) d));
+        // Morphium writes the number of the character; another writer may have stored an int64 or a double, or the character as a string
+        if (d instanceof Number number) {
+            return Character.valueOf((char) number.intValue());
+        }
+
+        if (d instanceof String string && string.length() == 1) {
+            return Character.valueOf(string.charAt(0));
+        }
+
+        throw new IllegalArgumentException("Cannot read a character from " + d.getClass().getName() + " " + d);
     }
 
 }

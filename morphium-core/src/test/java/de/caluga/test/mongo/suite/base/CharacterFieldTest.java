@@ -72,4 +72,25 @@ public class CharacterFieldTest extends MultiDriverTestBase {
             assertEquals(0, m.createQueryFor(Letters.class).f("letter").eq('j').countAll());
         }
     }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void aCharIsReadFromAnyNumberTypeAndFromAOneCharacterString(Morphium m) throws Exception {
+        try (m) {
+            Letters l = new Letters();
+            l.id = "l1";
+            m.store(l);
+
+            // a document that another writer produced: int64 and double for the numbers, a string for the character
+            m.createQueryFor(Letters.class).f("id").eq("l1").set(java.util.Map.of("letter", 100L, "boxed", 90.0), false, false);
+            Letters numbers = m.createQueryFor(Letters.class).f("id").eq("l1").get();
+            assertEquals('d', numbers.letter);
+            assertEquals('Z', numbers.boxed);
+
+            m.createQueryFor(Letters.class).f("id").eq("l1").set(java.util.Map.of("letter", "q", "boxed", "R"), false, false);
+            Letters strings = m.createQueryFor(Letters.class).f("id").eq("l1").get();
+            assertEquals('q', strings.letter);
+            assertEquals('R', strings.boxed);
+        }
+    }
 }

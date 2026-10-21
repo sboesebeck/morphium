@@ -845,6 +845,8 @@ public class AnnotationAndReflectionHelper {
                     }
                 } else if (fieldType.equals(MorphiumId.class)) {
                     return new MorphiumId(s);
+                } else if ((fieldType.equals(Character.class) || fieldType.equals(char.class)) && s.length() == 1) {
+                    return s.charAt(0);
                 }
             } catch (Exception e) {
             }
