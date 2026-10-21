@@ -82,4 +82,12 @@ abstract class AbstractMorphiumAtomicUpdateTest {
         assertThat(morphium.findById(LeaseEntity.class, "job", null).getFencing()).isEqualTo(2);
         assertThat(leases.bumpAndGetOld("nobody")).isNull();
     }
+
+    @Test
+    @DisplayName("without @Param the names of the parameters are used")
+    void parameterNames() {
+        assertThat(leases.acquireByParameterNames("job", "A", new Date(1000), new Date(5000))).isPresent();
+        assertThat(leases.acquireByParameterNames("job", "B", new Date(2000), new Date(6000))).isEmpty();
+        assertThat(leases.acquireByParameterNames("job", "A", new Date(3000), new Date(8000)).get().getFencing()).isEqualTo(2);
+    }
 }
