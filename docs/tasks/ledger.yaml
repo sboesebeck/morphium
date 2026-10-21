@@ -1610,3 +1610,18 @@ tasks:
   evidence: 'CharacterFieldTest (3 tests: read back after store, after Query.set and the update builder, and a query on a char) on the InMemoryDriver and on mongo:8; red before the change (could not set field letter), green after. Regression and the TCK spike run are listed with the series.'
   commits:
   - 32d0ceca7
+- id: MOR-079
+  title: 'Jakarta Data: findFirstBy and findFirstNBy are unsupported'
+  type: defect
+  status: done
+  priority: 2
+  effort: S
+  description: 'Found by the TCK of MOR-026: AsciiCharacters declares findFirst3ByNumericValueGreaterThanEqualAndHexadecimalEndsWith and findFirstByHexadecimalStartsWithAndIsControlOrderByIdAsc; the name was not routed to the derived-query code (4 TCK tests). The first n results are returned in the order of the name; more matches are no error for a single entity or an Optional; First belongs to find only; First with a Limit or PageRequest parameter is refused, at build time in Quarkus.'
+  acceptance:
+  - 'findFirstBy and findFirst3By work in the Quarkus and the Spring module'
+  - 'One derived-name check serves both modules'
+  source:
+  - morphium-jakarta-data/src/main/java/de/caluga/morphium/data/MethodNameParser.java
+  evidence: 'MethodNameParserTest (findFirst, derived names; red before), Quarkus integration test findFirst on the InMemoryDriver and on a real mongo:8 (AbstractMorphiumDataOrdinalQueryTest), Spring proxy tests (findFirstLimitsTheResult, findFirstCannotBeCombinedWithALimitParameter), Quarkus deployment test for First with Limit. Reviewed in three passes until no finding was left (a lost limit with a PageRequest, a duplicated name regex, the refusal only at the first call in Quarkus).'
+  commits:
+  - 3c2cd7e13
