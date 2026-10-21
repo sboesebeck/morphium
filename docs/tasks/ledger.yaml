@@ -1675,3 +1675,20 @@ tasks:
   commits:
   - 6b339657b
   - f95bdae97
+- id: MOR-083
+  title: 'Jakarta Data: SELECT field answers the values of the field when the method returns them'
+  type: defect
+  status: done
+  priority: 2
+  effort: S
+  description: 'Found by the TCK of MOR-026: @Query("SELECT name WHERE ...") on a method that returns List<String>, Optional<Integer>, Stream, Page or a single value answered partly filled entities (ClassCastException for the caller). The Quarkus build and the Spring proxy now pass the class of one result to the bridge, which returns the values of the selected field (converted to the declared type) when that class is neither the entity nor a record. A CursoredPage of values is refused with a message. The Spring proxy passes the record of a GROUP BY result now, which it did not before.'
+  acceptance:
+  - 'A single-field SELECT returns List, Optional, Stream, Page and single values of the field'
+  - 'A method that returns the entity still gets the entity'
+  - 'A CursoredPage of values fails with a clear message'
+  source:
+  - morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlMethodBridge.java
+  evidence: 'JdqlProjectionTest (5, red before the change); Spring proxy test selectFieldAnswersTheValuesWhenTheMethodReturnsThem; Quarkus integration test selectedValues on the InMemoryDriver. Reviewed in three passes: the second found a duplicated class loading and the silent CursoredPage of values (both fixed), the third had no finding.'
+  commits:
+  - f3f4330ae
+  - 10db59964

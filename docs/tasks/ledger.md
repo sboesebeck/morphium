@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 23, in_progress 1, done 57
+Status: open 23, in_progress 1, done 58
 
 ## Overview
 
@@ -80,6 +80,7 @@ Status: open 23, in_progress 1, done 57
 | MOR-080 | done | 2 | defect | Jakarta Data: a repository method that returns an array of the entity is unsupported | S |  |  |
 | MOR-081 | done | 2 | defect | Jakarta Data: the static order comes first, and every dynamic Sort, Sort... and Order counts | S |  |  |
 | MOR-082 | done | 2 | defect | Jakarta Data: JDQL — AND binds stronger than OR, literals are text, NOT before BETWEEN/IN/LIKE, IN lists of literals | S |  |  |
+| MOR-083 | done | 2 | defect | Jakarta Data: SELECT field answers the values of the field when the method returns them | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
@@ -1438,4 +1439,22 @@ Acceptance:
 Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlParser.java, morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlLiterals.java
 
 Commits: 6b339657b, f95bdae97
+
+### MOR-083 Jakarta Data: SELECT field answers the values of the field when the method returns them
+
+Status **done**, priority 2, type defect, effort S
+
+Found by the TCK of MOR-026: @Query("SELECT name WHERE ...") on a method that returns List<String>, Optional<Integer>, Stream, Page or a single value answered partly filled entities (ClassCastException for the caller). The Quarkus build and the Spring proxy now pass the class of one result to the bridge, which returns the values of the selected field (converted to the declared type) when that class is neither the entity nor a record. A CursoredPage of values is refused with a message. The Spring proxy passes the record of a GROUP BY result now, which it did not before.
+
+Evidence: JdqlProjectionTest (5, red before the change); Spring proxy test selectFieldAnswersTheValuesWhenTheMethodReturnsThem; Quarkus integration test selectedValues on the InMemoryDriver. Reviewed in three passes: the second found a duplicated class loading and the silent CursoredPage of values (both fixed), the third had no finding.
+
+Acceptance:
+
+- A single-field SELECT returns List, Optional, Stream, Page and single values of the field
+- A method that returns the entity still gets the entity
+- A CursoredPage of values fails with a clear message
+
+Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlMethodBridge.java
+
+Commits: f3f4330ae, 10db59964
 
