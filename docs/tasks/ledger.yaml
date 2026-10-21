@@ -454,7 +454,7 @@ tasks:
 - id: MOR-017
   title: 'Jakarta Data: JDQL DELETE FROM'
   type: implementation
-  status: open
+  status: done
   priority: 2
   effort: M
   description: DELETE FROM is part of Jakarta Data 1.0 (not 1.1). JdqlParser only accepts SELECT/WHERE/GROUP BY/HAVING/ORDER
@@ -467,6 +467,9 @@ tasks:
   - Verified against a real MongoDB (not only the InMemoryDriver).
   source:
   - docs/research/jakarta-data-1.1.md section 1
+  evidence: 'JdqlDeleteTest (11 invocations: statement recognition, entity name and WHERE clause split, malformed statements, then on the InMemoryDriver and on mongo:8 with the pooled driver: delete by named parameters returns the count and removes only the matches, no WHERE removes all, ordinal parameters work, zero matches, another entity name and ORDER BY are refused and delete nothing). Quarkus: the build generates the method for void, int and long and refuses boolean, Long, another entity name, a Sort parameter, ORDER BY and an ordinal without a parameter (MorphiumDataProcessorJdqlDeleteTest, 3 tests); AbstractMorphiumDataJdqlDeleteTest (long, int with ordinals, void) runs on the InMemoryDriver and on a real mongo:8 from Dev Services. Spring: three proxy tests (long, int with ordinals, void) in MorphiumRepositoryProxyTest, a wrong return type fails when the proxy is created. Whole suites: jakarta-data 118, Quarkus runtime 83, deployment 34, integration 278, Spring 28. Lifecycle: the delete runs no @PreRemove/@PostRemove callbacks of the entities (there is no instance), the storage listeners get preRemove(Query) and postRemove(Query); documented in docs/jakarta-data.md and the Javadoc. Not covered: the Spring tests run on the InMemoryDriver only (the bridge runs on mongo:8 in the jakarta-data module), async (CompletionStage) DELETE methods are refused by the return type rule, UPDATE statements (MOR-018), the listener events were not asserted by a test.'
+  commits:
+  - 8b3b80eda
 - id: MOR-018
   title: 'Jakarta Data: JDQL UPDATE ... SET ... WHERE as one atomic update'
   type: implementation
