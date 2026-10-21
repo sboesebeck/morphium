@@ -58,6 +58,14 @@ public final class JdqlParser {
 
     private JdqlParser() {}
 
+    /**
+     * The text in upper case with the content of every string literal replaced, so that a keyword, an operator, a comma or a parenthesis inside a literal is not taken for one. The result
+     * has the length of the input: an index found in it is an index in the input.
+     */
+    private static String maskedUpper(String text) {
+        return JdqlLiterals.maskStrings(text).toUpperCase(Locale.ROOT);
+    }
+
     // Split ORDER BY from WHERE (case-insensitive). Prefix may be empty when ORDER BY
     // appears without a preceding WHERE/GROUP BY clause (WHERE is optional per class javadoc).
     private static final Pattern ORDER_BY_SPLIT = Pattern.compile(
@@ -75,7 +83,7 @@ public final class JdqlParser {
 
     // BETWEEN :min AND :max
     private static final Pattern BETWEEN_PATTERN = Pattern.compile(
-            "(.+?)\\s+BETWEEN\\s+(.+?)\\s+AND\\s+(.+)", Pattern.CASE_INSENSITIVE);
+            "(.+?)(\\s+NOT)?\\s+BETWEEN\\s+(.+?)\\s+AND\\s+(.+)", Pattern.CASE_INSENSITIVE);
 
     // NOT IN :param
     private static final Pattern NOT_IN_PATTERN = Pattern.compile(
@@ -87,7 +95,7 @@ public final class JdqlParser {
 
     // LIKE :param
     private static final Pattern LIKE_PATTERN = Pattern.compile(
-            "(.+?)\\s+LIKE\\s+(.+)", Pattern.CASE_INSENSITIVE);
+            "(.+?)(\\s+NOT)?\\s+LIKE\\s+(.+)", Pattern.CASE_INSENSITIVE);
 
     // Comparison operators: >=, <=, <>, !=, >, <, =
     private static final Pattern COMP_PATTERN = Pattern.compile("(.+?)\\s*(>=|<=|<>|!=|>|<|=)\\s*(.+)");
@@ -110,7 +118,7 @@ public final class JdqlParser {
         }
 
         String trimmed = jdql.trim();
-        String upper = trimmed.toUpperCase(Locale.ROOT);
+        String upper = maskedUpper(trimmed);
 
         // --- Parse SELECT clause ---
         List<String> selectFields = null;
@@ -151,13 +159,13 @@ public final class JdqlParser {
 
             // Advance past SELECT fields
             trimmed = trimmed.substring(selectEnd).trim();
-            upper = trimmed.toUpperCase(Locale.ROOT);
+            upper = maskedUpper(trimmed);
 
             // Skip optional FROM clause
             if (upper.startsWith("FROM ")) {
                 int fromEnd = findFromEnd(upper);
                 trimmed = trimmed.substring(fromEnd).trim();
-                upper = trimmed.toUpperCase(Locale.ROOT);
+                upper = maskedUpper(trimmed);
             }
         }
 
@@ -174,16 +182,17 @@ public final class JdqlParser {
         List<JdqlQuery.OrderSpec> orderBy = new ArrayList<>();
         String wherePart = trimmed;
 
-        Matcher orderMatcher = ORDER_BY_SPLIT.matcher(trimmed);
+        // the keyword is searched in the masked text, so an ORDER BY inside a string literal does not count
+        Matcher orderMatcher = ORDER_BY_SPLIT.matcher(JdqlLiterals.maskStrings(trimmed));
         if (orderMatcher.matches()) {
-            wherePart = orderMatcher.group(1).trim();
-            String orderPart = orderMatcher.group(2).trim();
+            wherePart = trimmed.substring(0, orderMatcher.end(1)).trim();
+            String orderPart = trimmed.substring(orderMatcher.start(2)).trim();
             orderBy = parseOrderBy(orderPart);
         }
 
         // Split off GROUP BY from the remainder (ORDER BY already removed)
         List<String> groupByFields = null;
-        String whereUpper = wherePart.toUpperCase(Locale.ROOT);
+        String whereUpper = maskedUpper(wherePart);
         int groupByIdx = whereUpper.indexOf(" GROUP BY ");
         if (groupByIdx < 0 && whereUpper.startsWith("GROUP BY ")) {
             groupByIdx = 0;
@@ -211,7 +220,7 @@ public final class JdqlParser {
             }
 
             // Split HAVING from GROUP BY part (ORDER BY already removed)
-            String groupByUpper2 = groupByPart.toUpperCase(Locale.ROOT);
+            String groupByUpper2 = maskedUpper(groupByPart);
             int havingIdx = groupByUpper2.indexOf(" HAVING ");
             if (havingIdx >= 0) {
                 String havingPart = groupByPart.substring(havingIdx + " HAVING ".length()).trim();
@@ -221,7 +230,7 @@ public final class JdqlParser {
                     havingConditions = havingResult.conditions();
                     havingCombinator = havingResult.combinator();
                 } catch (IllegalArgumentException e) {
-                    int havingStart = jdql.toUpperCase(Locale.ROOT).indexOf("HAVING ");
+                    int havingStart = maskedUpper(jdql).indexOf("HAVING ");
                     throw new IllegalArgumentException(
                             formatParseError(jdql, havingPart, Math.max(0, havingStart), e.getMessage()), e);
                 }
@@ -282,7 +291,7 @@ public final class JdqlParser {
         for (String condStr : conditionStrings) {
             String trimmedCond = condStr.trim();
             try {
-                conditions.add(parseConditionOrGroup(trimmedCond));
+                conditions.add(combinator == JdqlQuery.Combinator.OR ? parseAndChain(trimmedCond) : parseConditionOrGroup(trimmedCond));
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException(formatParseError(jdql, trimmedCond, searchFrom, e.getMessage()), e);
             }
@@ -378,7 +387,7 @@ public final class JdqlParser {
             }
             List<JdqlQuery.JdqlCondition> groupConds = new ArrayList<>();
             for (String sub : subConditions) {
-                groupConds.add(parseConditionOrGroup(sub.trim()));
+                groupConds.add(groupCombinator == JdqlQuery.Combinator.OR ? parseAndChain(sub.trim()) : parseConditionOrGroup(sub.trim()));
             }
             return JdqlQuery.JdqlCondition.group(groupConds, groupCombinator);
         }
@@ -386,10 +395,30 @@ public final class JdqlParser {
     }
 
     /**
+     * One operand of an OR: AND binds stronger than OR, so {@code a OR b AND c} is {@code a OR (b AND c)}. Several conditions joined by AND become a group, one condition stays what it is.
+     */
+    private static JdqlQuery.JdqlCondition parseAndChain(String text) {
+        List<String> parts = splitTopLevel(text, "AND");
+
+        if (parts.size() == 1) {
+            return parseConditionOrGroup(parts.get(0).trim());
+        }
+
+        List<JdqlQuery.JdqlCondition> conditions = new ArrayList<>();
+
+        for (String part : parts) {
+            conditions.add(parseConditionOrGroup(part.trim()));
+        }
+
+        return JdqlQuery.JdqlCondition.group(conditions, JdqlQuery.Combinator.AND);
+    }
+
+    /**
      * Checks if a string starting with '(' has the closing ')' at the very end,
      * meaning the outer parentheses wrap the entire expression.
      */
-    private static boolean isBalancedGroup(String s) {
+    private static boolean isBalancedGroup(String text) {
+        String s = JdqlLiterals.maskStrings(text);
         int depth = 0;
         for (int i = 0; i < s.length(); i++) {
             if (s.charAt(i) == '(') depth++;
@@ -401,15 +430,18 @@ public final class JdqlParser {
 
     private static JdqlQuery.JdqlCondition parseCondition(String cond) {
         String trimmed = cond.trim();
-        String upper = trimmed.toUpperCase(Locale.ROOT);
+        String upper = maskedUpper(trimmed);
 
         // Detect and strip NOT prefix
         boolean negated = false;
         if (upper.startsWith("NOT ")) {
             negated = true;
             trimmed = trimmed.substring(4).trim();
-            upper = trimmed.toUpperCase(Locale.ROOT);
+            upper = maskedUpper(trimmed);
         }
+
+        // the patterns run on the masked text, the parts are cut from the original: a keyword or an operator inside a string literal is not one
+        String masked = JdqlLiterals.maskStrings(trimmed);
 
         // IS NOT NULL
         if (upper.endsWith(" IS NOT NULL")) {
@@ -425,21 +457,22 @@ public final class JdqlParser {
             return new JdqlQuery.JdqlCondition(field, op, null, null, null, false);
         }
 
-        // BETWEEN :min AND :max
-        Matcher betweenMatcher = BETWEEN_PATTERN.matcher(trimmed);
+        // [NOT] BETWEEN :min AND :max
+        Matcher betweenMatcher = BETWEEN_PATTERN.matcher(masked);
         if (betweenMatcher.matches()) {
-            String field = betweenMatcher.group(1).trim();
-            String minRef = betweenMatcher.group(2).trim();
-            String maxRef = betweenMatcher.group(3).trim();
+            String field = part(trimmed, betweenMatcher, 1);
+            String minRef = part(trimmed, betweenMatcher, 3);
+            String maxRef = part(trimmed, betweenMatcher, 4);
+            boolean notBetween = betweenMatcher.group(2) != null;
             return new JdqlQuery.JdqlCondition(field, JdqlQuery.Operator.BETWEEN,
-                    extractParamOrLiteral(minRef), extractParamOrLiteral(maxRef), null, negated);
+                    extractParamOrLiteral(minRef), extractParamOrLiteral(maxRef), null, negated ^ notBetween);
         }
 
         // NOT IN :param (within condition, NOT as infix operator on field)
-        Matcher notInMatcher = NOT_IN_PATTERN.matcher(trimmed);
+        Matcher notInMatcher = NOT_IN_PATTERN.matcher(masked);
         if (notInMatcher.matches()) {
-            String field = notInMatcher.group(1).trim();
-            String paramRef = notInMatcher.group(2).trim();
+            String field = part(trimmed, notInMatcher, 1);
+            String paramRef = part(trimmed, notInMatcher, 2);
             // "NOT field NOT IN x" (double negation) → field IN x
             JdqlQuery.Operator op = negated ? JdqlQuery.Operator.IN : JdqlQuery.Operator.NOT_IN;
             return new JdqlQuery.JdqlCondition(field, op,
@@ -447,29 +480,30 @@ public final class JdqlParser {
         }
 
         // IN :param
-        Matcher inMatcher = IN_PATTERN.matcher(trimmed);
+        Matcher inMatcher = IN_PATTERN.matcher(masked);
         if (inMatcher.matches()) {
-            String field = inMatcher.group(1).trim();
-            String paramRef = inMatcher.group(2).trim();
+            String field = part(trimmed, inMatcher, 1);
+            String paramRef = part(trimmed, inMatcher, 2);
             return new JdqlQuery.JdqlCondition(field, JdqlQuery.Operator.IN,
                     extractParamOrLiteral(paramRef), null, null, negated);
         }
 
-        // LIKE :param
-        Matcher likeMatcher = LIKE_PATTERN.matcher(trimmed);
+        // [NOT] LIKE :param
+        Matcher likeMatcher = LIKE_PATTERN.matcher(masked);
         if (likeMatcher.matches()) {
-            String field = likeMatcher.group(1).trim();
-            String paramRef = likeMatcher.group(2).trim();
+            String field = part(trimmed, likeMatcher, 1);
+            String paramRef = part(trimmed, likeMatcher, 3);
+            boolean notLike = likeMatcher.group(2) != null;
             return new JdqlQuery.JdqlCondition(field, JdqlQuery.Operator.LIKE,
-                    extractParamOrLiteral(paramRef), null, null, negated);
+                    extractParamOrLiteral(paramRef), null, null, negated ^ notLike);
         }
 
         // Comparison operators: >=, <=, <>, !=, >, <, =
-        Matcher compMatcher = COMP_PATTERN.matcher(trimmed);
+        Matcher compMatcher = COMP_PATTERN.matcher(masked);
         if (compMatcher.matches()) {
-            String field = compMatcher.group(1).trim();
+            String field = part(trimmed, compMatcher, 1);
             String op = compMatcher.group(2);
-            String valueRef = compMatcher.group(3).trim();
+            String valueRef = part(trimmed, compMatcher, 3);
 
             JdqlQuery.Operator operator = switch (op) {
                 case "=" -> JdqlQuery.Operator.EQ;
@@ -504,6 +538,11 @@ public final class JdqlParser {
         }
 
         throw new IllegalArgumentException("Cannot parse JDQL condition: " + cond);
+    }
+
+    /** a group of a match on the masked text, cut from the original text and trimmed */
+    private static String part(String original, Matcher masked, int group) {
+        return original.substring(masked.start(group), masked.end(group)).trim();
     }
 
     /**
@@ -549,7 +588,7 @@ public final class JdqlParser {
     // -- Top-level AND/OR splitting (avoids splitting inside BETWEEN...AND) --
 
     private static boolean containsTopLevelOr(String wherePart) {
-        String upper = wherePart.toUpperCase(Locale.ROOT);
+        String upper = maskedUpper(wherePart);
         int depth = 0;
         boolean insideStringLiteral = false;
         for (int i = 0; i < upper.length(); i++) {
@@ -577,7 +616,7 @@ public final class JdqlParser {
      */
     private static List<String> splitTopLevel(String wherePart, String combinator) {
         List<String> result = new ArrayList<>();
-        String upper = wherePart.toUpperCase(Locale.ROOT);
+        String upper = maskedUpper(wherePart);
         String sep = " " + combinator + " ";
         int sepLen = sep.length();
 
