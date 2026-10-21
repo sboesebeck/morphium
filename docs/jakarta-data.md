@@ -179,15 +179,15 @@ Parameters are named (`:min`, bound by `@Param` or the method parameter name) or
 more than once. A query that uses an ordinal without a matching parameter, or mixes the two styles, fails when the application is built
 (Quarkus) or on the first call (Spring).
 
-A `DELETE FROM Entity [WHERE ...]` statement deletes in one server-side command. The method returns `void`, `int` or `long` (the number of
-deleted documents; `int` is checked, a count above `Integer.MAX_VALUE` fails); other return types, a `Sort`, `Order`, `PageRequest` or `Limit`
+A `DELETE FROM Entity [WHERE ...]` statement deletes in one server-side command. The method returns `void`, `int`, `long` or `boolean` (the number of
+deleted documents; `int` is checked, a count above `Integer.MAX_VALUE` fails; `boolean` says whether at least one document was deleted); other return types, a `Sort`, `Order`, `PageRequest` or `Limit`
 parameter, `ORDER BY`, `GROUP BY` and `HAVING` are refused (at build time in Quarkus, when the proxy is created in Spring). The entity name must be
 the simple name of the entity of the repository, or be left out (`DELETE FROM WHERE ...`). Like the derived `deleteBy`, the delete runs no entity
 lifecycle callbacks (`@PreRemove`, `@PostRemove`: there is no instance to call them on); the storage listeners get `preRemove(Query)` and
 `postRemove(Query)`.
 
 An `UPDATE Entity SET item, ... [WHERE ...]` statement is ONE `update` command, built with the update builder (so field names are translated, values are
-marshalled and a `@Version` field is incremented). The method returns `void`, `int` or `long`, and the number is the number of MATCHED documents, not of
+marshalled and a `@Version` field is incremented). The method returns `void`, `int`, `long` or `boolean` (at least one document matched), and the number is the number of MATCHED documents, not of
 modified ones. A SET item maps to a classic update operator:
 
 | item | operator |
@@ -197,7 +197,7 @@ modified ones. A SET item maps to a classic update operator:
 | `f = f + :n`, `f = f - :n` | `$inc` (with the negated operand for minus) |
 | `f = f * :n` | `$mul` |
 
-Everything else, among it division, a field on the right side that is not the field itself (`a = b + 1`), `||` and functions like `UPPER`, would need an
+Everything else, among it a field on the right side that is not the field itself (`a = b + 1`), `||` and functions like `UPPER`, would need an
 aggregation pipeline update and is refused, at build time in Quarkus and when the proxy is created in Spring, with a message that names the item. The same rules
 for return types, special parameters, `ORDER BY` and the entity name as for `DELETE` apply.
 
@@ -220,7 +220,7 @@ Condition grammar (`JdqlParser.java:14-33`):
 - `field LIKE :param`, `field NOT LIKE :param`; `field NOT BETWEEN :min AND :max`
 - `field IS NULL` / `field IS NOT NULL`
 - Boolean literals: `field = true` / `field = false`
-- Numeric literals: `field > 100`
+- Numeric literals: `field > 100`, `-2.5`, `1e3`, and with the suffix of Java: `7L`, `0.0d`, `1.5f`
 - String literals: `field = 'value'`, with `''` for a quote inside (`'it''s'`); a keyword, an operator or a parenthesis inside a literal is text
 - The constant of an enum: `kind = com.example.Kind.PRIME` (the enum is stored by its name, so the part after the last dot is compared)
 - `NOT` prefix on any condition or parenthesized group: `NOT field = :param`,
@@ -290,6 +290,26 @@ Every parameter is bound as an equality, so the Jakarta Data 1.1 ways to say som
 `@Is` (`@Is(AtLeast.class) int min` would become `price = min`), a parameter of a `jakarta.data.constraint` type or a `Restriction`, and a method with `@First`
 (also on `@Query`). The Quarkus build fails with a message that names the method; the Spring repository fails when its proxy is created. Use a derived query
 (`findByPriceGreaterThan`) or `@Query` instead. The check works on the names, so it needs no 1.1 API; support for these features is MOR-020.
+
+## Repositories without a primary entity, and lifecycle methods
+
+A repository does not have to extend `BasicRepository` or `CrudRepository`. A `@Repository` interface that extends nothing and declares `@Insert`, `@Save`, `@Update`, `@Delete` and query methods works too:
+
+```java
+@Repository
+public interface Library {
+    @Insert Book add(Book book);
+    @Insert Book[] addAll(Book... books);
+    @Update boolean change(List<Book> books);
+    @Delete void remove(Book book);
+    long countByAuthor(String author);
+    @Query("DELETE FROM Review WHERE bookId = ?1") long removeReviews(String bookId);
+}
+```
+
+- **Lifecycle methods** (`@Insert`, `@Save`, `@Update`, and a `@Delete` whose parameter is an entity) have any name. The parameter is one entity, a collection, or an array or varargs. The result is nothing, the entity (for one entity), a list or an array of entities, or for `@Update` and `@Delete` a `boolean`, `int` or `long` (the number of entities given, as `Morphium.delete()` does not tell whether a document was there). A result the method cannot give fails the build (Quarkus) or the creation of the repository (Spring).
+- **The primary entity** of such a repository is the entity of its lifecycle methods, if they all use the same one. With several entities there is none.
+- **Every method works on one entity:** a lifecycle method on the entity of its parameter, a JDQL statement on the entity it names (`DELETE FROM Review`, `UPDATE Book SET ...`), a query or find method on the entity it returns; otherwise on the primary entity. A method that names no entity, in a repository without a primary entity, fails the build or the creation of the repository. A `DELETE` or `UPDATE` that names an entity that is none of the repository fails too; the name after `FROM` of a `SELECT` is still ignored if it is unknown.
 
 ## `@Update` and optimistic locking
 
@@ -585,13 +605,12 @@ generating bytecode.
 ## Conformance (Jakarta Data TCK)
 
 The standalone entity tests of the Jakarta Data TCK 1.0.0 (`jakarta.data:jakarta.data-tck`) run against the repositories of the Spring module, without Arquillian, as
-`JakartaDataTckTest` in `spring-boot-morphium`. 65 of the 73 assertions pass, on the InMemoryDriver and on a real MongoDB 8. The test fails when a test that is not excluded fails and when an
+`JakartaDataTckTest` in `spring-boot-morphium`. 68 of the 73 assertions pass, on the InMemoryDriver and on a real MongoDB 8. The test fails when a test that is not excluded fails and when an
 excluded test passes, so its list of exclusions (each with its reason) is always the truth:
 
 | Excluded | Reason |
 |---|---|
 | `testOrderByHasPrecedenceOverSorts`, `testOrderByHasPrecedenceOverPageRequestSorts`, `testBasicRepository`, `testLimitedRange` | they sort an enum by its ordinal; Morphium stores an enum by its name, so it sorts alphabetically |
-| `testPrimaryEntityClassDeterminedByLifeCycleMethods`, `testUpdateQueryWithWhereClause`, `testUpdateQueryWithoutWhereClause` | repositories without a primary entity (MOR-077) |
 | `testIgnoreCase` | `IgnoreCase` before `Between`/`NotIn` (MOR-092) |
 
 ```bash

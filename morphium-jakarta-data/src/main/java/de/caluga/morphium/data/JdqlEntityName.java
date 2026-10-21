@@ -7,7 +7,7 @@ import java.util.regex.Pattern;
  * The entity that a JDQL statement names (MOR-077): {@code DELETE FROM Box}, {@code UPDATE Box SET ...}, {@code SELECT ... FROM Box}, {@code FROM Box WHERE ...}. A statement that names none
  * ({@code WHERE id = ?1}) works on the entity of the method.
  */
-final class JdqlEntityName {
+public final class JdqlEntityName {
 
     private static final Pattern FROM = Pattern.compile("(?is)(?:^|\\s)FROM\\s+([A-Za-z_][A-Za-z0-9_.]*)");
 
@@ -15,7 +15,7 @@ final class JdqlEntityName {
     }
 
     /** the name of the entity, null if the statement names none */
-    static String of(String jdql) {
+    public static String of(String jdql) {
         if (jdql == null || jdql.isBlank()) {
             return null;
         }
