@@ -127,4 +127,13 @@ class JdqlParserLiteralsTest {
         assertThat(q.conditions().get(2).isGroup()).isTrue();
         assertThat(q.conditions().get(2).negated()).isTrue();
     }
+
+    @Test
+    @DisplayName("COUNT(THIS) is COUNT(this), in SELECT and in HAVING")
+    void thisInAnyCase() {
+        JdqlQuery q = JdqlParser.parse("SELECT status, COUNT(THIS) GROUP BY status HAVING COUNT(This) > 1");
+
+        assertThat(q.aggregateFunctions()).extracting(JdqlQuery.AggregateFunction::field).containsExactly("this");
+        assertThat(q.havingConditions()).extracting(JdqlQuery.HavingCondition::aggregateFunction).containsExactly("COUNT(this)");
+    }
 }
