@@ -200,6 +200,107 @@ public final class JdqlMethodBridge {
         return new java.math.BigDecimal(number.toString()).negate().doubleValue();
     }
 
+    /**
+     * The count form of an {@link AtomicUpdate} (MOR-021): ONE {@code update} command, built with the update builder. The result is the number of documents that
+     * were matched or inserted by the upsert; a lost conditional upsert (duplicate key) is 0.
+     *
+     * @param encodedSpec the {@link AtomicUpdateSpec#encode() encoded} spec
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static long executeAtomicCount(AbstractMorphiumRepository<?, ?> repo, String encodedSpec, Object[] args) {
+        AtomicUpdateSpec spec = AtomicUpdateSpec.decode(encodedSpec);
+        de.caluga.morphium.query.UpdateBuilder builder = atomicBuilder(repo, spec, args);
+
+        try {
+            de.caluga.morphium.query.UpdateResult result = spec.many() ? builder.updateMany() : builder.updateOne();
+            return result.getMatchedCount() + (result.getUpsertedId() != null ? 1 : 0);
+        } catch (de.caluga.morphium.driver.MorphiumDriverException e) {
+            if (spec.upsert() && e.isDuplicateKey()) {
+                return 0;
+            }
+
+            throw e;
+        }
+    }
+
+    /**
+     * The find-and-modify form of an {@link AtomicUpdate} (MOR-021): ONE {@code findAndModify} command. The result is the document as the spec says, or null if
+     * nothing matched, the conditional upsert was lost, or the upsert inserted and the state BEFORE was asked for.
+     *
+     * @param encodedSpec the {@link AtomicUpdateSpec#encode() encoded} spec
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static Object executeAtomicDocument(AbstractMorphiumRepository<?, ?> repo, String encodedSpec, Object[] args) {
+        AtomicUpdateSpec spec = AtomicUpdateSpec.decode(encodedSpec);
+        de.caluga.morphium.query.UpdateBuilder builder = atomicBuilder(repo, spec, args);
+        de.caluga.morphium.query.UpdateOutcome outcome = builder.tryFindOneAndUpdate(spec.returns());
+
+        return switch (outcome.getKind()) {
+            case INSERTED, UPDATED -> outcome.getDocument();
+            default -> null;
+        };
+    }
+
+    /** {@link #executeAtomicCount} for a method that returns {@code boolean}: at least one document was matched or inserted */
+    public static boolean executeAtomicBoolean(AbstractMorphiumRepository<?, ?> repo, String encodedSpec, Object[] args) {
+        return executeAtomicCount(repo, encodedSpec, args) > 0;
+    }
+
+    /** {@link #executeAtomicCount} for a method that returns {@code int}; a count above {@code Integer.MAX_VALUE} fails */
+    public static int executeAtomicInt(AbstractMorphiumRepository<?, ?> repo, String encodedSpec, Object[] args) {
+        return Math.toIntExact(executeAtomicCount(repo, encodedSpec, args));
+    }
+
+    /** {@link #executeAtomicDocument} for a method that returns an {@code Optional} */
+    public static java.util.Optional<Object> executeAtomicOptional(AbstractMorphiumRepository<?, ?> repo, String encodedSpec, Object[] args) {
+        return java.util.Optional.ofNullable(executeAtomicDocument(repo, encodedSpec, args));
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static de.caluga.morphium.query.UpdateBuilder atomicBuilder(AbstractMorphiumRepository<?, ?> repo, AtomicUpdateSpec spec, Object[] args) {
+        Morphium morphium = repo.getMorphium();
+        Class entityClass = repo.getMetadata().entityClass();
+        String where = spec.where().isBlank() ? "" : spec.where().strip();
+
+        if (!where.isEmpty() && !where.toUpperCase(java.util.Locale.ROOT).startsWith("WHERE ")) {
+            where = "WHERE " + where;
+        }
+
+        Map<String, Object> paramValues = buildParamMap(spec.paramMapSpec(), args);
+        Query mQuery = morphium.createQueryFor(entityClass);
+        applyConditions(mQuery, JdqlParser.parse(where), paramValues, morphium, entityClass);
+
+        if (spec.orderBy() != null && !spec.orderBy().isEmpty()) {
+            Map<String, Integer> sortMap = new LinkedHashMap<>();
+
+            for (String part : spec.orderBy().split(",")) {
+                String[] fieldAndDirection = part.split(":");
+                sortMap.put(resolveMongoField(morphium, entityClass, fieldAndDirection[0]), fieldAndDirection.length > 1 && fieldAndDirection[1].equals("DESC") ? -1 : 1);
+            }
+
+            mQuery.sort(sortMap);
+        }
+
+        de.caluga.morphium.query.UpdateBuilder builder = mQuery.modify();
+
+        for (String item : spec.set()) {
+            int eq = item.indexOf('=');
+            builder.set(item.substring(0, eq), updateValue(new JdqlUpdate.Item(item.substring(0, eq), JdqlUpdate.Op.SET, item.substring(eq + 1)), paramValues));
+        }
+
+        for (String item : spec.setOnInsert()) {
+            int eq = item.indexOf('=');
+            builder.setOnInsert(item.substring(0, eq), updateValue(new JdqlUpdate.Item(item.substring(0, eq), JdqlUpdate.Op.SET, item.substring(eq + 1)), paramValues));
+        }
+
+        for (String item : spec.inc()) {
+            int eq = item.indexOf('=');
+            builder.inc(item.substring(0, eq), updateNumber(new JdqlUpdate.Item(item.substring(0, eq), JdqlUpdate.Op.INC, item.substring(eq + 1)), paramValues, false));
+        }
+
+        return spec.upsert() ? builder.upsert() : builder;
+    }
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static Object executeJdql(AbstractMorphiumRepository<?, ?> repo,
                                      String jdql,
