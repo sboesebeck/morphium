@@ -18,7 +18,7 @@ import java.util.regex.Pattern;
  * {@link QueryResultHelper}. This mirrors what {@link JdqlParser} does for {@code @Query}-annotated
  * methods, but derives the query purely from the method name instead of an explicit query string.
  * <p>
- * Supports prefixes: {@code findBy}, {@code countBy}, {@code existsBy}, {@code deleteBy}, and {@code countAll}.
+ * Supports prefixes: {@code findBy} (also {@code findFirstBy} and {@code findFirst3By}), {@code countBy}, {@code existsBy}, {@code deleteBy}, and {@code countAll}.
  * Supports operators: Equals/Is, Not, GreaterThan, GreaterThanEqual, LessThan, LessThanEqual,
  * Between, In, NotIn, Like, StartsWith, EndsWith, Null/IsNull, NotNull/IsNotNull, True, False.
  * Supports combinators: And, Or.
@@ -40,8 +40,9 @@ public final class MethodNameParser {
 
     private MethodNameParser() {}
 
+    // findFirstBy... and findFirst3By... (MOR-079): only find has a limit keyword
     private static final Pattern PREFIX_PATTERN = Pattern.compile(
-            "^(find|count|exists|delete)By(.*)$");
+            "^(find|count|exists|delete)(?:First(\\d*))?By(.*)$");
 
     private static final Pattern ORDER_BY_SPLIT = Pattern.compile(
             "^(.+?)OrderBy(.+)$");
@@ -68,7 +69,21 @@ public final class MethodNameParser {
         }
 
         String prefixStr = m.group(1);
-        String rest = m.group(2);
+        String firstStr = m.group(2);
+        String rest = m.group(3);
+        int limit = 0;
+
+        if (methodName.startsWith(prefixStr + "First")) {
+            if (!prefixStr.equals("find")) {
+                throw new IllegalArgumentException("Only findFirstBy... has a limit keyword: " + methodName);
+            }
+
+            limit = firstStr == null || firstStr.isEmpty() ? 1 : Integer.parseInt(firstStr);
+
+            if (limit < 1) {
+                throw new IllegalArgumentException("The number after First must be at least 1: " + methodName);
+            }
+        }
 
         Prefix prefix = switch (prefixStr) {
             case "find" -> Prefix.FIND;
@@ -87,7 +102,7 @@ public final class MethodNameParser {
 
         // No conditions after "By" → match all entities (e.g. countBy(), findBy(), deleteBy())
         if (rest.isEmpty()) {
-            return new QueryDescriptor(prefix, List.of(), Combinator.AND, List.of(), returnType);
+            return new QueryDescriptor(prefix, List.of(), Combinator.AND, List.of(), returnType, limit);
         }
 
         // Split off OrderBy clause
@@ -134,7 +149,7 @@ public final class MethodNameParser {
             paramIndex = pc.nextParamIndex;
         }
 
-        return new QueryDescriptor(prefix, conditions, combinator, orderSpecs, returnType);
+        return new QueryDescriptor(prefix, conditions, combinator, orderSpecs, returnType, limit);
     }
 
     // -- OrderBy parsing --

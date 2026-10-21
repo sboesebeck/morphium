@@ -65,4 +65,25 @@ final class QueryResultHelper {
         }
         return Optional.of(results.get(0));
     }
+
+    /**
+     * For {@code findFirstBy...}: the first result of the query in its order. More matches are no error here, unlike {@link #requireSingle}.
+     *
+     * @throws EmptyResultException if nothing matches
+     */
+    static Object requireFirst(Query query) {
+        List results = query.limit(1).asList();
+
+        if (results.isEmpty()) {
+            throw new EmptyResultException("Query returned no result");
+        }
+
+        return results.get(0);
+    }
+
+    /** For {@code findFirstBy...} with an {@code Optional} result: the first result in the order of the query, empty if nothing matches. */
+    static Optional optionalFirst(Query query) {
+        List results = query.limit(1).asList();
+        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
 }

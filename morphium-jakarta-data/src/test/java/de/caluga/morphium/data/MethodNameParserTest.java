@@ -22,6 +22,24 @@ class MethodNameParserTest {
     class MatchAllTests {
 
         @Test
+        @DisplayName("findFirstBy and findFirst3By limit the result (MOR-079)")
+        void findFirst() {
+            QueryDescriptor one = MethodNameParser.parse("findFirstByStatus", ENTITY_FIELDS);
+            assertThat(one.prefix()).isEqualTo(QueryDescriptor.Prefix.FIND);
+            assertThat(one.limit()).isEqualTo(1);
+            assertThat(one.conditions()).hasSize(1);
+
+            QueryDescriptor three = MethodNameParser.parse("findFirst3ByStatusOrderByAmountDesc", ENTITY_FIELDS);
+            assertThat(three.limit()).isEqualTo(3);
+            assertThat(three.orderBy()).hasSize(1);
+
+            assertThat(MethodNameParser.parse("findFirst10By", ENTITY_FIELDS).limit()).isEqualTo(10);
+            assertThat(MethodNameParser.parse("findByStatus", ENTITY_FIELDS).limit()).isZero();
+            assertThatThrownBy(() -> MethodNameParser.parse("findFirst0ByStatus", ENTITY_FIELDS)).isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> MethodNameParser.parse("countFirstByStatus", ENTITY_FIELDS)).isInstanceOf(IllegalArgumentException.class);
+        }
+
+        @Test
         @DisplayName("countAll() counts every entity: no By, no condition (MOR-076)")
         void countAll() {
             QueryDescriptor result = MethodNameParser.parse("countAll", ENTITY_FIELDS);

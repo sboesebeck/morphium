@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Jakarta Data: `findFirstBy...` and `findFirst3By...` (MOR-079)
+A derived query can ask for the first result or the first n: `findFirstByStatusOrderByAmountDesc` returns the first match in the order of the name, `findFirst3By...` at most three.
+For a single entity or an `Optional` more matches are no error, the first one is returned. `First` belongs to `find` only; `countFirstBy` and `findFirst0By` are refused.
+
 #### Jakarta Data: `@AtomicUpdate`, one atomic update or find-and-modify with structured assignments (MOR-021, Morphium extension)
 A repository method can be one atomic conditional update or upsert, without the driver API: `@AtomicUpdate(where = "...", set = ..., setOnInsert = ..., inc = ...,
 upsert = true)` with `@Assign(field, param | value)`. The return type chooses the form: `void`/`boolean`/`int`/`long` is an `update` command and returns the number of
