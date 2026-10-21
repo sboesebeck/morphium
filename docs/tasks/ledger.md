@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 23, in_progress 1, done 55
+Status: open 23, in_progress 1, done 56
 
 ## Overview
 
@@ -78,6 +78,7 @@ Status: open 23, in_progress 1, done 55
 | MOR-078 | done | 2 | defect | A char or Character field cannot be read back | S |  |  |
 | MOR-079 | done | 2 | defect | Jakarta Data: findFirstBy and findFirstNBy are unsupported | S |  |  |
 | MOR-080 | done | 2 | defect | Jakarta Data: a repository method that returns an array of the entity is unsupported | S |  |  |
+| MOR-081 | done | 2 | defect | Jakarta Data: the static order comes first, and every dynamic Sort, Sort... and Order counts | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
@@ -1399,4 +1400,22 @@ Acceptance:
 Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/ResultShapes.java
 
 Commits: e1870e2c3
+
+### MOR-081 Jakarta Data: the static order comes first, and every dynamic Sort, Sort... and Order counts
+
+Status **done**, priority 2, type defect, effort S
+
+Found by the TCK of MOR-026: a method with a static order (@OrderBy, ORDER BY, derived OrderBy) and a dynamic Sort lost the static part or the second Sort, and Sort[] and several Sort parameters were rejected or ignored. SortPlan now merges the static order first and then every dynamic Sort, Sort... and Order in parameter order (first occurrence of a property wins) for derived queries, @Find, @Query and keyset pagination in the Quarkus and the Spring module.
+
+Evidence: SortPlanTest; JdqlMethodBridgeTest.orderByThenDynamicSorts; Spring proxy tests (several Sorts, static order first); Quarkus integration test sorts on the InMemoryDriver and a real mongo:8. Reviewed in two passes: the first found a duplicated sort map in applySorting and a missing JDQL ORDER BY plus Sort test (both fixed), the second had no finding.
+
+Acceptance:
+
+- The static order is applied first, then every dynamic Sort, Sort[] and Order parameter in parameter order
+- A property named twice is sorted once, by its first occurrence
+- JDQL ORDER BY plus a dynamic Sort works
+
+Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/SortPlan.java
+
+Commits: 4ba59d0da, ca6cdab43
 
