@@ -1742,3 +1742,18 @@ tasks:
   commits:
   - e5e3e642d
   - af008022b
+- id: MOR-087
+  title: 'Jakarta Data: the keyset of a cursored @Query includes the dynamic sorts'
+  type: defect
+  status: done
+  priority: 2
+  effort: S
+  description: 'Found by the TCK of MOR-026: a @Query without ORDER BY and with an Order or Sort parameter that returns a CursoredPage had no keyset (the cursor was made from the ORDER BY of the query or @OrderBy only) and failed with "No values were provided". The keyset is the ORDER BY of the query (or @OrderBy), then every dynamic Sort, Sort... and Order.'
+  acceptance:
+  - 'A dynamic Order is the keyset when the query has no ORDER BY'
+  - 'A dynamic Sort comes after the ORDER BY of the query'
+  source:
+  - morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlMethodBridge.java
+  evidence: 'JdqlCursoredSortTest (2, red before the change); the other Jdql and cursor tests stay green. Reviewed in one pass without finding.'
+  commits:
+  - 5c5059479
