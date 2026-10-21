@@ -153,17 +153,28 @@ public final class RepositoryEntities {
         }
 
         Query query = method.getAnnotation(Query.class);
-        String named = query == null ? null : JdqlEntityName.of(query.value());
+        String named = null;
+
+        if (query != null) {
+            try {
+                named = JdqlEntityName.of(query.value());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalStateException("@Query on " + method + ": " + e.getMessage(), e);
+            }
+        }
 
         if (named != null) {
             Class<?> entity = known.get(named.toLowerCase(Locale.ROOT));
 
-            if (entity == null) {
+            if (entity != null) {
+                return entity;
+            }
+
+            // DELETE and UPDATE have always been checked against the entity of the repository; the name after FROM of a query was never looked at and still is not
+            if (JdqlDelete.is(query.value()) || JdqlUpdate.is(query.value())) {
                 throw new IllegalStateException("@Query on " + method + " names the entity " + named + ", which is no entity of the repository (known: "
                     + known.values().stream().map(Class::getSimpleName).toList() + ")");
             }
-
-            return entity;
         }
 
         Class<?> returned = element(method.getGenericReturnType());

@@ -93,6 +93,12 @@ class RepositoryEntitiesTest {
 
         @Query("DELETE FROM WHERE id = ?1")
         long unnamed(String id);
+
+        @Query("SELECT length FROM Product WHERE length > 1")
+        List<Integer> selectFromAnotherName();
+
+        @Query("UPDATE Box SET length = upper(length)")
+        long unsupportedItem();
     }
 
     interface Nothing {
@@ -154,6 +160,16 @@ class RepositoryEntitiesTest {
         assertThat(RepositoryEntities.forMethod(method(Two.class, "unnamed"), null, known)).isNull();
         assertThat(RepositoryEntities.forMethod(method(OnlyBoxes.class, "countByLength"), Box.class, RepositoryEntities.known(OnlyBoxes.class))).isEqualTo(Box.class);
         assertThat(RepositoryEntities.forMethod(method(Generic.class, "coordinates"), Box.class, RepositoryEntities.known(Generic.class))).isEqualTo(Coordinate.class);
+    }
+
+    @Test
+    @DisplayName("the name after FROM of a query that is none of the repository is ignored as before; an UPDATE with an item that cannot work names the method")
+    void tolerantSelect() throws Exception {
+        Map<String, Class<?>> known = RepositoryEntities.known(Two.class);
+
+        assertThat(RepositoryEntities.forMethod(method(Two.class, "selectFromAnotherName"), Box.class, known)).isEqualTo(Box.class);
+        assertThatThrownBy(() -> RepositoryEntities.forMethod(method(Two.class, "unsupportedItem"), Box.class, known)).isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("unsupportedItem");
     }
 
     @Test
