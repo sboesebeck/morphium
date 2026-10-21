@@ -634,6 +634,8 @@ Apache License 2.0 – see [LICENSE](LICENSE) for details.
 
 Thanks to every contributor who helped ship the Morphium 6.2.x releases and to the MongoDB community for continuous feedback.
 
+Since 2026, AI coding agents have been part of the daily work on Morphium and PoppyDB - models from Anthropic and OpenAI as well as open-weight models. They were particularly helpful in debugging: reading cluster logs, reproducing races in tests and tracing failures across driver, server and replication code. Design decisions, reviews and releases remain with the maintainers.
+
 A special thank-you goes to **Heiko Kopp** ([Bardioc1977](https://github.com/Bardioc1977)) for countless contributions, real-world feedback from large-scale production deployments, and the excellent [Quarkus Morphium Showcase](https://morphium.kopp-cloud.de/).
 
 ---
