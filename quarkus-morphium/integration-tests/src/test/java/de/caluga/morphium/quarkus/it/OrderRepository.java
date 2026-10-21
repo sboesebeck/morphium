@@ -390,6 +390,10 @@ public interface OrderRepository extends BasicRepository<OrderEntity, String> {
     // condition query. Method name deliberately does NOT start with deleteBy/findBy/countBy/
     // existsBy, since MethodNameParser would otherwise try to parse it as a derived query. ---
 
+    // --- a derived query may return a CursoredPage (MOR-086) ---
+
+    jakarta.data.page.CursoredPage<OrderEntity> findByStatusOrderByAmountAsc(String status, jakarta.data.page.PageRequest pageRequest);
+
     // --- SELECT field answers the values of the field when the method returns them (MOR-083) ---
 
     @Query("SELECT customerId WHERE status = :status ORDER BY amount")

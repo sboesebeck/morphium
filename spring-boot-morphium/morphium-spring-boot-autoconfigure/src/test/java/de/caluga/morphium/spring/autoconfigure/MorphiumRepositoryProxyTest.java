@@ -361,6 +361,24 @@ class MorphiumRepositoryProxyTest {
     }
 
     @Test
+    void aDerivedQueryMayReturnACursoredPage() {
+        for (int i = 1; i <= 5; i++) {
+            repository.save(new TestEntity("n" + i, "active", i));
+        }
+
+        jakarta.data.page.CursoredPage<TestEntity> first = repository.findByStatusOrderByPriorityAsc("active", PageRequest.ofSize(2));
+        assertEquals(List.of("n1", "n2"), first.content().stream().map(TestEntity::getName).toList());
+        assertTrue(first.hasNext());
+
+        jakarta.data.page.CursoredPage<TestEntity> second = repository.findByStatusOrderByPriorityAsc("active", first.nextPageRequest());
+        assertEquals(List.of("n3", "n4"), second.content().stream().map(TestEntity::getName).toList());
+
+        jakarta.data.page.CursoredPage<TestEntity> last = repository.findByStatusOrderByPriorityAsc("active", second.nextPageRequest());
+        assertEquals(List.of("n5"), last.content().stream().map(TestEntity::getName).toList());
+        assertFalse(last.hasNext());
+    }
+
+    @Test
     void findFirstCannotBeCombinedWithALimitParameter() {
         repository.save(new TestEntity("a", "active", 1));
 

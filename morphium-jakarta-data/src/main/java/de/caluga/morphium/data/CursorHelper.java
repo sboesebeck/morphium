@@ -5,10 +5,15 @@ import de.caluga.morphium.query.Query;
 import jakarta.data.page.PageRequest;
 
 import java.lang.reflect.Field;
+import jakarta.data.page.CursoredPage;
+import jakarta.data.page.impl.CursoredPageRecord;
+
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Utility for cursor-based (keyset) pagination.
@@ -166,6 +171,54 @@ public final class CursorHelper {
             sortMap.put(mongoField, ascending ? 1 : -1);
         }
         query.sort(sortMap);
+    }
+
+    /**
+     * One page of a keyset pagination (MOR-086), shared by {@code @Find}, {@code @Query} and the derived queries: the condition that continues after (or before) the cursor, the
+     * sort (inverted for {@code CURSOR_PREVIOUS}), one row more than asked for to know whether there is a next page, and the cursors of the rows.
+     *
+     * @param query     the query with the conditions of the method, not yet sorted by the keyset
+     * @param sortSpecs the keyset; it must not be empty for a cursor request
+     * @param countQuery makes a new query with the conditions of the method; only called when the request asks for totals
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static CursoredPage<?> page(Query query, PageRequest pageRequest, List<SortSpec> sortSpecs, Supplier<Query> countQuery, Morphium morphium, Class entityClass) {
+        boolean isForward = pageRequest.mode() != PageRequest.Mode.CURSOR_PREVIOUS;
+        int requestedSize = pageRequest.size();
+
+        if (pageRequest.mode() != PageRequest.Mode.OFFSET) {
+            PageRequest.Cursor cursor = pageRequest.cursor()
+                    .orElseThrow(() -> new IllegalArgumentException("PageRequest mode is " + pageRequest.mode() + " but no cursor provided"));
+            applyCursorCondition(query, cursor, sortSpecs, morphium, entityClass, isForward);
+        } else {
+            // a CursoredPage in classic offset mode: no cursor condition, but the page is skipped to like for a Page<T>
+            query.skip((int) ((pageRequest.page() - 1) * requestedSize));
+        }
+
+        applySort(query, sortSpecs, morphium, entityClass, isForward);
+        // one row more than asked for tells whether there is a next page
+        query.limit(requestedSize + 1);
+
+        List content = query.asList();
+        boolean hasMore = content.size() > requestedSize;
+
+        if (hasMore) {
+            content = new ArrayList(content.subList(0, requestedSize));
+        }
+
+        if (!isForward) {
+            Collections.reverse(content);
+        }
+
+        List<String> sortFields = sortSpecs.stream().map(SortSpec::javaField).toList();
+        List<PageRequest.Cursor> cursors = extractCursors(content, sortFields, morphium, entityClass);
+        long totalElements = pageRequest.requestTotal() ? countQuery.get().countAll() : -1;
+
+        if (content.isEmpty()) {
+            return new CursoredPageRecord<>(content, cursors, totalElements, pageRequest, (PageRequest) null, (PageRequest) null);
+        }
+
+        return new CursoredPageRecord<>(content, cursors, totalElements, pageRequest, pageRequest.mode() == PageRequest.Mode.OFFSET, !hasMore);
     }
 
     /**

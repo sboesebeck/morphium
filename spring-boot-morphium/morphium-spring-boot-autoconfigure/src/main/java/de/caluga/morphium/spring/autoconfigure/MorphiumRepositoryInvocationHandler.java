@@ -219,10 +219,12 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
                     returnsSingle, returnsOptional, returnsBoolean, returnsStream, orderBySpec,
                     sortIdx, orderIdx, pageRequestIdx, limitIdx);
         }
+        boolean returnsCursoredPage = CursoredPage.class.isAssignableFrom(method.getReturnType());
+
         return args -> QueryMethodBridge.executeQuery(
                 delegate, parseableName, args != null ? args : new Object[0],
                 returnsSingle, returnsOptional, returnsBoolean, returnsStream, orderBySpec,
-                sortIdx, orderIdx, pageRequestIdx, limitIdx);
+                sortIdx, orderIdx, pageRequestIdx, limitIdx, returnsCursoredPage);
     }
 
     /**
