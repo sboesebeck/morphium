@@ -24,13 +24,32 @@ import java.util.TreeMap;
 import static net.bytebuddy.matcher.ElementMatchers.isAnnotatedWith;
 import static net.bytebuddy.matcher.ElementMatchers.named;
 
-/** A SPIKE for MOR-026: runs the standalone entity tests of the Jakarta Data TCK without Arquillian and prints what passes. */
+/**
+ * MOR-026: runs the standalone entity tests of the Jakarta Data TCK 1.0.0 (jakarta.data-tck) against the repositories of this module, without Arquillian: the TCK classes are loaded
+ * by {@link TckLoader}, which gives their entities the annotations of Morphium, and each test method runs on a fresh instance with repository proxies as fields.
+ * <p>
+ * Every test must pass except the ones in {@link #EXCLUDED}, each with its reason. A test that is excluded but passes fails the build, so the list cannot go stale.
+ * Run it with {@code mvn -nsu test -Dtest=JakartaDataTckTest} in {@code spring-boot-morphium}; against a real MongoDB add
+ * {@code -Dmorphium.driver-name=PooledDriver -Dmorphium.hosts=localhost:27017 -Dmorphium.database=tck}. {@code -Dtck.trace=<part of a test name>} prints the stack of a failure,
+ * {@code -Dtck.reason.length=N} the length of the failure messages.
+ */
 @SpringBootTest(classes = TestApplication.class)
 @ActiveProfiles("test")
-class JakartaDataTckSpikeTest {
+class JakartaDataTckTest {
 
     @Autowired
     Morphium morphium;
+
+    /** the tests of the TCK that are known not to pass, and why; see the ledger for the tasks */
+    private static final java.util.Map<String, String> EXCLUDED = java.util.Map.of(
+        "testOrderByHasPrecedenceOverSorts", "sorts an enum by ordinal; Morphium stores an enum by its name and sorts it alphabetically",
+        "testOrderByHasPrecedenceOverPageRequestSorts", "sorts an enum by ordinal; Morphium stores an enum by its name and sorts it alphabetically",
+        "testBasicRepository", "sorts an enum by ordinal; Morphium stores an enum by its name and sorts it alphabetically",
+        "testLimitedRange", "sorts an enum by ordinal; Morphium stores an enum by its name and sorts it alphabetically",
+        "testPrimaryEntityClassDeterminedByLifeCycleMethods", "MOR-077: a repository without a primary entity (CustomRepository) is not supported",
+        "testUpdateQueryWithWhereClause", "MOR-077: a repository without a primary entity (MultipleEntityRepo) is not supported",
+        "testUpdateQueryWithoutWhereClause", "MOR-077: a repository without a primary entity (MultipleEntityRepo) is not supported",
+        "testIgnoreCase", "MOR-092: IgnoreCase before Between, NotIn and the comparison operators is not supported");
 
     /** loads the classes of the TCK itself and gives its entities the annotations of Morphium */
     static class TckLoader extends ClassLoader {
@@ -159,10 +178,26 @@ class JakartaDataTckSpikeTest {
             }
         }
 
-        unsupported.forEach((k, v) -> System.out.println("TCK-SPIKE no repository for " + k + ": " + v));
-        System.out.println("TCK-SPIKE " + passed + " of " + methods.size() + " passed");
+        unsupported.forEach((k, v) -> System.out.println("TCK no repository for " + k + ": " + v));
+        System.out.println("TCK " + passed + " of " + methods.size() + " passed");
         java.util.Map<String, List<String>> byReason = new TreeMap<>();
         results.forEach((k, v) -> byReason.computeIfAbsent(v.length() > Integer.getInteger("tck.reason.length", 160) ? v.substring(0, Integer.getInteger("tck.reason.length", 160)) : v, x -> new ArrayList<>()).add(k));
-        byReason.forEach((reason, names) -> System.out.println("TCK-SPIKE [" + names.size() + "] " + reason + " :: " + (names.size() > 6 ? names.subList(0, 6) + "..." : names)));
+        byReason.forEach((reason, names) -> System.out.println("TCK [" + names.size() + "] " + reason + " :: " + (names.size() > 6 ? names.subList(0, 6) + "..." : names)));
+
+        List<String> unexpectedFailures = new ArrayList<>();
+        List<String> unexpectedPasses = new ArrayList<>();
+
+        results.forEach((name, result) -> {
+            boolean passes = result.equals("PASS");
+
+            if (!passes && !EXCLUDED.containsKey(name)) {
+                unexpectedFailures.add(name + ": " + result);
+            } else if (passes && EXCLUDED.containsKey(name)) {
+                unexpectedPasses.add(name);
+            }
+        });
+
+        org.junit.jupiter.api.Assertions.assertTrue(unexpectedFailures.isEmpty(), "TCK tests that fail and are not excluded: " + unexpectedFailures);
+        org.junit.jupiter.api.Assertions.assertTrue(unexpectedPasses.isEmpty(), "TCK tests that are excluded but pass, remove them from EXCLUDED: " + unexpectedPasses);
     }
 }

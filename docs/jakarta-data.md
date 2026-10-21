@@ -582,6 +582,26 @@ implementation that extends `AbstractMorphiumRepository`, call `setMorphium(...)
 `@Query` strings, and `@Find`/`@Delete`/`@By` annotations at runtime instead of
 generating bytecode.
 
+## Conformance (Jakarta Data TCK)
+
+The standalone entity tests of the Jakarta Data TCK 1.0.0 (`jakarta.data:jakarta.data-tck`) run against the repositories of the Spring module, without Arquillian, as
+`JakartaDataTckTest` in `spring-boot-morphium`. 65 of the 73 assertions pass, on the InMemoryDriver and on a real MongoDB 8. The test fails when a test that is not excluded fails and when an
+excluded test passes, so its list of exclusions (each with its reason) is always the truth:
+
+| Excluded | Reason |
+|---|---|
+| `testOrderByHasPrecedenceOverSorts`, `testOrderByHasPrecedenceOverPageRequestSorts`, `testBasicRepository`, `testLimitedRange` | they sort an enum by its ordinal; Morphium stores an enum by its name, so it sorts alphabetically |
+| `testPrimaryEntityClassDeterminedByLifeCycleMethods`, `testUpdateQueryWithWhereClause`, `testUpdateQueryWithoutWhereClause` | repositories without a primary entity (MOR-077) |
+| `testIgnoreCase` | `IgnoreCase` before `Between`/`NotIn` (MOR-092) |
+
+```bash
+cd spring-boot-morphium && mvn -nsu test -Dtest=JakartaDataTckTest
+# against a real MongoDB
+cd spring-boot-morphium && mvn -nsu test -Dtest=JakartaDataTckTest -Dmorphium.driver-name=PooledDriver -Dmorphium.hosts=localhost:27017 -Dmorphium.database=tck
+```
+
+`-Dtck.trace=<part of a test name>` prints the stack of a failing test. The CDI tests, the signature test and the web tests of the TCK need a Jakarta EE container and are not run.
+
 ## Limitations
 
 Jakarta Data 1.0, as implemented by this module, does **not** cover every Morphium

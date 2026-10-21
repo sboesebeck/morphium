@@ -4,13 +4,12 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 23, in_progress 1, done 66
+Status: open 24, done 67
 
 ## Overview
 
 | ID | Status | Prio | Type | Title | Effort | Ticket | Depends on |
 |---|---|---|---|---|---|---|---|
-| MOR-026 | in_progress | 2 | infrastructure | Run the Jakarta Data TCK against morphium-jakarta-data | M |  |  |
 | MOR-063 | open | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
 | MOR-069 | open | 2 | defect | PoppyDB: the update fast path reports every error as 11000 and ignores the ordered flag | S |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
@@ -34,6 +33,7 @@ Status: open 23, in_progress 1, done 66
 | MOR-071 | open | 3 | defect | Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange | S |  |  |
 | MOR-075 | open | 3 | defect | JdqlParser accepts an operand that is neither a parameter nor a literal | S |  |  |
 | MOR-077 | open | 3 | verification | Jakarta Data: repositories without a single primary entity are unsupported | M |  |  |
+| MOR-092 | open | 3 | defect | Jakarta Data: IgnoreCase before Between, NotIn and the comparison operators | M |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -55,6 +55,7 @@ Status: open 23, in_progress 1, done 66
 | MOR-021 | done | 2 | implementation | Morphium extension: atomic update and find-and-modify repository annotations | L |  | MOR-008, MOR-010 |
 | MOR-024 | done | 2 | defect | Jakarta Data: support ordinal parameters (?1) in @Query | S |  |  |
 | MOR-025 | done | 2 | defect | Jakarta Data: @Update is not atomic and throws IllegalStateException | M |  |  |
+| MOR-026 | done | 2 | infrastructure | Run the Jakarta Data TCK against morphium-jakarta-data | M |  |  |
 | MOR-029 | done | 2 | defect | InMemoryDriver: reject values BsonEncoder cannot encode | M |  |  |
 | MOR-031 | done | 2 | implementation | Quarkus: Micrometer / OpenTelemetry metrics for pool and update paths | M |  |  |
 | MOR-034 | done | 2 | implementation | Quarkus testing module: real MongoDB test resource, data reset and fixtures | M |  |  |
@@ -570,9 +571,11 @@ Commits: 998dda853
 
 ### MOR-026 Run the Jakarta Data TCK against morphium-jakarta-data
 
-Status **in_progress**, priority 2, type infrastructure, effort M
+Status **done**, priority 2, type infrastructure, effort M
 
 No jakarta.data-tck dependency exists in any pom. Micronaut Data has a jakarta-data-tck/mongodb module as a model. Add the TCK matching the implemented API version and run it against a real MongoDB and PoppyDB/InMemoryDriver.
+
+Evidence: JakartaDataTckTest (Spring module, replaces the spike) runs the 73 standalone assertions of jakarta.data-tck 1.0.0 without Arquillian and fails when a test that is not excluded fails or an excluded test passes. 65 of 73 pass on the InMemoryDriver and on a real mongo:8 (PooledDriver, port 27099); the 8 exclusions have a reason each in the test: 4 sort an enum by ordinal (Morphium stores an enum by its name), 3 need repositories without a primary entity (MOR-077), 1 is IgnoreCase before Between/NotIn (MOR-092). The test is part of the normal test run of the Spring module, so CI runs it wherever that module is built. Documented in docs/jakarta-data.md (Conformance). Fixed on the way, one task per cause: MOR-076, 078 to 091.
 
 Acceptance:
 
@@ -581,6 +584,8 @@ Acceptance:
 - Verified against a real MongoDB (not only the InMemoryDriver).
 
 Source: docs/research/other-clients.md pattern 14
+
+Commits: 1a5ef1ca5
 
 ### MOR-076 Jakarta Data: derived queries without By (countAll and similar) are unsupported
 
@@ -1601,4 +1606,17 @@ Acceptance:
 Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/OrFilter.java
 
 Commits: 9a94434d3
+
+### MOR-092 Jakarta Data: IgnoreCase before Between, NotIn and the comparison operators
+
+Status **open**, priority 3, type defect, effort M
+
+Found by the TCK of MOR-026 (testIgnoreCase): findByHexadecimalIgnoreCaseBetweenAndHexadecimalNotIn(min, max, set, sorts) answers nothing. IgnoreCase is parsed as an operator of its own (equals ignoring case); in the specification it is a modifier that applies to the operator after it (Between, NotIn, Like, Contains and so on). A case-insensitive range needs a collation of strength 2 on the query or a comparison of the lower-cased values; check what the InMemoryDriver supports before choosing.
+
+Acceptance:
+
+- IgnoreCase before Between, In, NotIn, Like, Contains, StartsWith, EndsWith and the comparison operators compares without case
+- testIgnoreCase of the TCK passes and leaves the exclusion list of JakartaDataTckTest
+
+Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/MethodNameParser.java
 
