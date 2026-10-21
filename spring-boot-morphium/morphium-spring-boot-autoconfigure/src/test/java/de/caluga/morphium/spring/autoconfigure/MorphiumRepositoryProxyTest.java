@@ -297,6 +297,14 @@ class MorphiumRepositoryProxyTest {
         assertFalse(repository.finish("nobody"));
     }
 
+    @Test
+    void countAllHasNoByAndCountsEveryDocument() {
+        repository.save(new TestEntity("a", "active", 1));
+        repository.save(new TestEntity("b", "inactive", 2));
+
+        assertEquals(2L, repository.countAll());
+    }
+
     // ---- Review finding 3: @Query / @Find with CompletionStage ran synchronously ----
 
     @Test

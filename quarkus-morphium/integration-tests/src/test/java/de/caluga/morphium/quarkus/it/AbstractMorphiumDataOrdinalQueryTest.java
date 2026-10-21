@@ -82,4 +82,10 @@ abstract class AbstractMorphiumDataOrdinalQueryTest {
     void reversed() {
         assertThat(repository.countOrdinalReversed(100.0, "OPEN")).isEqualTo(2L);
     }
+
+    @Test
+    @DisplayName("countAll() has no By and counts every document (MOR-076)")
+    void countAll() {
+        assertThat(repository.countAll()).isEqualTo(4L);
+    }
 }
