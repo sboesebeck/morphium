@@ -158,6 +158,10 @@ context keep their own key handling.
 
 ### Fixed
 
+#### A `short` or `Short` field is stored as a number (MOR-084)
+`ShortMapper` existed but was never registered, so a `short` or `Short` field was written as a Base64 Java-serialization blob (`{_b64data: ...}`): the database could not compare, sort or
+increment it. It is written as a number like an int now; documents that were written as a blob are still read (the blob may only hold a `Short`, any other class is refused).
+
 #### Jakarta Data: `SELECT field` answers the values when the method returns them (MOR-083)
 `@Query("SELECT name WHERE ...")` on a method that returns `List<String>`, `Optional<Integer>`, `Stream<...>`, `Page<...>` or a single `String` answered partly filled entities, so the caller got a
 `ClassCastException`. The Quarkus build and the Spring proxy now pass the class of one result to the bridge; when it is neither the entity nor a record, the values of the selected field are
