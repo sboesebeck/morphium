@@ -106,6 +106,21 @@ class JdqlLiteralsExecutionTest {
     }
 
     @Test
+    @DisplayName("a collection parameter inside an IN list contributes its elements")
+    void collectionParameterInList() {
+        assertThat(ids("WHERE hex IN (:p1, '4a')", List.of("31", "32"))).containsExactly(1L, 2L, 5L);
+    }
+
+    @Test
+    @DisplayName("a dotted name is the constant of an enum only for an enum field: for another field it stays the text")
+    void dottedNameOnlyForEnums() {
+        morphium.store(new Num(7, true, Kind.ONE, "77", "foo.bar"));
+        morphium.store(new Num(8, true, Kind.ONE, "78", "bar"));
+        assertThat(ids("WHERE note = foo.bar")).containsExactly(7L);
+        assertThat(ids("WHERE kind IN (a.b.Kind.PRIME, a.b.Kind.ONE) AND id >= 7")).containsExactly(7L, 8L);
+    }
+
+    @Test
     @DisplayName("a quote inside a literal, and keywords and operators inside a literal are text")
     void literalsAreText() {
         assertThat(ids("WHERE note = 'it''s'")).containsExactly(2L);
