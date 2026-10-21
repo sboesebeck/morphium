@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 23, in_progress 1, done 52
+Status: open 23, in_progress 1, done 53
 
 ## Overview
 
@@ -75,6 +75,7 @@ Status: open 23, in_progress 1, done 52
 | MOR-067 | done | 2 | defect | Query.toQueryObject puts the or queries into the $nor list when both are used | S |  |  |
 | MOR-068 | done | 2 | defect | SingleMongoConnectDriver: cannot connect to a standalone server, and a rejected bulk request keeps its only connection | S |  |  |
 | MOR-076 | done | 2 | defect | Jakarta Data: derived queries without By (countAll and similar) are unsupported | S |  |  |
+| MOR-078 | done | 2 | defect | A char or Character field cannot be read back | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
@@ -1347,4 +1348,20 @@ Acceptance:
 Source: morphium-core/src/main/java/de/caluga/morphium/writer/MorphiumWriterImpl.java pushPull and pushIt
 
 Commits: 1358b433d
+
+### MOR-078 A char or Character field cannot be read back
+
+Status **done**, priority 2, type defect, effort S
+
+Found by the TCK of MOR-026: 18 of its 73 tests failed with 'could not set field thisCharacter: Field has type char got type class java.lang.Integer'. A character is written as its number (store(), the update-value walk), AnnotationAndReflectionHelper.convertType had no branch for char and Character, so the document could not be read. 18 TCK tests are this cause.
+
+Evidence: CharacterFieldTest (3 tests: read back after store, after Query.set and the update builder, and a query on a char) on the InMemoryDriver and on mongo:8; red before the change (could not set field letter), green after. Regression and the TCK spike run are listed with the series.
+
+Acceptance:
+
+- A char and a Character field are read back after store() and after an update, on the InMemoryDriver and on a real MongoDB
+
+Source: docs/research/jakarta-data-1.1.md, morphium-core/src/main/java/de/caluga/morphium/AnnotationAndReflectionHelper.java convertType
+
+Commits: 32d0ceca7
 
