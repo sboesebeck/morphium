@@ -120,4 +120,25 @@ class NoPrimaryEntityRepositoryTest {
         assertEquals(0, morphium.createQueryFor(OtherEntity.class).countAll());
         assertEquals(2, morphium.createQueryFor(TestEntity.class).countAll());
     }
+
+    interface WrongResult {
+        @jakarta.data.repository.Insert
+        String add(TestEntity entity);
+    }
+
+    interface OneForMany {
+        @jakarta.data.repository.Insert
+        TestEntity addAll(List<TestEntity> entities);
+    }
+
+    @Test
+    void aLifecycleMethodWithAResultItCannotGiveRefusesTheRepository() {
+        var metadata = new de.caluga.morphium.data.RepositoryMetadata(TestEntity.class, de.caluga.morphium.driver.MorphiumId.class, "id");
+
+        IllegalStateException wrong = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> new MorphiumRepositoryInvocationHandler(morphium, metadata, WrongResult.class));
+        assertTrue(wrong.getMessage().contains("WrongResult.add") && wrong.getMessage().contains("String"), wrong.getMessage());
+
+        IllegalStateException many = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> new MorphiumRepositoryInvocationHandler(morphium, metadata, OneForMany.class));
+        assertTrue(many.getMessage().contains("several entities"), many.getMessage());
+    }
 }

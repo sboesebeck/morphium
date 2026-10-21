@@ -60,6 +60,11 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
                 RepositoryEntities.forMethod(method, primaryEntity, knownEntities);
             }
 
+            // so does a lifecycle method with a result that it cannot give (MOR-077)
+            if (!method.isDefault() && RepositoryEntities.isLifecycle(method)) {
+                handlers.put(method, buildLifecycleHandler(method));
+            }
+
             // so does a wrong @AtomicUpdate (MOR-021)
             if (!method.isDefault() && method.isAnnotationPresent(AtomicUpdate.class)) {
                 handlers.put(method, buildAtomicUpdateHandler(method, method.getAnnotation(AtomicUpdate.class)));
@@ -377,6 +382,14 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
             : method.isAnnotationPresent(jakarta.data.repository.Save.class) ? "SAVE"
             : method.isAnnotationPresent(jakarta.data.repository.Update.class) ? "UPDATE" : "DELETE";
         String shape = LifecycleBridge.returnShape(method.getReturnType());
+        Class<?> entity = RepositoryEntities.lifecycleEntity(method);
+        boolean many = method.getParameterTypes()[0].isArray() || java.util.Collection.class.isAssignableFrom(method.getParameterTypes()[0]);
+
+        if (shape.equals(LifecycleBridge.ENTITY) && (many || !method.getReturnType().isAssignableFrom(entity))) {
+            throw new IllegalStateException(repositoryInterface.getSimpleName() + "." + method.getName() + ": a lifecycle method returns nothing, the entity (for one entity), a list or array of entities, or a boolean, int or long; not "
+                + method.getReturnType().getSimpleName() + (many ? " for several entities" : ""));
+        }
+
         var repo = delegateFor(method);
         return args -> LifecycleBridge.execute(repo, kind, args[0], shape);
     }
