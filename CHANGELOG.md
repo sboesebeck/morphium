@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Jakarta Data: repositories without a primary entity, lifecycle methods under any name (MOR-077)
+A `@Repository` interface can extend nothing. Its `@Insert`, `@Save`, `@Update` and entity-taking `@Delete` methods have any name (the Spring module only knew `insert`, `save` and the like) and take one entity, a
+collection, or an array or varargs; they return nothing, the entity, a list or an array, or a `boolean`, `int` or `long`. The primary entity is the entity of the lifecycle methods; a repository with several
+entities works per method: a JDQL statement on the entity it names (`DELETE FROM Box`), a lifecycle method on the entity it takes, a query or find method on the entity it returns
+(`AbstractMorphiumRepository.forEntity`). The Spring registrar picks up such repositories and `BasicRepository` ones, which it skipped. Also: `UPDATE ... SET f = f / n` (the multiplication by the inverse),
+`boolean` as the result of a `DELETE` or `UPDATE` statement, and numeric literals with the suffix of Java and an exponent (`0.0d`, `7L`, `1e3`) in `@Query`.
+
 #### Jakarta Data: a repository method may return an array of the entity (MOR-080)
 `Product[] findByStatus(String status)`, `@Find` and `@Query` methods can return an array of the entity. The Quarkus build and the Spring proxy treat an array like a `List` and convert the
 result with `ResultShapes.toArray`. Before, the method got a single entity or failed with a `ClassCastException`.

@@ -77,7 +77,7 @@ public final class JdqlMethodBridge {
         Class entityClass = repo.getMetadata().entityClass();
         String entityName = JdqlDelete.entityName(jdql);
 
-        if (entityName != null && !entityName.equals(entityClass.getSimpleName())) {
+        if (entityName != null && !entityName.equalsIgnoreCase(entityClass.getSimpleName())) {
             throw new IllegalArgumentException("The statement \"" + jdql + "\" deletes from " + entityName + ", but the repository is for " + entityClass.getSimpleName());
         }
 
@@ -131,7 +131,7 @@ public final class JdqlMethodBridge {
 
         JdqlUpdate.Statement statement = JdqlUpdate.parse(jdql);
 
-        if (statement.entityName() != null && !statement.entityName().equals(entityClass.getSimpleName())) {
+        if (statement.entityName() != null && !statement.entityName().equalsIgnoreCase(entityClass.getSimpleName())) {
             throw new IllegalArgumentException("The statement \"" + jdql + "\" updates " + statement.entityName() + ", but the repository is for " + entityClass.getSimpleName());
         }
 
