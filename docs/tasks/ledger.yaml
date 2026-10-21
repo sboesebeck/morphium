@@ -1757,3 +1757,17 @@ tasks:
   evidence: 'JdqlCursoredSortTest (2, red before the change); the other Jdql and cursor tests stay green. Reviewed in one pass without finding.'
   commits:
   - 5c5059479
+- id: MOR-088
+  title: 'Jakarta Data: COUNT(THIS) is the keyword in any case'
+  type: defect
+  status: done
+  priority: 2
+  effort: S
+  description: 'Found by the TCK of MOR-026: SELECT COUNT(THIS) WHERE ... counted a field named THIS and answered 0, because only the lower case this was the keyword. The argument is normalized in the SELECT, in HAVING and in the lookups of ORDER BY and HAVING.'
+  acceptance:
+  - 'COUNT(THIS) and COUNT(this) answer the same, in SELECT, HAVING and ORDER BY'
+  source:
+  - morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlParser.java
+  evidence: 'JdqlLiteralsExecutionTest.countWithLiterals and orderAndHavingWithUpperCaseThis, JdqlParserLiteralsTest.thisInAnyCase. Reviewed in one pass: the ORDER BY lookup was still case-sensitive (fixed).'
+  commits:
+  - c87b162ae
