@@ -163,7 +163,7 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
         }
 
         // --- Derived query (findBy*, countBy*, existsBy*, deleteBy*) ---
-        if (name.startsWith("findBy") || name.startsWith("countBy")
+        if (name.matches("find(First\\d*)?By.*") || name.startsWith("countBy")
                 || name.startsWith("existsBy") || name.startsWith("deleteBy") || name.equals("countAll")) {
             return buildDerivedQueryHandler(method);
         }

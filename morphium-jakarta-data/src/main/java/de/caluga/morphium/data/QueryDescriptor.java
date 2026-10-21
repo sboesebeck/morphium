@@ -16,14 +16,31 @@ import java.util.List;
  * @param combinator how the conditions are combined ({@code AND} or {@code OR})
  * @param orderBy    the sort order parsed from an {@code OrderBy...} suffix, empty if none
  * @param returnType the shape of the result the caller expects
+ * @param limit      the number of results that {@code findFirstBy} (1) or {@code findFirst3By} (3) ask for, 0 for no limit
  */
 public record QueryDescriptor(
         Prefix prefix,
         List<Condition> conditions,
         Combinator combinator,
         List<OrderSpec> orderBy,
-        ReturnType returnType
+        ReturnType returnType,
+        int limit
 ) {
+
+    /** a descriptor without a limit */
+    public QueryDescriptor(Prefix prefix, List<Condition> conditions, Combinator combinator, List<OrderSpec> orderBy, ReturnType returnType) {
+        this(prefix, conditions, combinator, orderBy, returnType, 0);
+    }
+
+    /** the same query with another sort order */
+    public QueryDescriptor withOrderBy(List<OrderSpec> newOrderBy) {
+        return new QueryDescriptor(prefix, conditions, combinator, newOrderBy, returnType, limit);
+    }
+
+    /** the same query with another result shape */
+    public QueryDescriptor withReturnType(ReturnType newReturnType) {
+        return new QueryDescriptor(prefix, conditions, combinator, orderBy, newReturnType, limit);
+    }
 
     public enum Prefix { FIND, COUNT, EXISTS, DELETE }
 

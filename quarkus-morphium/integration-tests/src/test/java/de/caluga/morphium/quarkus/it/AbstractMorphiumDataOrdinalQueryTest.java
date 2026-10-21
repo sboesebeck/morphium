@@ -88,4 +88,23 @@ abstract class AbstractMorphiumDataOrdinalQueryTest {
     void countAll() {
         assertThat(repository.countAll()).isEqualTo(4L);
     }
+
+    @Test
+    @DisplayName("findFirstBy returns one, findFirst2By at most two, in the order of the method name (MOR-079)")
+    void findFirst() {
+        assertThat(repository.findFirstByStatusOrderByAmountDesc("CLOSED")).get().extracting(OrderEntity::getCustomerId).isEqualTo("C4");
+        assertThat(repository.findFirstByStatusOrderByAmountDesc("NOBODY")).isEmpty();
+        assertThat(repository.findFirst2ByStatusOrderByAmountAsc("OPEN")).extracting(OrderEntity::getCustomerId).containsExactly("C1", "C2");
+        assertThat(repository.findFirst2ByStatusOrderByAmountAsc("CLOSED")).extracting(OrderEntity::getCustomerId).containsExactly("C3", "C4");
+        morphium.store(newOrder("C5", 10.0, "CLOSED"));
+        assertThat(repository.findFirst2ByStatusOrderByAmountAsc("CLOSED")).extracting(OrderEntity::getCustomerId).containsExactly("C5", "C3");
+    }
+
+    private OrderEntity newOrder(String customerId, double amount, String status) {
+        var order = new OrderEntity();
+        order.setCustomerId(customerId);
+        order.setAmount(amount);
+        order.setStatus(status);
+        return order;
+    }
 }
