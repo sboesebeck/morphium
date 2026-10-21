@@ -1786,3 +1786,17 @@ tasks:
   evidence: 'JdqlCharLiteralTest (2, red before the change). Reviewed in one pass without finding.'
   commits:
   - b1249bf11
+- id: MOR-090
+  title: 'Jakarta Data: an enum in Not, In, NotIn and range operators of a derived query is its name'
+  type: defect
+  status: done
+  priority: 2
+  effort: S
+  description: 'Found by the TCK of MOR-026: findByKindNot(PRIME) returned every document and findByKindIn(Set.of(...)) none. Only a plain equality encoded the enum by its name; a value inside $ne, $in or $gt was not converted. QueryExecutor.mapValue converts an enum to its name in every operator.'
+  acceptance:
+  - 'Equality, Not, In, NotIn and a comparison with an enum work in a derived query'
+  source:
+  - morphium-jakarta-data/src/main/java/de/caluga/morphium/data/QueryExecutor.java
+  evidence: 'QueryExecutorEnumTest (red before the change). Reviewed in one pass without finding.'
+  commits:
+  - 12b162db2
