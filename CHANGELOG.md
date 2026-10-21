@@ -158,6 +158,10 @@ context keep their own key handling.
 
 ### Fixed
 
+#### Jakarta Data: a one-character string literal compares with a `char` field as the character (MOR-089)
+`letter = 'b'`, `letter IN ('a', 'c')` and `letter BETWEEN 'a' AND 'b'` compared the text with the number that a character is stored as and matched nothing, so `NOT IN ('E', 'G')` excluded nothing.
+The literal is read by the type of the field: a `char` or `Character` field gets the character, every other field keeps the text.
+
 #### Jakarta Data: `COUNT(THIS)` in upper case (MOR-088)
 Only the lower case `this` was the keyword in an aggregate: `SELECT COUNT(THIS) WHERE ...` counted a field named `THIS`, which no document has, and answered 0. The keyword is case-insensitive in the
 `SELECT` and in `HAVING`.
