@@ -386,6 +386,26 @@ public final class QueryMethodBridge {
                 repo.getAsyncExecutor());
     }
 
+    /** {@link #executeQuery} with the flag for a {@code CursoredPage} result, on the async executor (MOR-086) */
+    public static CompletionStage<Object> executeQueryAsync(AbstractMorphiumRepository<?, ?> repo,
+                                                             String methodName,
+                                                             Object[] args,
+                                                             boolean returnsSingle,
+                                                             boolean returnsOptional,
+                                                             boolean returnsBoolean,
+                                                             boolean returnsStream,
+                                                             String orderBySpec,
+                                                             int sortParamIndex,
+                                                             int orderParamIndex,
+                                                             int pageRequestParamIndex,
+                                                             int limitParamIndex,
+                                                             boolean returnsCursoredPage) {
+        return CompletableFuture.supplyAsync(
+                () -> executeQuery(repo, methodName, args, returnsSingle, returnsOptional, returnsBoolean, returnsStream,
+                        orderBySpec, sortParamIndex, orderParamIndex, pageRequestParamIndex, limitParamIndex, returnsCursoredPage),
+                repo.getAsyncExecutor());
+    }
+
     /**
      * Parses the build-time orderBy spec string (e.g. "createdAt:DESC,name:ASC")
      * into a list of {@link QueryDescriptor.OrderSpec}.

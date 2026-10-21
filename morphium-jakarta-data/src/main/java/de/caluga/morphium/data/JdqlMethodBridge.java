@@ -8,7 +8,6 @@ import jakarta.data.Limit;
 import jakarta.data.Order;
 import jakarta.data.Sort;
 import jakarta.data.page.PageRequest;
-import jakarta.data.page.impl.CursoredPageRecord;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.RecordComponent;

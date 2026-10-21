@@ -186,6 +186,16 @@ class MorphiumDataProcessorAtomicUpdateTest {
         List<Lease> findFirst2ByOwner(String owner);
     }
 
+    @Repository
+    public interface CursoredWithoutPageRequest extends MorphiumRepository<Lease, String> {
+        jakarta.data.page.CursoredPage<Lease> findByOwnerOrderByFencingAsc(String owner);
+    }
+
+    @Repository
+    public interface CursoredFine extends MorphiumRepository<Lease, String> {
+        jakarta.data.page.CursoredPage<Lease> findByOwnerOrderByFencingAsc(String owner, jakarta.data.page.PageRequest pageRequest);
+    }
+
     private static class Collecting implements BuildProducer<ReflectiveClassBuildItem> {
         @Override
         public void produce(ReflectiveClassBuildItem item) {
@@ -281,5 +291,13 @@ class MorphiumDataProcessorAtomicUpdateTest {
     void findFirstWithLimit() {
         assertThatThrownBy(() -> generate(FindFirstWithLimit.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("findFirst2ByOwner").hasMessageContaining("Limit");
         assertThatCode(() -> generate(FindFirstFine.class)).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("MOR-086: a CursoredPage result needs a PageRequest parameter")
+    void cursoredPageNeedsAPageRequest() {
+        assertThatThrownBy(() -> generate(CursoredWithoutPageRequest.class)).isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("findByOwnerOrderByFencingAsc").hasMessageContaining("PageRequest");
+        assertThatCode(() -> generate(CursoredFine.class)).doesNotThrowAnyException();
     }
 }
