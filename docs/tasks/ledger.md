@@ -617,6 +617,8 @@ Acceptance:
 
 Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/RepositoryMetadata.java
 
+Commits: 501128543, 2d5f46f47, 0b620126a, c878f62d7, 9aec21b91, 8d3be2673, 869760159
+
 ### MOR-027 Documentation page: raw commands, embedded objects and lifecycle contract
 
 Status **done**, priority 1, type documentation, effort S
