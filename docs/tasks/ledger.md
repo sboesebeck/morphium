@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 23, in_progress 1, done 59
+Status: open 23, in_progress 1, done 60
 
 ## Overview
 
@@ -82,6 +82,7 @@ Status: open 23, in_progress 1, done 59
 | MOR-082 | done | 2 | defect | Jakarta Data: JDQL — AND binds stronger than OR, literals are text, NOT before BETWEEN/IN/LIKE, IN lists of literals | S |  |  |
 | MOR-083 | done | 2 | defect | Jakarta Data: SELECT field answers the values of the field when the method returns them | S |  |  |
 | MOR-084 | done | 2 | defect | A short or Short field is stored as a number, not as a Java-serialization blob | S |  |  |
+| MOR-085 | done | 2 | defect | InMemoryDriver: a missing value or null sorts last when descending | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
@@ -1476,4 +1477,21 @@ Acceptance:
 Source: morphium-core/src/main/java/de/caluga/morphium/objectmapping/ShortMapper.java
 
 Commits: a826fd7f3, d8b4a609b
+
+### MOR-085 InMemoryDriver: a missing value or null sorts last when descending
+
+Status **done**, priority 2, type defect, effort S
+
+Found while fixing MOR-084. MongoDB sorts a missing value or null before every number, so it is first in an ascending and last in a descending sort; the InMemoryDriver put it first in both directions. buildSortComparator now applies the direction to the null comparison.
+
+Evidence: SortNullOrderTest (2) on the InMemoryDriver and on a real mongo:8 (the real server confirms the expected order); red before the change. The aggregation $sort already applied the direction.
+
+Acceptance:
+
+- Ascending: nulls first, descending: nulls last, on the InMemoryDriver as on mongod
+- A second sort field still breaks the tie between nulls
+
+Source: morphium-core/src/main/java/de/caluga/morphium/driver/inmem/InMemoryDriver.java
+
+Commits: 606a59ab7
 
