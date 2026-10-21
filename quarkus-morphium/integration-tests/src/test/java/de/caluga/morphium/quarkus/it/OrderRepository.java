@@ -86,6 +86,15 @@ public interface OrderRepository extends BasicRepository<OrderEntity, String> {
     @Query("WHERE customerId IS NOT NULL ORDER BY customerId ASC")
     List<OrderEntity> queryAllWithCustomerId();
 
+    /** an array of the entity as the result (MOR-080): derived, @Find and @Query */
+    OrderEntity[] findByStatusOrderByAmountAsc(String status);
+
+    @Find
+    OrderEntity[] arrayByStatus(@By("status") String status);
+
+    @Query("WHERE status = :status ORDER BY amount DESC")
+    OrderEntity[] arrayQueryByStatus(@Param("status") String status);
+
     /** findFirstBy and findFirstNBy (MOR-079) */
     Optional<OrderEntity> findFirstByStatusOrderByAmountDesc(String status);
 

@@ -96,6 +96,12 @@ public interface TestEntityRepository extends MorphiumRepository<TestEntity, Mor
     @de.caluga.morphium.data.AtomicUpdate(where = "name = :name", set = @de.caluga.morphium.data.Assign(field = "status", value = "'done'"))
     boolean finish(@jakarta.data.repository.Param("name") String name);
 
+    /** an array of the entity as the result (MOR-080) */
+    TestEntity[] findByStatusOrderByPriorityAsc(String status);
+
+    @Query("WHERE status = :status ORDER BY priority DESC")
+    TestEntity[] arrayQueryByStatus(@jakarta.data.repository.Param("status") String status);
+
     /** findFirstBy and findFirstNBy (MOR-079) */
     java.util.Optional<TestEntity> findFirstByStatusOrderByPriorityDesc(String status);
 

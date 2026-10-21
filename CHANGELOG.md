@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Jakarta Data: a repository method may return an array of the entity (MOR-080)
+`Product[] findByStatus(String status)`, `@Find` and `@Query` methods can return an array of the entity. The Quarkus build and the Spring proxy treat an array like a `List` and convert the
+result with `ResultShapes.toArray`. Before, the method got a single entity or failed with a `ClassCastException`.
+
 #### Jakarta Data: `findFirstBy...` and `findFirst3By...` (MOR-079)
 A derived query can ask for the first result or the first n: `findFirstByStatusOrderByAmountDesc` returns the first match in the order of the name, `findFirst3By...` at most three.
 For a single entity or an `Optional` more matches are no error, the first one is returned. `First` belongs to `find` only; `countFirstBy` and `findFirst0By` are refused.
