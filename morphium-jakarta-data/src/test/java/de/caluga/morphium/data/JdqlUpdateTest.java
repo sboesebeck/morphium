@@ -107,11 +107,21 @@ class JdqlUpdateTest {
     }
 
     @Test
+    @DisplayName("MOR-077: a division by a number or a parameter is an item of its own")
+    void division() {
+        JdqlUpdate.Statement s = JdqlUpdate.parse("UPDATE Counter SET ratio = ratio / 2, share = share / :d, part = part / ?1");
+
+        assertThat(s.items()).extracting(JdqlUpdate.Item::op).containsExactly(JdqlUpdate.Op.DIV, JdqlUpdate.Op.DIV, JdqlUpdate.Op.DIV);
+        assertThat(s.items()).extracting(JdqlUpdate.Item::value).containsExactly("2", ":d", "?1");
+    }
+
+    @Test
     @DisplayName("what is not one update command is refused, and the message names the item")
     void refused() {
         assertThatThrownBy(() -> JdqlUpdate.parse("UPDATE Counter SET hits = other + 1")).isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("hits = other + 1").hasMessageContaining("another field");
-        assertThatThrownBy(() -> JdqlUpdate.parse("UPDATE Counter SET hits = hits / 2")).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("division");
+        assertThatThrownBy(() -> JdqlUpdate.parse("UPDATE Counter SET hits = hits / 0")).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("divides by zero");
+        assertThatThrownBy(() -> JdqlUpdate.parse("UPDATE Counter SET hits = hits / other")).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("parameter or a number");
         assertThatThrownBy(() -> JdqlUpdate.parse("UPDATE Counter SET label = label || 'x'")).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("not supported");
         assertThatThrownBy(() -> JdqlUpdate.parse("UPDATE Counter SET label = UPPER(label)")).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("not supported");
         assertThatThrownBy(() -> JdqlUpdate.parse("UPDATE Counter SET hits = hits + other")).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("parameter or a number");

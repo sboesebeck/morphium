@@ -93,6 +93,12 @@ class MorphiumDataProcessorJdqlDeleteTest {
     }
 
     @Repository
+    public interface UpdateDivisionByZero extends MorphiumRepository<Fixture, String> {
+        @Query("UPDATE Fixture SET name = name / 0")
+        long del();
+    }
+
+    @Repository
     public interface UpdateFunction extends MorphiumRepository<Fixture, String> {
         @Query("UPDATE Fixture SET name = UPPER(name)")
         void del();
@@ -225,10 +231,10 @@ class MorphiumDataProcessorJdqlDeleteTest {
     }
 
     @Test
-    @DisplayName("boolean and Long are refused: void, int or long only")
+    @DisplayName("Long is refused: void, int, long or boolean only")
     void returnTypes() {
-        assertThatThrownBy(() -> generate(BooleanResult.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("void, int or long");
-        assertThatThrownBy(() -> generate(WrapperResult.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("void, int or long");
+        assertThatCode(() -> generate(BooleanResult.class)).doesNotThrowAnyException();    // MOR-077
+        assertThatThrownBy(() -> generate(WrapperResult.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("void, int, long");
     }
 
     @Test
@@ -251,14 +257,15 @@ class MorphiumDataProcessorJdqlDeleteTest {
     void updateUnsupportedExpressions() {
         assertThatThrownBy(() -> generate(UpdateOtherField.class)).isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("name = id + 1").hasMessageContaining("another field");
-        assertThatThrownBy(() -> generate(UpdateDivision.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("division");
+        assertThatCode(() -> generate(UpdateDivision.class)).doesNotThrowAnyException();    // a division is the multiplication by the inverse (MOR-077)
+        assertThatThrownBy(() -> generate(UpdateDivisionByZero.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("divides by zero");
         assertThatThrownBy(() -> generate(UpdateFunction.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("UPPER(name)");
     }
 
     @Test
-    @DisplayName("UPDATE: another return type and another entity fail the build")
+    @DisplayName("UPDATE: boolean is a result, another entity fails the build")
     void updateOtherMistakes() {
-        assertThatThrownBy(() -> generate(UpdateBooleanResult.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("void, int or long");
+        assertThatCode(() -> generate(UpdateBooleanResult.class)).doesNotThrowAnyException();    // MOR-077
         assertThatThrownBy(() -> generate(UpdateOtherEntity.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("Other");
     }
 

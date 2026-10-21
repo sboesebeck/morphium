@@ -151,6 +151,7 @@ public final class JdqlMethodBridge {
                 case INC -> builder.inc(item.field(), updateNumber(item, paramValues, false));
                 case DEC -> builder.inc(item.field(), updateNumber(item, paramValues, true));
                 case MUL -> builder.mul(item.field(), updateNumber(item, paramValues, false));
+                case DIV -> builder.mul(item.field(), inverse(item, updateNumber(item, paramValues, false)));
             }
         }
 
@@ -169,6 +170,22 @@ public final class JdqlMethodBridge {
         }
 
         return JdqlUpdate.literal(item.value());
+    }
+
+    /** the result of a DELETE or UPDATE statement that returns {@code boolean}: whether at least one document was deleted or matched (MOR-077) */
+    public static boolean atLeastOne(long count) {
+        return count > 0;
+    }
+
+    /** the number to multiply by instead of dividing (MOR-077); a divisor of 0 is refused before anything is written */
+    private static Number inverse(JdqlUpdate.Item item, Number divisor) {
+        double d = divisor.doubleValue();
+
+        if (d == 0) {
+            throw new IllegalArgumentException("The SET item for " + item.field() + " divides by zero (" + item.value() + ")");
+        }
+
+        return 1.0 / d;
     }
 
     private static Number updateNumber(JdqlUpdate.Item item, Map<String, Object> paramValues, boolean negate) {
@@ -714,22 +731,17 @@ public final class JdqlMethodBridge {
             String text = JdqlLiterals.unquote(valueRef);
             return (fieldType == char.class || fieldType == Character.class) && text.length() == 1 ? (Object) text.charAt(0) : text;
         }
-        // Try numeric literal
-        try {
-            if (valueRef.contains(".")) {
-                return Double.parseDouble(valueRef);
-            }
-            return Long.parseLong(valueRef);
-        } catch (NumberFormatException e) {
-            if (valueRef.startsWith("\"") && valueRef.endsWith("\"") && valueRef.length() >= 2) {
-                return valueRef.substring(1, valueRef.length() - 1);
-            }
-            // the constant of an enum is stored by its name
-            if (fieldType != null && fieldType.isEnum() && JdqlLiterals.isQualifiedName(valueRef)) {
-                return JdqlLiterals.constantName(valueRef);
-            }
-            return valueRef;
+        if (JdqlLiterals.isNumber(valueRef)) {
+            return JdqlLiterals.number(valueRef);
         }
+        if (valueRef.startsWith("\"") && valueRef.endsWith("\"") && valueRef.length() >= 2) {
+            return valueRef.substring(1, valueRef.length() - 1);
+        }
+        // the constant of an enum is stored by its name
+        if (fieldType != null && fieldType.isEnum() && JdqlLiterals.isQualifiedName(valueRef)) {
+            return JdqlLiterals.constantName(valueRef);
+        }
+        return valueRef;
     }
 
     private static Map<String, Object> buildParamMap(String paramMapSpec, Object[] args) {

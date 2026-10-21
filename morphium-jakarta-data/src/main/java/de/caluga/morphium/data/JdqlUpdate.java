@@ -17,13 +17,13 @@ import java.util.regex.Pattern;
  * <tr><td>{@code f = f + :n}, {@code f = f - :n}</td><td>{@code $inc} (with the negated operand for minus)</td></tr>
  * <tr><td>{@code f = f * :n}</td><td>{@code $mul}</td></tr>
  * </table>
- * Everything else, among it division, a field on the right side that is not the field itself, {@code ||} and functions, would need an aggregation
+ * A division by a number or a parameter is the multiplication by its inverse ({@code $mul}), so it is exact only up to the last digit of a double. Everything else, among it a field on the right side that is not the field itself, {@code ||} and functions, would need an aggregation
  * pipeline update and is refused with a message that names the item.
  */
 public final class JdqlUpdate {
 
     /** the kind of a SET item */
-    public enum Op { SET, UNSET, INC, DEC, MUL }
+    public enum Op { SET, UNSET, INC, DEC, MUL, DIV }
 
     /**
      * One item of the SET clause.
@@ -43,7 +43,7 @@ public final class JdqlUpdate {
     private static final Pattern FIELD = Pattern.compile("[A-Za-z_][A-Za-z0-9_.]*");
     // a named (:name) or an ordinal (?1) parameter; the build and the proxy check the statement as written, the bridge rewrites ordinals first
     private static final Pattern PARAM = Pattern.compile(":[A-Za-z_][A-Za-z0-9_]*|\\?\\d+");
-    private static final Pattern NUMBER = Pattern.compile("[+-]?\\d+(\\.\\d+)?");
+    private static final Pattern NUMBER = Pattern.compile("[+-]?\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?[dDfFlL]?");
     private static final Pattern STRING = Pattern.compile("'([^']|'')*'");
     private static final Pattern ARITHMETIC = Pattern.compile("([A-Za-z_][A-Za-z0-9_.]*)\\s*([-+*/])\\s*(.+)");
 
@@ -132,6 +132,14 @@ public final class JdqlUpdate {
         }
 
         if (isOperand(rhs)) {
+            if (NUMBER.matcher(rhs).matches()) {
+                try {
+                    JdqlLiterals.number(rhs);
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException("SET item \"" + raw + "\": " + e.getMessage());
+                }
+            }
+
             return new Item(field, Op.SET, rhs);
         }
 
@@ -146,15 +154,16 @@ public final class JdqlUpdate {
                 throw new IllegalArgumentException("SET item \"" + raw + "\" is not supported: the value of one field cannot be computed from another field in a single update command");
             }
 
-            if (operator.equals("/")) {
-                throw new IllegalArgumentException("SET item \"" + raw + "\" is not supported: division has no update operator, multiply by the inverse instead");
-            }
-
             if (!PARAM.matcher(operand).matches() && !NUMBER.matcher(operand).matches()) {
                 throw new IllegalArgumentException("SET item \"" + raw + "\" is not supported: the operand of " + operator + " has to be a parameter or a number");
             }
 
-            return new Item(field, operator.equals("+") ? Op.INC : operator.equals("-") ? Op.DEC : Op.MUL, operand);
+            if (operator.equals("/") && NUMBER.matcher(operand).matches() && JdqlLiterals.number(operand).doubleValue() == 0) {
+                throw new IllegalArgumentException("SET item \"" + raw + "\" divides by zero");
+            }
+
+            // there is no update operator for a division: it is the multiplication by the inverse (MOR-077), which differs from the division in the last digit of a double
+            return new Item(field, operator.equals("+") ? Op.INC : operator.equals("-") ? Op.DEC : operator.equals("*") ? Op.MUL : Op.DIV, operand);
         }
 
         throw new IllegalArgumentException("SET item \"" + raw + "\" is not supported: only a value, NULL, " + field + " + n, " + field + " - n and " + field + " * n can be one update command");
@@ -171,8 +180,8 @@ public final class JdqlUpdate {
         }
 
         if (NUMBER.matcher(token).matches()) {
-            if (token.contains(".")) {
-                return Double.parseDouble(token);
+            if (!token.matches("[+-]?\\d+")) {
+                return JdqlLiterals.number(token);
             }
 
             long l = Long.parseLong(token.startsWith("+") ? token.substring(1) : token);

@@ -88,8 +88,10 @@ public class MorphiumRepositoryRegistrar implements ImportBeanDefinitionRegistra
                 try {
                     Class<?> iface = ClassUtils.forName(className, getClass().getClassLoader());
                     if (!iface.isInterface()) continue;
-                    if (!CrudRepository.class.isAssignableFrom(iface)
-                            && !MorphiumRepository.class.isAssignableFrom(iface)) {
+                    // a Jakarta Data repository: it extends one of the base interfaces, or it extends nothing and works on entities (MOR-077)
+                    if (!jakarta.data.repository.DataRepository.class.isAssignableFrom(iface)
+                            && !MorphiumRepository.class.isAssignableFrom(iface)
+                            && de.caluga.morphium.data.RepositoryEntities.known(iface).isEmpty()) {
                         continue;
                     }
 

@@ -2066,10 +2066,11 @@ public class MorphiumDataProcessor {
         boolean returnsVoid = returnType.kind() == Type.Kind.VOID;
         boolean returnsInt = returnType.kind() == Type.Kind.PRIMITIVE && returnType.asPrimitiveType().primitive() == PrimitiveType.Primitive.INT;
         boolean returnsLong = returnType.kind() == Type.Kind.PRIMITIVE && returnType.asPrimitiveType().primitive() == PrimitiveType.Primitive.LONG;
+        boolean returnsBoolean = returnType.kind() == Type.Kind.PRIMITIVE && returnType.asPrimitiveType().primitive() == PrimitiveType.Primitive.BOOLEAN;
 
-        if (!returnsVoid && !returnsInt && !returnsLong) {
-            throw new IllegalStateException("@Query on " + where + ": a " + statementKind + " statement returns void, int or long (the number of "
-                    + (update ? "matched" : "deleted") + " documents), not " + returnType + ": \"" + jdql + "\"");
+        if (!returnsVoid && !returnsInt && !returnsLong && !returnsBoolean) {
+            throw new IllegalStateException("@Query on " + where + ": a " + statementKind + " statement returns void, int, long (the number of "
+                    + (update ? "matched" : "deleted") + " documents) or boolean (at least one), not " + returnType + ": \"" + jdql + "\"");
         }
 
         String entityName;
@@ -2163,6 +2164,8 @@ public class MorphiumDataProcessor {
                 mc.returnVoid();
             } else if (returnsInt) {
                 mc.returnValue(mc.invokeStaticMethod(MethodDescriptor.ofMethod(Math.class, "toIntExact", int.class, long.class), count));
+            } else if (returnsBoolean) {
+                mc.returnValue(mc.invokeStaticMethod(MethodDescriptor.ofMethod(JdqlMethodBridge.class, "atLeastOne", boolean.class, long.class), count));
             } else {
                 mc.returnValue(count);
             }

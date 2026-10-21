@@ -2,6 +2,8 @@ package de.caluga.morphium.data;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -13,7 +15,44 @@ final class JdqlLiterals {
     private static final char MASK = '\u0001';
     private static final Pattern QUALIFIED_NAME = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)+");
 
+    private static final Pattern NUMBER = Pattern.compile("([+-]?\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)([dDfFlL]?)");
+
     private JdqlLiterals() {
+    }
+
+    /** whether the token is a numeric literal: {@code 5}, {@code -2.5}, {@code 1e3}, with the suffix {@code L} (long), {@code d} (double) or {@code f} (float) as in Java: {@code 0.0d}, {@code 7L} */
+    static boolean isNumber(String token) {
+        return NUMBER.matcher(token).matches();
+    }
+
+    /**
+     * The value of a numeric literal: a {@code Double} for a fraction, an exponent or the suffix {@code d}, a {@code Float} for {@code f}, otherwise a {@code Long}.
+     *
+     * @throws IllegalArgumentException if the token is no number, or has the suffix {@code L} and a fraction
+     */
+    static Number number(String token) {
+        Matcher m = NUMBER.matcher(token);
+
+        if (!m.matches()) {
+            throw new IllegalArgumentException("Not a number: " + token);
+        }
+
+        String digits = m.group(1);
+        String suffix = m.group(2).toLowerCase(Locale.ROOT);
+        boolean fraction = digits.contains(".") || digits.contains("e") || digits.contains("E");
+
+        return switch (suffix) {
+            case "d" -> Double.parseDouble(digits);
+            case "f" -> Float.parseFloat(digits);
+            case "l" -> {
+                if (fraction) {
+                    throw new IllegalArgumentException("A long literal has no fraction or exponent: " + token);
+                }
+
+                yield Long.parseLong(digits.startsWith("+") ? digits.substring(1) : digits);
+            }
+            default -> fraction ? (Number) Double.parseDouble(digits) : (Number) Long.parseLong(digits.startsWith("+") ? digits.substring(1) : digits);
+        };
     }
 
     /**
