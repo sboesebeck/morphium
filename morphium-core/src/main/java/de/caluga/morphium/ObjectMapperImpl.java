@@ -135,6 +135,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         mongoTypes.add(Pattern.class);
         mongoTypes.add(UUID.class);
         customMappers.put(Character.class, new CharacterMapper());
+        customMappers.put(Short.class, new ShortMapper());
         customMappers.put(AtomicBoolean.class, new AtomicBooleanMapper());
         customMappers.put(AtomicInteger.class, new AtomicIntegerMapper());
         customMappers.put(AtomicLong.class, new AtomicLongMapper());
