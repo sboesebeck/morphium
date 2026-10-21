@@ -379,6 +379,11 @@ public final class JdqlMethodBridge {
             PageRequest pageRequest = (PageRequest) args[pageRequestParamIndex];
 
             if (returnsCursoredPage) {
+                if (valueClass(query, resultRecordClass, entityClass) != null) {
+                    throw new IllegalArgumentException("A CursoredPage of values is not supported: the cursor is made of the sort fields of the entity. Return CursoredPage<"
+                        + entityClass.getSimpleName() + "> or a Page of values instead: \"" + jdql + "\"");
+                }
+
                 return executeCursoredJdql(mQuery, pageRequest, orderBySpec, query, paramValues,
                         morphium, entityClass);
             }
@@ -424,14 +429,9 @@ public final class JdqlMethodBridge {
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static Object projected(Object result, JdqlQuery query, String elementClassName, Morphium morphium, Class entityClass) {
-        if (elementClassName == null || elementClassName.isEmpty() || query.selectFields() == null || query.selectFields().size() != 1
-                || (query.aggregateFunctions() != null && !query.aggregateFunctions().isEmpty())) {
-            return result;
-        }
+        Class<?> element = valueClass(query, elementClassName, entityClass);
 
-        Class<?> element = loadClass(elementClassName);
-
-        if (element.isAssignableFrom(entityClass) || element.isRecord()) {
+        if (element == null) {
             return result;
         }
 
@@ -460,6 +460,17 @@ public final class JdqlMethodBridge {
         }
 
         return result == null ? null : value.apply(result);
+    }
+
+    /** the class of the values if the query selects ONE field and the method returns them, null if the method returns the entity, a record or the type is unknown */
+    private static Class<?> valueClass(JdqlQuery query, String elementClassName, Class<?> entityClass) {
+        if (elementClassName == null || elementClassName.isEmpty() || query.selectFields() == null || query.selectFields().size() != 1
+                || (query.aggregateFunctions() != null && !query.aggregateFunctions().isEmpty())) {
+            return null;
+        }
+
+        Class<?> element = loadClass(elementClassName);
+        return element.isAssignableFrom(entityClass) || element.isRecord() ? null : element;
     }
 
     private static Class<?> loadClass(String name) {
@@ -1022,20 +1033,7 @@ public final class JdqlMethodBridge {
                     "Declare a Java record matching the SELECT clause.");
         }
 
-        Class<?> recordClass;
-        try {
-            recordClass = Thread.currentThread().getContextClassLoader().loadClass(resultRecordClass);
-        } catch (ClassNotFoundException | NullPointerException e) {
-            // The context classloader may not see the record class in modular/OSGi/framework
-            // environments where it differs from the classloader that loaded this bridge class
-            // (or may be null, e.g. in some embedded/native-image contexts). Fall back to the
-            // bridge's own classloader before giving up.
-            try {
-                recordClass = JdqlMethodBridge.class.getClassLoader().loadClass(resultRecordClass);
-            } catch (ClassNotFoundException e2) {
-                throw new IllegalArgumentException("Record class not found: " + resultRecordClass, e2);
-            }
-        }
+        Class<?> recordClass = loadClass(resultRecordClass);
 
         if (!recordClass.isRecord()) {
             throw new IllegalArgumentException(

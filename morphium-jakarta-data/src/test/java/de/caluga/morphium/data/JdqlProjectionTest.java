@@ -17,6 +17,7 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * MOR-083: {@code SELECT field} answers the values of the field when the method returns them ({@code List<String>}, {@code Optional<Long>}, {@code Stream<Character>},
@@ -112,6 +113,15 @@ class JdqlProjectionTest {
         assertThat(page.content()).containsExactly("33");
         assertThat(page.totalElements()).isEqualTo(3);
         assertThat(page.pageRequest()).isEqualTo(request);
+    }
+
+    @Test
+    @DisplayName("a CursoredPage of values is refused with a message instead of answering entities")
+    void cursoredPageOfValuesIsRefused() {
+        PageRequest request = PageRequest.ofSize(2);
+
+        assertThatThrownBy(() -> JdqlMethodBridge.executeJdql(repo, "SELECT hex ORDER BY id", "", -1, -1, 0, -1, new Object[] {request}, false, false, false, false, true, "id:ASC", false,
+                "java.lang.String")).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("CursoredPage of values");
     }
 
     @Test
