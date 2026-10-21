@@ -4,15 +4,16 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 23, done 51
+Status: open 24, in_progress 1, done 51
 
 ## Overview
 
 | ID | Status | Prio | Type | Title | Effort | Ticket | Depends on |
 |---|---|---|---|---|---|---|---|
-| MOR-026 | open | 2 | infrastructure | Run the Jakarta Data TCK against morphium-jakarta-data | M |  |  |
+| MOR-026 | in_progress | 2 | infrastructure | Run the Jakarta Data TCK against morphium-jakarta-data | M |  |  |
 | MOR-063 | open | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
 | MOR-069 | open | 2 | defect | PoppyDB: the update fast path reports every error as 11000 and ignores the ordered flag | S |  |  |
+| MOR-076 | open | 2 | defect | Jakarta Data: derived queries without By (countAll and similar) are unsupported | S |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
 | MOR-015 | open | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
@@ -33,6 +34,7 @@ Status: open 23, done 51
 | MOR-070 | open | 3 | defect | PoppyDB: the delete fast path swallows errors | S |  |  |
 | MOR-071 | open | 3 | defect | Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange | S |  |  |
 | MOR-075 | open | 3 | defect | JdqlParser accepts an operand that is neither a parameter nor a literal | S |  |  |
+| MOR-077 | open | 3 | verification | Jakarta Data: repositories without a single primary entity are unsupported | M |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -554,7 +556,7 @@ Commits: 998dda853
 
 ### MOR-026 Run the Jakarta Data TCK against morphium-jakarta-data
 
-Status **open**, priority 2, type infrastructure, effort M
+Status **in_progress**, priority 2, type infrastructure, effort M
 
 No jakarta.data-tck dependency exists in any pom. Micronaut Data has a jakarta-data-tck/mongodb module as a model. Add the TCK matching the implemented API version and run it against a real MongoDB and PoppyDB/InMemoryDriver.
 
@@ -565,6 +567,30 @@ Acceptance:
 - Verified against a real MongoDB (not only the InMemoryDriver).
 
 Source: docs/research/other-clients.md pattern 14
+
+### MOR-076 Jakarta Data: derived queries without By (countAll and similar) are unsupported
+
+Status **open**, priority 2, type defect, effort S
+
+Found by the TCK spike of MOR-026. The Jakarta Data TCK repository NaturalNumbers declares long countAll() without an annotation, and its tests call it in @BeforeEach, so every standalone TCK test fails on it. MethodNameParser only knows find/count/exists/delete followed by By; the Quarkus processor and the Spring handler throw "Unsupported repository method" for countAll. Check which no-By forms the specification names (countAll, findAll, existsAll, deleteAll) and support them in both modules.
+
+Acceptance:
+
+- countAll() and the other no-By forms the specification names work in the Quarkus and the Spring module
+
+Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/MethodNameParser.java
+
+### MOR-077 Jakarta Data: repositories without a single primary entity are unsupported
+
+Status **open**, priority 3, type verification, effort M
+
+Found by the TCK spike of MOR-026. RepositoryMetadata holds one entity class per repository. The TCK repositories MultipleEntityRepo (lifecycle methods for Box and Coordinate, no BasicRepository) and CustomRepository (no generic parameters) have no primary entity, and the Spring factory refuses them. The specification allows such repositories (the primary entity is determined from the lifecycle methods). Decide: support them, or list them as excluded in MOR-026 with this reason.
+
+Acceptance:
+
+- A decision, and either support or an entry in the TCK exclusion list
+
+Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/RepositoryMetadata.java
 
 ### MOR-027 Documentation page: raw commands, embedded objects and lifecycle contract
 
