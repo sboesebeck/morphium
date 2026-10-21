@@ -65,6 +65,26 @@ class AtomicUpdateTest {
         }
     }
 
+    @Entity
+    static class Account {
+        @Id
+        private String id;
+        private String email;
+        private String status;
+        private int loginCount;
+        private int failedLogins;
+        private Date lastLogin;
+        @Version
+        private Long version;
+    }
+
+    static class AccountRepo extends AbstractMorphiumRepository<Account, String> {
+        AccountRepo(Morphium morphium) {
+            super(new RepositoryMetadata(Account.class, String.class, "id"));
+            setMorphium(morphium);
+        }
+    }
+
     static class LeaseRepo extends AbstractMorphiumRepository<Lease, String> {
         LeaseRepo(Morphium morphium) {
             super(new RepositoryMetadata(Lease.class, String.class, "id"));
@@ -276,6 +296,53 @@ class AtomicUpdateTest {
                     .as(id + " released by somebody else").isFalse();
                 assertThat(acquireAt.apply("A", t0.plusSeconds(61))).as(id + " free again").isNotNull();
             }
+        }
+    }
+
+    // ------------------------------------------------------------------ a user object: counters, a guarded state change, create if absent
+
+    @ParameterizedTest
+    @MethodSource("drivers")
+    @DisplayName("atomic updates on a user: login counter, failed logins with a lock, and create-if-absent")
+    void accountExample(String driver) throws Exception {
+        try (Morphium m = morphium(driver)) {
+            AccountRepo repo = new AccountRepo(m);
+
+            // registerIfAbsent(id, email): BEFORE is empty when the document was created, present when it already existed
+            String register = new AtomicUpdateSpec("id = :id", List.of(), List.of("email=:email", "status='ACTIVE'"), List.of(), true, false, ReturnDocument.BEFORE, "", "id:0,email:1").encode();
+            assertThat(JdqlMethodBridge.executeAtomicDocument(repo, register, new Object[] {"u1", "a@example.org"})).isNull();
+            Account created = m.findById(Account.class, "u1", null);
+            assertThat(created.status).isEqualTo("ACTIVE");
+            assertThat(created.email).isEqualTo("a@example.org");
+            Account existing = (Account) JdqlMethodBridge.executeAtomicDocument(repo, register, new Object[] {"u1", "other@example.org"});
+            assertThat(existing).isNotNull();
+            assertThat(m.findById(Account.class, "u1", null).email).isEqualTo("a@example.org");
+            assertThat(m.findById(Account.class, "u1", null).version).isEqualTo(created.version);
+
+            // recordLogin(id, at): only for an active account, counts and stamps in one command
+            String login = new AtomicUpdateSpec("id = :id AND status = 'ACTIVE'", List.of("lastLogin=:at"), List.of(), List.of("loginCount=1"), false, false, ReturnDocument.AFTER, "", "id:0,at:1").encode();
+            Account afterLogin = (Account) JdqlMethodBridge.executeAtomicDocument(repo, login, new Object[] {"u1", new Date(5000)});
+            assertThat(afterLogin.loginCount).isEqualTo(1);
+            assertThat(afterLogin.lastLogin).isEqualTo(new Date(5000));
+
+            // recordFailedLogin(id) returns the new state; lockAfter(id, limit) changes the status only if the limit is reached
+            String failed = new AtomicUpdateSpec("id = :id", List.of(), List.of(), List.of("failedLogins=1"), false, false, ReturnDocument.AFTER, "", "id:0").encode();
+            String lock = new AtomicUpdateSpec("id = :id AND status = 'ACTIVE' AND failedLogins >= :limit", List.of("status='LOCKED'"), List.of(), List.of(), false, false, ReturnDocument.AFTER, "", "id:0,limit:1").encode();
+
+            for (int i = 1; i <= 3; i++) {
+                assertThat(((Account) JdqlMethodBridge.executeAtomicDocument(repo, failed, new Object[] {"u1"})).failedLogins).isEqualTo(i);
+            }
+
+            assertThat(JdqlMethodBridge.executeAtomicDocument(repo, lock, new Object[] {"u1", 5})).isNull();
+            assertThat(m.findById(Account.class, "u1", null).status).isEqualTo("ACTIVE");
+            JdqlMethodBridge.executeAtomicDocument(repo, failed, new Object[] {"u1"});
+            JdqlMethodBridge.executeAtomicDocument(repo, failed, new Object[] {"u1"});
+            Account locked = (Account) JdqlMethodBridge.executeAtomicDocument(repo, lock, new Object[] {"u1", 5});
+            assertThat(locked.status).isEqualTo("LOCKED");
+
+            // a locked account does not log in any more: the condition does not match, nothing changes
+            assertThat(JdqlMethodBridge.executeAtomicDocument(repo, login, new Object[] {"u1", new Date(9000)})).isNull();
+            assertThat(m.findById(Account.class, "u1", null).loginCount).isEqualTo(1);
         }
     }
 }
