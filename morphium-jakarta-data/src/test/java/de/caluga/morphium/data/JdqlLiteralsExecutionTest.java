@@ -137,4 +137,14 @@ class JdqlLiteralsExecutionTest {
         assertThat(ids("WHERE odd = false AND kind = ee.example.Kind.PRIME")).containsExactly(2L);
         assertThat(ids("WHERE kind = com.example.Kind.COMPOSITE")).containsExactly(4L, 6L);
     }
+
+    @Test
+    @DisplayName("COUNT(THIS) with literals, in any case")
+    void countWithLiterals() {
+        Object upper = JdqlMethodBridge.executeJdql(repo, "SELECT COUNT(THIS) WHERE id <= 4 AND id >= 2", "", -1, -1, -1, -1, new Object[0], true, true, false, false, false, "", false, null);
+        Object lower = JdqlMethodBridge.executeJdql(repo, "SELECT COUNT(this) WHERE id <= 4 AND id >= 2", "", -1, -1, -1, -1, new Object[0], true, true, false, false, false, "", false, null);
+
+        assertThat(((Number) upper).longValue()).isEqualTo(3L);
+        assertThat(((Number) lower).longValue()).isEqualTo(3L);
+    }
 }
