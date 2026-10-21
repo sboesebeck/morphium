@@ -640,7 +640,7 @@ tasks:
 - id: MOR-026
   title: Run the Jakarta Data TCK against morphium-jakarta-data
   type: infrastructure
-  status: open
+  status: in_progress
   priority: 2
   effort: M
   description: No jakarta.data-tck dependency exists in any pom. Micronaut Data has a jakarta-data-tck/mongodb module
@@ -651,6 +651,30 @@ tasks:
   - Verified against a real MongoDB (not only the InMemoryDriver).
   source:
   - docs/research/other-clients.md pattern 14
+  notes: 'Spike on 2026-10-21 (branch test/mor-026-jakarta-data-tck, JakartaDataTckSpikeTest in the Spring module). jakarta.data-tck 1.0.0 (164 KB, from Maven Central) is built for a Jakarta EE container with Arquillian; its standalone tests cannot run as they are. What works: a harness that loads the TCK classes through its own class loader, adds the Morphium @Entity and @Id to the entities (ByteBuddy, because they carry only jakarta.persistence and jakarta.nosql annotations), builds the repositories with the Spring proxy and calls the 73 @Assertion methods of EntityTests by reflection. State: 0 of 73 pass. Found and fixed on the way: the Spring factory resolved entity and id only for CrudRepository (commit 1a5ef1ca5). Blocking all 73 (their @BeforeEach calls it): NaturalNumbers.countAll(), a derived query without By, is unsupported (MOR-076). Not supported by design: MultipleEntityRepo and CustomRepository have no single primary entity (MOR-077). Not yet looked at: the other 70 or so assertions once the populate step works, the CDI tests, the signature test and the web tests (need a container), and the Quarkus build, which needs the TCK repositories in the Jandex index. Acceptance not met: no documented command, no exclusion list, no CI task.'
+- id: MOR-076
+  title: 'Jakarta Data: derived queries without By (countAll and similar) are unsupported'
+  type: defect
+  status: open
+  priority: 2
+  effort: S
+  description: 'Found by the TCK spike of MOR-026. The Jakarta Data TCK repository NaturalNumbers declares long countAll() without an annotation, and its tests call it in @BeforeEach, so every standalone TCK test fails on it. MethodNameParser only knows find/count/exists/delete followed by By; the Quarkus processor and the Spring handler throw "Unsupported repository method" for countAll. Check which no-By forms the specification names (countAll, findAll, existsAll, deleteAll) and support them in both modules.'
+  acceptance:
+  - countAll() and the other no-By forms the specification names work in the Quarkus and the Spring module
+  source:
+  - morphium-jakarta-data/src/main/java/de/caluga/morphium/data/MethodNameParser.java
+- id: MOR-077
+  title: 'Jakarta Data: repositories without a single primary entity are unsupported'
+  type: verification
+  status: open
+  priority: 3
+  effort: M
+  description: 'Found by the TCK spike of MOR-026. RepositoryMetadata holds one entity class per repository. The TCK repositories MultipleEntityRepo (lifecycle methods for Box and Coordinate, no BasicRepository) and CustomRepository (no generic parameters) have no primary entity, and the Spring factory refuses them. The specification allows such repositories (the primary entity is determined from the lifecycle methods). Decide: support them, or list them as excluded in MOR-026 with this reason.'
+  acceptance:
+  - A decision, and either support or an entry in the TCK exclusion list
+  source:
+  - morphium-jakarta-data/src/main/java/de/caluga/morphium/data/RepositoryMetadata.java
+
 - id: MOR-027
   title: 'Documentation page: raw commands, embedded objects and lifecycle contract'
   type: documentation
