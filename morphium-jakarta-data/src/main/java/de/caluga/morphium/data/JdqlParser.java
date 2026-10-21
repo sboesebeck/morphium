@@ -541,7 +541,7 @@ public final class JdqlParser {
     }
 
     /** {@code THIS} and {@code this} are the same keyword: the argument of COUNT(this) is written the way the rest of the bridge looks for it */
-    private static String aggregateArgument(String argument) {
+    static String aggregateArgument(String argument) {
         return "this".equalsIgnoreCase(argument) ? "this" : argument;
     }
 
