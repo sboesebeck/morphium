@@ -1387,8 +1387,14 @@ public class PooledDriver extends DriverBase {
         boolean needToDecrement = false;
         Host h = hosts.get(host);
         if (h == null) {
-            // message kept: ChangeStreamMonitor.handleWatchError classifies "No such host" as transient
-            throw new HostRemovedException("No such host: " + host);
+            // Deliberately NOT the retryable HostRemovedException: a host that is not in the map
+            // when the borrow starts is the "nothing listening there" case (an unreachable seed,
+            // a driver whose hosts were all evicted), and callers rely on it failing in
+            // milliseconds - AbortNeverWipesTest pins that a ReplicationManager pointed at an
+            // unbound port can be stopped at once. Only the eviction DURING a wait (below) is
+            // the failover race worth re-selecting for. ChangeStreamMonitor.handleWatchError
+            // still classifies this message as transient.
+            throw new MorphiumDriverException("No such host: " + host);
         }
         try {
             ConnectionContainer bc = null;
