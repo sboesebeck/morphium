@@ -1639,3 +1639,20 @@ tasks:
   evidence: 'ResultShapesTest (List, Stream, single value, empty, array stays, null, primitive component); Quarkus integration test arrays (derived, @Find, @Query; empty result) on the InMemoryDriver and on a real mongo:8; Spring proxy test aMethodMayReturnAnArray. Reviewed in two passes until no finding was left that could be fixed; the branch for a primitive component (long[]) is not covered by a test because no repository can return such an array yet (skipped, noted in the review).'
   commits:
   - e1870e2c3
+- id: MOR-081
+  title: 'Jakarta Data: the static order comes first, and every dynamic Sort, Sort... and Order counts'
+  type: defect
+  status: done
+  priority: 2
+  effort: S
+  description: 'Found by the TCK of MOR-026: a method with a static order (@OrderBy, ORDER BY, derived OrderBy) and a dynamic Sort lost the static part or the second Sort, and Sort[] and several Sort parameters were rejected or ignored. SortPlan now merges the static order first and then every dynamic Sort, Sort... and Order in parameter order (first occurrence of a property wins) for derived queries, @Find, @Query and keyset pagination in the Quarkus and the Spring module.'
+  acceptance:
+  - 'The static order is applied first, then every dynamic Sort, Sort[] and Order parameter in parameter order'
+  - 'A property named twice is sorted once, by its first occurrence'
+  - 'JDQL ORDER BY plus a dynamic Sort works'
+  source:
+  - morphium-jakarta-data/src/main/java/de/caluga/morphium/data/SortPlan.java
+  evidence: 'SortPlanTest; JdqlMethodBridgeTest.orderByThenDynamicSorts; Spring proxy tests (several Sorts, static order first); Quarkus integration test sorts on the InMemoryDriver and a real mongo:8. Reviewed in two passes: the first found a duplicated sort map in applySorting and a missing JDQL ORDER BY plus Sort test (both fixed), the second had no finding.'
+  commits:
+  - 4ba59d0da
+  - ca6cdab43
