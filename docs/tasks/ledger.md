@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 23, in_progress 1, done 63
+Status: open 23, in_progress 1, done 64
 
 ## Overview
 
@@ -86,6 +86,7 @@ Status: open 23, in_progress 1, done 63
 | MOR-086 | done | 2 | defect | Jakarta Data: a derived query may return a CursoredPage, one cursor paging for all four callers | S |  |  |
 | MOR-087 | done | 2 | defect | Jakarta Data: the keyset of a cursored @Query includes the dynamic sorts | S |  |  |
 | MOR-088 | done | 2 | defect | Jakarta Data: COUNT(THIS) is the keyword in any case | S |  |  |
+| MOR-089 | done | 2 | defect | Jakarta Data: a one-character string literal compares with a char field as the character | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
@@ -1548,4 +1549,21 @@ Acceptance:
 Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlParser.java
 
 Commits: c87b162ae
+
+### MOR-089 Jakarta Data: a one-character string literal compares with a char field as the character
+
+Status **done**, priority 2, type defect, effort S
+
+Found by the TCK of MOR-026: letter NOT IN (E, G) in JDQL (written with quotes) excluded nothing, because the text was compared with the number that a character is stored as. resolveValue reads a literal by the type of the field now: char and Character get the character, every other field keeps the text, an enum field gets the constant (MOR-082).
+
+Evidence: JdqlCharLiteralTest (2, red before the change). Reviewed in one pass without finding.
+
+Acceptance:
+
+- Equality, IN, NOT IN and BETWEEN with one-character literals work on char and Character fields
+- A string field keeps comparing strings
+
+Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlMethodBridge.java
+
+Commits: b1249bf11
 
