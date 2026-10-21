@@ -158,6 +158,11 @@ context keep their own key handling.
 
 ### Fixed
 
+#### Jakarta Data: `SELECT field` answers the values when the method returns them (MOR-083)
+`@Query("SELECT name WHERE ...")` on a method that returns `List<String>`, `Optional<Integer>`, `Stream<...>`, `Page<...>` or a single `String` answered partly filled entities, so the caller got a
+`ClassCastException`. The Quarkus build and the Spring proxy now pass the class of one result to the bridge; when it is neither the entity nor a record, the values of the selected field are
+returned (converted to the declared type). The Spring proxy also passes a record for `GROUP BY` queries now, which it did not before. A method that returns the entity still gets the entity.
+
 #### Jakarta Data: JDQL, AND binds stronger than OR, literals are text, NOT before BETWEEN/IN/LIKE, IN lists of literals (MOR-082)
 `a OR b AND c` was split at the OR and the part `b AND c` was parsed as one condition, so it failed or matched nothing; AND now binds stronger than OR, also inside parentheses. The keywords
 and operators were searched in the raw text, so an `ORDER BY`, an `IN`, a comma or a parenthesis inside a string literal broke the query (`'it''s'` was read as `'it'` and `'s'`); they are searched

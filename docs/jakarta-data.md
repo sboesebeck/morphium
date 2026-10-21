@@ -228,6 +228,10 @@ Condition grammar (`JdqlParser.java:14-33`):
 - Parenthesized groups with `AND`/`OR` nesting: `field1 = :a AND (field2 IS NULL OR field2 = '')`; `AND` binds stronger than `OR`
   (`a OR b AND c` is `a OR (b AND c)`); keywords are case-insensitive
 
+`SELECT field` with ONE field answers the values of that field when the method returns them: `List<String>`, `Optional<Integer>`, `Stream<Long>`, `Page<String>` or a single
+`String` (the value is converted to the declared type). On a method that returns the entity, the entity is returned with only that field filled. Several fields need a record
+(`GROUP BY`).
+
 Not supported: JOINs, subqueries (documented explicitly in `JdqlParser.java:33`).
 
 Aggregate/grouping support (`JdqlQuery.java:25-33`, `JdqlMethodBridge.java:443-620`):
