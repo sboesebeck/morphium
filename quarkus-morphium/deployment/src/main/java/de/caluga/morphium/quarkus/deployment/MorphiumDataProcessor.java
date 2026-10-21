@@ -1833,40 +1833,15 @@ public class MorphiumDataProcessor {
         boolean returnsBoolean = effectiveReturnType.kind() == Type.Kind.PRIMITIVE
                 && effectiveReturnType.asPrimitiveType().primitive() == PrimitiveType.Primitive.BOOLEAN;
 
-        // Detect Record return type for GROUP BY support
-        String resultRecordClass = null;
-        if (isList(effectiveReturnType) && effectiveReturnType.kind() == Type.Kind.PARAMETERIZED_TYPE) {
-            Type innerType = effectiveReturnType.asParameterizedType().arguments().get(0);
-            DotName innerTypeName = innerType.name();
-            if (!innerTypeName.toString().equals(entityClassName)) {
-                ClassInfo innerClassInfo = index.getClassByName(innerTypeName);
-                if (innerClassInfo != null
-                        && innerClassInfo.superName() != null
-                        && innerClassInfo.superName().toString().equals("java.lang.Record")) {
-                    resultRecordClass = innerTypeName.toString();
-                    reflectiveClasses.produce(
-                            ReflectiveClassBuildItem.builder(resultRecordClass)
-                                    .constructors(true).methods(true).build());
-                }
-            }
-        }
+        // The class of the elements of the result: a record maps a GROUP BY result, another class that is not the entity means that SELECT field answers the
+        // values of the field (MOR-083)
+        String resultRecordClass = resultElementClass(effectiveReturnType, entityClassName);
 
-        // Also detect Record for Page<Record> return types (GROUP BY pagination)
-        if (resultRecordClass == null
-                && effectiveReturnType.name().equals(PAGE_TYPE)
-                && effectiveReturnType.kind() == Type.Kind.PARAMETERIZED_TYPE) {
-            Type innerType = effectiveReturnType.asParameterizedType().arguments().get(0);
-            DotName innerTypeName = innerType.name();
-            if (!innerTypeName.toString().equals(entityClassName)) {
-                ClassInfo innerClassInfo = index.getClassByName(innerTypeName);
-                if (innerClassInfo != null
-                        && innerClassInfo.superName() != null
-                        && innerClassInfo.superName().toString().equals("java.lang.Record")) {
-                    resultRecordClass = innerTypeName.toString();
-                    reflectiveClasses.produce(
-                            ReflectiveClassBuildItem.builder(resultRecordClass)
-                                    .constructors(true).methods(true).build());
-                }
+        if (resultRecordClass != null) {
+            ClassInfo elementInfo = index.getClassByName(DotName.createSimple(resultRecordClass));
+
+            if (elementInfo != null && elementInfo.superName() != null && elementInfo.superName().toString().equals("java.lang.Record")) {
+                reflectiveClasses.produce(ReflectiveClassBuildItem.builder(resultRecordClass).constructors(true).methods(true).build());
             }
         }
 
@@ -2375,6 +2350,33 @@ public class MorphiumDataProcessor {
     private boolean isSortParameter(Type type) {
         return type.name().equals(SORT_TYPE)
                 || (type.kind() == Type.Kind.ARRAY && type.asArrayType().component().name().equals(SORT_TYPE));
+    }
+
+    /**
+     * The class of one result of a method: the type argument of a List, Stream, Optional, Page, CursoredPage or CompletionStage, the component of an array, or the type
+     * itself. Null for the entity itself, for primitives and for a type that cannot be told.
+     */
+    private static String resultElementClass(Type returnType, String entityClassName) {
+        Type type = returnType;
+
+        for (int depth = 0; depth < 3 && type != null; depth++) {
+            if (type.kind() == Type.Kind.PARAMETERIZED_TYPE) {
+                if (type.asParameterizedType().arguments().size() != 1) {
+                    return null;
+                }
+
+                type = type.asParameterizedType().arguments().get(0);
+            } else if (type.kind() == Type.Kind.ARRAY) {
+                type = type.asArrayType().constituent();
+            } else if (type.kind() == Type.Kind.CLASS) {
+                String name = type.name().toString();
+                return name.equals(entityClassName) ? null : name;
+            } else {
+                return null;
+            }
+        }
+
+        return null;
     }
 
     private boolean isList(Type type) {

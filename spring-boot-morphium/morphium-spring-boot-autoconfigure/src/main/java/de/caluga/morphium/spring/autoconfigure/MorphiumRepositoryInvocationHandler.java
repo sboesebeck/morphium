@@ -382,6 +382,7 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
         boolean returnsCursoredPage = CursoredPage.class.isAssignableFrom(method.getReturnType());
         boolean returnsStream = Stream.class.isAssignableFrom(method.getReturnType());
         String orderBySpec = getOrderBySpec(method);
+        String resultClass = resultElementClass(method);
 
         // Regression fix: neither this method nor isSingleReturn(Method) excluded
         // CompletionStage, so a `CompletionStage<List<T>>` method was analyzed as a
@@ -397,7 +398,7 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
                     sortIdx, orderIdx, pageRequestIdx, limitIdx,
                     args != null ? args : new Object[0],
                     returnsSingle, returnsCount, returnsBoolean, returnsOptional,
-                    returnsCursoredPage, orderBySpec, returnsStream, null);
+                    returnsCursoredPage, orderBySpec, returnsStream, resultClass);
         }
 
         return args -> JdqlMethodBridge.executeJdql(
@@ -405,7 +406,35 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
                 sortIdx, orderIdx, pageRequestIdx, limitIdx,
                 args != null ? args : new Object[0],
                 returnsSingle, returnsCount, returnsBoolean, returnsOptional,
-                returnsCursoredPage, orderBySpec, returnsStream, null);
+                returnsCursoredPage, orderBySpec, returnsStream, resultClass);
+    }
+
+    /**
+     * The class of what a @Query method returns per result: the type argument of a List, Stream, Optional, Page or CompletionStage, the component of an array, or the return
+     * type itself. The bridge compares it with the entity: a record maps a GROUP BY result, another class means that {@code SELECT field} answers the values of the field
+     * (MOR-083). Null if the type cannot be told (a raw or generic type), the bridge then answers entities.
+     */
+    private static String resultElementClass(Method method) {
+        java.lang.reflect.Type type = method.getGenericReturnType();
+
+        for (int depth = 0; depth < 3; depth++) {
+            if (type instanceof java.lang.reflect.ParameterizedType p) {
+                Class<?> raw = (Class<?>) p.getRawType();
+
+                if (p.getActualTypeArguments().length != 1 || !(CompletionStage.class.isAssignableFrom(raw) || Iterable.class.isAssignableFrom(raw)
+                        || Stream.class.isAssignableFrom(raw) || Optional.class.isAssignableFrom(raw) || jakarta.data.page.Page.class.isAssignableFrom(raw))) {
+                    return null;
+                }
+
+                type = p.getActualTypeArguments()[0];
+            } else if (type instanceof Class<?> c) {
+                return c.isArray() ? c.getComponentType().getName() : c.isPrimitive() ? null : c.getName();
+            } else {
+                return null;
+            }
+        }
+
+        return null;
     }
 
     private MethodHandler buildFindHandler(Method method) {

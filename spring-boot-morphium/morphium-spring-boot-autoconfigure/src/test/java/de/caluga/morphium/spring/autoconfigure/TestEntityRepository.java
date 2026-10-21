@@ -117,6 +117,22 @@ public interface TestEntityRepository extends MorphiumRepository<TestEntity, Mor
 
     List<TestEntity> findFirst2ByStatus(String status, jakarta.data.Limit limit);
 
+    /** SELECT field answers the values of the field when the method returns them (MOR-083) */
+    @Query("SELECT name WHERE status = :status ORDER BY priority")
+    List<String> namesByStatus(@jakarta.data.repository.Param("status") String status);
+
+    @Query("SELECT priority WHERE name = :name")
+    java.util.Optional<Integer> priorityOf(@jakarta.data.repository.Param("name") String name);
+
+    @Query("SELECT name WHERE name = ?1")
+    String nameOf(String name);
+
+    @Query("SELECT name WHERE status = ?1 ORDER BY priority")
+    java.util.stream.Stream<String> streamedNames(String status);
+
+    @Query("SELECT name WHERE status = ?1 ORDER BY priority")
+    Page<String> pagedNames(String status, PageRequest pageRequest);
+
     /** a derived query without By (MOR-076) */
     long countAll();
 

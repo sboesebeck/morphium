@@ -344,6 +344,23 @@ class MorphiumRepositoryProxyTest {
     }
 
     @Test
+    void selectFieldAnswersTheValuesWhenTheMethodReturnsThem() {
+        repository.save(new TestEntity("a", "active", 2));
+        repository.save(new TestEntity("b", "active", 1));
+        repository.save(new TestEntity("c", "inactive", 3));
+
+        assertEquals(List.of("b", "a"), repository.namesByStatus("active"));
+        assertEquals(1, repository.priorityOf("b").get());
+        assertTrue(repository.priorityOf("zzz").isEmpty());
+        assertEquals("c", repository.nameOf("c"));
+        assertEquals(List.of("b", "a"), repository.streamedNames("active").toList());
+
+        jakarta.data.page.Page<String> page = repository.pagedNames("active", PageRequest.ofPage(1).size(1).withTotal());
+        assertEquals(List.of("b"), page.content());
+        assertEquals(2, page.totalElements());
+    }
+
+    @Test
     void findFirstCannotBeCombinedWithALimitParameter() {
         repository.save(new TestEntity("a", "active", 1));
 
