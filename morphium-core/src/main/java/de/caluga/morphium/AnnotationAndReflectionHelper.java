@@ -763,7 +763,7 @@ public class AnnotationAndReflectionHelper {
                 return n.shortValue();
             } else if (fieldType.equals(Character.class) || fieldType.equals(char.class)) {
                 // a character is written as its number (see the update-value walk and store()), so it is read back from the number
-                return (char) n.intValue();
+                return de.caluga.morphium.objectmapping.CharacterMapper.read(n);
             } else if (fieldType.equals(AtomicInteger.class)) {
                 return new AtomicInteger(n.intValue());
             } else if (fieldType.equals(AtomicLong.class)) {
@@ -846,7 +846,7 @@ public class AnnotationAndReflectionHelper {
                 } else if (fieldType.equals(MorphiumId.class)) {
                     return new MorphiumId(s);
                 } else if ((fieldType.equals(Character.class) || fieldType.equals(char.class)) && s.length() == 1) {
-                    return s.charAt(0);
+                    return de.caluga.morphium.objectmapping.CharacterMapper.read(s);
                 }
             } catch (Exception e) {
             }
