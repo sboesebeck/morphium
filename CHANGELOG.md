@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+#### Driver: a write queued for the primary that dies mid-wait is retried on the new primary instead of failing
+`borrowConnection()` threw a plain `MorphiumDriverException` ("Host … was removed while waiting for a connection") when the heartbeat evicted the node a caller was queued for. A `store()` issued during a failover therefore failed a few hundred milliseconds after the new primary was elected (`FailoverTests.pooledDriverPrimaryChangeTest`). The exception is now `PooledDriver.HostRemovedException`, a `MorphiumDriverNetworkException`, and `selectPrimaryConnection` catches it, forgets the dead primary and re-selects within the same server-selection budget. The "No such host" case takes the same type; its message is unchanged because `ChangeStreamMonitor` classifies it by text.
+
 
 ## [6.3.15] - 2026-10-21
 
