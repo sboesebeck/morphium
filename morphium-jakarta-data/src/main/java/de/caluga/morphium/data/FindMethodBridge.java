@@ -9,10 +9,8 @@ import jakarta.data.exceptions.EmptyResultException;
 import jakarta.data.exceptions.NonUniqueResultException;
 import jakarta.data.page.Page;
 import jakarta.data.page.PageRequest;
-import jakarta.data.page.impl.CursoredPageRecord;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;

@@ -10,7 +10,6 @@ import jakarta.data.exceptions.OptimisticLockingFailureException;
 import jakarta.data.page.CursoredPage;
 import jakarta.data.page.Page;
 import jakarta.data.page.PageRequest;
-import jakarta.data.page.impl.CursoredPageRecord;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -214,51 +213,7 @@ public abstract class AbstractMorphiumRepository<T, K> {
             }
         }
 
-        boolean isForward = pageRequest.mode() != PageRequest.Mode.CURSOR_PREVIOUS;
-        int requestedSize = pageRequest.size();
-
-        if (pageRequest.mode() != PageRequest.Mode.OFFSET) {
-            PageRequest.Cursor cursor = pageRequest.cursor()
-                    .orElseThrow(() -> new IllegalArgumentException(
-                            "PageRequest mode is " + pageRequest.mode() + " but no cursor provided"));
-            CursorHelper.applyCursorCondition(query, cursor, sortSpecs, morphium, entityClass(), isForward);
-        } else {
-            // CursoredPage requested in classic offset mode (PageRequest.Mode.OFFSET): no cursor
-            // condition applies, but we still need to skip to the requested page like doFindAllPaged().
-            int skip = (int) ((pageRequest.page() - 1) * requestedSize);
-            query.skip(skip);
-        }
-
-        CursorHelper.applySort(query, sortSpecs, morphium, entityClass(), isForward);
-        query.limit(requestedSize + 1);
-
-        List<T> content = query.asList();
-        boolean hasMore = content.size() > requestedSize;
-        if (hasMore) {
-            content = new ArrayList<>(content.subList(0, requestedSize));
-        }
-        if (!isForward) {
-            Collections.reverse(content);
-        }
-
-        List<String> sortFields = sortSpecs.stream().map(CursorHelper.SortSpec::javaField).toList();
-        List<PageRequest.Cursor> cursors = CursorHelper.extractCursors(content, sortFields, morphium, entityClass());
-
-        long totalElements = -1;
-        if (pageRequest.requestTotal()) {
-            totalElements = morphium.createQueryFor(entityClass()).countAll();
-        }
-
-        boolean isFirstPage = pageRequest.mode() == PageRequest.Mode.OFFSET;
-        boolean isLastPage = !hasMore;
-
-        if (content.isEmpty()) {
-            return new CursoredPageRecord<>(content, cursors, totalElements, pageRequest,
-                    (PageRequest) null, (PageRequest) null);
-        }
-
-        return new CursoredPageRecord<>(content, cursors, totalElements, pageRequest,
-                isFirstPage, isLastPage);
+        return (CursoredPage<T>) CursorHelper.page(query, pageRequest, sortSpecs, () -> morphium.createQueryFor(entityClass()), morphium, entityClass());
     }
 
     /**

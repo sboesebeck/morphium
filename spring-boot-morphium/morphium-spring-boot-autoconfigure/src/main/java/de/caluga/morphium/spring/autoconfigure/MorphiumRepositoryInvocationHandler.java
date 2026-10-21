@@ -213,13 +213,19 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
         String parseableName = returnsAsync && methodName.endsWith("Async")
                 ? methodName.substring(0, methodName.length() - 5) : methodName;
 
+        boolean returnsCursoredPage = CursoredPage.class.isAssignableFrom(method.getReturnType());
+
+        if (returnsCursoredPage && pageRequestIdx < 0) {
+            throw new IllegalStateException("Unsupported repository method " + repositoryInterface.getSimpleName() + "." + method.getName()
+                    + ": a CursoredPage result needs a PageRequest parameter: the page request carries the size and the cursor.");
+        }
+
         if (returnsAsync) {
             return args -> QueryMethodBridge.executeQueryAsync(
                     delegate, parseableName, args != null ? args : new Object[0],
                     returnsSingle, returnsOptional, returnsBoolean, returnsStream, orderBySpec,
-                    sortIdx, orderIdx, pageRequestIdx, limitIdx);
+                    sortIdx, orderIdx, pageRequestIdx, limitIdx, returnsCursoredPage);
         }
-        boolean returnsCursoredPage = CursoredPage.class.isAssignableFrom(method.getReturnType());
 
         return args -> QueryMethodBridge.executeQuery(
                 delegate, parseableName, args != null ? args : new Object[0],

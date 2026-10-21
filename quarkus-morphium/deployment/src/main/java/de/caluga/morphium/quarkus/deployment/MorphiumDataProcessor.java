@@ -1021,6 +1021,12 @@ public class MorphiumDataProcessor {
                 && !returnsOptional && !returnsPage && !returnsCursoredPage
                 && descriptor.prefix() == QueryDescriptor.Prefix.FIND;
 
+        if (returnsCursoredPage && pageRequestParamIndex < 0) {
+            throw new IllegalStateException(
+                    "Unsupported repository method " + method.declaringClass().name() + "." + methodName
+                            + "() -- a CursoredPage result needs a PageRequest parameter: the page request carries the size and the cursor.");
+        }
+
         // Build actual parameter type descriptors from the Jandex method info
         String[] paramTypeNames = new String[method.parametersCount()];
         for (int i = 0; i < method.parametersCount(); i++) {
@@ -1087,53 +1093,29 @@ public class MorphiumDataProcessor {
                     ResultHandle orderIdxHandle = mc.load(orderParamIndex);
                     ResultHandle pageRequestIdxHandle = mc.load(pageRequestParamIndex);
                     ResultHandle limitIdxHandle = mc.load(limitParamIndex);
-                    if (isAsync) {
-                        result = mc.invokeStaticMethod(
-                                MethodDescriptor.ofMethod(
-                                        QueryMethodBridge.class,
-                                        bridgeMethod,
-                                        bridgeReturnType,
-                                        AbstractMorphiumRepository.class,
-                                        String.class,
-                                        Object[].class,
-                                        boolean.class,
-                                        boolean.class,
-                                        boolean.class,
-                                        boolean.class,
-                                        String.class,
-                                        int.class,
-                                        int.class,
-                                        int.class,
-                                        int.class),
-                                thisHandle, methodNameHandle, argsArray, returnsSingleHandle,
-                                returnsOptionalHandle, returnsBooleanHandle, returnsStreamHandle,
-                                orderBySpecHandle, sortIdxHandle, orderIdxHandle,
-                                pageRequestIdxHandle, limitIdxHandle);
-                    } else {
-                        // the overload with the flag for a CursoredPage result (MOR-086)
-                        result = mc.invokeStaticMethod(
-                                MethodDescriptor.ofMethod(
-                                        QueryMethodBridge.class,
-                                        bridgeMethod,
-                                        bridgeReturnType,
-                                        AbstractMorphiumRepository.class,
-                                        String.class,
-                                        Object[].class,
-                                        boolean.class,
-                                        boolean.class,
-                                        boolean.class,
-                                        boolean.class,
-                                        String.class,
-                                        int.class,
-                                        int.class,
-                                        int.class,
-                                        int.class,
-                                        boolean.class),
-                                thisHandle, methodNameHandle, argsArray, returnsSingleHandle,
-                                returnsOptionalHandle, returnsBooleanHandle, returnsStreamHandle,
-                                orderBySpecHandle, sortIdxHandle, orderIdxHandle,
-                                pageRequestIdxHandle, limitIdxHandle, mc.load(returnsCursoredPage));
-                    }
+                    // the overload with the flag for a CursoredPage result (MOR-086)
+                    result = mc.invokeStaticMethod(
+                            MethodDescriptor.ofMethod(
+                                    QueryMethodBridge.class,
+                                    bridgeMethod,
+                                    bridgeReturnType,
+                                    AbstractMorphiumRepository.class,
+                                    String.class,
+                                    Object[].class,
+                                    boolean.class,
+                                    boolean.class,
+                                    boolean.class,
+                                    boolean.class,
+                                    String.class,
+                                    int.class,
+                                    int.class,
+                                    int.class,
+                                    int.class,
+                                    boolean.class),
+                            thisHandle, methodNameHandle, argsArray, returnsSingleHandle,
+                            returnsOptionalHandle, returnsBooleanHandle, returnsStreamHandle,
+                            orderBySpecHandle, sortIdxHandle, orderIdxHandle,
+                            pageRequestIdxHandle, limitIdxHandle, mc.load(returnsCursoredPage));
                 } else {
                     result = mc.invokeStaticMethod(
                             MethodDescriptor.ofMethod(

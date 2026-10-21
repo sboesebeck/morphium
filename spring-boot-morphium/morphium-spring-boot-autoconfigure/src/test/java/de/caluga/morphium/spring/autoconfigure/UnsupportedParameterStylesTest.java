@@ -84,6 +84,21 @@ class UnsupportedParameterStylesTest {
         assertTrue(e.getMessage().contains("@First"), e.getMessage());
     }
 
+    interface CursoredWithoutPageRequest extends jakarta.data.repository.BasicRepository<TestEntity, de.caluga.morphium.driver.MorphiumId> {
+        jakarta.data.page.CursoredPage<TestEntity> findByStatusOrderByPriorityAsc(String status);
+    }
+
+    @Test
+    void aCursoredPageWithoutAPageRequestRefusesTheRepository() {
+        // a derived query is turned into a handler at its first call
+        java.lang.reflect.Method method = CursoredWithoutPageRequest.class.getMethods()[0];
+        MorphiumRepositoryInvocationHandler handler = new MorphiumRepositoryInvocationHandler(morphium, new RepositoryMetadata(TestEntity.class, de.caluga.morphium.driver.MorphiumId.class, "id"),
+                CursoredWithoutPageRequest.class);
+
+        IllegalStateException e = assertThrows(IllegalStateException.class, () -> handler.invoke(null, method, new Object[] {"active"}));
+        assertTrue(e.getMessage().contains("CursoredWithoutPageRequest.findByStatusOrderByPriorityAsc") && e.getMessage().contains("PageRequest"), e.getMessage());
+    }
+
     @Test
     void aRepositoryWithoutThemIsFine() {
         assertDoesNotThrow(() -> create(Fine.class));
