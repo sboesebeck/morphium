@@ -269,7 +269,7 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
         for (java.lang.reflect.Parameter p : method.getParameters()) {
             Class<?> t = p.getType();
 
-            if (t == Sort.class || t == Order.class || t == PageRequest.class || t == Limit.class) {
+            if (isSpecialParam(t)) {
                 throw new IllegalStateException("@AtomicUpdate on " + where + ": takes no Sort, Order, PageRequest or Limit parameter (use @OrderBy for the order)");
             }
         }
@@ -501,6 +501,7 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
 
     private static boolean isSpecialParam(Class<?> type) {
         return Sort.class.isAssignableFrom(type)
+                || (type.isArray() && Sort.class.isAssignableFrom(type.getComponentType()))
                 || Order.class.isAssignableFrom(type)
                 || PageRequest.class.isAssignableFrom(type)
                 || Limit.class.isAssignableFrom(type);
@@ -509,7 +510,9 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
     private static int findParamIndex(Method method, Class<?> paramType) {
         Parameter[] params = method.getParameters();
         for (int i = 0; i < params.length; i++) {
-            if (paramType.isAssignableFrom(params[i].getType())) {
+            Class<?> type = params[i].getType();
+
+            if (paramType.isAssignableFrom(type) || (paramType == Sort.class && type.isArray() && Sort.class.isAssignableFrom(type.getComponentType()))) {
                 return i;
             }
         }

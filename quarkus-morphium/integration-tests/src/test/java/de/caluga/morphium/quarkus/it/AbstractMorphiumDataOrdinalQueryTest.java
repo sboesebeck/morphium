@@ -116,4 +116,15 @@ abstract class AbstractMorphiumDataOrdinalQueryTest {
         assertThat(repository.arrayQueryByStatus("CLOSED")).extracting(OrderEntity::getCustomerId).containsExactly("C4", "C3");
         assertThat(repository.arrayByStatus("NOBODY")).isEmpty();
     }
+
+    @Test
+    @DisplayName("several Sort parameters, Sort... and a static order that comes first (MOR-081)")
+    void sorts() {
+        create("C5", 100.0, "OPEN");   // C1 and C5 have the same amount
+
+        assertThat(repository.findByStatus("OPEN", Sort.asc("amount"), Sort.desc("customerId"))).extracting(OrderEntity::getCustomerId).containsExactly("C5", "C1", "C2");
+        assertThat(repository.findByStatus("OPEN", Sort.asc("amount"), Sort.desc("customerId"), Sort.asc("id"))).extracting(OrderEntity::getCustomerId).containsExactly("C5", "C1", "C2");
+        assertThat(repository.findByStatusOrderByCustomerIdAsc("OPEN", jakarta.data.Order.by(Sort.desc("amount"), Sort.desc("customerId"))))
+            .extracting(OrderEntity::getCustomerId).containsExactly("C1", "C2", "C5");
+    }
 }
