@@ -147,4 +147,16 @@ class JdqlLiteralsExecutionTest {
         assertThat(((Number) upper).longValue()).isEqualTo(3L);
         assertThat(((Number) lower).longValue()).isEqualTo(3L);
     }
+
+    @Test
+    @DisplayName("ORDER BY and HAVING with COUNT(THIS) in upper case find the aggregate")
+    @SuppressWarnings("unchecked")
+    void orderAndHavingWithUpperCaseThis() {
+        Object result = JdqlMethodBridge.executeJdql(repo, "SELECT kind, COUNT(THIS) GROUP BY kind HAVING COUNT(THIS) > 1 ORDER BY COUNT(THIS) DESC", "", -1, -1, -1, -1, new Object[0], false, false,
+                false, false, false, "", false, KindCount.class.getName());
+
+        assertThat((List<Object>) result).containsExactly(new KindCount("PRIME", 3), new KindCount("COMPOSITE", 2));
+    }
+
+    record KindCount(String kind, long count) {}
 }
