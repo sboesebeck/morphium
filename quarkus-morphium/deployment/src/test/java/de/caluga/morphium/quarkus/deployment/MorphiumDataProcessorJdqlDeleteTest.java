@@ -69,6 +69,48 @@ class MorphiumDataProcessorJdqlDeleteTest {
     }
 
     @Repository
+    public interface UpdateAccepted extends MorphiumRepository<Fixture, String> {
+        @Query("UPDATE Fixture SET name = :n WHERE name = :old")
+        long asLong(@Param("n") String n, @Param("old") String old);
+
+        @Query("UPDATE Fixture SET name = ?1 WHERE name = ?2")
+        int asInt(String n, String old);
+
+        @Query("UPDATE Fixture SET name = NULL")
+        void all();
+    }
+
+    @Repository
+    public interface UpdateOtherField extends MorphiumRepository<Fixture, String> {
+        @Query("UPDATE Fixture SET name = id + 1")
+        long del();
+    }
+
+    @Repository
+    public interface UpdateDivision extends MorphiumRepository<Fixture, String> {
+        @Query("UPDATE Fixture SET name = name / 2")
+        long del();
+    }
+
+    @Repository
+    public interface UpdateFunction extends MorphiumRepository<Fixture, String> {
+        @Query("UPDATE Fixture SET name = UPPER(name)")
+        void del();
+    }
+
+    @Repository
+    public interface UpdateBooleanResult extends MorphiumRepository<Fixture, String> {
+        @Query("UPDATE Fixture SET name = :n")
+        boolean del(@Param("n") String n);
+    }
+
+    @Repository
+    public interface UpdateOtherEntity extends MorphiumRepository<Fixture, String> {
+        @Query("UPDATE Other SET name = :n")
+        long del(@Param("n") String n);
+    }
+
+    @Repository
     public interface BooleanResult extends MorphiumRepository<Fixture, String> {
         @Query("DELETE FROM Fixture WHERE name = :n")
         boolean del(@Param("n") String n);
@@ -165,5 +207,27 @@ class MorphiumDataProcessorJdqlDeleteTest {
         assertThatThrownBy(() -> generate(WithSort.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("Sort");
         assertThatThrownBy(() -> generate(WithOrderBy.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("ORDER BY");
         assertThatThrownBy(() -> generate(OrdinalWithoutParameter.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("?2");
+    }
+
+    @Test
+    @DisplayName("UPDATE: void, int and long are generated")
+    void updateAccepted() {
+        assertThatCode(() -> generate(UpdateAccepted.class)).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("UPDATE: an item that is not one update command fails the build and names the item")
+    void updateUnsupportedExpressions() {
+        assertThatThrownBy(() -> generate(UpdateOtherField.class)).isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("name = id + 1").hasMessageContaining("another field");
+        assertThatThrownBy(() -> generate(UpdateDivision.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("division");
+        assertThatThrownBy(() -> generate(UpdateFunction.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("UPPER(name)");
+    }
+
+    @Test
+    @DisplayName("UPDATE: another return type and another entity fail the build")
+    void updateOtherMistakes() {
+        assertThatThrownBy(() -> generate(UpdateBooleanResult.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("void, int or long");
+        assertThatThrownBy(() -> generate(UpdateOtherEntity.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("Other");
     }
 }

@@ -106,6 +106,100 @@ public final class JdqlMethodBridge {
         return n instanceof Number num ? num.longValue() : 0L;
     }
 
+    /**
+     * Executes an {@code UPDATE Entity SET ... [WHERE ...]} statement (MOR-018) as ONE {@code update} command, built with the update builder
+     * ({@link Query#modify()}), so field names are translated and values are marshalled like in the rest of the update path, and a {@code @Version} field
+     * is incremented. See {@link JdqlUpdate} for the SET items that map to a single command.
+     *
+     * @param paramMapSpec encoded param name-to-index mapping, see {@link #executeJdql}
+     * @return the number of MATCHED documents (not the number of modified ones)
+     * @throws IllegalArgumentException if the statement names another entity, has an ORDER BY, GROUP BY or HAVING, an item that is not one update command, or a
+     *                                  parameter without an argument or of the wrong type
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static long executeJdqlUpdate(AbstractMorphiumRepository<?, ?> repo, String jdql, String paramMapSpec, Object[] args) {
+        Morphium morphium = repo.getMorphium();
+        Class entityClass = repo.getMetadata().entityClass();
+
+        if (JdqlOrdinalParameters.has(jdql)) {
+            if (JdqlOrdinalParameters.mixesStyles(jdql)) {
+                throw new IllegalArgumentException("The statement \"" + jdql + "\" mixes named and ordinal parameters; use one style");
+            }
+
+            paramMapSpec = JdqlOrdinalParameters.paramMapSpec(jdql, args.length, -1, -1, -1, -1);
+            jdql = JdqlOrdinalParameters.rewrite(jdql);
+        }
+
+        JdqlUpdate.Statement statement = JdqlUpdate.parse(jdql);
+
+        if (statement.entityName() != null && !statement.entityName().equals(entityClass.getSimpleName())) {
+            throw new IllegalArgumentException("The statement \"" + jdql + "\" updates " + statement.entityName() + ", but the repository is for " + entityClass.getSimpleName());
+        }
+
+        if (JdqlDelete.hasForbiddenClause(statement.where())) {
+            throw new IllegalArgumentException("An UPDATE statement has no ORDER BY, GROUP BY or HAVING: \"" + jdql + "\"");
+        }
+
+        Map<String, Object> paramValues = buildParamMap(paramMapSpec, args);
+        Query mQuery = morphium.createQueryFor(entityClass);
+        applyConditions(mQuery, JdqlParser.parse(statement.where()), paramValues, morphium, entityClass);
+        de.caluga.morphium.query.UpdateBuilder builder = mQuery.modify();
+
+        for (JdqlUpdate.Item item : statement.items()) {
+            switch (item.op()) {
+                case UNSET -> builder.unset(item.field());
+                case SET -> builder.set(item.field(), updateValue(item, paramValues));
+                case INC -> builder.inc(item.field(), updateNumber(item, paramValues, false));
+                case DEC -> builder.inc(item.field(), updateNumber(item, paramValues, true));
+                case MUL -> builder.mul(item.field(), updateNumber(item, paramValues, false));
+            }
+        }
+
+        return builder.updateMany().getMatchedCount();
+    }
+
+    private static Object updateValue(JdqlUpdate.Item item, Map<String, Object> paramValues) {
+        if (item.value().startsWith(":")) {
+            String name = item.value().substring(1);
+
+            if (!paramValues.containsKey(name)) {
+                throw new IllegalArgumentException("No argument for the parameter :" + name + " of the SET item for " + item.field());
+            }
+
+            return paramValues.get(name);
+        }
+
+        return JdqlUpdate.literal(item.value());
+    }
+
+    private static Number updateNumber(JdqlUpdate.Item item, Map<String, Object> paramValues, boolean negate) {
+        Object value = updateValue(item, paramValues);
+
+        if (!(value instanceof Number number)) {
+            throw new IllegalArgumentException("The SET item for " + item.field() + " needs a number, but " + item.value() + " is " + (value == null ? "null" : value.getClass().getName()));
+        }
+
+        if (!negate) {
+            return number;
+        }
+
+        if (number instanceof Integer i) {
+            return -i;
+        } else if (number instanceof Long l) {
+            return -l;
+        } else if (number instanceof Short sh) {
+            return -sh;
+        } else if (number instanceof Byte b) {
+            return -b;
+        } else if (number instanceof Float f) {
+            return -f;
+        } else if (number instanceof Double d) {
+            return -d;
+        }
+
+        return new java.math.BigDecimal(number.toString()).negate().doubleValue();
+    }
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static Object executeJdql(AbstractMorphiumRepository<?, ?> repo,
                                      String jdql,

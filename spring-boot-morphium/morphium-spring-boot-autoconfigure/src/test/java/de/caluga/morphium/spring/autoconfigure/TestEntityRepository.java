@@ -73,6 +73,17 @@ public interface TestEntityRepository extends MorphiumRepository<TestEntity, Mor
     @Query("DELETE FROM TestEntity WHERE name = :name")
     void deleteJdqlByName(@jakarta.data.repository.Param("name") String name);
 
+    // --- UPDATE ... SET in @Query (MOR-018) ---
+
+    @Query("UPDATE TestEntity SET status = :status, priority = priority + 1 WHERE name = :name")
+    long updateJdql(@jakarta.data.repository.Param("status") String status, @jakarta.data.repository.Param("name") String name);
+
+    @Query("UPDATE TestEntity SET priority = priority * ?2 WHERE status = ?1")
+    int updateJdqlOrdinal(String status, int factor);
+
+    @Query("UPDATE TestEntity SET status = 'done' WHERE name = :name")
+    void updateJdqlVoid(@jakarta.data.repository.Param("name") String name);
+
     // --- Regression coverage: default method dispatch (review finding 4) ---
 
     /**

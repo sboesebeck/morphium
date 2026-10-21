@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Jakarta Data: `@Query("UPDATE Entity SET ... [WHERE ...]")` as one update command (MOR-018)
+A JDQL `UPDATE` statement works in `@Query` methods of the Quarkus and the Spring Boot module. It is one `update` command, built with the update builder, and the
+result (`void`, `int`, `long`) is the number of matched documents. The SET items that map to a classic operator are supported: `f = value` (`$set`), `f = NULL`
+(`$unset`), `f = f + n` / `f = f - n` (`$inc`) and `f = f * n` (`$mul`), with named or ordinal parameters or literals. Division, another field on the right side,
+`||` and functions would need an aggregation pipeline update and fail the build (Quarkus) or the creation of the proxy (Spring), naming the item.
+
 #### Jakarta Data: `@Query("DELETE FROM Entity [WHERE ...]")` (MOR-017)
 A JDQL `DELETE` statement works in `@Query` methods of the Quarkus and the Spring Boot module. It runs as one server-side delete and returns the number of
 deleted documents as `void`, `int` or `long`; the `WHERE` clause is the one of a query, with named or ordinal parameters. Another return type, a
