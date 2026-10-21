@@ -527,7 +527,7 @@ public final class JdqlMethodBridge {
                 applyCondition(sub, cond, paramValues, morphium, entityClass);
                 orQueries.add(sub);
             }
-            mQuery.or(orQueries);
+            OrFilter.add(mQuery, orQueries);
         } else {
             for (JdqlQuery.JdqlCondition cond : query.conditions()) {
                 applyCondition(mQuery, cond, paramValues, morphium, entityClass);
@@ -564,7 +564,7 @@ public final class JdqlMethodBridge {
                     applyCondition(subQuery, sub, paramValues, morphium, entityClass);
                     orQueries.add(subQuery);
                 }
-                mQuery.or(orQueries);
+                OrFilter.add(mQuery, orQueries);
             } else {
                 for (JdqlQuery.JdqlCondition sub : cond.groupConditions()) {
                     applyCondition(mQuery, sub, paramValues, morphium, entityClass);
@@ -612,7 +612,7 @@ public final class JdqlMethodBridge {
                     Query gtQuery = morphium.createQueryFor(entityClass);
                     gtQuery.f(mongoField).gt(value2);
                     orQueries.add(gtQuery);
-                    mQuery.or(orQueries);
+                    OrFilter.add(mQuery, orQueries);
                 } else {
                     field.gte(value);
                     mQuery.f(mongoField).lte(value2);

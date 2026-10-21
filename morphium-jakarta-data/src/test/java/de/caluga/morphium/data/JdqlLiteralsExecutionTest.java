@@ -159,4 +159,13 @@ class JdqlLiteralsExecutionTest {
     }
 
     record KindCount(String kind, long count) {}
+
+    @Test
+    @DisplayName("several OR groups and NOT BETWEEN in one AND chain narrow each other (they are not merged into one OR)")
+    void severalOrsAreAnded() {
+        assertThat(ids("WHERE (id = 1 OR id = 2) AND (hex = '33' OR hex = '34')")).isEmpty();
+        assertThat(ids("WHERE (id = 1 OR id = 2) AND (hex = '32' OR hex = '34')")).containsExactly(2L);
+        assertThat(ids("WHERE id NOT BETWEEN 2 AND 5 AND (id = 1 OR id = 3)")).containsExactly(1L);
+        assertThat(ids("WHERE (id = 1 OR id = 3) AND id NOT BETWEEN 2 AND 5 AND (id = 1 OR id = 6)")).containsExactly(1L);
+    }
 }
