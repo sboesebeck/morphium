@@ -55,6 +55,13 @@
       <artifactId>spring-boot-starter-test</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- the Jakarta Data TCK (MOR-026): its standalone entity tests run against the repositories of this module, see JakartaDataTckTest -->
+    <dependency>
+      <groupId>jakarta.data</groupId>
+      <artifactId>jakarta.data-tck</artifactId>
+      <version>1.0.0</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <!-- Aktiviert die im morphium-parent-pluginManagement bereits versionierte

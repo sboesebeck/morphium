@@ -117,4 +117,19 @@ class UnsupportedParameterStylesTest {
         IllegalStateException param = assertThrows(IllegalStateException.class, () -> create(AtomicUnknownParam.class));
         assertTrue(param.getMessage().contains(":ghost"), param.getMessage());
     }
+
+    // ------------------------------------------------------------------ MOR-026: the Jakarta Data TCK repositories extend BasicRepository, not CrudRepository
+
+    interface OnlyBasic extends jakarta.data.repository.BasicRepository<TestEntity, de.caluga.morphium.driver.MorphiumId> {
+    }
+
+    interface OnlyData extends jakarta.data.repository.DataRepository<TestEntity, de.caluga.morphium.driver.MorphiumId> {
+    }
+
+    @Test
+    void entityAndIdAreResolvedForEveryJakartaDataRepositoryBase() {
+        assertTrue(MorphiumRepositoryFactoryBean.resolveTypeArguments(OnlyBasic.class)[0] == TestEntity.class);
+        assertTrue(MorphiumRepositoryFactoryBean.resolveTypeArguments(OnlyData.class)[0] == TestEntity.class);
+        assertTrue(MorphiumRepositoryFactoryBean.resolveTypeArguments(OnlyBasic.class)[1] == de.caluga.morphium.driver.MorphiumId.class);
+    }
 }
