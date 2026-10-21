@@ -158,6 +158,10 @@ context keep their own key handling.
 
 ### Fixed
 
+#### Jakarta Data: the keyset of a `@Query` that returns a `CursoredPage` includes the dynamic sorts (MOR-087)
+The cursor of a `@Query` method was made from the `ORDER BY` of the query (or `@OrderBy`) only, so a query without `ORDER BY` and with an `Order` or `Sort` parameter had no keyset and failed with
+"No values were provided". The keyset is the `ORDER BY` of the query (or `@OrderBy`), then every dynamic `Sort`, `Sort...` and `Order`.
+
 #### Jakarta Data: a derived query may return a `CursoredPage` (MOR-086)
 `findByStatusOrderByAmountAsc(String status, PageRequest request)` with a `CursoredPage` return type answered an offset `Page`, which the generated code could not cast. The keyset is the order of
 the method name, then `@OrderBy`, then every dynamic `Sort`, `Sort...` and `Order`; a cursor request without any order fails with a message. The three places that built a cursored page
