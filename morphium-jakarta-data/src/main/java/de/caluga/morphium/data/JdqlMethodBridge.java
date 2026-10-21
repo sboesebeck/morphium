@@ -511,54 +511,11 @@ public final class JdqlMethodBridge {
         } else {
             sortSpecs = CursorHelper.parseSortSpecs(orderBySpec);
         }
-        boolean isForward = pageRequest.mode() != PageRequest.Mode.CURSOR_PREVIOUS;
-        int requestedSize = pageRequest.size();
-
-        if (pageRequest.mode() != PageRequest.Mode.OFFSET) {
-            PageRequest.Cursor cursor = pageRequest.cursor()
-                    .orElseThrow(() -> new IllegalArgumentException(
-                            "PageRequest mode is " + pageRequest.mode() + " but no cursor provided"));
-            CursorHelper.applyCursorCondition(mQuery, cursor, sortSpecs, morphium, entityClass, isForward);
-        } else {
-            // CursoredPage requested in classic offset mode (PageRequest.Mode.OFFSET): no cursor
-            // condition applies, but we still need to skip to the requested page, exactly like the
-            // Page<T> branch above (mQuery.skip(skip).limit(size)) does for a normal offset page.
-            int skip = (int) ((pageRequest.page() - 1) * requestedSize);
-            mQuery.skip(skip);
-        }
-
-        CursorHelper.applySort(mQuery, sortSpecs, morphium, entityClass, isForward);
-        mQuery.limit(requestedSize + 1);
-
-        List content = mQuery.asList();
-        boolean hasMore = content.size() > requestedSize;
-        if (hasMore) {
-            content = new ArrayList(content.subList(0, requestedSize));
-        }
-        if (!isForward) {
-            Collections.reverse(content);
-        }
-
-        List<String> sortFields = sortSpecs.stream().map(CursorHelper.SortSpec::javaField).toList();
-        List<PageRequest.Cursor> cursors = CursorHelper.extractCursors(content, sortFields, morphium, entityClass);
-
-        long totalElements = -1;
-        if (pageRequest.requestTotal()) {
+        return CursorHelper.page(mQuery, pageRequest, sortSpecs, () -> {
             Query countQuery = morphium.createQueryFor(entityClass);
             applyConditions(countQuery, jdqlQuery, paramValues, morphium, entityClass);
-            totalElements = countQuery.countAll();
-        }
-
-        boolean isFirstPage = pageRequest.mode() == PageRequest.Mode.OFFSET;
-        boolean isLastPage = !hasMore;
-
-        if (content.isEmpty()) {
-            return new CursoredPageRecord<>(content, cursors, totalElements, pageRequest,
-                    (PageRequest) null, (PageRequest) null);
-        }
-
-        return new CursoredPageRecord<>(content, cursors, totalElements, pageRequest,
-                isFirstPage, isLastPage);
+            return countQuery;
+        }, morphium, entityClass);
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
