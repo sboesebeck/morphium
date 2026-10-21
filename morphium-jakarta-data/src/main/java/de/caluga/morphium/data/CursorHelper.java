@@ -1,5 +1,6 @@
 package de.caluga.morphium.data;
 
+import de.caluga.morphium.FilterExpression;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.query.Query;
 import jakarta.data.page.PageRequest;
@@ -145,10 +146,15 @@ public final class CursorHelper {
                 sub.f(mongoField).lt(cursorValue);
             }
 
-            orQueries.add(sub);
+            orQueries.add(sub.toQueryObject());
         }
 
-        query.or(orQueries);
+        // A filter of its own, ANDed with the conditions of the method. query.or(...) would merge the branches into the OR of the method itself ("a OR b" plus the cursor)
+        // and the cursor would widen the result instead of narrowing it (MOR-091).
+        FilterExpression cursorCondition = new FilterExpression();
+        cursorCondition.setField("$or");
+        cursorCondition.setValue(orQueries);
+        query.addChild(cursorCondition);
     }
 
     /**

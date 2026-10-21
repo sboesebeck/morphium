@@ -158,6 +158,10 @@ context keep their own key handling.
 
 ### Fixed
 
+#### Jakarta Data: the cursor condition narrows a query that has an OR (MOR-091)
+The condition that continues after (or before) a cursor was added with `query.or(...)`, which merges its branches into the OR of the method itself: for `WHERE a = 1 OR b = 2` the next page
+was `a = 1 OR b = 2 OR (cursor branches)` and showed rows of earlier pages again. The cursor condition is a filter of its own now, ANDed with the conditions of the method.
+
 #### Jakarta Data: an enum in `Not`, `In`, `NotIn` and range operators of a derived query (MOR-090)
 `findByKindNot(Kind.PRIME)` returned every document and `findByKindIn(Set.of(...))` none: only a plain equality encoded the enum by its name, a value inside `{$ne: ...}`, `{$in: [...]}` or
 `{$gt: ...}` was not converted. The derived-query conditions convert an enum to its name in every operator.
