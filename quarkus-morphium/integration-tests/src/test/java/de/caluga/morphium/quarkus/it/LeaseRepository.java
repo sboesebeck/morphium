@@ -50,4 +50,11 @@ public interface LeaseRepository extends BasicRepository<LeaseEntity, String> {
     /** the entity itself as the result of the find-and-modify form; the state BEFORE */
     @AtomicUpdate(where = "id = :id", inc = @Assign(field = "fencing", value = "1"), returns = de.caluga.morphium.query.ReturnDocument.BEFORE)
     LeaseEntity bumpAndGetOld(@Param("id") String id);
+
+    /** the same without @Param: the names of the parameters are kept (-parameters, the default of the build under JDK 25 with the option set) */
+    @AtomicUpdate(where = "id = :id AND (expiresAt < :now OR owner = :owner)",
+                  set = {@Assign(field = "owner", param = "owner"), @Assign(field = "expiresAt", param = "until")},
+                  inc = @Assign(field = "fencing", value = "1"),
+                  upsert = true)
+    Optional<LeaseEntity> acquireByParameterNames(String id, String owner, Date now, Date until);
 }
