@@ -28,6 +28,13 @@ public class ShortMapper implements MorphiumTypeMapper<Short> {
         }
 
         if (d instanceof Number n) {
+            double value = n.doubleValue();
+
+            // another writer may have stored a number that does not fit: refuse it instead of wrapping around
+            if (value < Short.MIN_VALUE || value > Short.MAX_VALUE || value != Math.rint(value)) {
+                throw new IllegalArgumentException("The number " + n + " is no short");
+            }
+
             return n.shortValue();
         }
 
