@@ -308,6 +308,14 @@ class MorphiumRepositoryProxyTest {
     }
 
     @Test
+    void findFirstCannotBeCombinedWithALimitParameter() {
+        repository.save(new TestEntity("a", "active", 1));
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> repository.findFirst2ByStatus("active", jakarta.data.Limit.of(1)));
+        assertTrue(e.getMessage().contains("findFirst"), e.getMessage());
+    }
+
+    @Test
     void countAllHasNoByAndCountsEveryDocument() {
         repository.save(new TestEntity("a", "active", 1));
         repository.save(new TestEntity("b", "inactive", 2));

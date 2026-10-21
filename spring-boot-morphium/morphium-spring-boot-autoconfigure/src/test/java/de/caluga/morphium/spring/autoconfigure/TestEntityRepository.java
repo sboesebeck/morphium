@@ -101,6 +101,8 @@ public interface TestEntityRepository extends MorphiumRepository<TestEntity, Mor
 
     List<TestEntity> findFirst2ByStatusOrderByPriorityAsc(String status);
 
+    List<TestEntity> findFirst2ByStatus(String status, jakarta.data.Limit limit);
+
     /** a derived query without By (MOR-076) */
     long countAll();
 

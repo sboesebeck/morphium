@@ -22,6 +22,18 @@ class MethodNameParserTest {
     class MatchAllTests {
 
         @Test
+        @DisplayName("isDerivedQueryName recognises the derived names the parser handles")
+        void derivedNames() {
+            for (String name : new String[] {"findByX", "findFirstByX", "findFirst12ByX", "countByX", "existsByX", "deleteByX", "countAll"}) {
+                assertThat(MethodNameParser.isDerivedQueryName(name)).as(name).isTrue();
+            }
+
+            for (String name : new String[] {"findAll", "findFirstNameBy", "countEverything", "queryByX", "findX", "xfindByY"}) {
+                assertThat(MethodNameParser.isDerivedQueryName(name)).as(name).isFalse();
+            }
+        }
+
+        @Test
         @DisplayName("findFirstBy and findFirst3By limit the result (MOR-079)")
         void findFirst() {
             QueryDescriptor one = MethodNameParser.parse("findFirstByStatus", ENTITY_FIELDS);
