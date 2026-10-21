@@ -1595,3 +1595,18 @@ tasks:
   evidence: 'UpdateEventsTest (6 tests) records the events of a MorphiumStorageListener: push, pull, addToSet, pushAll, pullAll, set and inc each fire exactly one preUpdate and one postUpdate with the type of the call. Before the fix four of them failed (push and addToSet fired pre/post twice, pull and pullAll ended with post PUSH). Fix in MorphiumWriterImpl: pushIt no longer fires the pre event and fires the post event with the real type, pushPull no longer fires a second post event, pushPullAll fires post with its type. Runs on the InMemoryDriver and on mongo:8; the quarkus timer test now asserts exactly 1 for a push. Regression: 1556 test methods (core and messaging) on the InMemoryDriver, all passed.'
   commits:
   - 1358b433d
+- id: MOR-078
+  title: 'A char or Character field cannot be read back'
+  type: defect
+  status: done
+  priority: 2
+  effort: S
+  description: 'Found by the TCK of MOR-026: 18 of its 73 tests failed with ''could not set field thisCharacter: Field has type char got type class java.lang.Integer''. A character is written as its number (store(), the update-value walk), AnnotationAndReflectionHelper.convertType had no branch for char and Character, so the document could not be read. 18 TCK tests are this cause.'
+  acceptance:
+  - 'A char and a Character field are read back after store() and after an update, on the InMemoryDriver and on a real MongoDB'
+  source:
+  - docs/research/jakarta-data-1.1.md
+  - morphium-core/src/main/java/de/caluga/morphium/AnnotationAndReflectionHelper.java convertType
+  evidence: 'CharacterFieldTest (3 tests: read back after store, after Query.set and the update builder, and a query on a char) on the InMemoryDriver and on mongo:8; red before the change (could not set field letter), green after. Regression and the TCK spike run are listed with the series.'
+  commits:
+  - 32d0ceca7
