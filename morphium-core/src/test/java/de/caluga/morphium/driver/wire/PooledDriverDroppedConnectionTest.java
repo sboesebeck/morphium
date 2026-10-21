@@ -240,6 +240,29 @@ public class PooledDriverDroppedConnectionTest {
         assertThat(stats.get("ok")).isEqualTo(1.0);
     }
 
+    /**
+     * A closed driver must refuse a primary connection at once. The failover re-selection in
+     * selectPrimaryConnection (HostRemovedException) must not revive the heartbeat of a driver that
+     * was closed: on the testrunner a Morphium closed at the end of FailoverTests kept one thread
+     * spinning for 90 minutes - borrow fails on the empty hosts map, re-select revives the
+     * heartbeat, the heartbeat names a primary, borrow fails again, 2.4 million log lines.
+     */
+    @Test
+    public void primaryConnectionOnAClosedDriverFailsFastInsteadOfRespinningTheHeartbeat() throws Exception {
+        connectDriver();
+        drv.releaseConnection(drv.getPrimaryConnection(null));
+        drv.close();
+
+        long start = System.currentTimeMillis();
+        Throwable t = catchThrowable(() -> drv.getPrimaryConnection(null));
+        long took = System.currentTimeMillis() - start;
+
+        assertThat(t).isInstanceOf(MorphiumDriverException.class)
+                .hasMessageContaining("shutting down");
+        assertThat(took).as("a closed driver must not wait out a server-selection timeout").isLessThan(2000);
+        assertThat(drv.isConnected()).as("re-selection must not revive a closed driver").isFalse();
+    }
+
     @Test
     public void listDatabasesOnADisconnectedDriverThrowsInsteadOfReturningNull() throws Exception {
         // never connected - the state a caller sees during startup, mid-failover, or right after

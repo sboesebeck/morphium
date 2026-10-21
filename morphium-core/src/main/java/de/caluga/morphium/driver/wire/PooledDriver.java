@@ -1769,7 +1769,17 @@ public class PooledDriver extends DriverBase {
             timeout = 1000;
         }
 
+        int reselects = 0;
+
         while (true) {
+            // A closed driver has an empty hosts map and no heartbeat: every borrow would end in
+            // HostRemovedException, the re-selection below would revive the heartbeat, and the
+            // caller's retry would keep an undead driver spinning (2.4 million log lines in 90
+            // minutes on the testrunner after FailoverTests had closed its Morphium).
+            if (!running) {
+                throw new MorphiumDriverException("Driver is shutting down");
+            }
+
             if (primaryNode == null) {
                 // Discovery must be able to resume from every state (#304): if the heartbeat is gone,
                 // waiting for it below would wait forever - nothing else ever sets primaryNode.
@@ -1817,11 +1827,28 @@ public class PooledDriver extends DriverBase {
                     }
                 }
 
+                if (!running) {
+                    throw new MorphiumDriverException("Driver is shutting down", e);
+                }
+
                 if (System.currentTimeMillis() - start > timeout) {
                     throw e;
                 }
 
-                log.info("primary {} was removed while waiting for a connection - re-selecting the primary", target);
+                if (reselects++ == 0) {
+                    log.info("primary {} was removed while waiting for a connection - re-selecting the primary", target);
+                }
+
+                // The "No such host" shape throws without waiting: the heartbeat may keep naming a
+                // primary that is not (yet) in the hosts map, and without a pause this loop would spin
+                // at full speed until the deadline, one log line per iteration (400 MB of them on the
+                // testrunner). One heartbeat-ish pause per attempt keeps it a bounded poll.
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new MorphiumDriverException("Interrupted while re-selecting the primary", ie);
+                }
             }
         }
     }
