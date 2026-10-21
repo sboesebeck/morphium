@@ -1724,3 +1724,21 @@ tasks:
   evidence: 'SortNullOrderTest (2) on the InMemoryDriver and on a real mongo:8 (the real server confirms the expected order); red before the change. The aggregation $sort already applied the direction.'
   commits:
   - 606a59ab7
+- id: MOR-086
+  title: 'Jakarta Data: a derived query may return a CursoredPage, one cursor paging for all four callers'
+  type: defect
+  status: done
+  priority: 2
+  effort: S
+  description: 'Found by the TCK of MOR-026: findBy...OrderBy...(args, PageRequest) with a CursoredPage return type answered an offset Page (ClassCastException in the generated code). The derived-query bridge builds the keyset from the order of the method name, then @OrderBy, then every dynamic Sort/Order and returns a CursoredPage; a CursoredPage without a PageRequest parameter fails the build (Quarkus) or the first call (Spring). The cursor paging existed three times (@Find, @Query, the repository base class) and is one implementation now: CursorHelper.page.'
+  acceptance:
+  - 'A derived query with PageRequest can return a CursoredPage in the Quarkus and the Spring module, also asynchronously'
+  - 'The keyset is name order, @OrderBy, dynamic sorts'
+  - 'A CursoredPage without a PageRequest parameter is refused with a message that names the method'
+  source:
+  - morphium-jakarta-data/src/main/java/de/caluga/morphium/data/CursorHelper.java
+  - morphium-jakarta-data/src/main/java/de/caluga/morphium/data/QueryMethodBridge.java
+  evidence: 'QueryMethodBridgeCursoredTest (5), Spring proxy test aDerivedQueryMayReturnACursoredPage and UnsupportedParameterStylesTest.aCursoredPageWithoutAPageRequestRefusesTheRepository, Quarkus integration test derivedCursoredPage and deployment test cursoredPageNeedsAPageRequest; the existing cursor tests (CursorHelperTest, MorphiumDataCursoredPageTest) stay green after the refactor. Reviewed in three passes (reuse, validation and async findings fixed, no open finding).'
+  commits:
+  - e5e3e642d
+  - af008022b

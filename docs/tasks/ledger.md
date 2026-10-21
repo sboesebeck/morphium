@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 23, in_progress 1, done 60
+Status: open 23, in_progress 1, done 61
 
 ## Overview
 
@@ -83,6 +83,7 @@ Status: open 23, in_progress 1, done 60
 | MOR-083 | done | 2 | defect | Jakarta Data: SELECT field answers the values of the field when the method returns them | S |  |  |
 | MOR-084 | done | 2 | defect | A short or Short field is stored as a number, not as a Java-serialization blob | S |  |  |
 | MOR-085 | done | 2 | defect | InMemoryDriver: a missing value or null sorts last when descending | S |  |  |
+| MOR-086 | done | 2 | defect | Jakarta Data: a derived query may return a CursoredPage, one cursor paging for all four callers | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
@@ -1494,4 +1495,22 @@ Acceptance:
 Source: morphium-core/src/main/java/de/caluga/morphium/driver/inmem/InMemoryDriver.java
 
 Commits: 606a59ab7
+
+### MOR-086 Jakarta Data: a derived query may return a CursoredPage, one cursor paging for all four callers
+
+Status **done**, priority 2, type defect, effort S
+
+Found by the TCK of MOR-026: findBy...OrderBy...(args, PageRequest) with a CursoredPage return type answered an offset Page (ClassCastException in the generated code). The derived-query bridge builds the keyset from the order of the method name, then @OrderBy, then every dynamic Sort/Order and returns a CursoredPage; a CursoredPage without a PageRequest parameter fails the build (Quarkus) or the first call (Spring). The cursor paging existed three times (@Find, @Query, the repository base class) and is one implementation now: CursorHelper.page.
+
+Evidence: QueryMethodBridgeCursoredTest (5), Spring proxy test aDerivedQueryMayReturnACursoredPage and UnsupportedParameterStylesTest.aCursoredPageWithoutAPageRequestRefusesTheRepository, Quarkus integration test derivedCursoredPage and deployment test cursoredPageNeedsAPageRequest; the existing cursor tests (CursorHelperTest, MorphiumDataCursoredPageTest) stay green after the refactor. Reviewed in three passes (reuse, validation and async findings fixed, no open finding).
+
+Acceptance:
+
+- A derived query with PageRequest can return a CursoredPage in the Quarkus and the Spring module, also asynchronously
+- The keyset is name order, @OrderBy, dynamic sorts
+- A CursoredPage without a PageRequest parameter is refused with a message that names the method
+
+Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/CursorHelper.java, morphium-jakarta-data/src/main/java/de/caluga/morphium/data/QueryMethodBridge.java
+
+Commits: e5e3e642d, af008022b
 
