@@ -1765,97 +1765,87 @@ public class PooledDriver extends DriverBase {
     }
 
     private MongoConnection selectPrimaryConnection(WriteConcern wc) throws MorphiumDriverException {
-        // One server-selection budget for the whole call, including re-selection after the primary
-        // we were queued for was evicted mid-wait (see HostRemovedException): a store() issued during
-        // a failover waits for the winner instead of failing the moment the loser is forgotten.
-        long start = System.currentTimeMillis();
-        long timeout = Math.max(getServerSelectionTimeout(), (long) getHeartbeatFrequency() * 2L + 500L);
+        if (primaryNode == null) {
+            // Discovery must be able to resume from every state (#304): if the heartbeat is gone,
+            // waiting for it below would wait forever - nothing else ever sets primaryNode.
+            reviveHeartbeatIfDead();
 
-        if (timeout <= 0) {
-            timeout = 1000;
+            // Race-free: connect() returns after scheduling heartbeat, but primary discovery happens async.
+            // Also handles short windows during primary failover where primaryNode is cleared temporarily.
+            long start = System.currentTimeMillis();
+            long timeout = Math.max(getServerSelectionTimeout(), (long) getHeartbeatFrequency() * 2L + 500L);
+
+            if (timeout <= 0) {
+                timeout = 1000;
+            }
+
+            // If not a replicaset, there is no "primary" concept - use seed host.
+            if (!isReplicaSet()) {
+                if (getHostSeed().isEmpty()) {
+                    throw new MorphiumDriverException("No host seed configured");
+                }
+                primaryNode = getHostSeed().get(0);
+            } else {
+                while (primaryNode == null) {
+                    if (System.currentTimeMillis() - start > timeout) {
+                        throw new MorphiumDriverException("No primary node found - not connected yet?");
+                    }
+
+                    // Also while waiting, not just on entry: the heartbeat can die mid-wait, and
+                    // then nothing would ever set primaryNode for this caller.
+                    reviveHeartbeatIfDead();
+
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new MorphiumDriverException("Interrupted while waiting for primary connection", e);
+                    }
+                }
+            }
         }
 
-        int reselects = 0;
+        String target = primaryNode;
 
-        while (true) {
-            // A closed driver has an empty hosts map and no heartbeat: every borrow would end in
-            // HostRemovedException, the re-selection below would revive the heartbeat, and the
-            // caller's retry would keep an undead driver spinning (2.4 million log lines in 90
-            // minutes on the testrunner after FailoverTests had closed its Morphium).
-            if (!running) {
-                throw new MorphiumDriverException("Driver is shutting down");
-            }
-
-            if (primaryNode == null) {
-                // Discovery must be able to resume from every state (#304): if the heartbeat is gone,
-                // waiting for it below would wait forever - nothing else ever sets primaryNode.
-                reviveHeartbeatIfDead();
-
-                // Race-free: connect() returns after scheduling heartbeat, but primary discovery happens async.
-                // Also handles short windows during primary failover where primaryNode is cleared temporarily.
-                // If not a replicaset, there is no "primary" concept - use seed host.
-                if (!isReplicaSet()) {
-                    if (getHostSeed().isEmpty()) {
-                        throw new MorphiumDriverException("No host seed configured");
-                    }
-                    primaryNode = getHostSeed().get(0);
-                } else {
-                    while (primaryNode == null) {
-                        if (System.currentTimeMillis() - start > timeout) {
-                            throw new MorphiumDriverException("No primary node found - not connected yet?");
-                        }
-
-                        // Also while waiting, not just on entry: the heartbeat can die mid-wait, and
-                        // then nothing would ever set primaryNode for this caller.
-                        reviveHeartbeatIfDead();
-
-                        try {
-                            Thread.sleep(100);
-                        } catch (InterruptedException e) {
-                            Thread.currentThread().interrupt();
-                            throw new MorphiumDriverException("Interrupted while waiting for primary connection", e);
-                        }
-                    }
+        try {
+            return borrowConnection(target);
+        } catch (HostRemovedException e) {
+            // The heartbeat evicted the node we were queued for while we waited - the failover race.
+            // Forget it as primary (unless the heartbeat has already replaced it) and give the winner
+            // ONE short chance: wait at most a couple of heartbeats for a new primary and borrow from
+            // it once. Bounded on purpose - a full server-selection loop here turned a dead primary
+            // into 30-second stalls per call and kept zombie drivers alive on the testrunner
+            // (PeerReconnectAfterRestartTest, 2026-10-21); past the grace the caller gets the
+            // network error and its own retry policy decides.
+            synchronized (primaryNodeLock) {
+                if (target != null && target.equals(primaryNode)) {
+                    primaryNode = null;
                 }
             }
 
-            String target = primaryNode;
+            long grace = Math.min(5000L, Math.max(500L, (long) getHeartbeatFrequency() * 2L + 500L));
+            long deadline = System.currentTimeMillis() + grace;
+            String successor;
 
-            try {
-                return borrowConnection(target);
-            } catch (HostRemovedException e) {
-                // The heartbeat evicted the node we were queued for - a failover in progress. Forget
-                // it as primary (if the heartbeat has not already replaced it) and re-select within
-                // the remaining budget; the caller must not see this as a failed write.
-                synchronized (primaryNodeLock) {
-                    if (target != null && target.equals(primaryNode)) {
-                        primaryNode = null;
-                    }
-                }
-
+            while ((successor = primaryNode) == null || successor.equals(target)) {
                 if (!running) {
                     throw new MorphiumDriverException("Driver is shutting down", e);
                 }
 
-                if (System.currentTimeMillis() - start > timeout) {
+                if (System.currentTimeMillis() >= deadline) {
                     throw e;
                 }
 
-                if (reselects++ == 0) {
-                    log.info("primary {} was removed while waiting for a connection - re-selecting the primary", target);
-                }
-
-                // The "No such host" shape throws without waiting: the heartbeat may keep naming a
-                // primary that is not (yet) in the hosts map, and without a pause this loop would spin
-                // at full speed until the deadline, one log line per iteration (400 MB of them on the
-                // testrunner). One heartbeat-ish pause per attempt keeps it a bounded poll.
                 try {
-                    Thread.sleep(100);
+                    Thread.sleep(50);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
                     throw new MorphiumDriverException("Interrupted while re-selecting the primary", ie);
                 }
             }
+
+            log.info("primary {} was removed while waiting for a connection - retrying once on the new primary {}", target, successor);
+            return borrowConnection(successor);
         }
     }
 
