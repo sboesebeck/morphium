@@ -780,19 +780,13 @@ public class MorphiumDataProcessor {
         // their methods are the well-known CRUD methods already delegated to
         // AbstractMorphiumRepository (see CRUD_METHODS) -- walking into them would otherwise
         // flag e.g. BasicRepository's own abstract methods as "unsupported".
-        Map<String, MethodInfo> methodsBySignature = new LinkedHashMap<>();
-        for (MethodInfo m : repoInterface.methods()) {
-            methodsBySignature.put(methodSignatureKey(m), m);
-        }
-        Set<String> visitedInterfaces = new HashSet<>();
-        visitedInterfaces.add(repoInterface.name().toString());
-        collectInheritedCustomInterfaceMethods(repoInterface, index, visitedInterfaces, methodsBySignature);
+        Collection<MethodInfo> repositoryMethods = allMethods(repoInterface, index);
 
         // MOR-077: one method can work on another entity than the primary one of the repository
         String primaryEntity = entityClassName;
-        Map<String, String> knownEntities = JandexEntities.known(methodsBySignature.values(), primaryEntity, index);
+        Map<String, String> knownEntities = JandexEntities.known(repositoryMethods, primaryEntity, index);
 
-        for (MethodInfo method : methodsBySignature.values()) {
+        for (MethodInfo method : repositoryMethods) {
             String name = method.name();
 
             // Skip standard CRUD methods and static methods
@@ -2388,7 +2382,9 @@ public class MorphiumDataProcessor {
             default -> isList(returnType) || returnType.name().toString().equals("java.util.Collection") ? "LIST" : "ENTITY";
         };
 
-        if (shape.equals("ENTITY") && (many || returnType.kind() != Type.Kind.CLASS)) {
+        DotName parameterElement = JandexEntities.element(parameter);
+
+        if (shape.equals("ENTITY") && (many || returnType.kind() != Type.Kind.CLASS || !returnType.name().equals(parameterElement))) {
             throw new IllegalStateException("Unsupported repository method " + where + "() -- a lifecycle method returns nothing, the entity (for one entity), a list or array of entities, or a boolean, "
                     + "int or long; not " + returnType + (many ? " for several entities" : ""));
         }
