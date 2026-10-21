@@ -150,6 +150,10 @@ context keep their own key handling.
 
 ### Fixed
 
+#### A `char` or `Character` field is read back (MOR-078)
+A character is written as its number, as `store()` always did, but reading it back into a `char` field failed with "Field has type char got type class java.lang.Integer": an entity
+with a `char` could be written and not read. The number is converted to the character now, also after an update.
+
 #### Jakarta Data: `@Is`, `Restriction` and `@First` are refused instead of being run as an equality (MOR-019)
 Every parameter of a `@Find` or `@Delete` method is bound as an equality condition. With Jakarta Data 1.1 on the classpath, `@Is(AtLeast.class) int min` would have
 run as `price = min`, and a `Restriction` parameter as a field of that name. The Quarkus build now fails for a parameter with `@Is`, for a parameter of a
