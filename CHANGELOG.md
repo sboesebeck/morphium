@@ -86,6 +86,9 @@ An empty builder (it would replace the document), `setOnInsert` without `upsert(
 
 ### Changed
 
+#### Quarkus extension is built and tested against Quarkus 3.40.1 (MOR-096)
+The extension moved from Quarkus 3.32.3 to 3.40.1 (`quarkus.version` in the parent pom). Nothing in the extension had to change: it compiles, and the 313 integration tests pass. The Quarkus 3.40 platform BOM manages `scram-client` 3.3, so an application on it no longer needs the `scram-client` pin (CVE-2026-53712 is fixed in 3.3). `quarkus update` does not apply to an extension (it migrates applications); it made no change.
+
 #### `SingleMongoConnectDriver`: connects to a standalone server, releases its connection after a rejected bulk request (MOR-068)
 Two defects of the driver that has one connection. `connect()` compared its host seed with the `hosts` of the answer to `hello`, which a standalone server does not send: a `NullPointerException`, reported as "max retries exceeded", so the driver could not be used with a standalone `mongod` at all (it worked with a replica set). And the bulk context claimed the connection per request and gave it back only on success: a rejected request throws from `execute()`, the connection stayed claimed, and the next call of the driver waited until its timeout. The bulk context releases the connection in a `finally` now, as the `PooledDriver` does. `MultiDriverTestBase.getMorphiumInstances()` takes the `SingleMongoConnectDriver` into the run with `-Dmorphium.includeSingle=true` (and `single` in `-Dmorphium.driver`), which is how both were found.
 
