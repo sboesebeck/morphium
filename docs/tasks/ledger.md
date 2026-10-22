@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 22, done 72
+Status: open 22, done 73
 
 ## Overview
 
@@ -92,6 +92,7 @@ Status: open 22, done 72
 | MOR-093 | done | 2 | implementation | Enums can be stored by their ordinal: @Enumerated and an opt-in setting | M |  |  |
 | MOR-094 | done | 2 | documentation | README: the Jakarta Data TCK result and our modules added to the entry page, release history of 6.2 and older moved out | S |  |  |
 | MOR-095 | done | 2 | verification | Verification: the showcase against this version, and two findings (scram-client pinned by the Quarkus BOM, no LICENSE file) | S |  |  |
+| MOR-096 | done | 2 | infrastructure | Quarkus extension: build and test against Quarkus 3.40.1 (was 3.32.3) | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
@@ -1685,4 +1686,21 @@ Acceptance:
 Source: quarkus-morphium/README.md
 
 Commits: db4f125a9, 417dfbedb
+
+### MOR-096 Quarkus extension: build and test against Quarkus 3.40.1 (was 3.32.3)
+
+Status **done**, priority 2, type infrastructure, effort S
+
+The extension was built against Quarkus 3.32.3. quarkus.version in the parent pom moved to 3.40.1. quarkus update (3.32.3 to 3.40.1, recipes 3.37, 3.38, 3.39) was run as asked; it migrates applications and changed nothing in this extension, so the version was set by hand.
+
+Evidence: Runtime and deployment tests pass; the integration tests (313) failed twice in the first full run (MorphiumMigrationTest, lock heartbeat tests, known from MOR-074), pass alone on 3.32.3 and 3.40.1, and all 313 passed in a second full run. The 3.40.1 BOM manages scram-client 3.3 (3.2 in 3.32.3), so the pin of MOR-095 is only needed for 3.4 or on older Quarkus. Not checked: that the extension still runs on Quarkus 3.32 to 3.39, the README no longer promises it.
+
+Acceptance:
+
+- All four Quarkus modules build and their tests pass on 3.40.1
+- The documentation states the Quarkus version and what the 3.40.1 BOM manages for scram-client
+
+Source: pom.xml, quarkus-morphium/README.md, docs/quarkus-extension.md
+
+Commits: 02ae7b5bd, 0e4599de9
 

@@ -1898,3 +1898,21 @@ tasks:
   commits:
   - db4f125a9
   - 417dfbedb
+- id: MOR-096
+  title: 'Quarkus extension: build and test against Quarkus 3.40.1 (was 3.32.3)'
+  type: infrastructure
+  status: done
+  priority: 2
+  effort: S
+  description: 'The extension was built against Quarkus 3.32.3. quarkus.version in the parent pom moved to 3.40.1. quarkus update (3.32.3 to 3.40.1, recipes 3.37, 3.38, 3.39) was run as asked; it migrates applications and changed nothing in this extension, so the version was set by hand.'
+  acceptance:
+  - 'All four Quarkus modules build and their tests pass on 3.40.1'
+  - 'The documentation states the Quarkus version and what the 3.40.1 BOM manages for scram-client'
+  source:
+  - pom.xml
+  - quarkus-morphium/README.md
+  - docs/quarkus-extension.md
+  evidence: 'Runtime and deployment tests pass; the integration tests (313) failed twice in the first full run (MorphiumMigrationTest, lock heartbeat tests, known from MOR-074), pass alone on 3.32.3 and 3.40.1, and all 313 passed in a second full run. The 3.40.1 BOM manages scram-client 3.3 (3.2 in 3.32.3), so the pin of MOR-095 is only needed for 3.4 or on older Quarkus. Not checked: that the extension still runs on Quarkus 3.32 to 3.39, the README no longer promises it.'
+  commits:
+  - 02ae7b5bd
+  - 0e4599de9
