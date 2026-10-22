@@ -1,5 +1,8 @@
 # Quarkus Extension: CDI Integration for Morphium
 
+!!! success "Jakarta Data TCK: 73 of 73"
+    The repositories of this module run on `morphium-jakarta-data`, which passes all 73 tests of the standalone Jakarta Data 1.0 TCK suite — see [Conformance](jakarta-data.md#conformance-jakarta-data-tck).
+
 `quarkus-morphium` is an **optional Morphium module** that integrates Morphium into
 [Quarkus](https://quarkus.io) applications via a CDI producer, type-safe
 `@ConfigMapping` configuration, declarative transactions, health checks, Dev Services,
