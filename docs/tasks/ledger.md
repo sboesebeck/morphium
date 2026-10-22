@@ -1646,3 +1646,5 @@ Acceptance:
 
 Source: morphium-core/src/main/java/de/caluga/morphium/annotations/Enumerated.java, morphium-core/src/main/java/de/caluga/morphium/ObjectMapperImpl.java
 
+Commits: 8dc2017ee, 72aec1d28
+
