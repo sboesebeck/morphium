@@ -4,13 +4,12 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 21, done 74
+Status: open 21, done 75
 
 ## Overview
 
 | ID | Status | Prio | Type | Title | Effort | Ticket | Depends on |
 |---|---|---|---|---|---|---|---|
-| MOR-069 | open | 2 | defect | PoppyDB: the update fast path reports every error as 11000 and ignores the ordered flag | S |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
 | MOR-015 | open | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
@@ -31,6 +30,7 @@ Status: open 21, done 74
 | MOR-070 | open | 3 | defect | PoppyDB: the delete fast path swallows errors | S |  |  |
 | MOR-071 | open | 3 | defect | Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange | S |  |  |
 | MOR-075 | open | 3 | defect | JdqlParser accepts an operand that is neither a parameter nor a literal | S |  |  |
+| MOR-097 | open | 3 | defect | PoppyDB (InMemoryDriver) accepts nine statements that mongod rejects: push on a non-array, dotted path through a scalar | M |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -73,6 +73,7 @@ Status: open 21, done 74
 | MOR-064 | done | 2 | defect | store() of an existing entity swallows a rejected update (StoreMongoCommand) | M |  |  |
 | MOR-067 | done | 2 | defect | Query.toQueryObject puts the or queries into the $nor list when both are used | S |  |  |
 | MOR-068 | done | 2 | defect | SingleMongoConnectDriver: cannot connect to a standalone server, and a rejected bulk request keeps its only connection | S |  |  |
+| MOR-069 | done | 2 | defect | PoppyDB: the update fast path reports every error as 11000 and ignores the ordered flag | S |  |  |
 | MOR-076 | done | 2 | defect | Jakarta Data: derived queries without By (countAll and similar) are unsupported | S |  |  |
 | MOR-077 | done | 2 | verification | Jakarta Data: repositories without a single primary entity are unsupported | M |  |  |
 | MOR-078 | done | 2 | defect | A char or Character field cannot be read back | S |  |  |
@@ -1297,9 +1298,11 @@ Commits: 23754ea9b
 
 ### MOR-069 PoppyDB: the update fast path reports every error as 11000 and ignores the ordered flag
 
-Status **open**, priority 2, type defect, effort S
+Status **done**, priority 2, type defect, effort S
 
 Found by the topology matrix of MOR-036 (update contract suite against a single node PoppyDB, PooledDriver). MongoCommandHandler.processUpdateDirect catches every exception of driver.update and writes writeErrors with the fixed code 11000, although the driver sets the code of mongod (2, 9, 14, 40, 52, 56, 66): all 56 rejection cases of the contract suite come back as duplicate key errors. The statements ARE rejected, only the code is wrong. The loop also goes on after the first error, so an ordered update (the default) applies the statements behind it, which mongod does not. processInsertDirect uses the code of the exception when it has one; the update path should do the same, and stop at the first error unless ordered is false.
+
+Evidence: FastPathOptionsTest (11 tests, 4 new): a rejected statement keeps the code of the driver (66 for a changed _id), an untyped failure ($pullAll on a string) is a BadValue (2), an ordered update stops at the first rejected statement, ordered:false goes on; the first two and the ordered stop failed before the change. The contract suites (*Contract*, 20 tests) against a single node PoppyDB with the PooledDriver: 19 pass; WritePathAuditContractTest.aRejectedWriteIsRaised no longer reports a wrong code (the pullAll(field) case was one) but 9 statements that mongod rejects are accepted by PoppyDB (MOR-097). poppydb module: 693 tests, 12 fail (ForeignResumeTokenRegistrationBurstTest, ServerRestartResumeTest, PriorityTakeoverUnderLoadTest, FailoverTests, MessagingInsertFastPathTest, AuthTlsWireE2ETest, RsInternalAuthTlsTest, PoppyDBCLIConfigIntegrationTest); the same 12 fail again when the classes are run alone, and five of the classes (6 tests) fail the same way without this change; the other three were not run on the baseline (messaging indexes not built within 5s and similar environment symptoms). The generic path of MongoCommandHandler (update through the wire command classes) is not changed.
 
 Acceptance:
 
@@ -1307,6 +1310,8 @@ Acceptance:
 - An ordered update stops at the first rejected statement
 
 Source: poppydb/src/main/java/de/caluga/poppydb/netty/MongoCommandHandler.java
+
+Commits: ff9e3d5c5
 
 ### MOR-070 PoppyDB: the delete fast path swallows errors
 
@@ -1707,4 +1712,17 @@ Acceptance:
 Source: pom.xml, quarkus-morphium/README.md, docs/quarkus-extension.md
 
 Commits: 02ae7b5bd, 0e4599de9
+
+### MOR-097 PoppyDB (InMemoryDriver) accepts nine statements that mongod rejects: push on a non-array, dotted path through a scalar
+
+Status **open**, priority 3, type defect, effort M
+
+WritePathAuditContractTest.aRejectedWriteIsRaised against a single node PoppyDB with the PooledDriver (found while closing MOR-069): Query.push(field), Query.push(enum), Query.pushAll(field), Morphium.push(entity), Morphium.addToSet, Bulk.addPushRequest (a $push or $addToSet on a field that holds a scalar), Query.inc(dotted path), Morphium.currentDate and Bulk.addCurrentDateRequest (a dotted path through a scalar value, mongod: cannot create field in element) do not raise, the document is changed (the scalar becomes a sub document, or a list). mongod rejects each of them. The test is skipped on the InMemoryDriver by design (assumeFalse isInMem: needs a real MongoDB); PoppyDB runs on the InMemoryDriver, so these are gaps of the InMemoryDriver, not of the wire path.
+
+Acceptance:
+
+- Each of the nine statements raises a MorphiumDriverException with the code of mongod (2, 14, 28 or 40 as the contract table says) and changes nothing, on PoppyDB with the PooledDriver
+- The contract table of WritePathAuditContractTest passes against PoppyDB
+
+Source: morphium-core/src/test/java/de/caluga/test/mongo/suite/contract/WritePathAuditContractTest.java
 

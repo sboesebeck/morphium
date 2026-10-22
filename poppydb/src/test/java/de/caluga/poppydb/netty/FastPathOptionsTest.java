@@ -120,6 +120,93 @@ public class FastPathOptionsTest {
             "arrayFilters from the request must be passed through the fast path to the driver");
     }
 
+    // MOR-069: a rejected statement keeps the code of the driver, and an ordered update stops at the first error
+
+    private MorphiumId seedForUpdate() throws Exception {
+        MorphiumId id = new MorphiumId();
+        List<Map<String, Object>> seed = new ArrayList<>();
+        seed.add(Doc.of("_id", id, "n", 1, "label", "a"));
+        new de.caluga.morphium.driver.commands.InsertMongoCommand(drv)
+            .setDb(db).setColl(coll).setDocuments(seed).execute();
+        return id;
+    }
+
+    private Map<String, Object> labelOf(MorphiumId id) throws Exception {
+        FindCommand fnd = new FindCommand(drv).setDb(db).setColl(coll);
+        fnd.setFilter(Doc.of("_id", id));
+        List<Map<String, Object>> res = fnd.execute();
+        fnd.releaseConnection();
+        return res.get(0);
+    }
+
+    /** a statement that the driver rejects: _id is immutable (mongod: code 66) */
+    private Map<String, Object> rejected(MorphiumId id) {
+        return Doc.of("q", Doc.of("_id", id), "u", Doc.of("$set", Doc.of("_id", new MorphiumId())));
+    }
+
+    private Map<String, Object> accepted(MorphiumId id) {
+        return Doc.of("q", Doc.of("_id", id), "u", Doc.of("$set", Doc.of("label", "b")));
+    }
+
+    @Test
+    public void updateDirect_rejectionKeepsTheCodeOfTheDriver() throws Exception {
+        MorphiumId id = seedForUpdate();
+
+        Map<String, Object> answer = handler().processUpdateDirect(Doc.of(
+            "$db", db, "update", coll, "updates", List.of(rejected(id))));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> we = (List<Map<String, Object>>) answer.get("writeErrors");
+        assertNotNull(we, "the statement is rejected");
+        assertEquals(66, ((Number) we.get(0).get("code")).intValue(), "the code of the driver, not a duplicate key (11000): " + we);
+        assertEquals(0, ((Number) we.get(0).get("index")).intValue());
+    }
+
+    @Test
+    public void updateDirect_orderedStopsAtTheFirstRejectedStatement() throws Exception {
+        MorphiumId id = seedForUpdate();
+
+        Map<String, Object> answer = handler().processUpdateDirect(Doc.of(
+            "$db", db, "update", coll, "updates", List.of(rejected(id), accepted(id))));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> we = (List<Map<String, Object>>) answer.get("writeErrors");
+        assertEquals(1, we.size(), "only the first error is reported: " + we);
+        assertEquals("a", labelOf(id).get("label"), "the statement behind the error is not applied (ordered is the default)");
+    }
+
+    @Test
+    public void updateDirect_unorderedGoesOnAfterARejectedStatement() throws Exception {
+        MorphiumId id = seedForUpdate();
+
+        Map<String, Object> answer = handler().processUpdateDirect(Doc.of(
+            "$db", db, "update", coll, "ordered", false, "updates", List.of(rejected(id), accepted(id))));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> we = (List<Map<String, Object>>) answer.get("writeErrors");
+        assertEquals(1, we.size(), "only the first statement is rejected: " + we);
+        assertEquals("b", labelOf(id).get("label"), "ordered:false goes on with the statement behind the error");
+        assertEquals(1, ((Number) answer.get("nModified")).intValue());
+    }
+
+    @Test
+    public void updateDirect_failureWithoutACodeIsABadValueNotADuplicateKey() throws Exception {
+        MorphiumId id = new MorphiumId();
+        List<Map<String, Object>> seed = new ArrayList<>();
+        seed.add(Doc.of("_id", id, "label", "not a list"));
+        new de.caluga.morphium.driver.commands.InsertMongoCommand(drv)
+            .setDb(db).setColl(coll).setDocuments(seed).execute();
+
+        Map<String, Object> answer = handler().processUpdateDirect(Doc.of(
+            "$db", db, "update", coll,
+            "updates", List.of(Doc.of("q", Doc.of("_id", id), "u", Doc.of("$pullAll", Doc.of("label", List.of("x")))))));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> we = (List<Map<String, Object>>) answer.get("writeErrors");
+        assertNotNull(we, "$pullAll on a string is rejected");
+        assertEquals(2, ((Number) we.get(0).get("code")).intValue(), "BadValue, as mongod: " + we);
+    }
+
     @Test
     public void insertDirect_orderedStopReportsActualInsertCount() throws Exception {
         MorphiumId x = new MorphiumId();
