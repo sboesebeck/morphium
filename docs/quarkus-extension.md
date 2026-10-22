@@ -95,7 +95,7 @@ Without a pin your application runs on 3.2. Morphium itself is not affected by C
 </dependencyManagement>
 ```
 
-Put it before the import of the Quarkus BOM. The tests of this repository and the
+An entry in the `dependencyManagement` of your own project wins over the imported Quarkus BOM. The tests of this repository and the
 [Quarkus Morphium Showcase](https://morphium.kopp-cloud.de/) run on 3.4.
 
 ## Configuration Reference
