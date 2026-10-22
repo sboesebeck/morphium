@@ -1311,7 +1311,7 @@ Acceptance:
 
 Source: poppydb/src/main/java/de/caluga/poppydb/netty/MongoCommandHandler.java
 
-Commits: cffbeb737
+Commits: ff9e3d5c5
 
 ### MOR-070 PoppyDB: the delete fast path swallows errors
 
