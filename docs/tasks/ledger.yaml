@@ -1545,7 +1545,7 @@ tasks:
   - poppydb/src/main/java/de/caluga/poppydb/netty/MongoCommandHandler.java
   evidence: 'FastPathOptionsTest (11 tests, 4 new): a rejected statement keeps the code of the driver (66 for a changed _id), an untyped failure ($pullAll on a string) is a BadValue (2), an ordered update stops at the first rejected statement, ordered:false goes on; the first two and the ordered stop failed before the change. The contract suites (*Contract*, 20 tests) against a single node PoppyDB with the PooledDriver: 19 pass; WritePathAuditContractTest.aRejectedWriteIsRaised no longer reports a wrong code (the pullAll(field) case was one) but 9 statements that mongod rejects are accepted by PoppyDB (MOR-097). poppydb module: 693 tests, 12 fail (ForeignResumeTokenRegistrationBurstTest, ServerRestartResumeTest, PriorityTakeoverUnderLoadTest, FailoverTests, MessagingInsertFastPathTest, AuthTlsWireE2ETest, RsInternalAuthTlsTest, PoppyDBCLIConfigIntegrationTest); the same 12 fail again when the classes are run alone, and five of the classes (6 tests) fail the same way without this change; the other three were not run on the baseline (messaging indexes not built within 5s and similar environment symptoms). The process of the generic path (MongoCommandHandler update via wire commands) was not changed.'
   commits:
-  - cffbeb737
+  - ff9e3d5c5
 - id: MOR-070
   title: 'PoppyDB: the delete fast path swallows errors'
   type: defect
