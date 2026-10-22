@@ -292,6 +292,11 @@ public final class QueryExecutor {
      * @return false if the operator has nothing to ignore (a check for null, for example); the caller builds the plain condition
      */
     private static boolean buildIgnoreCaseCondition(String fieldName, Condition cond, Object[] args, Map<String, Object> result) {
+        // a null has no case: the plain condition, which is null-safe, decides
+        if ((cond.paramIndex() >= 0 && args[cond.paramIndex()] == null) || (cond.paramIndex2() >= 0 && args[cond.paramIndex2()] == null)) {
+            return false;
+        }
+
         switch (cond.operator()) {
             case EQ -> result.put(fieldName, caseInsensitive("^" + Pattern.quote(text(args[cond.paramIndex()])) + "$"));
             case NE -> result.put(fieldName, Map.of("$not", caseInsensitive("^" + Pattern.quote(text(args[cond.paramIndex()])) + "$")));
