@@ -1667,6 +1667,8 @@ Acceptance:
 
 Source: README.md, docs/releases/whats-new-v6.md
 
+Commits: eb722ce92, d492947fe
+
 ### MOR-095 Verification: the showcase against this version, and two findings (scram-client pinned by the Quarkus BOM, no LICENSE file)
 
 Status **open**, priority 2, type verification, effort S
