@@ -143,6 +143,80 @@ public final class IndexKey {
         return new IndexKey(Collections.unmodifiableList(values), containsList || sawMidPathList[0]);
     }
 
+    /**
+     * The keys a document is filed under for the uniqueness of an index, one per array element as mongod does for a multikey index (MOR-098): an array in the
+     * field, or an array of sub documents on the way of a dotted path, contributes each of its elements; an empty array is one value of its own; a compound index
+     * takes the product of its fields. The same value twice in one document is one key. {@link #extract} keeps an array as ONE key and is what lookups and
+     * ordered scans use; this is for the unique check only.
+     */
+    static List<IndexKey> elementKeys(Map<String, Object> doc, IndexDefinition def) {
+        List<List<Object>> perField = new ArrayList<>(def.fields().size());
+
+        for (String field : def.fields()) {
+            List<Object> values = new ArrayList<>();
+            collectElements(doc, field.split("\\."), 0, values);
+            perField.add(values);
+        }
+
+        java.util.Set<IndexKey> keys = new java.util.LinkedHashSet<>();
+        product(perField, 0, new ArrayList<>(perField.size()), keys);
+        return new ArrayList<>(keys);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void collectElements(Object current, String[] segments, int idx, List<Object> out) {
+        if (idx == segments.length) {
+            if (current instanceof List<?> list && !list.isEmpty()) {
+                for (Object element : list) {
+                    out.add(element == null ? MISSING : freeze(normalizeKeyValue(element)));
+                }
+            } else {
+                out.add(current == null ? MISSING : freeze(normalizeKeyValue(current)));
+            }
+
+            return;
+        }
+
+        if (current instanceof Map) {
+            Map<String, Object> map = (Map<String, Object>) current;
+
+            if (!map.containsKey(segments[idx])) {
+                out.add(MISSING);
+                return;
+            }
+
+            collectElements(map.get(segments[idx]), segments, idx + 1, out);
+        } else if (current instanceof List<?> list) {
+            boolean any = false;
+
+            for (Object element : list) {
+                if (element instanceof Map) {
+                    collectElements(element, segments, idx, out);
+                    any = true;
+                }
+            }
+
+            if (!any) {
+                out.add(MISSING);
+            }
+        } else {
+            out.add(MISSING);
+        }
+    }
+
+    private static void product(List<List<Object>> perField, int i, List<Object> acc, java.util.Set<IndexKey> out) {
+        if (i == perField.size()) {
+            out.add(new IndexKey(Collections.unmodifiableList(new ArrayList<>(acc)), false));
+            return;
+        }
+
+        for (Object value : perField.get(i)) {
+            acc.add(value);
+            product(perField, i + 1, acc, out);
+            acc.remove(acc.size() - 1);
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private static Object extractValue(Map<String, Object> doc, String path, boolean[] sawMidPathList) {
         Object current = doc;
