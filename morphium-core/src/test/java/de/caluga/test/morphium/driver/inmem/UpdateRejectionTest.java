@@ -108,6 +108,22 @@ public class UpdateRejectionTest {
     }
 
     @Test
+    public void incBelowAnExplicitNullIsPathNotViable() throws Exception {
+        drv.update(DB, COLL, Doc.of("_id", "a"), null, Doc.of("$set", Doc.of("nothing", null)), false, false, null, null, null);
+
+        assertEquals(28, rejectionCode(Doc.of("$inc", Doc.of("nothing.n", 1))));
+        assertUnchanged();
+    }
+
+    @Test
+    public void incBelowAScalarArrayElementIsPathNotViable() throws Exception {
+        drv.update(DB, COLL, Doc.of("_id", "a"), null, Doc.of("$set", Doc.of("numbers", new ArrayList<>(List.of(1, 2)))), false, false, null, null, null);
+
+        assertEquals(28, rejectionCode(Doc.of("$inc", Doc.of("numbers.0.n", 1))));
+        assertUnchanged();
+    }
+
+    @Test
     public void currentDateBelowAScalarIsPathNotViable() throws Exception {
         assertEquals(28, rejectionCode(Doc.of("$currentDate", Doc.of("scalar_value.sub", true))));
         assertUnchanged();
