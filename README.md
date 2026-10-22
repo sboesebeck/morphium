@@ -45,7 +45,7 @@ test backend that needs no MongoDB at all.
 |  |  |
 |---|---|
 | 🗄️ **Object mapping** | Annotation-driven, lifecycle callbacks, `@Reference`, `@Version` optimistic locking, field-level encryption, enums by name or ordinal |
-| 📚 **Jakarta Data 1.0** | `@Repository` interfaces for Quarkus and Spring Boot. **Passes all 73 tests of the standalone TCK suite** |
+| 📚 **Jakarta Data 1.0** | `@Repository` interfaces for Quarkus and Spring Boot. **Passes all 73 tests of the standalone TCK suite** (from the next release after 6.3.14) |
 | 📨 **Message queue** | Topics, priorities, exclusive delivery, request/response, distributed locks — in MongoDB, no broker to run |
 | ⚡ **Caching** | Per-entity `@Cache`, query-result cache, cluster-wide invalidation, JCache (JSR-107) |
 | 🧪 **In-memory driver** | Fast unit tests with the same API, no container, no installation |
@@ -102,6 +102,10 @@ Morphium implements [Jakarta Data 1.0](https://jakarta.ee/specifications/data/1.
 implementation. On Quarkus it is generated at build time, on Spring Boot it is a runtime proxy; both use the same
 runtime, `morphium-jakarta-data`.
 
+> **Release note:** the full TCK result and some features below — the `IgnoreCase` modifier in front of an operator,
+> `CursoredPage` for derived queries, lifecycle methods in every shape, repositories without a primary entity and
+> `@Enumerated` — are on `develop` and arrive with the release after 6.3.14.
+
 ```java
 @Repository
 public interface OrderRepository extends CrudRepository<Order, MorphiumId> {
@@ -142,8 +146,8 @@ find-and-modify, for leases, counters and "create if absent" — and the `Morphi
 
 ### Conformance
 
-The standalone entity tests of the **Jakarta Data TCK 1.0.0 pass 73 of 73**, on the in-memory driver and on a real
-MongoDB 8. The suite runs as a normal test (`JakartaDataTckTest` in `spring-boot-morphium`) and fails when a test that is
+The standalone entity tests of the **Jakarta Data TCK 1.0.0 pass 73 of 73** (from the release after 6.3.14), on the
+in-memory driver and on a real MongoDB 8. The suite runs as a normal test (`JakartaDataTckTest` in `spring-boot-morphium`) and fails when a test that is
 not on its exclusion list fails — the list is empty.
 
 ```bash

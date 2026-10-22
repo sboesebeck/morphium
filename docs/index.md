@@ -11,7 +11,7 @@ Morphium is a Java 21+ Object Document Mapper (ODM) and MongoDB‑backed messagi
 
 ---
 
-**Jakarta Data 1.0:** Morphium passes **all 73 tests** of the standalone TCK suite, on the in-memory driver and on a real MongoDB 8 —
+**Jakarta Data 1.0:** Morphium passes (from the release after 6.3.14) **all 73 tests** of the standalone TCK suite, on the in-memory driver and on a real MongoDB 8 —
 see [Jakarta Data](jakarta-data.md#conformance-jakarta-data-tck). Repositories for [Quarkus](quarkus-extension.md) and [Spring Boot](spring-boot.md).
 
 ---
