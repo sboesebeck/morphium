@@ -1912,7 +1912,7 @@ tasks:
   - pom.xml
   - quarkus-morphium/README.md
   - docs/quarkus-extension.md
-  evidence: 'Runtime and deployment tests pass; the integration tests (313) failed twice in the first full run (MorphiumMigrationTest, lock heartbeat tests, known from MOR-074), pass alone on 3.32.3 and 3.40.1, and all 313 passed in a second full run. The 3.40.1 BOM manages scram-client 3.3 (3.2 in 3.32.3), so the pin of MOR-095 is only needed for 3.4 or on older Quarkus. Not checked: that the extension still runs on Quarkus 3.32 to 3.39, the README no longer promises it.'
+  evidence: 'Runtime and deployment tests pass; the integration tests (313) failed twice in the first full run (MorphiumMigrationTest, lock heartbeat tests, known from MOR-074), pass alone on 3.32.3 and 3.40.1, and all 313 passed in a second full run. The 3.40.1 BOM manages scram-client 3.3 (3.2 in 3.32.3), so the pin of MOR-095 is only needed for 3.4 or on older Quarkus. Checked at both ends: the extension jars built on 3.40.1 were run in the integration tests with the Quarkus version set to 3.32.3 in the pom (311 of 313, the same two migration tests fail as on 3.40.1) and in the showcase (92 of 92 on 3.32.3 and on 3.40.1). A -D override of the Quarkus version on the command line does not reach the test JVM (the bootstrap reads the pom) and gives a mixed class path: change the property in the pom. Not checked: Quarkus 3.33 to 3.39.'
   commits:
   - 02ae7b5bd
   - 0e4599de9
