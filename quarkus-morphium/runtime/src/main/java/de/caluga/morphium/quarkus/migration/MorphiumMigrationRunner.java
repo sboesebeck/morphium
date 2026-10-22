@@ -507,6 +507,9 @@ public class MorphiumMigrationRunner {
      * Callers that want to wait for a currently-held lock to become available should call
      * {@link #acquireLockWithWait()} instead.
      *
+     * <p>Package-private so that {@code MorphiumMigrationRunnerLockTest} can test how a failed lock write is classified; production code goes through
+     * {@link #acquireLockWithWait()}.
+     *
      * @throws RuntimeException if the lock is held by another process
      */
     void acquireLock() {
