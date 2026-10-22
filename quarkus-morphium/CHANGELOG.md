@@ -69,6 +69,9 @@ same wave as the other `@Deprecated(since = "6.3", forRemoval = true)` members i
 
 ### Changed
 
+#### Built and tested against Quarkus 3.40.1 (MOR-096)
+The extension moved from Quarkus 3.32.3 to 3.40.1 and needed no code change. Older versions are not tested any more. The 3.40.1 platform BOM manages `scram-client` 3.3, so the pin described in `docs/quarkus-extension.md` is needed on 3.40.1 only if you want 3.4.
+
 #### Integrated into the Morphium reactor as an optional module
 `quarkus-morphium` moves from a standalone repository under the `io.quarkiverse.morphium`
 groupId into `sboesebeck/morphium` as an optional, four-submodule (`runtime`,

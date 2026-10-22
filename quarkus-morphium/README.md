@@ -210,7 +210,7 @@ aggregation pipelines, bulk updates, and anything beyond standard CRUD.
 | Dependency | Minimum version |
 |---|---|
 | Java | 21 |
-| Quarkus | 3.40.1 |
+| Quarkus | 3.40.1 (the version the extension is built and tested against; 3.32.3 before, older versions are not tested) |
 | Morphium | released in lockstep with the [sboesebeck/morphium](https://github.com/sboesebeck/morphium) reactor |
 
 ## Installation

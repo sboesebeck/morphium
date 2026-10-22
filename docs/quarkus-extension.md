@@ -78,8 +78,8 @@ core version in the same build.
 
 Morphium authenticates with SCRAM through `com.ongres.scram:scram-client` and manages version 3.4 (it fixes
 CVE-2025-59432, a timing attack, in 3.2, and CVE-2026-53712, a downgrade of channel binding, in 3.3). The BOM of the application wins over the
-version of a library: the Quarkus platform BOM manages 3.3 from Quarkus 3.40 on, which has both fixes, and 3.2 up to Quarkus 3.32, which has
-not the second one. On an older Quarkus pin the version in the `dependencyManagement` of the application (it wins over the imported Quarkus BOM):
+version of a library: the Quarkus 3.40.1 platform BOM manages 3.3, which has both fixes, and the 3.32.3 BOM manages 3.2, which lacks the second one (the versions in between
+were not checked). With an older or unchecked Quarkus version pin the version in the `dependencyManagement` of the application (it wins over the imported Quarkus BOM):
 
 ```xml
 <dependencyManagement>
