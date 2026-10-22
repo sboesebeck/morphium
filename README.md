@@ -18,7 +18,7 @@ Available languages: English and [Deutsch](README.de.md)
 - 🧪 **In-memory driver** for fast tests (no MongoDB required)
 - 🌱 **[PoppyDB](https://sboesebeck.github.io/morphium/poppydb/)** — MongoDB-compatible in-memory server: replica sets, auth/TLS, messaging backend
 - 🎯 **JMS API (experimental)** for standards-based messaging
-- 📚 **[Jakarta Data 1.0](#-jakarta-data-and-the-frameworks)** — `@Repository` interfaces for Quarkus and Spring Boot; **passes all 73 tests of the standalone TCK suite**
+- 📚 **[Jakarta Data 1.0](#-jakarta-data-and-the-frameworks)** — `@Repository` interfaces for Quarkus and Spring Boot; **passes all 73 tests of the standalone TCK suite** (from the release after 6.3.14)
 - 🚀 **Java 21+** — modern language baseline (pattern matching, sealed types)
 
 [![Maven Central](https://img.shields.io/maven-central/v/de.caluga/morphium.svg)](https://search.maven.org/artifact/de.caluga/morphium)
