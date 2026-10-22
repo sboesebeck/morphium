@@ -74,6 +74,30 @@ with Morphium core; there is no separate version line to track. Building the rea
 (`mvn -pl quarkus-morphium -am verify`) builds this extension against the exact Morphium
 core version in the same build.
 
+### The SCRAM library: pin `scram-client` to 3.4
+
+Morphium authenticates with SCRAM through `com.ongres.scram:scram-client` and manages version 3.4 (it fixes
+CVE-2025-59432, a timing attack, in 3.2, and CVE-2026-53712, a downgrade of channel binding, in 3.3). The Quarkus platform
+BOM manages an older version (3.2 with Quarkus 3.32), and the BOM of the application wins over the version of a library.
+Without a pin your application runs on 3.2. Morphium itself is not affected by CVE-2026-53712, because it authenticates with
+`ChannelBindingPolicy.DISABLE`, but a dependency scanner will report the old version. Pin the version in the
+`dependencyManagement` of the application:
+
+```xml
+<dependencyManagement>
+  <dependencies>
+    <dependency>
+      <groupId>com.ongres.scram</groupId>
+      <artifactId>scram-client</artifactId>
+      <version>3.4</version>
+    </dependency>
+  </dependencies>
+</dependencyManagement>
+```
+
+Put it before the import of the Quarkus BOM. The tests of this repository and the
+[Quarkus Morphium Showcase](https://morphium.kopp-cloud.de/) run on 3.4.
+
 ## Configuration Reference
 
 All properties live under `quarkus.morphium.*`. This is not the complete list — see the

@@ -1884,7 +1884,7 @@ tasks:
 - id: MOR-095
   title: 'Verification: the showcase against this version, and two findings (scram-client pinned by the Quarkus BOM, no LICENSE file)'
   type: verification
-  status: open
+  status: done
   priority: 2
   effort: S
   description: 'The Quarkus Morphium Showcase (92 tests) was run against 6.3.15-SNAPSHOT of all modules: all pass. Two findings. (1) The Quarkus platform BOM (3.32.3) manages com.ongres.scram:scram-client to 3.2 and wins over the 3.4 that Morphium manages (security: ongres scram 2.1 -> 3.4, CVE-2025-59432 and CVE-2026-53712), so an application on the Quarkus BOM gets 3.2 unless it pins 3.4 itself; the showcase had to pin it to resolve. Check that 3.2 is safe for SaslAuthCommand and whether it carries the CVEs, then document the pin in the Quarkus guide (and in the showcase pom). (2) The repository has no LICENSE file at the root, though README, README.de and the pom point to it.'
@@ -1893,3 +1893,5 @@ tasks:
   - 'A LICENSE file with the Apache License 2.0 text at the root of the repository'
   source:
   - quarkus-morphium/README.md
+  notes: 'scram-client advisories (GitHub advisory database): CVE-2025-59432 (timing attack, medium) is fixed in 3.2; CVE-2026-53712 (silent downgrade of channel binding by a TLS man in the middle, high) affects up to 3.2 and is fixed in 3.3. The Quarkus 3.32 BOM manages 3.2. Morphium authenticates with ChannelBindingPolicy.DISABLE (SaslAuthCommand), so the second one cannot be reached through Morphium; a scanner still reports it. Not checked: whether Morphium runs correctly on 3.2 (the showcase and all tests of this repository run on 3.4; the 3.2 jar is not in the local repository and was not downloaded).'
+  evidence: 'docs/quarkus-extension.md has a section that explains the pin and gives the dependencyManagement entry; the file LICENSE has the unmodified text of the Apache License 2.0 (11358 bytes, the size of the original), taken from a jar of Apache Commons Lang that was already in the local repository; the README links it. The showcase pom still has to get the pin (its own repository).'
