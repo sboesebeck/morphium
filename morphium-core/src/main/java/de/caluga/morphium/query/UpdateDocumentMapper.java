@@ -128,6 +128,7 @@ final class UpdateDocumentMapper {
         // operand of $pull are container members (store() writes them with serialize(): {"value": scalar} for a custom-mapped scalar), every other operator
         // sets a whole field. A positional target (list.$, list.0, list.$[x], list.$[]) addresses one element, whatever the operator is.
         Field field = fieldOf(key);
+        value = morphium.getMapper().marshallEnumsIn(value, field);
 
         if (operator.equals("$pull")) {
             return morphium.getMapper().marshallUpdatePullOperand(value, field);
