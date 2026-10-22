@@ -7,7 +7,7 @@ access layer — query derivation from method names, JDQL, `@Find`/`@Delete` met
 pagination, and sorting — without depending on any particular application framework.
 
 !!! success "Jakarta Data TCK: 73 of 73"
-    The standalone entity tests of the Jakarta Data 1.0 TCK pass completely, on the in-memory driver and on a real MongoDB 8,
+    The standalone entity tests of the Jakarta Data 1.0 TCK pass completely (from the release after 6.3.14), on the in-memory driver and on a real MongoDB 8,
     with no exclusions. The suite runs as a normal test of the Spring module; see [Conformance](#conformance-jakarta-data-tck)
     for the command and for what it does not cover.
 
