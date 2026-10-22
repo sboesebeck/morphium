@@ -239,6 +239,11 @@ public final class QueryExecutor {
                                                           Object[] args,
                                                           Morphium morphium) {
         Map<String, Object> result = new LinkedHashMap<>();
+
+        if (cond.ignoreCase() && buildIgnoreCaseCondition(fieldName, cond, args, result)) {
+            return result;
+        }
+
         switch (cond.operator()) {
             case EQ -> result.put(fieldName, mapValue(morphium, args[cond.paramIndex()]));
             case NE -> result.put(fieldName, nullSafeOp("$ne", mapValue(morphium, args[cond.paramIndex()])));
@@ -278,6 +283,63 @@ public final class QueryExecutor {
             case SIZE -> result.put(fieldName, Map.of("$size", ((Number) args[cond.paramIndex()]).intValue()));
         }
         return result;
+    }
+
+    /**
+     * The condition with the {@code IgnoreCase} modifier (MOR-092): a regular expression with the option {@code i} for the equality, the text operators, {@code In} and {@code NotIn} (an {@code $or}
+     * or {@code $nor} of them), and for the ranges a comparison of the lower-cased values with {@code $expr}.
+     *
+     * @return false if the operator has nothing to ignore (a check for null, for example); the caller builds the plain condition
+     */
+    private static boolean buildIgnoreCaseCondition(String fieldName, Condition cond, Object[] args, Map<String, Object> result) {
+        switch (cond.operator()) {
+            case EQ -> result.put(fieldName, caseInsensitive("^" + Pattern.quote(text(args[cond.paramIndex()])) + "$"));
+            case NE -> result.put(fieldName, Map.of("$not", caseInsensitive("^" + Pattern.quote(text(args[cond.paramIndex()])) + "$")));
+            case LIKE -> result.put(fieldName, caseInsensitive(likeToRegex(text(args[cond.paramIndex()]))));
+            case STARTS_WITH -> result.put(fieldName, caseInsensitive("^" + Pattern.quote(text(args[cond.paramIndex()]))));
+            case ENDS_WITH -> result.put(fieldName, caseInsensitive(Pattern.quote(text(args[cond.paramIndex()])) + "$"));
+            case CONTAINS -> result.put(fieldName, caseInsensitive(Pattern.quote(text(args[cond.paramIndex()]))));
+            case NOT_CONTAINS -> result.put(fieldName, Map.of("$not", caseInsensitive(Pattern.quote(text(args[cond.paramIndex()])))));
+            case MATCHES -> result.put(fieldName, caseInsensitive(text(args[cond.paramIndex()])));
+            case IN, NIN -> {
+                List<Map<String, Object>> branches = new ArrayList<>();
+
+                for (Object value : (Collection<?>) args[cond.paramIndex()]) {
+                    branches.add(Map.of(fieldName, caseInsensitive("^" + Pattern.quote(text(value)) + "$")));
+                }
+
+                result.put(cond.operator() == Operator.IN ? "$or" : "$nor", branches);
+            }
+            case GT, GTE, LT, LTE -> result.put("$expr", Map.of(mongoComparison(cond.operator()), List.of(Map.of("$toLower", "$" + fieldName), text(args[cond.paramIndex()]).toLowerCase(Locale.ROOT))));
+            case BETWEEN -> result.put("$expr", Map.of("$and", List.of(
+                Map.of("$gte", List.of(Map.of("$toLower", "$" + fieldName), text(args[cond.paramIndex()]).toLowerCase(Locale.ROOT))),
+                Map.of("$lte", List.of(Map.of("$toLower", "$" + fieldName), text(args[cond.paramIndex2()]).toLowerCase(Locale.ROOT))))));
+            default -> {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static Map<String, Object> caseInsensitive(String regex) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("$regex", regex);
+        m.put("$options", "i");
+        return m;
+    }
+
+    private static String text(Object value) {
+        return String.valueOf(value);
+    }
+
+    private static String mongoComparison(Operator operator) {
+        return switch (operator) {
+            case GT -> "$gt";
+            case GTE -> "$gte";
+            case LT -> "$lt";
+            default -> "$lte";
+        };
     }
 
     /**

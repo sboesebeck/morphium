@@ -61,8 +61,14 @@ public record QueryDescriptor(
             String field,
             Operator operator,
             int paramIndex,
-            int paramIndex2   // only used by BETWEEN (second param)
+            int paramIndex2,  // only used by BETWEEN (second param)
+            boolean ignoreCase  // the IgnoreCase modifier in front of the operator (MOR-092)
     ) {
+        /** A condition without the IgnoreCase modifier. */
+        public Condition(String field, Operator operator, int paramIndex, int paramIndex2) {
+            this(field, operator, paramIndex, paramIndex2, false);
+        }
+
         /**
          * Convenience constructor for conditions with at most one parameter.
          *

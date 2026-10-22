@@ -390,6 +390,12 @@ public interface OrderRepository extends BasicRepository<OrderEntity, String> {
     // condition query. Method name deliberately does NOT start with deleteBy/findBy/countBy/
     // existsBy, since MethodNameParser would otherwise try to parse it as a derived query. ---
 
+    // --- IgnoreCase in front of the operator (MOR-092) ---
+
+    List<OrderEntity> findByCustomerIdIgnoreCaseBetween(String from, String to);
+
+    List<OrderEntity> findByStatusIgnoreCaseNotIn(java.util.Set<String> statuses);
+
     // --- a derived query may return a CursoredPage (MOR-086) ---
 
     jakarta.data.page.CursoredPage<OrderEntity> findByStatusOrderByAmountAsc(String status, jakarta.data.page.PageRequest pageRequest);
