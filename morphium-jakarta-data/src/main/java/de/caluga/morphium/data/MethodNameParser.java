@@ -197,6 +197,8 @@ public final class MethodNameParser {
 
     // -- Condition parsing --
 
+    private static final String IGNORE_CASE = "IgnoreCase";
+
     private record ParsedCondition(Condition condition, int nextParamIndex) {}
 
     private static ParsedCondition parseCondition(String part, int paramIndex,
@@ -205,19 +207,26 @@ public final class MethodNameParser {
         for (OperatorMatch om : OPERATOR_MATCHES) {
             if (part.endsWith(om.suffix)) {
                 String fieldPart = part.substring(0, part.length() - om.suffix.length());
+                // IgnoreCase in front of the operator is a modifier of the property: CodeIgnoreCaseBetween (MOR-092); as the last word it is the operator "equals ignoring case"
+                boolean ignoreCase = om.operator != Operator.IGNORE_CASE && fieldPart.length() > IGNORE_CASE.length() && fieldPart.endsWith(IGNORE_CASE);
+
+                if (ignoreCase) {
+                    fieldPart = fieldPart.substring(0, fieldPart.length() - IGNORE_CASE.length());
+                }
+
                 String field = resolveFieldName(fieldPart, entityFields);
                 if (om.operator == Operator.BETWEEN) {
                     return new ParsedCondition(
-                            new Condition(field, om.operator, paramIndex, paramIndex + 1),
+                            new Condition(field, om.operator, paramIndex, paramIndex + 1, ignoreCase),
                             paramIndex + 2);
                 }
                 if (om.paramCount == 0) {
                     return new ParsedCondition(
-                            new Condition(field, om.operator, -1),
+                            new Condition(field, om.operator, -1, -1, false),
                             paramIndex);
                 }
                 return new ParsedCondition(
-                        new Condition(field, om.operator, paramIndex),
+                        new Condition(field, om.operator, paramIndex, -1, ignoreCase),
                         paramIndex + om.paramCount);
             }
         }

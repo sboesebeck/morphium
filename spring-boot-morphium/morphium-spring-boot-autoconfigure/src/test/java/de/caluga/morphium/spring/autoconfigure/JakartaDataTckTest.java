@@ -45,8 +45,7 @@ class JakartaDataTckTest {
         "testOrderByHasPrecedenceOverSorts", "sorts an enum by ordinal; Morphium stores an enum by its name and sorts it alphabetically",
         "testOrderByHasPrecedenceOverPageRequestSorts", "sorts an enum by ordinal; Morphium stores an enum by its name and sorts it alphabetically",
         "testBasicRepository", "sorts an enum by ordinal; Morphium stores an enum by its name and sorts it alphabetically",
-        "testLimitedRange", "sorts an enum by ordinal; Morphium stores an enum by its name and sorts it alphabetically",
-        "testIgnoreCase", "MOR-092: IgnoreCase before Between, NotIn and the comparison operators is not supported");
+        "testLimitedRange", "sorts an enum by ordinal; Morphium stores an enum by its name and sorts it alphabetically");
 
     /** loads the classes of the TCK itself and gives its entities the annotations of Morphium */
     static class TckLoader extends ClassLoader {

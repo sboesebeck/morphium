@@ -118,6 +118,13 @@ abstract class AbstractMorphiumDataOrdinalQueryTest {
     }
 
     @Test
+    @DisplayName("IgnoreCase in front of Between and NotIn compares without case (MOR-092)")
+    void ignoreCaseModifier() {
+        assertThat(repository.findByCustomerIdIgnoreCaseBetween("c2", "C3")).extracting(OrderEntity::getCustomerId).containsExactlyInAnyOrder("C2", "C3");
+        assertThat(repository.findByStatusIgnoreCaseNotIn(java.util.Set.of("open"))).extracting(OrderEntity::getCustomerId).containsExactlyInAnyOrder("C3", "C4");
+    }
+
+    @Test
     @DisplayName("a derived query may return a CursoredPage (MOR-086)")
     void derivedCursoredPage() {
         var first = repository.findByStatusOrderByAmountAsc("OPEN", jakarta.data.page.PageRequest.ofSize(1));

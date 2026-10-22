@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Jakarta Data: `IgnoreCase` in front of an operator (MOR-092)
+`findByCodeIgnoreCaseBetween`, `findByStatusIgnoreCaseNotIn`, `findByNameIgnoreCaseContains`, `...IgnoreCaseGreaterThan` compare without case, for their own condition only. `IgnoreCase` was only read as the last word of a condition
+("equals ignoring case"); in front of an operator the field name was wrong and the query matched nothing.
+
 #### Jakarta Data: repositories without a primary entity, lifecycle methods under any name (MOR-077)
 A `@Repository` interface can extend nothing. Its `@Insert`, `@Save`, `@Update` and entity-taking `@Delete` methods have any name (the Spring module only knew `insert`, `save` and the like) and take one entity, a
 collection, or an array or varargs; they return nothing, the entity, a list or an array, or a `boolean`, `int` or `long`. The primary entity is the entity of the lifecycle methods; a repository with several
