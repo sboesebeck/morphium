@@ -7,9 +7,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Immutable holder for the values an {@link IndexDefinition}'s fields extract to for one
@@ -158,7 +160,7 @@ public final class IndexKey {
             perField.add(values);
         }
 
-        java.util.Set<IndexKey> keys = new java.util.LinkedHashSet<>();
+        Set<IndexKey> keys = new LinkedHashSet<>();
         product(perField, 0, new ArrayList<>(perField.size()), keys);
         return new ArrayList<>(keys);
     }
@@ -204,7 +206,7 @@ public final class IndexKey {
         }
     }
 
-    private static void product(List<List<Object>> perField, int i, List<Object> acc, java.util.Set<IndexKey> out) {
+    private static void product(List<List<Object>> perField, int i, List<Object> acc, Set<IndexKey> out) {
         if (i == perField.size()) {
             out.add(new IndexKey(Collections.unmodifiableList(new ArrayList<>(acc)), false));
             return;

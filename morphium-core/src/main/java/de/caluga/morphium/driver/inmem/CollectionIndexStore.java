@@ -211,6 +211,13 @@ public class CollectionIndexStore {
      * </ul>
      */
     private boolean collidesOnUnique(IndexEntry entry, IndexKey key, Map<String, Object> doc) {
+        return collidesOnUnique(entry, key, doc, null);
+    }
+
+    /**
+     * @param before the state of {@code doc} as the index has it filed, when {@code doc} was already changed in place (an update); null otherwise
+     */
+    private boolean collidesOnUnique(IndexEntry entry, IndexKey key, Map<String, Object> doc, Map<String, Object> before) {
         IndexDefinition def = entry.definition;
 
         if (!def.unique() || (def.sparse() && key.allMissing())) {
@@ -219,7 +226,7 @@ public class CollectionIndexStore {
 
         // an array in the key makes the index unique per element, like on mongod (MOR-098); once the index holds one, a scalar collides with an element, too
         if (entry.elementCapable && (key.hasListValue() || entry.elements != null)) {
-            entry.ensureElements();
+            entry.ensureElements(doc, before);
             return collidesOnElements(entry, doc);
         }
 
@@ -367,7 +374,7 @@ public class CollectionIndexStore {
                 check = !coveredByPartialFilter(entry.definition, before)
                         && coveredByPartialFilter(entry.definition, after);
             }
-            if (check && collidesOnUnique(entry, newKey, after)) {
+            if (check && collidesOnUnique(entry, newKey, after, before)) {
                 throw duplicateKeyException(indexNameOf(entry.definition), newKey);
             }
         }
@@ -568,7 +575,12 @@ public class CollectionIndexStore {
             this.ordered = new TreeMap<>(IndexKey.comparator(definition));
         }
 
-        void ensureElements() {
+        /**
+         * Builds the element buckets from the documents as they are filed. {@code changed} is a document that was already changed in place by an update that
+         * is not accepted yet; it is filed under the elements of {@code before}, so that a rejected update (the caller restores the document) leaves nothing
+         * behind. Null for both when no update is in flight.
+         */
+        void ensureElements(Map<String, Object> changed, Map<String, Object> before) {
             if (elements != null) {
                 return;
             }
@@ -577,17 +589,22 @@ public class CollectionIndexStore {
 
             for (List<Map<String, Object>> bucket : byKey.values()) {
                 for (Map<String, Object> doc : bucket) {
-                    addElements(doc);
+                    addElements(doc, doc == changed && before != null ? before : doc);
                 }
             }
         }
 
         void addElements(Map<String, Object> doc) {
+            addElements(doc, doc);
+        }
+
+        /** files {@code doc} (by identity) under the elements that {@code docForKeys} has */
+        void addElements(Map<String, Object> doc, Map<String, Object> docForKeys) {
             if (elements == null) {
                 return;
             }
 
-            for (IndexKey elementKey : IndexKey.elementKeys(doc, definition)) {
+            for (IndexKey elementKey : IndexKey.elementKeys(docForKeys, definition)) {
                 ArrayList<Map<String, Object>> bucket = elements.computeIfAbsent(elementKey, k -> new ArrayList<>());
 
                 for (Map<String, Object> present : bucket) {

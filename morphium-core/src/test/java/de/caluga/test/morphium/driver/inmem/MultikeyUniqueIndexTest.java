@@ -162,6 +162,26 @@ public class MultikeyUniqueIndexTest {
     }
 
     @Test
+    public void aRejectedFirstArrayLeavesNoPhantomElementsBehind() throws Exception {
+        // an index of scalars only: the first array arrives with an update that collides and is rolled back
+        unique("scalars", "tags");
+        drv.insert(DB, "scalars", List.of(Doc.of("_id", "a", "tags", "a"), Doc.of("_id", "b", "tags", "b")), null, true);
+
+        try {
+            Map<String, Object> result = drv.update(DB, "scalars", Doc.of("_id", "a"), null, Doc.of("$set", Doc.of("tags", new ArrayList<>(List.of("x", "b")))), false, false, null, null, null);
+            assertTrue(result != null && result.get("writeErrors") instanceof List<?> errs && !errs.isEmpty(), "the update collides with b");
+        } catch (MorphiumDriverException e) {
+            assertEquals(11000, ((Number) e.getMongoCode()).intValue());
+        }
+
+        assertEquals("a", drv.find(DB, "scalars", Doc.of("_id", "a"), null, null, 0, 1).get(0).get("tags"), "rolled back");
+        List<Map<String, Object>> errors = drv.insert(DB, "scalars", List.of(Doc.of("_id", "c", "tags", "x")), null, true);
+        assertTrue(errors == null || errors.isEmpty(), "x is held by nobody: " + errors);
+        errors = drv.insert(DB, "scalars", List.of(Doc.of("_id", "d", "tags", "a")), null, true);
+        assertEquals(11000, ((Number) errors.get(0).get("code")).intValue(), "a is still held by document a");
+    }
+
+    @Test
     public void anArrayOfSubDocumentsIsUniquePerElement() throws Exception {
         unique("items", "items.sku");
         drv.insert(DB, "items", List.of(Doc.of("_id", 1, "items", new ArrayList<>(List.of(Doc.of("sku", "x"))))), null, true);
