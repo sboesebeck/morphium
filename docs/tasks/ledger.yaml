@@ -1840,3 +1840,6 @@ tasks:
   source:
   - morphium-jakarta-data/src/main/java/de/caluga/morphium/data/MethodNameParser.java
   evidence: 'IgnoreCaseModifierTest (parser, ranges, sets, text operators, a NotIn next to it stays exact) on the InMemoryDriver; the Quarkus integration test ignoreCaseModifier on the in-memory driver and on a real mongo:8; JakartaDataTckTest 69 of 73, testIgnoreCase leaves the exclusion list. Condition has the flag ignoreCase; QueryExecutor builds a regex with the option i for equality, text operators, In and NotIn, and $expr with $toLower for the ranges.'
+  commits:
+  - e02ec8a43
+  - 4d532da30
