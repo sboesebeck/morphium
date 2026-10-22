@@ -91,7 +91,7 @@ Status: open 23, done 71
 | MOR-090 | done | 2 | defect | Jakarta Data: an enum in Not, In, NotIn and range operators of a derived query is its name | S |  |  |
 | MOR-091 | done | 2 | defect | Jakarta Data: several ORs in one query narrow each other | S |  |  |
 | MOR-093 | done | 2 | implementation | Enums can be stored by their ordinal: @Enumerated and an opt-in setting | M |  |  |
-| MOR-094 | done | 2 | documentation | README redesigned: Jakarta Data TCK result, examples per module, release history moved out | S |  |  |
+| MOR-094 | done | 2 | documentation | README: the Jakarta Data TCK result and our modules added to the entry page, release history of 6.2 and older moved out | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
@@ -1650,11 +1650,11 @@ Source: morphium-core/src/main/java/de/caluga/morphium/annotations/Enumerated.ja
 
 Commits: 8dc2017ee, 72aec1d28
 
-### MOR-094 README redesigned: Jakarta Data TCK result, examples per module, release history moved out
+### MOR-094 README: the Jakarta Data TCK result and our modules added to the entry page, release history of 6.2 and older moved out
 
 Status **done**, priority 2, type documentation, effort S
 
-The README of 647 lines opened with the PoppyDB marketing and ten pages of release history. It is a short entry page now: what Morphium is, a module table, a quick start, the Jakarta Data repositories with the TCK result (73 of 73) and the command to run it, Quarkus and Spring Boot side by side, enums by name or ordinal, messaging, testing, PoppyDB, a documentation map. The release highlights of 6.x moved unchanged to docs/releases/whats-new-v6.md; the TCK result is also on the Jakarta Data, Quarkus, Spring Boot and hub pages of the documentation. Looked at: Spring Data MongoDB (one code block that shows repository, usage and configuration), Micronaut Data (positioning against the alternatives, quick start), Testcontainers (one sentence and the documentation).
+The README is the project page of Morphium, whose focus is the message queue and PoppyDB, so those keep the front: tagline, feature list, the comparison table, the full PoppyDB section and the quick start are unchanged. Added: the Jakarta Data TCK result in the feature list, as a badge and as one compact section (a repository example, what is covered, the TCK result with scope and command, Quarkus and Spring Boot, enums by ordinal), and links in the documentation list. The release highlights of 6.2, 6.1 and 6.0 moved to docs/releases/whats-new-v6.md (6.3 stays). The TCK result is stated as available with the release after 6.3.14. It is also on the Jakarta Data, Quarkus, Spring Boot and hub pages and in the two module READMEs.
 
 Evidence: Links checked with a script (all resolve except LICENSE, which does not exist in the repository: see MOR-095). The examples were checked against the code (sort("-field"), derived IgnoreCase, CursoredPage, JDQL UPDATE with arithmetic, record results of GROUP BY). README.de.md is NOT updated and still has the old structure.
 
