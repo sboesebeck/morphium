@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 21, done 76
+Status: open 20, done 77
 
 ## Overview
 
@@ -30,7 +30,6 @@ Status: open 21, done 76
 | MOR-070 | open | 3 | defect | PoppyDB: the delete fast path swallows errors | S |  |  |
 | MOR-071 | open | 3 | defect | Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange | S |  |  |
 | MOR-075 | open | 3 | defect | JdqlParser accepts an operand that is neither a parameter nor a literal | S |  |  |
-| MOR-098 | open | 3 | defect | InMemoryDriver: a unique index on an array field is not enforced per element (multikey unique index) | L |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -107,6 +106,7 @@ Status: open 21, done 76
 | MOR-074 | done | 3 | verification | MorphiumMigrationTest (2) and MultithreaddedMessagingTests (1) fail on this machine, with and without the latest changes | S |  |  |
 | MOR-092 | done | 3 | defect | Jakarta Data: IgnoreCase before Between, NotIn and the comparison operators | M |  |  |
 | MOR-097 | done | 3 | defect | InMemoryDriver: $inc, $mul and $currentDate below a scalar value are applied instead of rejected (PathNotViable) | S |  |  |
+| MOR-098 | done | 3 | defect | InMemoryDriver: a unique index on an array field is not enforced per element (multikey unique index) | M |  |  |
 
 ## Details
 
@@ -1733,9 +1733,11 @@ Commits: fb95aec0b
 
 ### MOR-098 InMemoryDriver: a unique index on an array field is not enforced per element (multikey unique index)
 
-Status **open**, priority 3, type defect, effort L
+Status **done**, priority 3, type defect, effort M
 
 Found with MOR-097. CollectionIndexStore stores an array as ONE index key (IndexKey: per-element multikey indexing is a Phase B follow-up, #289), so a unique index on an array field only rejects a second document with the SAME array. mongod enforces it per element: $push, $addToSet, $push with $each, an insert and a store of a value that another document already holds are a duplicate key (11000). WritePathAuditContractTest.aRejectedWriteIsRaised against PoppyDB: Query.push(field), Query.push(enum), Query.pushAll(field), Morphium.addToSet, Morphium.push(entity) and Bulk.addPushRequest do not raise. Needs a design decision: per-element index keys in the store (also gives the planner multikey lookups) or a unique-only check for array fields.
+
+Evidence: MultikeyUniqueIndexTest (11 tests, InMemoryDriver): $push, $push with $each and $addToSet of a value that another document holds raise 11000 and change nothing, a free value works and is then held, a pulled element and a deleted document free their elements, an insert with a held element and an insert of a scalar that an array holds raise 11000, the same value twice in one document is allowed, a store build over overlapping arrays is rejected and registers nothing, an array of sub documents (items.sku) is unique per element for insert and update; 7 of the 11 failed before the change (the sub document test passed for the wrong reason, both documents were MISSING; it now also inserts a free sku). Implementation: IndexKey.elementKeys (element keys incl. dotted paths through arrays and the product for a compound index) and an element bucket map per unique index other than _id_, built when the first array turns up. UniqueIndexTest, CollectionIndexStoreTest, IndexKeyTest, UpdateRejectionTest pass. Regression, tags core and inmemory on the InMemoryDriver: 2630 tests, 3 classes unsuccessful, all three known (InMemUpsertAndExtractionTest, WireWriteSplittingTest fail without the change, HeapReadingFreshnessTest fills the heap). WritePathAuditContractTest against a single node PoppyDB with the PooledDriver: 5 of 5 (the six push cases of this entry pass). Note: runtests.sh --poppydb rebuilds the PoppyDB CLI jar only when poppydb/src is newer than the jar, so a change in morphium-core needs a mvn package -pl poppydb -am first. Not covered: the index is not used by the planner for lookups per element (an index that holds an array is still left out of planning); parallel arrays in a compound index are taken as a product (mongod rejects them with 171).
 
 Acceptance:
 
@@ -1743,4 +1745,6 @@ Acceptance:
 - The six push cases of WritePathAuditContractTest pass against PoppyDB
 
 Source: morphium-core/src/main/java/de/caluga/morphium/driver/inmem/IndexKey.java, morphium-core/src/main/java/de/caluga/morphium/driver/inmem/CollectionIndexStore.java
+
+Commits: 04add0076
 
