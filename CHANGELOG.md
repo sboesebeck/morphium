@@ -179,6 +179,9 @@ context keep their own key handling.
 
 ### Fixed
 
+#### Quarkus: the migration lock recognises a held lock by `isDuplicateKey()`, a write concern error no longer aborts the run with the lock held (MOR-063)
+`MorphiumMigrationRunner.acquireLock()` took a lost upsert for a held lock only when the message contained the text "duplicate key". It asks `MorphiumDriverException.isDuplicateKey()` now (the code of the exception or of one of its write errors), so the wording of the message does not matter. A `WriteConcernNotSatisfiedException` while taking the lock means the lock document IS written: the run goes on (and releases the lock at its end) instead of failing with the lock held for its whole TTL. Any other failure of the write is thrown as before.
+
 #### Jakarta Data: several ORs in one query narrow each other (MOR-091)
 `Query.or(...)` adds its branches to the one list of or-queries of the query. So `(a OR b) AND (c OR d)`, an OR group next to `NOT BETWEEN`, and the condition that continues after a cursor on
 a query with an OR (`WHERE a = 1 OR b = 2` as `a OR b OR (cursor branches)`) all became ONE OR of every branch: the result was wider than the query and a next page showed rows of earlier pages

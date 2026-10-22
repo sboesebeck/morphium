@@ -86,6 +86,11 @@ Distribution moves from the interim GitHub Packages registry to Morphium's regul
 Maven Central release pipeline; the standalone repository's own CI workflow, issue
 templates, and PR template are retired in favor of the main repository's.
 
+### Fixed
+
+#### The migration lock recognises a held lock by `isDuplicateKey()` (MOR-063)
+`acquireLock()` no longer looks for the text "duplicate key" in the message; it asks `MorphiumDriverException.isDuplicateKey()`. A write concern error while taking the lock (the lock IS written) lets the run go on and release the lock, instead of failing it with the lock held for its whole TTL.
+
 ## [1.2.0]
 
 ### Added

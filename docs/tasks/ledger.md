@@ -4,13 +4,12 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 22, done 73
+Status: open 21, done 74
 
 ## Overview
 
 | ID | Status | Prio | Type | Title | Effort | Ticket | Depends on |
 |---|---|---|---|---|---|---|---|
-| MOR-063 | open | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
 | MOR-069 | open | 2 | defect | PoppyDB: the update fast path reports every error as 11000 and ignores the ordered flag | S |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
@@ -70,6 +69,7 @@ Status: open 22, done 73
 | MOR-058 | done | 2 | defect | InMemoryDriver: findAndModify does not reject what the update command rejects | S |  |  |
 | MOR-060 | done | 2 | defect | Write paths that write the Java field name: inc/dec with a Map and dotted paths through embedded documents | S |  |  |
 | MOR-062 | done | 2 | defect | Morphium.dec(Query, Map) and dec(Map, Query) increment instead of decrement | S |  |  |
+| MOR-063 | done | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
 | MOR-064 | done | 2 | defect | store() of an existing entity swallows a rejected update (StoreMongoCommand) | M |  |  |
 | MOR-067 | done | 2 | defect | Query.toQueryObject puts the or queries into the $nor list when both are used | S |  |  |
 | MOR-068 | done | 2 | defect | SingleMongoConnectDriver: cannot connect to a standalone server, and a rejected bulk request keeps its only connection | S |  |  |
@@ -1215,9 +1215,11 @@ Commits: fa03a4142
 
 ### MOR-063 quarkus-morphium migration lock: recognise a held lock by isDuplicateKey()
 
-Status **open**, priority 2, type defect, effort S
+Status **done**, priority 2, type defect, effort S
 
 MorphiumMigrationRunner.acquireLock (quarkus-morphium/runtime) takes the lock with an upsert (Query.set(update, true, false)) and recognises a held lock only by e.getMessage().contains("duplicate key"). Since MOR-059 the write raises a MorphiumDriverException for the lost upsert; the message of the normaliser contains the server text, so the check still matches, but it is fragile, and a WriteConcernNotSatisfiedException (the lock IS written) is rethrown as a failure of the run while the lock stays held for its TTL. Use MorphiumDriverException.isDuplicateKey() and treat WriteConcernNotSatisfiedException as acquired (or release the lock). Released in lockstep with core 6.4.
+
+Evidence: MorphiumMigrationRunnerLockTest (5 tests, runtime module, Mockito): a duplicate key code or a duplicate key in the write errors is reported as a held lock whatever the message says, a message that only sounds like one is thrown as it is, another failure is thrown as it is, a WriteConcernNotSatisfiedException is an acquired lock; 4 of the 5 failed before the change. MorphiumMigrationLockRealMongoTest (3 tests, mongo:8): a lock of another instance is reported as held and left untouched, an expired lock is taken over, a second runner is told that the lock is held while the first runs on and releases the lock. The runtime unit tests (88) and MorphiumMigration* (12 with the new ones) pass. Not covered: a real write concern error on a replica set (needs a single-node replica set and a lock entity with w:2); that the run proceeds when the later writes of the run (renewal, changelog) fail with the same write concern error as well.
 
 Acceptance:
 
@@ -1225,6 +1227,8 @@ Acceptance:
 - A write concern error while taking the lock does not leave a lock held by an aborted run
 
 Source: docs/research/plan-mor-059.md
+
+Commits: 01504fbb0
 
 ### MOR-064 store() of an existing entity swallows a rejected update (StoreMongoCommand)
 
