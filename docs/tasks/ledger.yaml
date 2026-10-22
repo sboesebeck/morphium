@@ -1938,7 +1938,7 @@ tasks:
   - morphium-core/src/main/java/de/caluga/morphium/driver/inmem/InMemoryDriver.java
   evidence: 'UpdateRejectionTest (5 tests, InMemoryDriver): $set (control), $inc, $mul and $currentDate below a scalar raise 28 and leave the document as it was, $inc below an existing document and into a missing one still works; $inc, $mul and $currentDate failed before the change. WritePathAuditContractTest against a single node PoppyDB with the PooledDriver: the three dotted path cases pass now, the six of MOR-098 remain. Regression: tags core and inmemory on the InMemoryDriver, 2589 tests, 4 classes unsuccessful (InMemUpsertAndExtractionTest.orBranchesDoNotSeedUpsert and WireWriteSplittingTest fail the same way without the change; HeapReadingFreshnessTest fills the heap and InMemAggregationTests ended with a build failure of the runner, not run on the baseline). Not changed: $min, $max, $push, $addToSet, $bit and $rename below a scalar (not measured).'
   commits:
-  - FIXME
+  - fb95aec0b
 - id: MOR-098
   title: 'InMemoryDriver: a unique index on an array field is not enforced per element (multikey unique index)'
   type: defect

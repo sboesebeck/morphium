@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 21, done 75
+Status: open 21, done 76
 
 ## Overview
 
@@ -30,7 +30,7 @@ Status: open 21, done 75
 | MOR-070 | open | 3 | defect | PoppyDB: the delete fast path swallows errors | S |  |  |
 | MOR-071 | open | 3 | defect | Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange | S |  |  |
 | MOR-075 | open | 3 | defect | JdqlParser accepts an operand that is neither a parameter nor a literal | S |  |  |
-| MOR-097 | open | 3 | defect | PoppyDB (InMemoryDriver) accepts nine statements that mongod rejects: push on a non-array, dotted path through a scalar | M |  |  |
+| MOR-098 | open | 3 | defect | InMemoryDriver: a unique index on an array field is not enforced per element (multikey unique index) | L |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -106,6 +106,7 @@ Status: open 21, done 75
 | MOR-073 | done | 3 | defect | Query.push, pull and addToSet fire the update events twice, and the post event is always PUSH | S |  |  |
 | MOR-074 | done | 3 | verification | MorphiumMigrationTest (2) and MultithreaddedMessagingTests (1) fail on this machine, with and without the latest changes | S |  |  |
 | MOR-092 | done | 3 | defect | Jakarta Data: IgnoreCase before Between, NotIn and the comparison operators | M |  |  |
+| MOR-097 | done | 3 | defect | InMemoryDriver: $inc, $mul and $currentDate below a scalar value are applied instead of rejected (PathNotViable) | S |  |  |
 
 ## Details
 
@@ -1713,16 +1714,33 @@ Source: pom.xml, quarkus-morphium/README.md, docs/quarkus-extension.md
 
 Commits: 02ae7b5bd, 0e4599de9
 
-### MOR-097 PoppyDB (InMemoryDriver) accepts nine statements that mongod rejects: push on a non-array, dotted path through a scalar
+### MOR-097 InMemoryDriver: $inc, $mul and $currentDate below a scalar value are applied instead of rejected (PathNotViable)
 
-Status **open**, priority 3, type defect, effort M
+Status **done**, priority 3, type defect, effort S
 
-WritePathAuditContractTest.aRejectedWriteIsRaised against a single node PoppyDB with the PooledDriver (found while closing MOR-069): Query.push(field), Query.push(enum), Query.pushAll(field), Morphium.push(entity), Morphium.addToSet, Bulk.addPushRequest (a $push or $addToSet on a field that holds a scalar), Query.inc(dotted path), Morphium.currentDate and Bulk.addCurrentDateRequest (a dotted path through a scalar value, mongod: cannot create field in element) do not raise, the document is changed (the scalar becomes a sub document, or a list). mongod rejects each of them. The test is skipped on the InMemoryDriver by design (assumeFalse isInMem: needs a real MongoDB); PoppyDB runs on the InMemoryDriver, so these are gaps of the InMemoryDriver, not of the wire path.
+Found with MOR-069: WritePathAuditContractTest.aRejectedWriteIsRaised against a single node PoppyDB with the PooledDriver reported nine statements that mongod rejects and PoppyDB (the InMemoryDriver) accepted. Three of them are a dotted path through a scalar (Query.inc, Morphium.currentDate, Bulk.addCurrentDateRequest): the scalar became a sub document, while $set was rejected already (code 28). The other six are the unique index on an array field: MOR-098. (The first version of this entry described the six as a push on a non-array; the contract table shows that they collide with a unique index on tag_list.)
+
+Evidence: UpdateRejectionTest (5 tests, InMemoryDriver): $set (control), $inc, $mul and $currentDate below a scalar raise 28 and leave the document as it was, $inc below an existing document and into a missing one still works; $inc, $mul and $currentDate failed before the change. WritePathAuditContractTest against a single node PoppyDB with the PooledDriver: the three dotted path cases pass now, the six of MOR-098 remain. Regression: tags core and inmemory on the InMemoryDriver, 2589 tests, 4 classes unsuccessful (InMemUpsertAndExtractionTest.orBranchesDoNotSeedUpsert and WireWriteSplittingTest fail the same way without the change; HeapReadingFreshnessTest fills the heap and InMemAggregationTests ended with a build failure of the runner, not run on the baseline). Not changed: $min, $max, $push, $addToSet, $bit and $rename below a scalar (not measured).
 
 Acceptance:
 
-- Each of the nine statements raises a MorphiumDriverException with the code of mongod (2, 14, 28 or 40 as the contract table says) and changes nothing, on PoppyDB with the PooledDriver
-- The contract table of WritePathAuditContractTest passes against PoppyDB
+- $inc, $mul and $currentDate below a scalar raise a MorphiumDriverException with the code 28 and change nothing
+- A missing field on the path is still created
 
-Source: morphium-core/src/test/java/de/caluga/test/mongo/suite/contract/WritePathAuditContractTest.java
+Source: morphium-core/src/test/java/de/caluga/test/mongo/suite/contract/WritePathAuditContractTest.java, morphium-core/src/main/java/de/caluga/morphium/driver/inmem/InMemoryDriver.java
+
+Commits: fb95aec0b
+
+### MOR-098 InMemoryDriver: a unique index on an array field is not enforced per element (multikey unique index)
+
+Status **open**, priority 3, type defect, effort L
+
+Found with MOR-097. CollectionIndexStore stores an array as ONE index key (IndexKey: per-element multikey indexing is a Phase B follow-up, #289), so a unique index on an array field only rejects a second document with the SAME array. mongod enforces it per element: $push, $addToSet, $push with $each, an insert and a store of a value that another document already holds are a duplicate key (11000). WritePathAuditContractTest.aRejectedWriteIsRaised against PoppyDB: Query.push(field), Query.push(enum), Query.pushAll(field), Morphium.addToSet, Morphium.push(entity) and Bulk.addPushRequest do not raise. Needs a design decision: per-element index keys in the store (also gives the planner multikey lookups) or a unique-only check for array fields.
+
+Acceptance:
+
+- A unique index on an array field rejects a value, in an insert, a store and an update ($push, $addToSet, $each), that another document holds, with 11000 and no change
+- The six push cases of WritePathAuditContractTest pass against PoppyDB
+
+Source: morphium-core/src/main/java/de/caluga/morphium/driver/inmem/IndexKey.java, morphium-core/src/main/java/de/caluga/morphium/driver/inmem/CollectionIndexStore.java
 
