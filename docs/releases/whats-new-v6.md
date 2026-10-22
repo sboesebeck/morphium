@@ -1,6 +1,6 @@
 # What is new in Morphium 6.x
 
-The release highlights of the 6.x line, moved here from the README. The complete list per release is in the
+The release highlights of the 6.x line. The sections for 6.2 and older moved here from the README; the 6.3 highlights are also in the README. The complete list per release is in the
 [CHANGELOG](../../CHANGELOG.md); upgrade steps are in the [migration guides](../howtos/migration-v6_2-to-v6_3.md).
 
 ## What’s new in v6.3
