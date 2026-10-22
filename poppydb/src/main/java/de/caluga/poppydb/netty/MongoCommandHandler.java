@@ -3278,6 +3278,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         List<Map<String, Object>> updates = (List<Map<String, Object>>) doc.get("updates");
         if (updates == null) return Doc.of("ok", 1.0, "n", 0, "nModified", 0);
 
+        // like mongod: an ordered update (the default) stops at the first rejected statement, ordered:false goes on (MOR-069)
+        boolean ordered = !(Boolean.FALSE.equals(doc.get("ordered")));
         int totalN = 0, totalModified = 0;
         List<Map<String, Object>> writeErrors = new ArrayList<>();
         List<Map<String, Object>> upserted = new ArrayList<>();
@@ -3314,13 +3316,35 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                     }
                 }
             } catch (Exception e) {
-                writeErrors.add(Doc.of("index", i, "code", 11000, "errmsg", e.getMessage()));
+                writeErrors.add(Doc.of("index", i, "code", rejectionCode(e), "errmsg", e.getMessage()));
+            }
+
+            if (ordered && !writeErrors.isEmpty()) {
+                break;
             }
         }
         Map<String, Object> answer = Doc.of("ok", 1.0, "n", totalN + upserted.size(), "nModified", totalModified);
         if (!upserted.isEmpty()) answer.put("upserted", upserted);
         if (!writeErrors.isEmpty()) answer.put("writeErrors", writeErrors);
         return answer;
+    }
+
+    /**
+     * The code of mongod for a statement that the driver rejected (2, 9, 14, 40, 52, 56, 66, 11000, ...): the code of the exception, or the first code of its
+     * write errors. A failure without a code (a ClassCastException of an update on a value of the wrong type) is a BadValue (2), not a duplicate key (MOR-069).
+     */
+    static Object rejectionCode(Exception e) {
+        if (e instanceof MorphiumDriverException m) {
+            if (m.getMongoCode() != null) {
+                return m.getMongoCode();
+            }
+
+            if (m.getWriteErrors() != null && !m.getWriteErrors().isEmpty() && m.getWriteErrors().get(0).get("code") != null) {
+                return m.getWriteErrors().get(0).get("code");
+            }
+        }
+
+        return 2;
     }
 
     @SuppressWarnings("unchecked")

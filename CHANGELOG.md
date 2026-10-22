@@ -179,6 +179,9 @@ context keep their own key handling.
 
 ### Fixed
 
+#### PoppyDB: the update fast path keeps the code of the driver and an ordered update stops at the first error (MOR-069)
+`processUpdateDirect` answered every rejected statement with the code 11000 (duplicate key), although the driver sets the code of mongod (2, 9, 14, 40, 52, 56, 66, ...), and it applied the statements behind a rejected one also for an ordered update (the default). It reports the code of the driver now (a failure without a code is a BadValue, 2), and an ordered update stops at the first rejected statement, `ordered: false` goes on, like mongod.
+
 #### Quarkus: the migration lock recognises a held lock by `isDuplicateKey()`, a write concern error no longer aborts the run with the lock held (MOR-063)
 `MorphiumMigrationRunner.acquireLock()` took a lost upsert for a held lock only when the message contained the text "duplicate key". It asks `MorphiumDriverException.isDuplicateKey()` now (the code of the exception or of one of its write errors), so the wording of the message does not matter. A `WriteConcernNotSatisfiedException` while taking the lock means the lock document IS written: the run goes on (and releases the lock at its end) instead of failing with the lock held for its whole TTL. Any other failure of the write is thrown as before.
 
