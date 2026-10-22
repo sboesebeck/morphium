@@ -242,9 +242,21 @@ cfg.objectMappingSettings()
 | `setWarnOnNoEntitySerialization(boolean)` | false | Warn if no entity serialization is available |
 | `setUseBsonDateForJavaTime(boolean)` | false | Store `Instant`, `LocalDate`, `LocalTime` and `LocalDateTime` as native BSON Date instead of Morphium's legacy formats. Mapper path only, see below |
 | `setTranslateAggregationFieldNames(boolean)` | false | Translate Java property names in aggregation stages to stored field names (overridable per aggregator) |
+| `objectMappingSettings().setEnumType(EnumType)` | `STRING` | How an enum is stored in a field without `@Enumerated`: `STRING` (the name of the constant) or `ORDINAL` (its position, so a sort and a range query follow the order of the constants). Existing documents are not rewritten, reading takes both forms. The ordinal changes when a constant is inserted or moved: add new constants at the end. See "Enums" below |
 | `setTranslateUpdateFieldNames(boolean)` | true | Translate the field names in the operator maps of `Query.findOneAndUpdate` (`$set`, `$unset`, `$rename`, ... incl. dotted keys through single embedded fields) to the names the fields are stored under. Kill switch: `false` writes the keys exactly as given. Overridable per query with `Query.setTranslateUpdateFieldNames(Boolean)`. Aliases, unknown, positional and `$`-prefixed keys are never translated |
 | `setStrictEmbeddedNaming(boolean)` | false | An `@Embedded` class with the default `translateCamelCase=true` inside a class with `translateCamelCase=false` is stored in snake_case while its owner keeps its names. The mapper logs a warning once per entity class that names owner, field and embedded class; with `true` it throws an `IllegalStateException` at the first use of the entity instead. The stored data is the same either way. Set `translateCamelCase=false` on the embedded class if camelCase keys are intended |
 | `writerSettings().setRaiseOnWriteErrors(boolean)` | true | Deprecated migration switch (removed in 7.0). A write that the server rejects (duplicate key, a path below a scalar, `$pull` on a non-array, ...) raises a `MorphiumDriverException` (`WriteConcernNotSatisfiedException` if the write was applied but the write concern was not satisfied; `BulkWriteException` for the bulk context). The `update` command reports such a statement in its reply and does not fail; with `false` Morphium returns that reply and nobody looks at it, as before 6.4. Overridable per query with `Query.setRaiseOnWriteErrors(Boolean)` |
+
+### Enums
+
+An enum is stored by the name of its constant. Two ways to store the ordinal instead:
+
+- `@Enumerated(EnumType.ORDINAL)` on a field (also for a `List` or `Set` of enums and the values of a `Map`), like `@Enumerated` of JPA. `@Enumerated(EnumType.STRING)` keeps a field on the name when the setting says otherwise.
+- `objectMappingSettings().setEnumType(EnumType.ORDINAL)` (`morphium.enum-type` in Spring, `quarkus.morphium.enum-type` in Quarkus) for all fields without the annotation.
+
+As an ordinal an enum sorts and compares in the order of its constants (`sort`, `gt`, `lte`, `BETWEEN`); stored by name it sorts alphabetically. Queries, updates (`modify()`, `set()`, `push()`, JDQL `UPDATE`)
+and the derived and JDQL queries of the Jakarta Data module write the form that the field stores. Reading accepts both forms whatever is configured, so the setting can be changed without a migration, but
+the documents that were written before keep their form, and a query finds only the form it writes: change the setting together with a migration of the data. The keys of a map are always names.
 
 ### `useBsonDateForJavaTime`: where it applies
 

@@ -609,12 +609,11 @@ generating bytecode.
 ## Conformance (Jakarta Data TCK)
 
 The standalone entity tests of the Jakarta Data TCK 1.0.0 (`jakarta.data:jakarta.data-tck`) run against the repositories of the Spring module, without Arquillian, as
-`JakartaDataTckTest` in `spring-boot-morphium`. 69 of the 73 assertions pass, on the InMemoryDriver and on a real MongoDB 8. The test fails when a test that is not excluded fails and when an
-excluded test passes, so its list of exclusions (each with its reason) is always the truth:
+`JakartaDataTckTest` in `spring-boot-morphium`. All 73 assertions pass, on the InMemoryDriver and on a real MongoDB 8. The test fails when a test that is not excluded fails and when an
+excluded test passes, so its list of exclusions (each with its reason) is always the truth.
 
-| Excluded | Reason |
-|---|---|
-| `testOrderByHasPrecedenceOverSorts`, `testOrderByHasPrecedenceOverPageRequestSorts`, `testBasicRepository`, `testLimitedRange` | they sort an enum by its ordinal; Morphium stores an enum by its name, so it sorts alphabetically |
+The TCK sorts an enum by the order of its constants, so the test sets `morphium.enum-type=ORDINAL`; with the default (the name) four of its tests would fail: `testOrderByHasPrecedenceOverSorts`,
+`testOrderByHasPrecedenceOverPageRequestSorts`, `testBasicRepository` and `testLimitedRange`. There are no other exclusions now.
 
 ```bash
 cd spring-boot-morphium && mvn -nsu test -Dtest=JakartaDataTckTest

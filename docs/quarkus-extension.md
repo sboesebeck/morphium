@@ -96,6 +96,7 @@ property — but covers the most commonly used ones, each verified directly agai
 | `quarkus.morphium.cache.read-cache-enabled` | `true` | Enable query result cache | `CacheConfig.java:31` |
 | `quarkus.morphium.cache.global-valid-time` | `60000` | Cache TTL in milliseconds | `CacheConfig.java:27` |
 | `quarkus.morphium.use-bson-date-for-java-time` | -- | Store `Instant`, `LocalDate`, `LocalTime` and `LocalDateTime` as BSON `ISODate`. Unset leaves the previous per-type behaviour untouched. Mapper path only: maps you build yourself (raw driver commands, the update map of `findOneAndUpdate`) need `java.util.Date`, see [configuration reference](configuration-reference.md#usebsondateforjavatime-where-it-applies) | `MorphiumRuntimeConfig.java` |
+| `quarkus.morphium.enum-type` | `STRING` | How an enum is stored in a field without `@Enumerated`: `STRING` (name) or `ORDINAL` (position, sorts in the order of the constants). See [Enums](configuration-reference.md#enums) | `MorphiumRuntimeConfig.java` |
 | `quarkus.morphium.local-date-time.use-bson-date` | `true` | *Deprecated* (removal: 7.0), use `use-bson-date-for-java-time`; reaches `LocalDateTime` only | `LocalDateTimeConfig.java` |
 | `quarkus.morphium.ssl.enabled` | `false` | Enable TLS | `SslConfig.java:48` |
 | `quarkus.morphium.ssl.auth-mechanism` | -- | `MONGODB-X509` for client-certificate auth | `SslConfig.java:59` |

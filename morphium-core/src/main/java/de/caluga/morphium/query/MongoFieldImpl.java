@@ -168,8 +168,8 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                     } catch (Exception ignored) {
                     }
                 } else if (val instanceof Enum) {
-                    //noinspection ConstantConditions
-                    val = ((Enum) val).name();
+                    // the name or the ordinal, as the field is stored (MOR-093)
+                    val = mapper.marshallEnum(field, (Enum<?>) val);
                 }
             }
             // Apply custom type mappers (e.g. LocalDateTime -> BSON Date)

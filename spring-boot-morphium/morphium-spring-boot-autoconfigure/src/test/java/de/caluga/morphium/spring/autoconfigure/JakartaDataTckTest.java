@@ -33,7 +33,7 @@ import static net.bytebuddy.matcher.ElementMatchers.named;
  * {@code -Dmorphium.driver-name=PooledDriver -Dmorphium.hosts=localhost:27017 -Dmorphium.database=tck}. {@code -Dtck.trace=<part of a test name>} prints the stack of a failure,
  * {@code -Dtck.reason.length=N} the length of the failure messages.
  */
-@SpringBootTest(classes = TestApplication.class)
+@SpringBootTest(classes = TestApplication.class, properties = "morphium.enum-type=ORDINAL")
 @ActiveProfiles("test")
 class JakartaDataTckTest {
 
@@ -41,11 +41,7 @@ class JakartaDataTckTest {
     Morphium morphium;
 
     /** the tests of the TCK that are known not to pass, and why; see the ledger for the tasks */
-    private static final java.util.Map<String, String> EXCLUDED = java.util.Map.of(
-        "testOrderByHasPrecedenceOverSorts", "sorts an enum by ordinal; Morphium stores an enum by its name and sorts it alphabetically",
-        "testOrderByHasPrecedenceOverPageRequestSorts", "sorts an enum by ordinal; Morphium stores an enum by its name and sorts it alphabetically",
-        "testBasicRepository", "sorts an enum by ordinal; Morphium stores an enum by its name and sorts it alphabetically",
-        "testLimitedRange", "sorts an enum by ordinal; Morphium stores an enum by its name and sorts it alphabetically");
+    private static final java.util.Map<String, String> EXCLUDED = java.util.Map.of();
 
     /** loads the classes of the TCK itself and gives its entities the annotations of Morphium */
     static class TckLoader extends ClassLoader {

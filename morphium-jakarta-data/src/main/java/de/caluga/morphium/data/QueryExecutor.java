@@ -125,6 +125,7 @@ public final class QueryExecutor {
                                Object[] args,
                                Morphium morphium,
                                Class entityClass) {
+        args = marshallEnums(args, cond, morphium, entityClass);
         String mongoField = resolveMongoField(morphium, entityClass, cond.field());
         List<String> aliases = resolveAliases(morphium, entityClass, cond.field());
 
@@ -283,6 +284,35 @@ public final class QueryExecutor {
             case SIZE -> result.put(fieldName, Map.of("$size", ((Number) args[cond.paramIndex()]).intValue()));
         }
         return result;
+    }
+
+    /**
+     * The arguments of the condition with the enums in them as the field stores them: the name or the ordinal (MOR-093). The array of the caller is not changed.
+     */
+    private static Object[] marshallEnums(Object[] args, Condition cond, Morphium morphium, Class<?> entityClass) {
+        java.lang.reflect.Field field = morphium.getARHelper().getFieldOrNull(entityClass, cond.field());
+
+        if (field == null) {
+            return args;
+        }
+
+        Object[] marshalled = args;
+
+        for (int index : new int[] {cond.paramIndex(), cond.paramIndex2()}) {
+            if (index >= 0 && index < args.length && args[index] != null) {
+                Object value = morphium.getMapper().marshallEnumsIn(args[index], field);
+
+                if (value != args[index]) {
+                    if (marshalled == args) {
+                        marshalled = args.clone();
+                    }
+
+                    marshalled[index] = value;
+                }
+            }
+        }
+
+        return marshalled;
     }
 
     /**

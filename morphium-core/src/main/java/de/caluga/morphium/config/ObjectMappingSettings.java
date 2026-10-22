@@ -15,6 +15,8 @@ public class ObjectMappingSettings extends Settings {
     // already-constructed mapper instances (see ObjectMapperImpl's java.time mapper registration),
     // so a runtime setUseBsonDateForJavaTime(...) from another thread has to be visible to them.
     private volatile boolean useBsonDateForJavaTime = false;
+    // an enum is stored by its name unless @Enumerated says otherwise; read by the mapper at every use, like the flag above (MOR-093)
+    private volatile de.caluga.morphium.annotations.EnumType enumType = de.caluga.morphium.annotations.EnumType.STRING;
     private boolean translateUpdateFieldNames = true;
     private boolean strictEmbeddedNaming = false;
     public boolean isCheckForNew() {
@@ -172,6 +174,20 @@ public class ObjectMappingSettings extends Settings {
 
     public ObjectMappingSettings setUseBsonDateForJavaTime(boolean useBsonDateForJavaTime) {
         this.useBsonDateForJavaTime = useBsonDateForJavaTime;
+        return this;
+    }
+
+    /**
+     * How an enum is stored in a field without {@code @Enumerated}: by the name of the constant ({@code STRING}, the default) or by its ordinal ({@code ORDINAL}), which makes a sort and a range
+     * query follow the order of the constants. Changing it does not rewrite documents; reading takes both forms. The ordinal changes when a constant is inserted or moved, so new constants have to go
+     * at the end. {@code @Enumerated} on a field wins over this setting.
+     */
+    public de.caluga.morphium.annotations.EnumType getEnumType() {
+        return enumType;
+    }
+
+    public ObjectMappingSettings setEnumType(de.caluga.morphium.annotations.EnumType enumType) {
+        this.enumType = enumType == null ? de.caluga.morphium.annotations.EnumType.STRING : enumType;
         return this;
     }
 

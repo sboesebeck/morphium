@@ -56,6 +56,37 @@ public interface MorphiumObjectMapper {
     Object marshallIfCustomMapped(Object value);
 
     /**
+     * The value that is stored for an enum in a field, or in a query or an update on that field: its name or its ordinal, as the {@code @Enumerated} of the field or the setting
+     * {@code objectMappingSettings().getEnumType()} says (MOR-093).
+     *
+     * @param field the Java field, null if there is none: the setting decides
+     */
+    Object marshallEnum(java.lang.reflect.Field field, Enum<?> value);
+
+    /**
+     * The value of a field that is written into an update document as it is (the fields of an entity that is stored partially): an enum, or the enums in a collection or in the values of a map,
+     * become what the field stores (MOR-093); every other value is returned unchanged.
+     */
+    default Object marshallEnumsIn(Object value, java.lang.reflect.Field field) {
+        return value;
+    }
+
+    /** {@link #marshallUpdateValue(Object)} for the value of the given field: the enums in it are stored as the field says (MOR-093) */
+    default Object marshallUpdateValue(Object value, java.lang.reflect.Field field) {
+        return marshallUpdateValue(value);
+    }
+
+    /** {@link #marshallUpdateElement(Object)} for an element of the given field */
+    default Object marshallUpdateElement(Object value, java.lang.reflect.Field field) {
+        return marshallUpdateElement(value);
+    }
+
+    /** {@link #marshallUpdatePullOperand(Object)} for the given field */
+    default Object marshallUpdatePullOperand(Object operand, java.lang.reflect.Field field) {
+        return marshallUpdatePullOperand(operand);
+    }
+
+    /**
      * Whether a custom type mapper is registered for the given class - i.e. whether
      * {@link #marshallIfCustomMapped(Object)} would route a value of it through a mapper.
      * Lets callers branch on mappability without invoking the mapper (which may be expensive,
