@@ -147,7 +147,7 @@ public final class JdqlMethodBridge {
         for (JdqlUpdate.Item item : statement.items()) {
             switch (item.op()) {
                 case UNSET -> builder.unset(item.field());
-                case SET -> builder.set(item.field(), updateValue(item, paramValues));
+                case SET -> builder.set(item.field(), forField(morphium, entityClass, item.field(), updateValue(item, paramValues)));
                 case INC -> builder.inc(item.field(), updateNumber(item, paramValues, false));
                 case DEC -> builder.inc(item.field(), updateNumber(item, paramValues, true));
                 case MUL -> builder.mul(item.field(), updateNumber(item, paramValues, false));
@@ -156,6 +156,16 @@ public final class JdqlMethodBridge {
         }
 
         return builder.updateMany().getMatchedCount();
+    }
+
+    /** a text for an enum field is the constant of that enum, which the update stores as the field says (MOR-093) */
+    private static Object forField(Morphium morphium, Class<?> entityClass, String fieldName, Object value) {
+        if (!(value instanceof String name)) {
+            return value;
+        }
+
+        Class<?> type = fieldType(morphium, entityClass, fieldName);
+        return type != null && type.isEnum() ? enumConstant(type, name) : value;
     }
 
     private static Object updateValue(JdqlUpdate.Item item, Map<String, Object> paramValues) {
@@ -170,6 +180,19 @@ public final class JdqlMethodBridge {
         }
 
         return JdqlUpdate.literal(item.value());
+    }
+
+    /**
+     * The constant of an enum field for the name in a query: the enum itself, which the query then stores as the field says, name or ordinal (MOR-093). A name that is no constant stays the text:
+     * the query matches nothing, as it did.
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static Object enumConstant(Class<?> enumType, String name) {
+        try {
+            return Enum.valueOf((Class<? extends Enum>) enumType, name);
+        } catch (IllegalArgumentException e) {
+            return name;
+        }
     }
 
     /** the result of a DELETE or UPDATE statement that returns {@code boolean}: whether at least one document was deleted or matched (MOR-077) */
@@ -301,12 +324,12 @@ public final class JdqlMethodBridge {
 
         for (String item : spec.set()) {
             int eq = item.indexOf('=');
-            builder.set(item.substring(0, eq), updateValue(new JdqlUpdate.Item(item.substring(0, eq), JdqlUpdate.Op.SET, item.substring(eq + 1)), paramValues));
+            builder.set(item.substring(0, eq), forField(morphium, entityClass, item.substring(0, eq), updateValue(new JdqlUpdate.Item(item.substring(0, eq), JdqlUpdate.Op.SET, item.substring(eq + 1)), paramValues)));
         }
 
         for (String item : spec.setOnInsert()) {
             int eq = item.indexOf('=');
-            builder.setOnInsert(item.substring(0, eq), updateValue(new JdqlUpdate.Item(item.substring(0, eq), JdqlUpdate.Op.SET, item.substring(eq + 1)), paramValues));
+            builder.setOnInsert(item.substring(0, eq), forField(morphium, entityClass, item.substring(0, eq), updateValue(new JdqlUpdate.Item(item.substring(0, eq), JdqlUpdate.Op.SET, item.substring(eq + 1)), paramValues)));
         }
 
         for (String item : spec.inc()) {
@@ -729,6 +752,11 @@ public final class JdqlMethodBridge {
         }
         if (JdqlLiterals.isStringLiteral(valueRef)) {
             String text = JdqlLiterals.unquote(valueRef);
+
+            if (fieldType != null && fieldType.isEnum()) {
+                return enumConstant(fieldType, text);
+            }
+
             return (fieldType == char.class || fieldType == Character.class) && text.length() == 1 ? (Object) text.charAt(0) : text;
         }
         if (JdqlLiterals.isNumber(valueRef)) {
@@ -739,7 +767,7 @@ public final class JdqlMethodBridge {
         }
         // the constant of an enum is stored by its name
         if (fieldType != null && fieldType.isEnum() && JdqlLiterals.isQualifiedName(valueRef)) {
-            return JdqlLiterals.constantName(valueRef);
+            return enumConstant(fieldType, JdqlLiterals.constantName(valueRef));
         }
         return valueRef;
     }

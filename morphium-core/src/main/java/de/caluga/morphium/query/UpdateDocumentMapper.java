@@ -127,15 +127,17 @@ final class UpdateDocumentMapper {
         // an update does not know the declared type of the field. The position of a value follows the operator: the elements of $push/$addToSet/$pullAll and the
         // operand of $pull are container members (store() writes them with serialize(): {"value": scalar} for a custom-mapped scalar), every other operator
         // sets a whole field. A positional target (list.$, list.0, list.$[x], list.$[]) addresses one element, whatever the operator is.
+        Field field = fieldOf(key);
+
         if (operator.equals("$pull")) {
-            return morphium.getMapper().marshallUpdatePullOperand(value);
+            return morphium.getMapper().marshallUpdatePullOperand(value, field);
         }
 
         if (ELEMENT_OPERATORS.contains(operator) || isElementTarget(key)) {
-            return morphium.getMapper().marshallUpdateElement(value);
+            return morphium.getMapper().marshallUpdateElement(value, field);
         }
 
-        return morphium.getMapper().marshallUpdateValue(value);
+        return morphium.getMapper().marshallUpdateValue(value, field);
     }
 
     /** true if the path ends in a positional segment: {@code $}, {@code $[]}, {@code $[x]} or an array index */

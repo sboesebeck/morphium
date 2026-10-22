@@ -337,6 +337,7 @@ public List<Map<String, Object>> salesByCategory() {
 | `quarkus.morphium.cache.read-cache-enabled` | `true` | Enable query result cache |
 | `quarkus.morphium.cache.global-valid-time` | `60000` | Cache TTL in milliseconds |
 | `quarkus.morphium.use-bson-date-for-java-time` | -- | Store `Instant`, `LocalDate`, `LocalTime` and `LocalDateTime` as BSON `ISODate`. Unset leaves the previous per-type behaviour untouched. Setting it to `false` is not "keep things as they are" — `LocalDateTime` is `ISODate` by default today, so `false` flips it to the legacy format; see the [configuration guide](docs/modules/ROOT/pages/configuration.adoc) |
+| `quarkus.morphium.enum-type` | `STRING` | How an enum is stored in a field without `@Enumerated`: `STRING` (name) or `ORDINAL` (position, sorts in the order of the constants). See [Enums](../docs/configuration-reference.md#enums) | `MorphiumRuntimeConfig.java` |
 | `quarkus.morphium.local-date-time.use-bson-date` | `true` | **Deprecated** (removal: 7.0), use `use-bson-date-for-java-time`: reaches `LocalDateTime` only |
 | `quarkus.morphium.ssl.enabled` | `false` | Enable TLS |
 | `quarkus.morphium.ssl.auth-mechanism` | -- | `MONGODB-X509` for client-cert auth |

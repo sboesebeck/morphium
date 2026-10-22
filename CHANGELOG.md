@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Enums can be stored by their ordinal: `@Enumerated` and `objectMappingSettings().setEnumType(...)` (MOR-093)
+An enum is stored by the name of its constant, as before. `@Enumerated(EnumType.ORDINAL)` on a field (also for the enums in a `List`, `Set` or `Map` value) stores the ordinal, and the setting
+`objectMappingSettings().setEnumType(EnumType.ORDINAL)` (`morphium.enum-type` in Spring, `quarkus.morphium.enum-type` in Quarkus) does it for every field without the annotation; the annotation wins.
+As an ordinal an enum sorts and compares in the order of its constants. Queries (`eq`, `in`, `gt`, ...), updates (`modify()`, `set()`, `push()`, the bulk and buffered writers, the partial store), JDQL and the
+derived queries write the form that the field stores. Reading accepts both forms whatever is configured; an ordinal that is no constant fails with a message that names the field. Existing documents are not
+rewritten: switch the setting together with a migration of the data. With `morphium.enum-type=ORDINAL` the Jakarta Data TCK passes all 73 tests.
+
 #### Jakarta Data: `IgnoreCase` in front of an operator (MOR-092)
 `findByCodeIgnoreCaseBetween`, `findByStatusIgnoreCaseNotIn`, `findByNameIgnoreCaseContains`, `...IgnoreCaseGreaterThan` compare without case, for their own condition only. `IgnoreCase` was only read as the last word of a condition
 ("equals ignoring case"); in front of an operator the field name was wrong and the query matched nothing.

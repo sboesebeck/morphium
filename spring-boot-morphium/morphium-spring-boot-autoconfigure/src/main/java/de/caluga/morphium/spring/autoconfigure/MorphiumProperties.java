@@ -115,6 +115,12 @@ public class MorphiumProperties {
     private String indexCheck = "CREATE_ON_STARTUP";
 
     /**
+     * How an enum is stored in a field without {@code @Enumerated}, bound from {@code morphium.enum-type}: {@code STRING} (the name of the constant) or {@code ORDINAL} (its position, so a
+     * sort and a range query follow the order of the constants). Default: {@code STRING}. Existing documents are not rewritten; reading takes both forms.
+     */
+    private de.caluga.morphium.annotations.EnumType enumType = de.caluga.morphium.annotations.EnumType.STRING;
+
+    /**
      * Query result cache settings, bound under the {@code morphium.cache.*} prefix.
      */
     private CacheProperties cache = new CacheProperties();
@@ -210,6 +216,20 @@ public class MorphiumProperties {
      *         name; defaults to {@code PooledDriver}
      */
     public String getDriverName() { return driverName; }
+
+    /**
+     * Returns how an enum is stored when its field has no {@code @Enumerated} ({@code morphium.enum-type}).
+     *
+     * @return {@code STRING} or {@code ORDINAL}; defaults to {@code STRING}
+     */
+    public de.caluga.morphium.annotations.EnumType getEnumType() { return enumType; }
+
+    /**
+     * Sets how an enum is stored when its field has no {@code @Enumerated}, bound from {@code morphium.enum-type}.
+     *
+     * @param enumType {@code STRING} or {@code ORDINAL}
+     */
+    public void setEnumType(de.caluga.morphium.annotations.EnumType enumType) { this.enumType = enumType; }
 
     /**
      * Sets the driver implementation name bound from {@code morphium.driver-name}.

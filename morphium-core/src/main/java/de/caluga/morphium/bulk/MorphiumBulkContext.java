@@ -62,17 +62,17 @@ public class MorphiumBulkContext<T> {
      * {@code $max}, a container element for {@code $push}. The numbers of {@code $inc} and {@code $mul}, the flags of {@code $currentDate} and {@code $unset}, the operand of
      * {@code $pop} and the new name of {@code $rename} stay as they are.
      */
-    private Object marshalled(String command, Object value) {
+    private Object marshalled(String command, Object value, java.lang.reflect.Field field) {
         switch (command) {
             case "$set":
             case "$setOnInsert":
             case "$min":
             case "$max":
-                return ctx.getMorphium().getMapper().marshallUpdateValue(value);
+                return ctx.getMorphium().getMapper().marshallUpdateValue(value, field);
 
             case "$push":
             case "$addToSet":
-                return ctx.getMorphium().getMapper().marshallUpdateElement(value);
+                return ctx.getMorphium().getMapper().marshallUpdateElement(value, field);
 
             default:
                 return value;
@@ -82,7 +82,7 @@ public class MorphiumBulkContext<T> {
     private void createUpdateRequest(Query<T> query, String command, Map<String,Object> valuesToSet, boolean upsert, boolean multiple) {
         @SuppressWarnings("unchecked") Map<String, Object> values = new LinkedHashMap();
         for (Map.Entry<String,Object> e:valuesToSet.entrySet()){
-            values.put(ctx.getMorphium().getARHelper().getMongoFieldName(query.getType(),e.getKey(),true), marshalled(command, e.getValue()));
+            values.put(ctx.getMorphium().getARHelper().getMongoFieldName(query.getType(),e.getKey(),true), marshalled(command, e.getValue(), ctx.getMorphium().getARHelper().getFieldOrNull(query.getType(), e.getKey())));
         }
         UpdateBulkRequest up = ctx.addUpdateBulkRequest();
         up.setQuery(Doc.of(query.toQueryObject()));

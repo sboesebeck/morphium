@@ -605,6 +605,21 @@ public class AnnotationAndReflectionHelper {
      * @param fld - field name
      * @return field, if found, null else
      */
+    /**
+     * The field of a class for an update or a query, null if there is none: a dotted path, a positional or operator key, or a name that no field has (MOR-093).
+     */
+    public Field getFieldOrNull(Class<?> clz, String fld) {
+        if (clz == null || fld == null || fld.isEmpty() || fld.indexOf('.') >= 0 || fld.charAt(0) == '$') {
+            return null;
+        }
+
+        try {
+            return getField(clz, fld);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
     public Field getField(Class clz, String fld) {
         if (clz == null || Map.class.isAssignableFrom(clz)) return null;
 

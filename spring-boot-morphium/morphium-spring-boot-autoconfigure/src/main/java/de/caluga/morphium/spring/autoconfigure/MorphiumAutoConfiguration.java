@@ -109,6 +109,7 @@ public class MorphiumAutoConfiguration {
 
         cfg.connectionSettings().setDatabase(properties.getDatabase());
         cfg.driverSettings().setDriverName(properties.getDriverName());
+        cfg.objectMappingSettings().setEnumType(properties.getEnumType());
         cfg.connectionSettings().setMaxConnections(properties.getMaxConnections());
         cfg.driverSettings().setDefaultReadPreferenceType(properties.getReadPreference());
 

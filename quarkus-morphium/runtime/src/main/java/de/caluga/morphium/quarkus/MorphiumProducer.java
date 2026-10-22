@@ -597,6 +597,9 @@ public class MorphiumProducer {
         // LocalDateTime). See applyJavaTimeFormat.
         applyJavaTimeFormat(cfg, config.useBsonDateForJavaTime());
 
+        // how an enum is stored in a field without @Enumerated (MOR-093)
+        cfg.objectMappingSettings().setEnumType(config.enumType());
+
         // TLS / X.509 settings
         configureSsl(cfg, config.ssl());
 

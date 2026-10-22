@@ -176,6 +176,7 @@ directly against `MorphiumProperties.java`.
 | `morphium.password` | -- | MongoDB password | `MorphiumProperties.java:57` |
 | `morphium.auth-database` | `admin` | Authentication database (`authSource`) | `MorphiumProperties.java:64` |
 | `morphium.driver-name` | `PooledDriver` | `PooledDriver` (production) or `InMemDriver` (tests, no MongoDB needed) | `MorphiumProperties.java:71` |
+| `morphium.enum-type` | `STRING` | How an enum is stored in a field without `@Enumerated`: `STRING` (name) or `ORDINAL` (position, sorts in the order of the constants), see `docs/configuration-reference.md` | `MorphiumProperties.java` |
 | `morphium.read-preference` | `primary` | MongoDB read preference | `MorphiumProperties.java:77` |
 | `morphium.max-connections` | `250` | Connection pool size | `MorphiumProperties.java:82` |
 | `morphium.atlas-url` | -- | MongoDB Atlas SRV URL (overrides `morphium.hosts` when set) | `MorphiumProperties.java:89` |
