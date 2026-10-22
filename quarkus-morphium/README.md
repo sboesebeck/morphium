@@ -1,5 +1,7 @@
 # Quarkus Morphium Extension
 
+> **Jakarta Data TCK: 73 of 73.** The repositories of this extension run on `morphium-jakarta-data`, which passes all 73 tests of the standalone Jakarta Data 1.0 TCK suite on the in-memory driver and on a real MongoDB 8. See the [Jakarta Data guide](../docs/jakarta-data.md#conformance-jakarta-data-tck).
+
 A [Quarkus](https://quarkus.io) CDI extension for [Morphium](https://github.com/sboesebeck/morphium),
 an actively maintained MongoDB ORM for Java — with full **Jakarta Data 1.0** support.
 
