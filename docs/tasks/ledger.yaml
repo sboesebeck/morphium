@@ -1878,6 +1878,9 @@ tasks:
   - README.md
   - docs/releases/whats-new-v6.md
   evidence: 'Links checked with a script (all resolve except LICENSE, which does not exist in the repository: see MOR-095). The examples were checked against the code (sort("-field"), derived IgnoreCase, CursoredPage, JDQL UPDATE with arithmetic, record results of GROUP BY). README.de.md is NOT updated and still has the old structure.'
+  commits:
+  - eb722ce92
+  - d492947fe
 - id: MOR-095
   title: 'Verification: the showcase against this version, and two findings (scram-client pinned by the Quarkus BOM, no LICENSE file)'
   type: verification
