@@ -184,4 +184,45 @@ public class EnumStorageTest extends MultiDriverTestBase {
             assertEquals(true, cause.getMessage().contains("ordinal") && cause.getMessage().contains("7"), cause.getMessage());
         }
     }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void theNameOfAConstantStillFindsAndWritesTheStoredForm(Morphium m) throws Exception {
+        try (m) {
+            m.getConfig().objectMappingSettings().setEnumType(EnumType.ORDINAL);
+            m.store(task("low", Level.LOW));
+            m.store(task("mid", Level.MID));
+
+            assertEquals(List.of("mid"), ids(m, m.createQueryFor(Task.class).f("plain").eq("MID")));
+            assertEquals(List.of("low", "mid"), ids(m, m.createQueryFor(Task.class).f("ordinal").in(List.of("LOW", "MID"))));
+            assertEquals(List.of("low", "mid"), ids(m, m.createQueryFor(Task.class).f("named").in(List.of("LOW", "MID"))));
+            assertEquals(List.of(), ids(m, m.createQueryFor(Task.class).f("plain").eq("NOT_A_CONSTANT")));
+
+            m.createQueryFor(Task.class).f("id").eq("low").modify().set("plain", "HIGH").updateOne();
+            assertEquals(Level.HIGH, m.createQueryFor(Task.class).f("id").eq("low").get().plain);
+            assertEquals(1, m.createQueryFor(Task.class).f("plain").eq(Level.HIGH).countAll());
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void aPartialStoreWritesTheStoredForm(Morphium m) throws Exception {
+        try (m) {
+            m.getConfig().objectMappingSettings().setEnumType(EnumType.ORDINAL);
+            Task t = task("a", Level.LOW);
+            m.store(t);
+
+            t.plain = Level.HIGH;
+            t.ordinal = Level.MID;
+            t.ordinalList = new ArrayList<>(List.of(Level.HIGH, Level.LOW));
+            m.updateUsingFields(t, "plain", "ordinal", "ordinalList");
+
+            assertEquals(1, m.createQueryFor(Task.class).f("plain").eq(Level.HIGH).countAll());
+            assertEquals(1, m.createQueryFor(Task.class).f("ordinal").eq(Level.MID).countAll());
+            Task back = m.createQueryFor(Task.class).f("id").eq("a").get();
+            assertEquals(Level.HIGH, back.plain);
+            assertEquals(List.of(Level.HIGH, Level.LOW), back.ordinalList);
+            assertEquals(List.of("a"), ids(m, m.createQueryFor(Task.class).f("ordinalList").eq(Level.HIGH)));
+        }
+    }
 }

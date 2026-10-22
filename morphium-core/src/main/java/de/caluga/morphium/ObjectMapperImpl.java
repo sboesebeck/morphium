@@ -1193,18 +1193,55 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         return effective(enumTypeOf(field)) == EnumType.ORDINAL ? (Object) value.ordinal() : value.name();
     }
 
-    @Override
+    /** the enum of a field, or the enum of the elements of a collection field; null if the field holds none */
+    private static Class<?> enumOf(Field field) {
+        if (field == null) {
+            return null;
+        }
+
+        if (field.getType().isEnum()) {
+            return field.getType();
+        }
+
+        if (Collection.class.isAssignableFrom(field.getType()) && field.getGenericType() instanceof ParameterizedType p && p.getActualTypeArguments().length == 1
+                && p.getActualTypeArguments()[0] instanceof Class<?> c && c.isEnum()) {
+            return c;
+        }
+
+        return null;
+    }
+
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public Object marshallEnumsIn(Object value, Field field) {
-        if (value instanceof Enum<?> e) {
+    private Object marshallEnumOrName(Object x, Field field, Class<?> fieldEnum) {
+        if (x instanceof Enum<?> e) {
             return marshallEnum(field, e);
         }
 
-        if (value instanceof Collection<?> c && c.stream().anyMatch(x -> x instanceof Enum)) {
+        // the name of a constant for a field of that enum: a query that has always been written with the name keeps finding what it found, whatever the field stores
+        if (x instanceof String name && fieldEnum != null) {
+            try {
+                return marshallEnum(field, Enum.valueOf((Class<? extends Enum>) fieldEnum, name));
+            } catch (IllegalArgumentException notAConstant) {
+                return x;
+            }
+        }
+
+        return x;
+    }
+
+    @Override
+    public Object marshallEnumsIn(Object value, Field field) {
+        Class<?> fieldEnum = enumOf(field);
+
+        if (value instanceof Enum<?> || value instanceof String) {
+            return marshallEnumOrName(value, field, fieldEnum);
+        }
+
+        if (value instanceof Collection<?> c && c.stream().anyMatch(x -> x instanceof Enum || (x instanceof String && fieldEnum != null))) {
             List<Object> marshalled = new ArrayList<>(c.size());
 
             for (Object x : c) {
-                marshalled.add(x instanceof Enum<?> e ? marshallEnum(field, e) : x);
+                marshalled.add(marshallEnumOrName(x, field, fieldEnum));
             }
 
             return marshalled;
