@@ -1859,3 +1859,6 @@ tasks:
   - morphium-core/src/main/java/de/caluga/morphium/annotations/Enumerated.java
   - morphium-core/src/main/java/de/caluga/morphium/ObjectMapperImpl.java
   evidence: 'EnumStorageTest (7: fields, setting, reading both forms, queries, sort, updates, bad ordinal) on the InMemoryDriver and on a real mongo:8; QueryExecutorEnumTest (derived queries and JDQL in both modes, UPDATE ... SET enum); Quarkus MorphiumEnumTypeTest for quarkus.morphium.enum-type; JakartaDataTckTest with morphium.enum-type=ORDINAL: 73 of 73 on the InMemoryDriver and on mongo:8.'
+  commits:
+  - 8dc2017ee
+  - 72aec1d28
