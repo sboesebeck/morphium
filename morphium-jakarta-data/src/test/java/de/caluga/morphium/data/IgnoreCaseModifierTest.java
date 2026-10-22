@@ -125,4 +125,13 @@ class IgnoreCaseModifierTest {
     void onlyItsOwnCondition() {
         assertThat(codes("findByCodeIgnoreCaseBetweenAndNoteNotIn", "a", "e", Set.of("alpha", "bravo", "Delta"))).containsExactly("a", "c", "e");
     }
+
+    @Test
+    @DisplayName("a null argument is a plain null condition, not the text \"null\"")
+    void nullArgument() {
+        morphium.store(new Tag("6", "null", "textual null"));
+        morphium.store(new Tag("7", null, "no code"));
+
+        assertThat(codes("findByCodeIgnoreCaseEquals", (Object) null)).containsOnlyNulls().hasSize(1);    // the document without a code, not the one with the text "null"
+    }
 }
