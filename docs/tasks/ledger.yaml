@@ -1895,3 +1895,6 @@ tasks:
   - quarkus-morphium/README.md
   notes: 'scram-client advisories (GitHub advisory database): CVE-2025-59432 (timing attack, medium) is fixed in 3.2; CVE-2026-53712 (silent downgrade of channel binding by a TLS man in the middle, high) affects up to 3.2 and is fixed in 3.3. The Quarkus 3.32 BOM manages 3.2. Morphium authenticates with ChannelBindingPolicy.DISABLE (SaslAuthCommand), so the second one cannot be reached through Morphium; a scanner still reports it. Not checked: whether Morphium runs correctly on 3.2 (the showcase and all tests of this repository run on 3.4; the 3.2 jar is not in the local repository and was not downloaded).'
   evidence: 'docs/quarkus-extension.md has a section that explains the pin and gives the dependencyManagement entry; the file LICENSE has the unmodified text of the Apache License 2.0 (11358 bytes, the size of the original), taken from a jar of Apache Commons Lang that was already in the local repository; the README links it. The showcase pom still has to get the pin (its own repository).'
+  commits:
+  - db4f125a9
+  - 417dfbedb
