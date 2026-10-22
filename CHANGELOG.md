@@ -179,6 +179,9 @@ context keep their own key handling.
 
 ### Fixed
 
+#### InMemoryDriver: `$inc`, `$mul` and `$currentDate` below a scalar value are rejected (MOR-097)
+`{$inc: {"a.sub": 1}}` on a document whose `a` is the number 7 turned `a` into a sub document; `$set` was rejected already. mongod answers PathNotViable (28, "Cannot create field 'sub' in element {a: 7}") and changes nothing, and so does the InMemoryDriver (and PoppyDB) now. A missing field on the path is still created.
+
 #### PoppyDB: the update fast path keeps the code of the driver and an ordered update stops at the first error (MOR-069)
 `processUpdateDirect` answered every rejected statement with the code 11000 (duplicate key), although the driver sets the code of mongod (2, 9, 14, 40, 52, 56, 66, ...), and it applied the statements behind a rejected one also for an ordered update (the default). It reports the code of the driver now (a failure without a code is a BadValue, 2), and an ordered update stops at the first rejected statement, `ordered: false` goes on, like mongod.
 

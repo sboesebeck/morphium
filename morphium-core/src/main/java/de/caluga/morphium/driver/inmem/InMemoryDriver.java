@@ -10208,6 +10208,48 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                            + " in document {_id: " + obj.get("_id") + "}");
     }
 
+    /**
+     * mongod rejects an update below a value that is no document and no array (PathNotViable, 28: "Cannot create field 'sub' in element {a: 7}"), where
+     * {@link #applySetFields} does the same for $set. A missing field on the way is created by the write, so it is fine; an explicit null is a value.
+     */
+    @SuppressWarnings("unchecked")
+    private static void requireViablePath(Map<String, Object> obj, String key) {
+        if (key.indexOf('.') < 0 || obj.containsKey(key)) {
+            return;
+        }
+
+        String[] path = key.split("\\.");
+        Object current = obj;
+
+        for (int i = 0; i < path.length - 1; i++) {
+            String p = path[i];
+            Object next;
+            boolean present;
+
+            if (current instanceof Map) {
+                present = ((Map<String, Object>) current).containsKey(p);
+                next = ((Map<String, Object>) current).get(p);
+            } else if (current instanceof List && isArrayIndex(p)) {
+                List<Object> l = (List<Object>) current;
+                int idx = Integer.parseInt(p);
+                present = idx < l.size();
+                next = present ? l.get(idx) : null;
+            } else {
+                return;
+            }
+
+            if (!present) {
+                return;
+            }
+
+            if (!(next instanceof Map) && !(next instanceof List)) {
+                throw updateError(28, "Cannot create field '" + path[i + 1] + "' in element {" + p + ": " + next + "}");
+            }
+
+            current = next;
+        }
+    }
+
     /** the error of mongod for $inc and $mul on a field that is not a number */
     private MorphiumDriverException nonNumericField(String operator, Map<String, Object> obj, String field, Object value) {
         return updateError(14, "Cannot apply " + operator + " to a value of non-numeric type. {_id: " + obj.get("_id") + "} has the field '" + field
@@ -10491,6 +10533,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                                 // $inc: { <field1>: <amount1>, <field2>: <amount2>, ... }
                                 for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                                    requireViablePath(obj, entry.getKey());
                                     Object value = readPathValue(obj, entry.getKey());
 
                                     if (value == null) {
@@ -10529,6 +10572,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                 // distinct BSON Timestamp representation. writePathValue (not setByPath) so
                                 // concrete numeric paths from positional resolution descend into arrays.
                                 for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                                    requireViablePath(obj, entry.getKey());
                                     writePathValue(obj, entry.getKey(), new Date());
                                     modified.add(obj.get("_id"));
                                 }
@@ -10539,6 +10583,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                                 // $mul: { <field1>: <number1>, ... }
                                 for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                                    requireViablePath(obj, entry.getKey());
                                     Object value = readPathValue(obj, entry.getKey());
 
                                     if (value == null) {
