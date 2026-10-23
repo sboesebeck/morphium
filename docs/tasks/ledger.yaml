@@ -1116,7 +1116,7 @@ tasks:
 - id: MOR-048
   title: MorphiumBase.setEnum looks the value up by the map value instead of the key
   type: defect
-  status: open
+  status: done
   priority: 3
   effort: S
   description: MorphiumBase.setEnum builds the field map with values.get(est.getValue()) around line 1215, which
@@ -1125,6 +1125,9 @@ tasks:
   acceptance:
   - setEnum with a map of constants and values stores each value under the name of its constant, on a real MongoDB
   source: *id002
+  evidence: 'SetEnumTest (1 test, InMemoryDriver and mongo:8 with the PooledDriver): setEnum with an int and a String value stores 5 under counter_value and the text under label; it failed before the change (the field was not stored).'
+  commits:
+  - FIXME
 - id: MOR-049
   title: Writer path has no guard for @Reference and @Encrypted fields
   type: implementation
