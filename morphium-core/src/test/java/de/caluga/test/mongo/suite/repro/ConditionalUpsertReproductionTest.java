@@ -34,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * against an existing document whose filter does not match throws a {@link MorphiumDriverException} with
  * Mongo code 11000 (duplicate key), because the upsert tries to insert a second document with the same
  * {@code _id};</li>
+ * <li>(MOR-003, fixed: see conditionalUpsertViaQueryKeepsFilterId) a compound filter no longer collides on the generated _id;</li>
  * <li>an upsert that inserts, with {@code returnNew=false}, returns {@code null};</li>
  * <li>the {@code @Version} trap: a document created through {@code $setOnInsert} without a version field
  * makes a later {@code store()} of the loaded entity fail with a duplicate key on {@code _id}, because
@@ -220,37 +221,40 @@ public class ConditionalUpsertReproductionTest extends MultiDriverTestBase {
     }
 
     /**
-     * Additional finding: with a compound filter ({@code _id = X AND (... OR ...)}) the query object is
-     * {@code {$and: [...]}}, so {@code Query#findOneAndUpdate} does not see the _id at top level and adds a
-     * generated {@code $setOnInsert._id}. Real MongoDB: the insert fails with code 66 (immutable _id), also on the
-     * very first acquire. InMemoryDriver: accepts and silently stores the document under the GENERATED id,
-     * so the "lease" is not addressable by its key and every further call inserts another document.
+     * MOR-003 (fixed): with a compound filter ({@code _id = X AND (... OR ...)}) the query object is
+     * {@code {$and: [...]}}. {@code Query#findOneAndUpdate} used to look for the _id at top level only, added a generated
+     * {@code $setOnInsert._id} and a real MongoDB rejected the very first insert with code 66 (immutable _id), while the
+     * InMemoryDriver stored the document under the generated id. Now the _id reachable through {@code $and} counts as
+     * pinned (the server seeds it from the filter, see docs/research/upsert-id-seeding-probe.md): the first acquire inserts
+     * the document under "job", and a second contender gets the duplicate key error of a held lease on a real MongoDB.
+     * The InMemoryDriver still overwrites the held lease (MOR-030).
      */
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
-    public void conditionalUpsertViaQueryGeneratesConflictingId(Morphium morphium) throws Exception {
+    public void conditionalUpsertViaQueryKeepsFilterId(Morphium morphium) throws Exception {
         try (morphium) {
             String driver = morphium.getDriver().getName();
             ReproSupport.report(driver, "H5 filter shape", String.valueOf(acquireFilter(morphium, "job", "A").toQueryObject()));
             Outcome<Lease> first = ReproSupport.attempt(() -> acquireFilter(morphium, "job", "A").findOneAndUpdate(acquireUpdate("A", 60_000), true, true));
-            ReproSupport.report(driver, "H5 naive Query path: first acquire", first.describe());
+            ReproSupport.report(driver, "H5 Query path: first acquire", first.describe());
+            assertFalse(first.failed(), first.describe());
+            assertEquals("job", first.value.id);
+            assertEquals("A", first.value.owner);
+            assertEquals(1, morphium.createQueryFor(Lease.class).countAll());
+
             Outcome<Lease> second = ReproSupport.attempt(() -> acquireFilter(morphium, "job", "B").findOneAndUpdate(acquireUpdate("B", 60_000), true, true));
-            ReproSupport.report(driver, "H5 naive Query path: second acquire", second.describe());
-            ReproSupport.report(driver, "H5 naive Query path: raw documents afterwards", String.valueOf(morphium.createQueryFor(Lease.class).asMapList()));
+            ReproSupport.report(driver, "H5 Query path: second acquire", second.describe());
+            ReproSupport.report(driver, "H5 Query path: raw documents afterwards", String.valueOf(morphium.createQueryFor(Lease.class).asMapList()));
+            assertEquals(1, morphium.createQueryFor(Lease.class).countAll());
 
             if (isInMem(morphium)) {
-                assertFalse(first.failed(), first.describe());
+                // MOR-030: the InMemoryDriver does not raise E11000 and takes the held lease over
                 assertFalse(second.failed(), second.describe());
-                assertFalse("job".equals(first.value.id), "InMem stored the document under a generated id: " + first.value.id);
-                assertEquals(2, morphium.createQueryFor(Lease.class).countAll(), "every call inserted another document");
+                assertEquals("B", second.value.owner);
             } else {
-                assertTrue(first.failed(), first.describe());
-                MorphiumDriverException mde = first.find(MorphiumDriverException.class);
-                assertNotNull(mde, first.describe());
-                assertEquals(66, ((Number) mde.getMongoCode()).intValue(), first.describe());
-                assertTrue(first.describe().contains("immutable field '_id'"), first.describe());
                 assertTrue(second.failed(), second.describe());
-                assertEquals(0, morphium.createQueryFor(Lease.class).countAll());
+                assertDuplicateKey(morphium, second);
+                assertEquals("A", morphium.createQueryFor(Lease.class).f("_id").eq("job").get().owner);
             }
         }
     }
