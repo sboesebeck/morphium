@@ -187,6 +187,10 @@ The switch that restored the silent behaviour of rejected writes was introduced 
 
 ### Fixed
 
+#### The access time is stored in the type of the field (MOR-052)
+`@LastAccess` is written by a second update command after a read. It wrote the milliseconds into the document whatever the type of the field was: a `Date` field held a number in the document and a `String` field with a `dateFormat` too, while the entity that was read carried the date and the text. The document gets what the entity gets now: a date, the formatted text or the milliseconds. (The name was already the stored name; the ledger had assumed the Java name.)
+
+
 #### PoppyDB: the delete fast path answers a rejected delete with writeErrors and honours ordered (MOR-070)
 `processDeleteDirect` caught every exception of the driver, logged a warning and answered `ok` with the count of what was deleted: a delete with a query that mongod refuses (an unknown operator) looked like a delete of nothing to the client. It answers a `writeErrors` entry with the code of the driver (BadValue, 2, for an unknown operator) now; an ordered delete (the default) stops at the first rejected statement, `ordered: false` goes on.
 
