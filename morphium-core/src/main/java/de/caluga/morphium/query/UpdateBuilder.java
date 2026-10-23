@@ -176,6 +176,36 @@ public final class UpdateBuilder<T> {
     }
 
     /**
+     * {@link #findOneAndUpdate(ReturnDocument)} with {@link FindAndModifyOptions}: which document to return (required), sort, projection, hint, collation, array filters and a
+     * maximum time. {@code upsert} is on if either the builder ({@link #upsert()}) or the options ask for it. Same validation, mapping, version and timestamp handling; the
+     * rejection of a projection and a hint of the <em>query</em> stays (give them in the options).
+     *
+     * @throws IllegalArgumentException if the options are null or have no {@code returnDocument}; nothing is sent then
+     */
+    public T findOneAndUpdate(FindAndModifyOptions options) {
+        if (options == null || options.getReturnDocument() == null) {
+            throw new IllegalArgumentException("FindAndModifyOptions with a ReturnDocument are required (there is no default)");
+        }
+
+        boolean upsertRequested = upsert || options.isUpsert();
+        validate(false, false, upsertRequested);
+        Map<String, Object> document = build();
+        return query.findOneAndUpdateMapped(document, upsertRequested, options.getReturnDocument() == ReturnDocument.AFTER, options);
+    }
+
+    /** {@link #tryFindOneAndUpdate(ReturnDocument)} with {@link FindAndModifyOptions}, see {@link #findOneAndUpdate(FindAndModifyOptions)} */
+    public UpdateOutcome<T> tryFindOneAndUpdate(FindAndModifyOptions options) {
+        if (options == null || options.getReturnDocument() == null) {
+            throw new IllegalArgumentException("FindAndModifyOptions with a ReturnDocument are required (there is no default)");
+        }
+
+        boolean upsertRequested = upsert || options.isUpsert();
+        validate(false, false, upsertRequested);
+        Map<String, Object> document = build();
+        return query.findOneAndUpdateOutcome(document, upsertRequested, options.getReturnDocument() == ReturnDocument.AFTER, options);
+    }
+
+    /**
      * Like {@link #findOneAndUpdate(ReturnDocument)} (same validation, mapping, version and timestamp handling, same atomic findAndModify), but returns a typed
      * {@link UpdateOutcome} instead of a document that is {@code null} for different reasons and an exception that has to be classified by its code:
      * <table>
@@ -277,11 +307,15 @@ public final class UpdateBuilder<T> {
     }
 
     private void validate(boolean countTerminal, boolean many) {
+        validate(countTerminal, many, upsert);
+    }
+
+    private void validate(boolean countTerminal, boolean many, boolean upsertRequested) {
         if (operations.isEmpty()) {
             throw new IllegalStateException("The update is empty: add at least one set, setOnInsert, inc or unset (an empty update document would REPLACE the document)");
         }
 
-        if (operations.hasOnlySetOnInsert() && !upsert) {
+        if (operations.hasOnlySetOnInsert() && !upsertRequested) {
             throw new IllegalStateException("setOnInsert without upsert() can never do anything: call upsert() or use set()");
         }
 
@@ -302,11 +336,11 @@ public final class UpdateBuilder<T> {
         }
 
         if (query.getHint() != null) {
-            throw new UnsupportedOperationException("a hint is not supported by the update builder (findAndModify with a hint is not wired yet, MOR-008)");
+            throw new UnsupportedOperationException("a hint of the query is not supported by the update builder: give it in the FindAndModifyOptions of findOneAndUpdate");
         }
 
         if (query.hasProjection()) {
-            throw new UnsupportedOperationException("a projection is not supported by the update builder (MOR-008)");
+            throw new UnsupportedOperationException("a projection of the query is not supported by the update builder: give it in the FindAndModifyOptions of findOneAndUpdate");
         }
 
         if (morphium.getWriterForClass(type) instanceof BufferedMorphiumWriterImpl) {

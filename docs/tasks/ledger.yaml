@@ -233,7 +233,7 @@ tasks:
 - id: MOR-008
   title: Options object for findAndModify and a defined result for upsert without returnNew
   type: implementation
-  status: open
+  status: done
   priority: 2
   effort: S
   description: Replace findOneAndUpdate(Map, boolean upsert, boolean returnNew) by findOneAndUpdate(update, FindAndModifyOptions)
@@ -253,6 +253,19 @@ tasks:
   source:
   - docs/research/reproduction-results.md hypothesis 5
   - docs/research/other-clients.md pattern 6
+  evidence: 'ModifyOptionsTest 34 invocations (17 tests, 2 skipped on the InMemoryDriver: unknown hint rejected, collation)
+    and FindAndModifyOptionsTest 5, green on PooledDriver (mongo:8, v8.3.x) and InMemoryDriver: upsert with BEFORE returns
+    null for an insert and the document for AFTER, sort of the options overrides the query sort, projection (include, exclude,
+    Java names translated, _id kept, stored document complete), hint by name and by key document, unknown hint rejected by
+    mongod, array filters, maxTime, collation on mongod, returnDocument required, legacy overload equals the options form,
+    builder terminals (projection and hint through the options, builder upsert wins over upsert(false), the option can
+    request the upsert, tryFindOneAndUpdate(options) tells insert from update), count terminals still reject projection and
+    hint. Mutation check: without the projection in the command the projection tests fail. ConditionalUpsertReproductionTest
+    passes unchanged. Regression (update, upsert, builder, lease, contract and reproduction classes, 521 invocations) green
+    on both drivers. The InMemoryDriver applies the projection (inclusion, exclusion, dotted paths; no $slice/$elemMatch) and ignores
+    hint and maxTimeMS. Not covered: findOneAndReplace/findOneAndDelete options, PoppyDB, SingleMongoConnectDriver.'
+  commits:
+  - edd39c204
 - id: MOR-009
   title: 'Lifecycle handling in the builder: @LastChange, @CreationTime, @Version'
   type: implementation
