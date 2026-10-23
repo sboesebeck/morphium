@@ -1062,7 +1062,7 @@ tasks:
   source: *id001
   evidence: 'VersionFieldNameTest (1 test, InMemoryDriver and mongo:8 with the PooledDriver): store writes rev and not revision, the entity reads back with revision 1, a filter on the Java name finds it, a second store gives 2 and a builder update gives 3 without a second field; it failed before the change (stored under revision). ModifyValidationTest: the former rejection test now shows the builder working with the field name (insert at 1, update at 2). The version, optimistic locking and object mapper test classes pass on the InMemoryDriver (29 plus the mapper classes).'
   commits:
-  - FIXME
+  - cf5cb79a7
 - id: MOR-045
   title: 'Update documents: a String value for _id of a MorphiumId entity is not coerced'
   type: defect
