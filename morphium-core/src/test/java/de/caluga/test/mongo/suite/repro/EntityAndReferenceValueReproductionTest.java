@@ -152,32 +152,27 @@ public class EntityAndReferenceValueReproductionTest extends MultiDriverTestBase
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
-    public void pinnedMor049TheWriterPathEmbedsAnEntityInAReferenceFieldAndTheDocumentCannotBeReadBack(Morphium m) throws Exception {
+    public void querySetOfAnEntityIntoAReferenceFieldIsRejected(Morphium m) throws Exception {
         try (m) {
             Target t = target(m);
             holder(m, "k4");
-            m.createQueryFor(Holder.class).f("key").eq("k4").set("ref", t);
-            Object ref = raw(m, "k4").get("ref");
-            ReproSupport.report(m.getDriver().getName(), "E4 Query.set, @Reference <- entity (MOR-049)", String.valueOf(ref));
-            assertTrue(ref instanceof Map && ((Map<?, ?>) ref).containsKey("label"), "the whole entity is embedded: " + ref);
-            RuntimeException e = assertThrows(RuntimeException.class, () -> m.createQueryFor(Holder.class).f("key").eq("k4").get());
-            ReproSupport.report(m.getDriver().getName(), "E4 read back", ReproSupport.describe(e));
-            assertTrue(ReproSupport.describe(e).contains("ClassCastException"), ReproSupport.describe(e));
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> m.createQueryFor(Holder.class).f("key").eq("k4").set("ref", t));
+            ReproSupport.report(m.getDriver().getName(), "E4 Query.set, @Reference <- entity (MOR-049)", "rejected: " + e.getMessage());
+            assertTrue(e.getMessage().contains("@Reference"), e.getMessage());
+            assertEquals(null, raw(m, "k4").get("ref"), "nothing was written");
         }
     }
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
-    public void pinnedMor049PushOfAnEntityIntoAReferenceListIsEmbeddedToo(Morphium m) throws Exception {
+    public void queryPushOfAnEntityIntoAReferenceListIsRejected(Morphium m) throws Exception {
         try (m) {
             Target t = target(m);
             holder(m, "k5");
-            m.createQueryFor(Holder.class).f("key").eq("k5").push("refs", t);
-            List<?> refs = (List<?>) raw(m, "k5").get("refs");
-            ReproSupport.report(m.getDriver().getName(), "E5 Query.push, @Reference list <- entity (MOR-049)", String.valueOf(refs));
-            assertNotNull(refs);
-            assertEquals(1, refs.size());
-            assertTrue(refs.get(0) instanceof Map && ((Map<?, ?>) refs.get(0)).containsKey("label"), "the whole entity is embedded: " + refs);
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> m.createQueryFor(Holder.class).f("key").eq("k5").push("refs", t));
+            ReproSupport.report(m.getDriver().getName(), "E5 Query.push, @Reference list <- entity (MOR-049)", "rejected: " + e.getMessage());
+            assertTrue(e.getMessage().contains("@Reference"), e.getMessage());
+            assertEquals(0, ((List<?>) raw(m, "k5").get("refs")).size(), "nothing was written");
         }
     }
 }

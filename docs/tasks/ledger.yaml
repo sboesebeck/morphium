@@ -1143,7 +1143,7 @@ tasks:
 - id: MOR-049
   title: Writer path has no guard for @Reference and @Encrypted fields
   type: implementation
-  status: open
+  status: done
   priority: 3
   effort: M
   description: UpdateDocumentMapper rejects an entity for a @Reference field and any write to an @Encrypted field
@@ -1155,6 +1155,9 @@ tasks:
   depends_on:
   - MOR-042
   source: *id002
+  evidence: 'WriterPathGuardTest (set and push/pushAll of an entity into @Reference fields, set of plaintext into @Encrypted, ids and other fields still written) green on the InMemoryDriver and MongoDB 8 (PooledDriver); mapper key test and 29 related update and marshalling tests unchanged.'
+  commits:
+  - FIXME
 - id: MOR-050
   title: 'Update builder: updateOne, updateMany and UpdateResult'
   type: implementation
