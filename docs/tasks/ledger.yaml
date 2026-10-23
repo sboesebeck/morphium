@@ -244,7 +244,7 @@ tasks:
 - id: MOR-009
   title: 'Lifecycle handling in the builder: @LastChange, @CreationTime, @Version'
   type: implementation
-  status: open
+  status: done
   priority: 2
   effort: M
   description: '@LastChange and @CreationTime in the builder: findOneAndUpdate through the builder (MOR-006) skips
@@ -260,6 +260,20 @@ tasks:
   source:
   - docs/research/reproduction-results.md hypothesis 5
   - docs/research/other-clients.md patterns 7, 8
+  evidence: 'ModifyAutoValuesTest 22 invocations (11 tests, PooledDriver mongo:8 and InMemoryDriver): last change
+    refreshed by update, inc and unset; creation time only on insert and never changed by an update; an upsert that
+    inserts sets both from one clock reading; a setOnInsert-only update sets both on insert and touches nothing
+    (also not the version) on an existing document; explicit touches win (incl. an explicit unset); Query.disableAutoValues
+    and the thread switch skip both; Long/long, Date, String (dateFormat), LocalDateTime and Instant fields; an
+    unsupported field type is rejected and nothing is written; toUpdateDocument shows the injection; store() afterwards
+    works. Mutation check: with the injection disabled 10 of the 11 tests fail on the InMemoryDriver. Regression
+    subset (64 classes): 862 tests on the InMemoryDriver with 2 errors (ReferenceCascadeTest, Byte Buddy does not
+    support Java 25); on a real MongoDB plus InMem 1014 tests with ReferenceCascadeTest, ExclusiveMessageTests.exclusiveTest/exclusivityTest
+    and CoreFunctionalityTests.cachedObjectOperationsTest (all known, see MOR-042) and LastAccessTest.testLastAccessInc,
+    which is intermittent: it failed 2 of 3 repetitions on this branch and 1 of 4 on a clean develop worktree (it
+    exercises setInEntity, not the builder).'
+  commits:
+  - 69dfb6484
 - id: MOR-010
   title: Typed duplicate-key exception and typed result for a lost conditional upsert
   type: implementation
