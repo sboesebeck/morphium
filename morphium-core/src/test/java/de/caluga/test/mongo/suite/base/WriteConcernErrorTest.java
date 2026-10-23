@@ -59,7 +59,7 @@ public class WriteConcernErrorTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesPooledOnly")
+    @MethodSource("getMorphiumInstances")
     public void aQuerySetThatMissesItsWriteConcernRaisesTheSubtypeAndTheDataIsWritten(Morphium m) throws Exception {
         try (m) {
             setup(m);
@@ -72,7 +72,7 @@ public class WriteConcernErrorTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesPooledOnly")
+    @MethodSource("getMorphiumInstances")
     public void theQueryOverrideSuppressesIt(Morphium m) throws Exception {
         try (m) {
             setup(m);
@@ -83,7 +83,7 @@ public class WriteConcernErrorTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesPooledOnly")
+    @MethodSource("getMorphiumInstances")
     public void theEntityIncRaisesTheSubtypeToo(Morphium m) throws Exception {
         try (m) {
             setup(m);
@@ -94,7 +94,7 @@ public class WriteConcernErrorTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesPooledOnly")
+    @MethodSource("getMorphiumInstances")
     @SuppressWarnings({"unchecked", "rawtypes"})
     public void aBulkReportsItAsABulkWriteExceptionWithTheCountsOfWhatWasApplied(Morphium m) throws Exception {
         try (m) {

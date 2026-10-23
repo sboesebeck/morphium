@@ -28,7 +28,7 @@ tasks:
   - docs/research/reproduction-results.md (serialisation analysis)
   evidence: 'docs/research/serialisation-decision.md: verdicts for options A-E, each naming its task.'
   commits:
-  - 44157c934
+  - ee834df0a
 - id: MOR-002
   title: 'Option B: marshal every operator map in Query.findOneAndUpdate'
   type: defect
@@ -64,7 +64,7 @@ tasks:
     fails (Byte Buddy does not support Java 25, the JDK used for the run; unrelated). Acceptance ''Query.set with
     a Set'' moved to MOR-042.'
   commits:
-  - 491945d60
+  - c884c64a4
 - id: MOR-003
   title: findOneAndUpdate with a compound filter and upsert collides on _id (code 66)
   type: defect
@@ -92,8 +92,8 @@ tasks:
     probe docs/research/upsert-id-seeding-probe.md; multi-branch $or stays out of scope because the server does
     not seed there.'
   commits:
-  - 491945d60
-  - d6537bcb7
+  - c884c64a4
+  - 2ab9da751
 - id: MOR-004
   title: 'MorphiumBase.currentDate sends $set: {$currentDate: ...} and fails silently'
   type: defect
@@ -122,7 +122,7 @@ tasks:
     (Byte Buddy does not support Java 25, the JDK of the run; unrelated); WriterPathWiringTest, WriterPathMarshallingTest
     and WriterMarshallingDifferentialTest green on a real MongoDB.'
   commits:
-  - 38b5f81d8
+  - a4885dcfc
 - id: MOR-005
   title: Audit Query.set/inc/push write paths for swallowed writeErrors and missing name translation
   type: verification
@@ -155,7 +155,7 @@ tasks:
     Not covered: writeConcernError (GitHub #408), the async callback variants (same implementation), the Morphium.set/store
     paths of whole entities, replica sets.'
   commits:
-  - 840e425bc
+  - 0e83869cb
 - id: MOR-006
   title: 'Option A core: mapper-aware update builder (set, setOnInsert, inc, unset) with findOneAndUpdate terminal'
   type: implementation
@@ -207,10 +207,10 @@ tasks:
     @LastChange/@CreationTime (MOR-009), PoppyDB, SingleMongoConnectDriver, replica sets, the Quarkus and Spring
     modules.'
   commits:
-  - 29c154343
-  - 22b58f60b
-  - 8d89c0770
-  - cdeba478e
+  - c84172c12
+  - 3549acf79
+  - 4e889b715
+  - 792cc3924
 - id: MOR-007
   title: 'Option A extension: min, max, mul, rename, currentDate, addToSet/push with each'
   type: implementation
@@ -265,7 +265,7 @@ tasks:
     on both drivers. The InMemoryDriver applies the projection (inclusion, exclusion, dotted paths; no $slice/$elemMatch) and ignores
     hint and maxTimeMS. Not covered: findOneAndReplace/findOneAndDelete options, PoppyDB, SingleMongoConnectDriver.'
   commits:
-  - edd39c204
+  - 35f991906
 - id: MOR-009
   title: 'Lifecycle handling in the builder: @LastChange, @CreationTime, @Version'
   type: implementation
@@ -298,7 +298,7 @@ tasks:
     which is intermittent: it failed 2 of 3 repetitions on this branch and 1 of 4 on a clean develop worktree (it
     exercises setInEntity, not the builder).'
   commits:
-  - 69dfb6484
+  - 814dcac7c
 - id: MOR-010
   title: Typed duplicate-key exception and typed result for a lost conditional upsert
   type: implementation
@@ -336,7 +336,7 @@ tasks:
     run and pass with pooled,inmem. Known difference not addressed: the InMemoryDriver does not enforce the immutability
     of _id nor reject $inc on a string field. Not covered: PoppyDB, SingleMongoConnectDriver, replica sets.'
   commits:
-  - 3ca764c16
+  - ae5bba8ae
 - id: MOR-011
   title: Typed lease / try-acquire primitive
   type: implementation
@@ -361,7 +361,7 @@ tasks:
     of the filter the renewal test fails. Builder, outcome, lease and upsert suites together (256 invocations) were rerun on both drivers without a failure. Not
     covered: natural-key leases (not the @Id), PoppyDB, SingleMongoConnectDriver, replica sets, clock skew between hosts.'
   commits:
-  - 71dbf9463
+  - 8dfd9f71b
 - id: MOR-012
   title: Builder accepts type-safe field references
   type: implementation
@@ -659,7 +659,7 @@ tasks:
     expectation fails with the case name. Default build (InMemoryDriver only) stays green. Not covered: $currentDate, $bit,
     pipeline updates, collation, hint, transactions, the Morphium write paths above the raw statement layer.'
   commits:
-  - b3db32f0a
+  - 98a063ac9
 - id: MOR-029
   title: 'InMemoryDriver: reject values BsonEncoder cannot encode'
   type: defect
@@ -703,7 +703,7 @@ tasks:
     Buddy does not support Java 25, the JDK of the run; unrelated). Remaining divergence: the update command path
     throws on the InMemoryDriver while a real MongoDB returns writeErrors code 11000 (MOR-005).'
   commits:
-  - 88ae60b4b
+  - e2a1167a8
 - id: MOR-031
   title: 'Quarkus: Micrometer / OpenTelemetry metrics for pool and update paths'
   type: implementation
@@ -841,7 +841,7 @@ tasks:
     (8 threads, real MongoDB) exercises the lookup concurrently and is green. No dedicated unit test for the cache
     itself.
   commits:
-  - 491945d60
+  - c884c64a4
 - id: MOR-041
   title: Key translation for operator maps in findOneAndUpdate
   type: implementation
@@ -879,7 +879,7 @@ tasks:
     0 failures, only ReferenceCascadeTest errors (Byte Buddy does not support Java 25, the JDK of the run; unrelated).
     Scope kept to the decisions in docs/research/plan-mor-041.md; Query.f is unchanged (MOR-043).'
   commits:
-  - 0ec3a9562
+  - c0a2aede1
 - id: MOR-042
   title: 'Writer path: marshal values with the shared update-value walk and use one convention for single values'
   type: implementation
@@ -926,8 +926,8 @@ tasks:
     the change (4e378f261), CoreFunctionalityTests.cachedObjectOperationsTest passed in 3 of 3 repetitions and on
     the baseline. Follow-ups filed: MOR-046 to MOR-049; the inc(Query, Map) finding is noted in MOR-005.'
   commits:
-  - 4e378f261
-  - 39ac39ac3
+  - 508f64686
+  - ffc8ba05c
 - id: MOR-043
   title: Query.f should resolve field paths with resolveFieldPath
   type: defect
@@ -1065,7 +1065,7 @@ tasks:
     intermittent LastAccessTest.testLastAccessInc, see MOR-042/MOR-009), no new one. Not covered: unacknowledged
     write concerns (w:0) are only unit tested through UpdateResult, PoppyDB, SingleMongoConnectDriver, replica sets.'
   commits:
-  - 28516ff60
+  - 07e929f6f
 - id: MOR-051
   title: 'InMemoryDriver: reject path conflicts in update documents like MongoDB'
   type: defect
@@ -1096,8 +1096,8 @@ tasks:
     same way on the base commit 70b0bce71) and MultithreaddedMessagingTests (timing: another method fails per run on
     the base commit too, the method that failed here passes alone 3 of 3). No new failure.'
   commits:
-  - b951b977f
-  - d017357da
+  - 247a3f1d1
+  - 302718c42
 - id: MOR-052
   title: updateLastAccess writes the untranslated Java field name
   type: defect
@@ -1147,7 +1147,7 @@ tasks:
     70b0bce71) and MultithreaddedMessagingTests (timing: another method fails per run on the base commit too, the
     method that failed here passes alone 3 of 3). No new failure.'
   commits:
-  - b951b977f
+  - 247a3f1d1
 - id: MOR-054
   title: 'InMemoryDriver: validate the shape of an update document (unknown operator, mixed fields, _id, names)'
   type: defect
@@ -1183,8 +1183,8 @@ tasks:
     (fails the same way on the base commit 70b0bce71) and MultithreaddedMessagingTests (timing: another method fails
     per run on the base commit too, the method that failed here passes alone 3 of 3). No new failure.'
   commits:
-  - b951b977f
-  - d017357da
+  - 247a3f1d1
+  - 302718c42
 - id: MOR-055
   title: 'InMemoryDriver: number and BSON comparison semantics of $inc, $mul, $min, $max and $addToSet'
   type: defect
@@ -1259,7 +1259,7 @@ tasks:
     70b0bce71) and MultithreaddedMessagingTests (timing: another method fails per run on the base commit too, the
     method that failed here passes alone 3 of 3). No new failure.'
   commits:
-  - b951b977f
+  - 247a3f1d1
 - id: MOR-059
   title: 'Query, entity and bulk write paths swallow the writeErrors of the update reply'
   type: defect
@@ -1282,15 +1282,15 @@ tasks:
   source:
   - docs/research/audit-write-paths.md
   - 'GitHub #408'
-  evidence: 'Every write path of the audit table raises: WritePathAuditContractTest (4 tests, probes of 37 paths) asserts on mongo:8 (v8.3.x) a MorphiumDriverException with the server code (11000 / 28 / 2), isDuplicateKey() for the unique violations, the write errors and an unchanged document for Query.set/set(Map)/setEnum/unset/inc/dec/push/pushAll/pull/pullAll, Morphium.addToSet/currentDate/inc(Map)/dec(Map), setInEntity/unsetInEntity/push/inc/dec(entity) and the bulk requests (BulkWriteException); RaiseOnWriteErrorsTest (13 tests) and BulkRaiseOnWriteErrorsTest (6): the per-query override and the configuration switch bring the old behaviour back (real MongoDB), an async callback gets onOperationError once and never onOperationSucceeded, a multi update keeps the documents before the error and says so, the post-update event still fires, updateUsingFields and the versioned store paths raise the duplicate key instead of a VersionMismatchException, an ordered bulk stops at the first rejected request and an unordered one runs all of them (partial counts on the exception), a rejected bulk insert raises; WriteReplyErrorsTest (7, pure) for the normaliser including WriteConcernNotSatisfiedException. Regression: 1377 test methods (tags core and messaging) on the InMemoryDriver with only the known failures (LazyLoadingTest, ReferenceCascadeTest, ReferenceTest: Byte Buddy does not support Java 25; MultithreaddedMessagingTests: timing) plus CurrentDateReproductionTest, which pinned the old silent behaviour and was flipped; 1229 invocations of the update, upsert, builder, lease, contract, bulk and reproduction classes on mongo:8 and the InMemoryDriver with the known failures only (ExclusiveMessageTests x2, ReferenceCascadeTest). Follow-up on a single-node mongo:8 replica set (commit b8dcd43c5): WriteConcernErrorTest (4) - Query.set and inc(entity) raise WriteConcernNotSatisfiedException with the data applied, the query override returns the reply with the writeConcernError, a bulk wraps it in a BulkWriteException with the counts; BufferedWriteIsolationTest (2, both drivers, mutation checked) - a rejected collection of the buffered flush does not keep the other one from being written and reports to its callbacks; TransactionTest, ExclusiveMessageTests, ExclusiveMessageBasicTests, AnsweringBasicTests, AdvancedMessagingTests, RaiseOnWriteErrorsTest and BulkRaiseOnWriteErrorsTest are green there. Not covered: a failing statement inside a real transaction beyond TransactionTest, the store() and delete paths (MOR-064, MOR-065).'
+  evidence: 'Every write path of the audit table raises: WritePathAuditContractTest (4 tests, probes of 37 paths) asserts on mongo:8 (v8.3.x) a MorphiumDriverException with the server code (11000 / 28 / 2), isDuplicateKey() for the unique violations, the write errors and an unchanged document for Query.set/set(Map)/setEnum/unset/inc/dec/push/pushAll/pull/pullAll, Morphium.addToSet/currentDate/inc(Map)/dec(Map), setInEntity/unsetInEntity/push/inc/dec(entity) and the bulk requests (BulkWriteException); RaiseOnWriteErrorsTest (13 tests) and BulkRaiseOnWriteErrorsTest (6): the per-query override and the configuration switch bring the old behaviour back (real MongoDB), an async callback gets onOperationError once and never onOperationSucceeded, a multi update keeps the documents before the error and says so, the post-update event still fires, updateUsingFields and the versioned store paths raise the duplicate key instead of a VersionMismatchException, an ordered bulk stops at the first rejected request and an unordered one runs all of them (partial counts on the exception), a rejected bulk insert raises; WriteReplyErrorsTest (7, pure) for the normaliser including WriteConcernNotSatisfiedException. Regression: 1377 test methods (tags core and messaging) on the InMemoryDriver with only the known failures (LazyLoadingTest, ReferenceCascadeTest, ReferenceTest: Byte Buddy does not support Java 25; MultithreaddedMessagingTests: timing) plus CurrentDateReproductionTest, which pinned the old silent behaviour and was flipped; 1229 invocations of the update, upsert, builder, lease, contract, bulk and reproduction classes on mongo:8 and the InMemoryDriver with the known failures only (ExclusiveMessageTests x2, ReferenceCascadeTest). Follow-up on a single-node mongo:8 replica set (commit 161e9f9a3): WriteConcernErrorTest (4) - Query.set and inc(entity) raise WriteConcernNotSatisfiedException with the data applied, the query override returns the reply with the writeConcernError, a bulk wraps it in a BulkWriteException with the counts; BufferedWriteIsolationTest (2, both drivers, mutation checked) - a rejected collection of the buffered flush does not keep the other one from being written and reports to its callbacks; TransactionTest, ExclusiveMessageTests, ExclusiveMessageBasicTests, AnsweringBasicTests, AdvancedMessagingTests, RaiseOnWriteErrorsTest and BulkRaiseOnWriteErrorsTest are green there. Not covered: a failing statement inside a real transaction beyond TransactionTest, the store() and delete paths (MOR-064, MOR-065).'
   commits:
-  - b8dcd43c5
-  - 7b2899074
-  - b7d2d06ec
-  - b039bbe67
-  - 6f03e1ad5
-  - c073a1a04
-  - c753fdb5f
+  - c0efc3677
+  - 7d444f31c
+  - 94baaeaa8
+  - 5ebfd40b9
+  - 89011678e
+  - a9451e74b
+  - 6ba62ac72
 - id: MOR-060
   title: 'Write paths that write the Java field name: inc/dec with a Map and dotted paths through embedded documents'
   type: defect
@@ -1311,7 +1311,7 @@ tasks:
   - docs/research/audit-write-paths.md
   evidence: 'WritePathAuditContractTest (translation probes, 37 paths) green on PooledDriver (mongo:8, v8.3.x) and InMemoryDriver with no pinned deviation left: inc(Query, Map), inc(Map<Enum,Number>, Query), dec(Query, Map) and the dotted paths through an embedded document of Query.set, Query.inc and Morphium.currentDate write the stored name. Regression (1166 invocations on both drivers) shows only the known failures (ReferenceCascadeTest, ExclusiveMessageTests x2, TransactionTest needs a replica set).'
   commits:
-  - a71202e84
+  - fa03a4142
 - id: MOR-061
   title: 'Query.dec(field, Integer) turns an int counter into a double'
   type: defect
@@ -1327,7 +1327,7 @@ tasks:
   - docs/research/audit-write-paths.md
   evidence: 'decKeepsTheNumberTypeOfTheAmount on mongo:8 and the InMemoryDriver: dec with an Integer amount keeps an int field an int, a Long amount makes it a long as inc does, a Double amount a double; the Number overloads of Query, Morphium and the entity variants negate in the type of the amount.'
   commits:
-  - a71202e84
+  - fa03a4142
 - id: MOR-062
   title: 'Morphium.dec(Query, Map) and dec(Map, Query) increment instead of decrement'
   type: defect
@@ -1344,7 +1344,7 @@ tasks:
   - docs/research/audit-write-paths.md
   evidence: 'decWithAMapDecrements on mongo:8 and the InMemoryDriver: dec(Query, Map) and dec(Map<Enum,Number>, Query) subtract the amounts and write the stored name; the audit probe that provoked a collision with dec by -1 is raised/unchanged as before.'
   commits:
-  - a71202e84
+  - fa03a4142
 - id: MOR-063
   title: 'quarkus-morphium migration lock: recognise a held lock by isDuplicateKey()'
   type: defect
@@ -1360,7 +1360,7 @@ tasks:
 - id: MOR-064
   title: 'store() of an existing entity swallows a rejected update (StoreMongoCommand)'
   type: defect
-  status: open
+  status: done
   priority: 2
   effort: M
   description: 'Follow-up of MOR-059, not covered by it: StoreMongoCommand.execute() delegates to UpdateMongoCommand, and the store paths of MorphiumWriterImpl (store, storeList, the non-versioned update half) do not look at the writeErrors of the reply. A unique index violation on the store() of an existing entity is presumably silent (the versioned paths raise since MOR-059). Verify on a real MongoDB, then raise like the other paths (switch, async callbacks, FailedStore for storeList with continueOnError).'
@@ -1368,6 +1368,9 @@ tasks:
   - store() and storeList() of an existing entity raise a MorphiumDriverException (isDuplicateKey) for a unique index violation, on a real MongoDB; with continueOnError the FailedStore carries it
   source:
   - docs/research/plan-mor-059.md
+  evidence: 'StoreRaisesOnRejectedUpdateTest (5 tests, 10 invocations, 1 skipped) on mongo:8 and the InMemoryDriver: store() of an existing entity raises the duplicate key and changes nothing, storeList raises and fires no postStore for the rejected entity, storeList(list, collection, true) reports exactly the rejected entity as a FailedStore (index in the original list, MorphiumDriverException with isDuplicateKey) and stores the entities before AND after it (unordered), a successful store still works, with WriterSettings.raiseOnWriteErrors off the rejection is ignored as before (real MongoDB). Regression: 1382 test methods (core and messaging tags) on the InMemoryDriver with only the known failures (LazyLoadingTest, ReferenceCascadeTest, ReferenceTest: Byte Buddy on Java 25; MultithreaddedMessagingTests: timing) plus WriteConcernErrorTest, whose provider was empty in an inmem-only run and now skips; 1263 invocations of the update, store, bulk, contract and reproduction classes on mongo:8 and the InMemoryDriver with the known failures only (ReferenceCascadeTest x2, CoreFunctionalityTests.cachedObjectOperationsTest, timing). The InMemoryDriver reports a rejected statement of an unordered update command in the reply (with its index) and goes on. Not covered: the async-callback store variants (the callback variant rethrows a RuntimeException as before), a write concern error during store.'
+  commits:
+  - 2209bb92e
 - id: MOR-065
   title: 'Delete paths ignore the writeErrors of the delete reply'
   type: defect

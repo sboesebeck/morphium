@@ -50,6 +50,7 @@ import de.caluga.morphium.config.CollectionCheckSettings.IndexCheck;
 import de.caluga.morphium.driver.CommandStatus;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.WriteConcernNotSatisfiedException;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
@@ -686,6 +687,18 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                     Map<String, Object> ret = settings.execute();
                                     // Track potential connection swap from retry logic
                                     con = settings.getConnection();
+                                    MorphiumDriverException rejected = entityRejectionOf(coll, ret);
+
+                                    if (rejected != null) {
+                                        // MOR-064: the update of an existing entity was rejected (unique index, ...); the documents before it may be applied
+                                        var rejectedCache = morphium.getCache();
+
+                                        if (rejectedCache != null) {
+                                            rejectedCache.clearCacheIfNecessary(c);
+                                        }
+
+                                        throw rejected;
+                                    }
                                 }
 
                                 var cache = morphium.getCache();
@@ -875,6 +888,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         Map<Class, List<Map<String, Object>>> newElementsToInsert = new HashMap<>();
         Map<Class, List<Map<String, Object>>> toUpdate = new HashMap<>();
         Map<Class, List<ClassifiedEntity>> toVersionedUpdate = new HashMap<>();
+        Map<Class, List<ClassifiedEntity>> toUpdateEntities = new HashMap<>(); // the entities of toUpdate, in the same order (MOR-064)
         // Track failed entity identities (identity-based) for excluding from firePostStore
         Set<Object> failedEntities = new HashSet<>();
 
@@ -897,6 +911,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             } else {
                 toUpdate.computeIfAbsent(ce.entity().getClass(), k -> new ArrayList<>())
                     .add(morphium.getMapper().serialize(ce.entity()));
+                toUpdateEntities.computeIfAbsent(ce.entity().getClass(), k -> new ArrayList<>()).add(ce);
             }
         }
 
@@ -999,21 +1014,46 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             MongoConnection con = null;
             StoreMongoCommand settings = null;
             List<Map<String, Object>> batch = new ArrayList<>(es.getValue());
+            List<ClassifiedEntity> batchEntities = toUpdateEntities.getOrDefault(c, List.of());
+            int offset = 0; // position of the first document of the current batch in batchEntities
             try {
                 con = morphium.getDriver().getPrimaryConnection(wc);
                 while (!batch.isEmpty()) {
                     settings = new StoreMongoCommand(con).setDb(morphium.getConfig().connectionSettings().getDatabase()).setColl(coll);
-                    if (batch.size() > morphium.getConfig().getCursorBatchSize()) {
-                        settings.setDocuments(batch.subList(0, morphium.getConfig().getCursorBatchSize()));
-                        batch = batch.subList(morphium.getConfig().getCursorBatchSize(), batch.size());
-                    } else {
-                        settings.setDocuments(batch);
-                        batch = new ArrayList<>();
-                    }
+                    int batchSize = Math.min(batch.size(), morphium.getConfig().getCursorBatchSize());
+                    settings.setDocuments(batch.subList(0, batchSize));
+                    batch = batchSize == batch.size() ? new ArrayList<>() : batch.subList(batchSize, batch.size());
                     if (wc != null) {
                         settings.setWriteConcern(wc.asMap());
                     }
-                    settings.execute();
+                    if (continueOnError) {
+                        settings.setOrdered(false); // MOR-064: the entities after a rejected one are stored, too
+                    }
+                    Map<String, Object> reply = settings.execute();
+                    MorphiumDriverException rejected = entityRejectionOf(coll, reply);
+
+                    if (rejected != null) {
+                        var rejectedCache = morphium.getCache();
+
+                        if (rejectedCache != null) {
+                            rejectedCache.clearCacheIfNecessary(c);
+                        }
+
+                        if (!continueOnError || rejected instanceof WriteConcernNotSatisfiedException || rejected.getWriteErrors() == null) {
+                            throw rejected;
+                        }
+
+                        // one FailedStore per rejected entity; the index of a write error is the position in this batch
+                        for (Map<String, Object> err : rejected.getWriteErrors()) {
+                            int position = offset + (err.get("index") instanceof Number idx ? idx.intValue() : 0);
+                            ClassifiedEntity ce = batchEntities.get(position);
+                            MorphiumDriverException perEntity = WriteReplyErrors.rejectionOf(morphium.getConfig().connectionSettings().getDatabase(), coll, Doc.of("n", 0, "writeErrors", List.of(err)));
+                            failures.add(new FailedStore<>(ce.originalIndex(), (T) ce.entity(), perEntity));
+                            failedEntities.add(ce.entity());
+                        }
+                    }
+
+                    offset += batchSize;
                 }
                 var cache = morphium.getCache();
                 if (cache != null) {
