@@ -565,7 +565,7 @@ tasks:
 - id: MOR-075
   title: 'JdqlParser accepts an operand that is neither a parameter nor a literal'
   type: defect
-  status: open
+  status: done
   priority: 3
   effort: S
   description: 'Found by MOR-021. JdqlParser takes whatever stands after the operator as the operand: WHERE id == :id is the condition id = "= :id", WHERE price >> 5 is price > "> 5", WHERE id = :id garbage is an operand "id garbage" that fails at the call. Such a condition matches nothing and nobody tells; in a SELECT it returns an empty list. JdqlOperands (MOR-021) refuses it for @AtomicUpdate, DELETE and UPDATE at build time; a plain @Query SELECT and the parser itself still accept it. Make the parser throw a JDQL parse error with the position, like it does for a condition it cannot split.'
@@ -575,6 +575,9 @@ tasks:
   source:
   - morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlOperands.java
   - morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlParser.java
+  evidence: 'JdqlParserOperandTest (6 tests): the three examples of the task, the position of the failing condition in a longer clause, BETWEEN/IN/LIKE operands, and parameters, ordinals, string, number, boolean, null and enum constants still parse; 5 of them failed before the change. JdqlOperandsTest now reads the message of the parser. The jakarta-data module (204 tests) and the Jakarta Data TCK in the Spring module pass.'
+  commits:
+  - FIXME
 - id: MOR-022
   title: 'Jakarta Data: derived update methods (updateByX)'
   type: implementation

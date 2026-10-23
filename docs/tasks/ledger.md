@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 20, done 81
+Status: open 19, done 82
 
 ## Overview
 
@@ -29,7 +29,6 @@ Status: open 20, done 81
 | MOR-052 | open | 3 | defect | updateLastAccess writes the untranslated Java field name | S |  |  |
 | MOR-070 | open | 3 | defect | PoppyDB: the delete fast path swallows errors | S |  |  |
 | MOR-071 | open | 3 | defect | Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange | S |  |  |
-| MOR-075 | open | 3 | defect | JdqlParser accepts an operand that is neither a parameter nor a literal | S |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -106,6 +105,7 @@ Status: open 20, done 81
 | MOR-072 | done | 3 | defect | The update builder, findOneAndUpdate(Map), updateOne and updateMany fire no storage-listener update events | M |  |  |
 | MOR-073 | done | 3 | defect | Query.push, pull and addToSet fire the update events twice, and the post event is always PUSH | S |  |  |
 | MOR-074 | done | 3 | verification | MorphiumMigrationTest (2) and MultithreaddedMessagingTests (1) fail on this machine, with and without the latest changes | S |  |  |
+| MOR-075 | done | 3 | defect | JdqlParser accepts an operand that is neither a parameter nor a literal | S |  |  |
 | MOR-092 | done | 3 | defect | Jakarta Data: IgnoreCase before Between, NotIn and the comparison operators | M |  |  |
 | MOR-097 | done | 3 | defect | InMemoryDriver: $inc, $mul and $currentDate below a scalar value are applied instead of rejected (PathNotViable) | S |  |  |
 | MOR-098 | done | 3 | defect | InMemoryDriver: a unique index on an array field is not enforced per element (multikey unique index) | M |  |  |
@@ -506,9 +506,11 @@ Commits: cdb6f5153
 
 ### MOR-075 JdqlParser accepts an operand that is neither a parameter nor a literal
 
-Status **open**, priority 3, type defect, effort S
+Status **done**, priority 3, type defect, effort S
 
 Found by MOR-021. JdqlParser takes whatever stands after the operator as the operand: WHERE id == :id is the condition id = "= :id", WHERE price >> 5 is price > "> 5", WHERE id = :id garbage is an operand "id garbage" that fails at the call. Such a condition matches nothing and nobody tells; in a SELECT it returns an empty list. JdqlOperands (MOR-021) refuses it for @AtomicUpdate, DELETE and UPDATE at build time; a plain @Query SELECT and the parser itself still accept it. Make the parser throw a JDQL parse error with the position, like it does for a condition it cannot split.
+
+Evidence: JdqlParserOperandTest (6 tests): the three examples of the task, the position of the failing condition in a longer clause, BETWEEN/IN/LIKE operands, and parameters, ordinals, string, number, boolean, null and enum constants still parse; 5 of them failed before the change. JdqlOperandsTest now reads the message of the parser. The jakarta-data module (204 tests) and the Jakarta Data TCK in the Spring module pass.
 
 Acceptance:
 
@@ -516,6 +518,8 @@ Acceptance:
 - The existing JdqlParserTest cases still pass
 
 Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlOperands.java, morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlParser.java
+
+Commits: FIXME
 
 ### MOR-022 Jakarta Data: derived update methods (updateByX)
 

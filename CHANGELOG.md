@@ -187,6 +187,10 @@ The switch that restored the silent behaviour of rejected writes was introduced 
 
 ### Fixed
 
+#### Jakarta Data: the JDQL parser refuses an operand that is neither a parameter nor a literal (MOR-075)
+`WHERE id == :id` was the condition `id = "= :id"`, `WHERE price >> 5` was `price > "> 5"` and `WHERE id = :id garbage` an operand `id garbage`: each matched nothing and nobody told, a `SELECT` returned an empty list. `JdqlParser.parse` throws an `IllegalArgumentException` with the position and the operand now (also for `BETWEEN`, `IN` and `LIKE`); the build-time check of `@AtomicUpdate`, `DELETE` and `UPDATE` reports the same message.
+
+
 #### InMemoryDriver: a unique index on an array field is unique per element (MOR-098)
 The index store filed an array as ONE key, so a unique index on an array field only rejected a second document with the very same array. Like on mongod, an element that another document holds (in its array or as a scalar) is a duplicate key (11000) now for an insert, a store, an index build over existing documents and an update (`$push`, `$addToSet`, `$each`), and the update changes nothing. The same value twice in one document is allowed. This covers an array of sub documents on the way of a dotted path (`items.sku`), sparse and partial unique indexes, and compound unique indexes (the product of the elements). It affects unique indexes only; lookups, ordered scans and the planner are unchanged (an index that holds an array is still left out of query planning).
 

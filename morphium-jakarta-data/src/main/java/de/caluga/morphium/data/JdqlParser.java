@@ -552,15 +552,17 @@ public final class JdqlParser {
 
     /**
      * Extracts a parameter reference or literal value from a token.
-     * Parameters start with ':', literals are numbers or quoted strings.
+     * Parameters start with ':', literals are numbers or quoted strings. Anything else is a parse error (MOR-075).
      */
     private static String extractParamOrLiteral(String token) {
         token = token.trim();
-        if (token.startsWith(":")) {
-            return token; // keep the colon prefix to identify as param ref
+
+        // MOR-075: an operand is a parameter, a literal or the constant of an enum; anything else ("= :id" of id == :id) would be compared as a string and match nothing
+        if (!JdqlOperands.isOperand(token)) {
+            throw new IllegalArgumentException("the operand \"" + token + "\" " + JdqlOperands.OPERAND_PROBLEM + " (:name, ?1) nor a literal");
         }
-        // Numeric literal or other literal — return as-is
-        return token;
+
+        return token; // a parameter keeps its colon prefix, a literal is returned as it is
     }
 
     // -- ORDER BY parsing --
