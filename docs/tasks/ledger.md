@@ -4,13 +4,12 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 43, done 6
+Status: open 42, done 7
 
 ## Overview
 
 | ID | Status | Prio | Type | Title | Effort | Ticket | Depends on |
 |---|---|---|---|---|---|---|---|
-| MOR-004 | open | 1 | defect | MorphiumBase.currentDate sends $set: {$currentDate: ...} and fails silently | S |  |  |
 | MOR-006 | open | 1 | implementation | Option A core: mapper-aware update builder (set, setOnInsert, inc, unset) | L |  | MOR-001, MOR-002 |
 | MOR-027 | open | 1 | documentation | Documentation page: raw commands, embedded objects and lifecycle contract | S |  |  |
 | MOR-028 | open | 1 | infrastructure | Contract tests InMem vs real MongoDB for all update paths | M |  |  |
@@ -56,6 +55,7 @@ Status: open 43, done 6
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
+| MOR-004 | done | 1 | defect | MorphiumBase.currentDate sends $set: {$currentDate: ...} and fails silently | S |  |  |
 | MOR-040 | done | 2 | defect | fieldNameCache: inner HashMap is not thread safe | S |  |  |
 | MOR-041 | done | 2 | implementation | Key translation for operator maps in findOneAndUpdate | M |  | MOR-002 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
@@ -120,9 +120,11 @@ Commits: 491945d60, d6537bcb7
 
 ### MOR-004 MorphiumBase.currentDate sends $set: {$currentDate: ...} and fails silently
 
-Status **open**, priority 1, type defect, effort S
+Status **done**, priority 1, type defect, effort S
 
 currentDate(query, field, upsert, multiple) delegates to set(...), so the wire command is {"$set":{"$currentDate":{"lastSeen":1}}}. MongoDB answers with code 52 in writeErrors (n=0) and NO exception is thrown; the field is unchanged. The InMemoryDriver reports n=1, nModified=1 and changes nothing. Send a real $currentDate operator (raw $currentDate through findOneAndUpdate and the bulk addCurrentDateRequest already work). Both enum and String overloads. Related: the silent writeErrors are covered by MOR-005.
+
+Evidence: CurrentDateReproductionTest flipped and extended (12 invocations: field name, enum, upsert that inserts, operator mixed with a plain field, operator only, $-prefixed field under $set), green on PooledDriver (mongo:8) and InMemoryDriver. Cause was twofold: the operator was nested under $set, and the value was the int 1, which MongoDB rejects for $currentDate; both fixed. The InMemoryDriver now rejects a $-prefixed field name under $set with code 52 (it still counts the matched document in n, MongoDB reports n=0). Regression: inmem package suite and the writer/mapper subset, 769 tests on the InMemoryDriver, 0 failures and 2 ReferenceCascadeTest errors (Byte Buddy does not support Java 25, the JDK of the run; unrelated); WriterPathWiringTest, WriterPathMarshallingTest and WriterMarshallingDifferentialTest green on a real MongoDB.
 
 Acceptance:
 
@@ -132,6 +134,8 @@ Acceptance:
 - Verified against a real MongoDB (not only the InMemoryDriver).
 
 Source: docs/research/reproduction-results.md hypothesis 3
+
+Commits: 38b5f81d8
 
 ### MOR-005 Audit Query.set/inc/push write paths for swallowed writeErrors and missing name translation
 

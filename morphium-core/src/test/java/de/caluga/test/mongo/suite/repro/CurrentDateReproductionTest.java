@@ -31,8 +31,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * ends up INSIDE a {@code $set}: {@code {"$set": {"$currentDate": {"lastSeen": 1}}}} - not a valid
  * {@code $currentDate} update.
  * <p>
- * The tests assert the CURRENT behaviour per driver: what a real MongoDB answers, and what the InMemoryDriver
- * does with the very same document (it may silently store a field literally named "$currentDate").
+ * Fixed by MOR-004: {@code Query.set} (and so {@code currentDate}) treats a key that starts with {@code $} and has a map as its value
+ * as an update operator of its own, not as a field of {@code $set}. The class still documents the original defect: the update
+ * document was {@code {"$set": {"$currentDate": ...}}}, a real MongoDB answered with code 52 inside the returned map (no exception) and the
+ * InMemoryDriver reported {@code n=1, nModified=1} without changing anything.
  * Controls: a raw {@code $currentDate} through {@code findOneAndUpdate} and the bulk-context variant, which
  * build a real {@code $currentDate} update document.
  */
@@ -84,26 +86,12 @@ public class CurrentDateReproductionTest extends MultiDriverTestBase {
             Map<String, Object> raw = raw(morphium);
             ReproSupport.report(driver, "H3 currentDate(String) raw document afterwards", String.valueOf(raw));
 
-            assertFalse(o.failed(), "the call returns normally on both drivers: " + o.describe());
-            assertEquals(new Date(0), raw.get("lastSeen"), "lastSeen was NOT refreshed");
+            assertFalse(o.failed(), o.describe());
+            assertTrue(((Date) raw.get("lastSeen")).getTime() > 1_000_000_000_000L, "lastSeen was refreshed: " + raw);
             assertFalse(raw.containsKey("$currentDate"), "no field named $currentDate was stored: " + raw);
-
-            if (isInMem(morphium)) {
-                // InMemoryDriver: reports success (n=1, nModified=1) although nothing was changed
-                assertEquals(1, ((Number) o.value.get("n")).intValue());
-                assertEquals(1, ((Number) o.value.get("nModified")).intValue());
-                assertNull(o.value.get("writeErrors"));
-            } else {
-                // real MongoDB: the server rejects the document with code 52, but the error only shows up
-                // inside the returned map (writeErrors); no exception is thrown
-                assertEquals(0, ((Number) o.value.get("n")).intValue());
-                assertEquals(0, ((Number) o.value.get("nModified")).intValue());
-                List<?> writeErrors = (List<?>) o.value.get("writeErrors");
-                assertNotNull(writeErrors, "writeErrors expected in the returned map: " + o.value);
-                Map<?, ?> we = (Map<?, ?>) writeErrors.get(0);
-                assertEquals(52, ((Number) we.get("code")).intValue());
-                assertTrue(String.valueOf(we.get("errmsg")).contains("dollar ($) prefixed field '$currentDate'"), String.valueOf(we));
-            }
+            assertEquals(1, ((Number) o.value.get("n")).intValue(), String.valueOf(o.value));
+            assertEquals(1, ((Number) o.value.get("nModified")).intValue(), String.valueOf(o.value));
+            assertNull(o.value.get("writeErrors"), String.valueOf(o.value));
         }
     }
 
@@ -115,15 +103,65 @@ public class CurrentDateReproductionTest extends MultiDriverTestBase {
             seed(morphium);
             Outcome<Map<String, Object>> o = ReproSupport.attempt(() -> morphium.currentDate(byName(morphium), Fld.lastSeen, true, false));
             ReproSupport.report(driver, "H3 currentDate(Enum, upsert=true)", o.describe());
-            ReproSupport.report(driver, "H3 currentDate(Enum, upsert=true) raw documents afterwards",
-                                String.valueOf(morphium.createQueryFor(Clocked.class).asMapList()));
             assertFalse(o.failed(), o.describe());
+            assertNull(o.value.get("writeErrors"), String.valueOf(o.value));
             List<Map<String, Object>> docs = morphium.createQueryFor(Clocked.class).asMapList();
-            assertEquals(1, docs.size(), "upsert=true must not insert anything either: " + docs);
-            assertEquals(new Date(0), docs.get(0).get("lastSeen"));
+            assertEquals(1, docs.size(), "the existing document matches, nothing is inserted: " + docs);
+            assertTrue(((Date) docs.get(0).get("lastSeen")).getTime() > 1_000_000_000_000L, String.valueOf(docs));
+
+            // upsert inserts when nothing matches, with the current date and the equality field of the filter
+            Outcome<Map<String, Object>> ins = ReproSupport.attempt(() -> morphium.currentDate(morphium.createQueryFor(Clocked.class).f("name").eq("fresh"), Fld.lastSeen, true, false));
+            assertFalse(ins.failed(), ins.describe());
+            List<Map<String, Object>> after = morphium.createQueryFor(Clocked.class).f("name").eq("fresh").asMapList();
+            assertEquals(1, after.size(), String.valueOf(after));
+            assertTrue(((Date) after.get(0).get("lastSeen")).getTime() > 1_000_000_000_000L, String.valueOf(after));
+        }
+    }
+
+    /** MOR-004: operator entries in the map of Query.set are real operators and can be mixed with plain fields. */
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void operatorKeysInQuerySetAreRealOperatorsAndMixWithPlainFields(Morphium morphium) throws Exception {
+        try (morphium) {
+            seed(morphium);
+            Map<String, Object> values = new java.util.HashMap<>();
+            values.put("name", "renamed");
+            values.put("$currentDate", UtilsMap.of("lastSeen", true));
+            Outcome<Map<String, Object>> o = ReproSupport.attempt(() -> byName(morphium).set(values, false, false));
+            assertFalse(o.failed(), o.describe());
+            assertNull(o.value.get("writeErrors"), String.valueOf(o.value));
+            Map<String, Object> raw = raw(morphium);
+            assertEquals("renamed", raw.get("name"));
+            assertTrue(((Date) raw.get("lastSeen")).getTime() > 1_000_000_000_000L, String.valueOf(raw));
+            assertFalse(raw.containsKey("$currentDate"), String.valueOf(raw));
+
+            // only operators, no plain field: no empty $set may be sent
+            Outcome<Map<String, Object>> only = ReproSupport.attempt(() -> morphium.createQueryFor(Clocked.class).f("name").eq("renamed").set(Map.of("$currentDate", UtilsMap.of("lastSeen", true)), false, false));
+            assertFalse(only.failed(), only.describe());
+            assertNull(only.value.get("writeErrors"), String.valueOf(only.value));
+        }
+    }
+
+    /** Fidelity: a $-prefixed field name under $set is rejected with code 52 by a real MongoDB and now by the InMemoryDriver, too. */
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void aDollarPrefixedFieldUnderSetIsRejectedOnBothDrivers(Morphium morphium) throws Exception {
+        try (morphium) {
+            String driver = morphium.getDriver().getName();
+            seed(morphium);
+            Outcome<Map<String, Object>> o = ReproSupport.attempt(() -> byName(morphium).set(Map.of("$weird", 1), false, false));
+            ReproSupport.report(driver, "H3 $weird under $set", o.describe());
+            assertFalse(o.failed(), "the error only shows up inside the returned map: " + o.describe());
             if (!isInMem(morphium)) {
-                assertNotNull(o.value.get("writeErrors"), String.valueOf(o.value));
+                // a real MongoDB reports n=0, the InMemoryDriver still counts the matched document
+                assertEquals(0, ((Number) o.value.get("n")).intValue(), String.valueOf(o.value));
             }
+
+            assertEquals(0, ((Number) o.value.get("nModified")).intValue(), String.valueOf(o.value));
+            List<?> writeErrors = (List<?>) o.value.get("writeErrors");
+            assertNotNull(writeErrors, "writeErrors expected: " + o.value);
+            assertEquals(52, ((Number) ((Map<?, ?>) writeErrors.get(0)).get("code")).intValue());
+            assertFalse(raw(morphium).containsKey("$weird"));
         }
     }
 
