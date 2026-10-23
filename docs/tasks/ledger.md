@@ -840,7 +840,7 @@ Depends on: MOR-027
 
 Source: docs/research/plan-mor-001-002-003.md
 
-Commits: FIXME
+Commits: 328b864d4
 
 ### MOR-040 fieldNameCache: inner HashMap is not thread safe
 
