@@ -32,6 +32,9 @@ An empty builder (it would replace the document), `setOnInsert` without `upsert(
 
 ### Changed
 
+#### Bulk context: the update requests marshal their values (MOR-047)
+The `add*Request` methods of `MorphiumBulkContext` handed their values to the driver as they were, so an embedded object, a Set or an enum in a bulk `set`, `min`, `max` or `push` failed on a real MongoDB with `Unhandled Data type` (the bulk was rejected), and the InMemoryDriver stored the live Java object or failed with a `ClassCastException`. `$set`, `$min` and `$max` take the shape of a whole field, `$push` the shape of an element, as `Query.set` and `Query.push` do, so custom-mapped values such as `java.time` are written like there, too. The numbers of `$inc` and `$mul`, `$unset`, `$currentDate`, `$pop` and `$rename` are unchanged. `addCustomUpdateRequest` still sends the command map as it is.
+
 #### Buffered writer: `set`, `push`, `pushAll`, `addToSet` and `pull` marshal their values, `pullAll` pulls (MOR-046)
 For an entity with `@WriteBuffer` on a real MongoDB the buffered writer handed the values of `Query.set`, `push`, `pushAll`, `addToSet` and `pull` to the driver as they were, so an embedded object or a Set failed with `Unhandled Data type` (the bulk of the flush was rejected) and enums and custom-mapped values were stored differently from the synchronous writer. `pullAll` sent a `$push` of every element instead of one `$pullAll`, which grew the list. The values are marshalled on the calling thread with the same update-value walk as the synchronous writer, and the field name is resolved to the stored name, dotted paths included (the buffered writer used the Java name for `push`, `pull` and `addToSet`). The `@WriteBuffer` entity stores what a synchronous one stores. `setInEntity` and the other entity variants of the buffered writer are not changed.
 
