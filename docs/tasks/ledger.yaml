@@ -917,7 +917,7 @@ tasks:
   - docs/research/plan-mor-001-002-003.md
   evidence: 'ExprValueUpdateTest (embedded object in an Expr, embedded objects in a document Expr) green on the InMemoryDriver and MongoDB 8 (PooledDriver); 53 related update and Expr tests unchanged on the InMemoryDriver.'
   commits:
-  - FIXME
+  - 484e3093d
 - id: MOR-039
   title: 'Document pitfalls of update maps: $pull condition keys and mixed element shapes'
   type: documentation

@@ -826,7 +826,7 @@ Depends on: MOR-002
 
 Source: docs/research/plan-mor-001-002-003.md
 
-Commits: FIXME
+Commits: 484e3093d
 
 ### MOR-039 Document pitfalls of update maps: $pull condition keys and mixed element shapes
 
