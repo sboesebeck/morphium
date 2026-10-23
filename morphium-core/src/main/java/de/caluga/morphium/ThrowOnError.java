@@ -3,6 +3,12 @@ package de.caluga.morphium;
 import java.util.Map;
 import java.util.function.Predicate;
 
+/**
+ * Checks the reply that the write methods of {@code Query} and {@code Morphium} return. Since 6.4 (MOR-059) these methods raise a
+ * {@code MorphiumDriverException} themselves when the server rejects a write; this helper is only needed with
+ * {@code WriterSettings.raiseOnWriteErrors} switched off (or {@code Query.setRaiseOnWriteErrors(false)}), and for the expectation checks (modified/matched counts).
+ * It throws {@link IllegalStateException}, not a {@code MorphiumDriverException}.
+ */
 public class ThrowOnError {
 
     public static final String NUMBER_MODIFIED = "nModified";

@@ -1263,7 +1263,7 @@ tasks:
 - id: MOR-059
   title: 'Query, entity and bulk write paths swallow the writeErrors of the update reply'
   type: defect
-  status: open
+  status: done
   priority: 1
   effort: M
   description: 'Found by the write path audit (MOR-005), measured on mongo:8. The update command reports a rejected
@@ -1282,6 +1282,14 @@ tasks:
   source:
   - docs/research/audit-write-paths.md
   - 'GitHub #408'
+  evidence: 'Every write path of the audit table raises: WritePathAuditContractTest (4 tests, probes of 37 paths) asserts on mongo:8 (v8.3.x) a MorphiumDriverException with the server code (11000 / 28 / 2), isDuplicateKey() for the unique violations, the write errors and an unchanged document for Query.set/set(Map)/setEnum/unset/inc/dec/push/pushAll/pull/pullAll, Morphium.addToSet/currentDate/inc(Map)/dec(Map), setInEntity/unsetInEntity/push/inc/dec(entity) and the bulk requests (BulkWriteException); RaiseOnWriteErrorsTest (13 tests) and BulkRaiseOnWriteErrorsTest (6): the per-query override and the configuration switch bring the old behaviour back (real MongoDB), an async callback gets onOperationError once and never onOperationSucceeded, a multi update keeps the documents before the error and says so, the post-update event still fires, updateUsingFields and the versioned store paths raise the duplicate key instead of a VersionMismatchException, an ordered bulk stops at the first rejected request and an unordered one runs all of them (partial counts on the exception), a rejected bulk insert raises; WriteReplyErrorsTest (7, pure) for the normaliser including WriteConcernNotSatisfiedException. Regression: 1377 test methods (tags core and messaging) on the InMemoryDriver with only the known failures (LazyLoadingTest, ReferenceCascadeTest, ReferenceTest: Byte Buddy does not support Java 25; MultithreaddedMessagingTests: timing) plus CurrentDateReproductionTest, which pinned the old silent behaviour and was flipped; 1229 invocations of the update, upsert, builder, lease, contract, bulk and reproduction classes on mongo:8 and the InMemoryDriver with the known failures only (ExclusiveMessageTests x2, ReferenceCascadeTest). Not covered: the per-context isolation of the buffered flush (private classes, the buffered tests are mostly disabled), a writeConcernError through the writer end to end (the normaliser is unit tested), transactions and the messaging tests on mongod (they need a replica set), the store() and delete paths (MOR-064, MOR-065), the Quarkus migration runner (MOR-063).'
+  commits:
+  - 7b2899074
+  - b7d2d06ec
+  - b039bbe67
+  - 6f03e1ad5
+  - c073a1a04
+  - c753fdb5f
 - id: MOR-060
   title: 'Write paths that write the Java field name: inc/dec with a Map and dotted paths through embedded documents'
   type: defect
@@ -1336,3 +1344,37 @@ tasks:
   evidence: 'decWithAMapDecrements on mongo:8 and the InMemoryDriver: dec(Query, Map) and dec(Map<Enum,Number>, Query) subtract the amounts and write the stored name; the audit probe that provoked a collision with dec by -1 is raised/unchanged as before.'
   commits:
   - a71202e84
+- id: MOR-063
+  title: 'quarkus-morphium migration lock: recognise a held lock by isDuplicateKey()'
+  type: defect
+  status: open
+  priority: 2
+  effort: S
+  description: 'MorphiumMigrationRunner.acquireLock (quarkus-morphium/runtime) takes the lock with an upsert (Query.set(update, true, false)) and recognises a held lock only by e.getMessage().contains("duplicate key"). Since MOR-059 the write raises a MorphiumDriverException for the lost upsert; the message of the normaliser contains the server text, so the check still matches, but it is fragile, and a WriteConcernNotSatisfiedException (the lock IS written) is rethrown as a failure of the run while the lock stays held for its TTL. Use MorphiumDriverException.isDuplicateKey() and treat WriteConcernNotSatisfiedException as acquired (or release the lock). Released in lockstep with core 6.4.'
+  acceptance:
+  - A held lock is reported as "lock held" through isDuplicateKey(), tested against a real MongoDB with two runners
+  - A write concern error while taking the lock does not leave a lock held by an aborted run
+  source:
+  - docs/research/plan-mor-059.md
+- id: MOR-064
+  title: 'store() of an existing entity swallows a rejected update (StoreMongoCommand)'
+  type: defect
+  status: open
+  priority: 2
+  effort: M
+  description: 'Follow-up of MOR-059, not covered by it: StoreMongoCommand.execute() delegates to UpdateMongoCommand, and the store paths of MorphiumWriterImpl (store, storeList, the non-versioned update half) do not look at the writeErrors of the reply. A unique index violation on the store() of an existing entity is presumably silent (the versioned paths raise since MOR-059). Verify on a real MongoDB, then raise like the other paths (switch, async callbacks, FailedStore for storeList with continueOnError).'
+  acceptance:
+  - store() and storeList() of an existing entity raise a MorphiumDriverException (isDuplicateKey) for a unique index violation, on a real MongoDB; with continueOnError the FailedStore carries it
+  source:
+  - docs/research/plan-mor-059.md
+- id: MOR-065
+  title: 'Delete paths ignore the writeErrors of the delete reply'
+  type: defect
+  status: open
+  priority: 3
+  effort: S
+  description: 'Follow-up of MOR-059: DeleteMongoCommand is the same hole as the update command; Query.remove and Morphium.delete do not look at the reply (the bulk context does since MOR-059). Verify which server errors a delete can report (a write concern error, a failing collation) and raise them like the update paths.'
+  acceptance:
+  - A rejected delete raises a MorphiumDriverException, on a real MongoDB
+  source:
+  - docs/research/plan-mor-059.md

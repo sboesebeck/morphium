@@ -1082,8 +1082,13 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             } else {
                 message.setDeleteAt(new Date(System.currentTimeMillis() + message.getDeleteAfterProcessingTime()));
                 String deleteAtField = morphium.getARHelper().getMongoFieldName(Msg.class, Msg.Fields.deleteAt.name());
-                morphium.setInEntity(message, collName, deleteAtField,
+                try {
+                    morphium.setInEntity(message, collName, deleteAtField,
                                      new Date(System.currentTimeMillis() + message.getDeleteAfterProcessingTime()), false, null);
+                } catch (MorphiumDriverException e) {
+                    // the deleteAt mark is best effort (a MongoDB TTL index or the scheduled cleanup removes the message anyway); it must not skip the rest
+                    log.warn("Could not set deleteAt of a processed message: {}", e.getMessage());
+                }
 
                 // MongoDB TTL cleanup is not instantaneous (monitor runs periodically); schedule best-effort cleanup.
                 long deleteDelay = Math.max(0, message.getDeleteAfterProcessingTime()) + TimeUnit.SECONDS.toMillis(1);
@@ -1106,6 +1111,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 if (message.isExclusive()) {
                     morphium.createQueryFor(MsgLock.class, getLockCollectionName(message)).f("_id")
                             .eq(message.getMsgId())
+                            .setRaiseOnWriteErrors(false) // best effort: the scheduled cleanup below removes the lock anyway
                             .set(MsgLock.Fields.deleteAt,
                                  new Date(System.currentTimeMillis() + message.getDeleteAfterProcessingTime()));
 

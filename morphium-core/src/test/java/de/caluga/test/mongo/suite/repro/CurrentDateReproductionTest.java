@@ -151,16 +151,11 @@ public class CurrentDateReproductionTest extends MultiDriverTestBase {
             seed(morphium);
             Outcome<Map<String, Object>> o = ReproSupport.attempt(() -> byName(morphium).set(Map.of("$weird", 1), false, false));
             ReproSupport.report(driver, "H3 $weird under $set", o.describe());
-            assertFalse(o.failed(), "the error only shows up inside the returned map: " + o.describe());
-            if (!isInMem(morphium)) {
-                // a real MongoDB reports n=0, the InMemoryDriver still counts the matched document
-                assertEquals(0, ((Number) o.value.get("n")).intValue(), String.valueOf(o.value));
-            }
-
-            assertEquals(0, ((Number) o.value.get("nModified")).intValue(), String.valueOf(o.value));
-            List<?> writeErrors = (List<?>) o.value.get("writeErrors");
-            assertNotNull(writeErrors, "writeErrors expected: " + o.value);
-            assertEquals(52, ((Number) ((Map<?, ?>) writeErrors.get(0)).get("code")).intValue());
+            // since MOR-059 the rejection raises (it used to show up only inside the returned map)
+            assertTrue(o.failed(), "a rejected write raises: " + o.describe());
+            MorphiumDriverException e = o.find(MorphiumDriverException.class);
+            assertNotNull(e, o.describe());
+            assertEquals(52, ((Number) e.getMongoCode()).intValue(), o.describe());
             assertFalse(raw(morphium).containsKey("$weird"));
         }
     }
