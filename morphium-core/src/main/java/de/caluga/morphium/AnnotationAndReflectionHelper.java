@@ -648,6 +648,12 @@ public class AnnotationAndReflectionHelper {
                 ret = f;
             }
 
+            if (ret == null && f.isAnnotationPresent(Version.class) && !".".equals(f.getAnnotation(Version.class).fieldName()) && f.getAnnotation(Version.class).fieldName().equals(fld)) {
+                f.setAccessible(true);
+                fc.put(key, f);
+                ret = f;
+            }
+
             if (ret == null && f.isAnnotationPresent(Aliases.class)) {
                 Aliases aliases = f.getAnnotation(Aliases.class);
                 String[] v = aliases.value();
@@ -1105,6 +1111,12 @@ public class AnnotationAndReflectionHelper {
 
             if (f.isAnnotationPresent(Property.class) && !".".equals(f.getAnnotation(Property.class).fieldName())) {
                 ret.add(f.getAnnotation(Property.class).fieldName());
+                continue;
+            }
+
+            // MOR-044: getMongoFieldName honours @Version(fieldName), so the name that store() writes has to be the same
+            if (f.isAnnotationPresent(Version.class) && !".".equals(f.getAnnotation(Version.class).fieldName())) {
+                ret.add(f.getAnnotation(Version.class).fieldName());
                 continue;
             }
 

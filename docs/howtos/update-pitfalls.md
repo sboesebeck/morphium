@@ -61,8 +61,8 @@ An upsert that inserts a document of an `@Version` entity through a raw `$setOnI
 entity has version `null` (or `0`), so `store()` takes it for a new document, tries an insert and fails with a duplicate key.
 
 The builder increments the `@Version` field and starts an insert at 1 unless the update touches it, so the trap does not exist
-there. On the raw map path put the version into `$setOnInsert` yourself. Open: a `@Version(fieldName = ...)` whose stored name
-differs from the Java name (MOR-044).
+there. On the raw map path put the version into `$setOnInsert` yourself. A `@Version(fieldName = ...)` is stored under that name by
+`store()`, the filters and the builder (MOR-044).
 
 Test: `ConditionalUpsertReproductionTest` (5c).
 
