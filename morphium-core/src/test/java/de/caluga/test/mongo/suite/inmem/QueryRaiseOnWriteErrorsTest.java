@@ -7,14 +7,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** MOR-059: the per-query override of {@code WriterSettings.raiseOnWriteErrors}, resolved like {@code translateUpdateFieldNames}. */
+/** MOR-059: the per-query override of raising on a rejected write. */
 public class QueryRaiseOnWriteErrorsTest extends MorphiumInMemTestBase {
 
     @Test
-    public void theQueryFollowsTheConfigurationUnlessItIsOverridden() {
+    public void aQueryRaisesUnlessItIsToldNotTo() {
         var q = morphium.createQueryFor(UncachedObject.class);
         assertNull(q.getRaiseOnWriteErrors(), "no override by default");
-        assertTrue(q.isRaiseOnWriteErrors(), "the configuration default is on");
+        assertTrue(q.isRaiseOnWriteErrors(), "raising is the default");
 
         q.setRaiseOnWriteErrors(false);
         assertFalse(q.isRaiseOnWriteErrors());
@@ -22,15 +22,6 @@ public class QueryRaiseOnWriteErrorsTest extends MorphiumInMemTestBase {
         assertTrue(q.isRaiseOnWriteErrors());
         q.setRaiseOnWriteErrors(null);
         assertTrue(q.isRaiseOnWriteErrors());
-
-        morphium.getConfig().writerSettings().disableRaiseOnWriteErrors();
-
-        try {
-            assertFalse(morphium.createQueryFor(UncachedObject.class).isRaiseOnWriteErrors(), "follows the configuration");
-            assertTrue(morphium.createQueryFor(UncachedObject.class).setRaiseOnWriteErrors(true).isRaiseOnWriteErrors(), "the override wins");
-        } finally {
-            morphium.getConfig().writerSettings().enableRaiseOnWriteErrors();
-        }
     }
 
     @Test

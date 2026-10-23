@@ -16,7 +16,7 @@ import java.util.Objects;
  * A final class so that components can be added without breaking callers.
  *
  * @param <T> the entity type
- * @apiNote incubating until 6.3
+ * @apiNote incubating in 7.0, may change in a later 7.x release
  */
 public final class UpdateOutcome<T> {
 

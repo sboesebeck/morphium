@@ -16,7 +16,7 @@ import java.util.Map;
  * fields of the elements as they are stored; they are used as given (the builder does not know the type of the elements).
  * The object is mutable and not thread safe.
  *
- * @apiNote incubating until 6.3
+ * @apiNote incubating in 7.0, may change in a later 7.x release
  */
 public final class PushOptions {
     private Integer slice;

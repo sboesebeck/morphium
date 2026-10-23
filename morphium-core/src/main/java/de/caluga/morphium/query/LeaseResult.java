@@ -8,7 +8,7 @@ import java.util.Objects;
  * lease does not exist any more for this owner and token (somebody took it over, or it never existed).
  *
  * @param <T> the lease entity
- * @apiNote incubating until 6.3
+ * @apiNote incubating in 7.0, may change in a later 7.x release
  */
 public final class LeaseResult<T> {
 

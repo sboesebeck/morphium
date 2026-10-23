@@ -18,7 +18,7 @@ Available languages: English and [Deutsch](README.de.md)
 - 🧪 **In-memory driver** for fast tests (no MongoDB required)
 - 🌱 **[PoppyDB](https://sboesebeck.github.io/morphium/poppydb/)** — MongoDB-compatible in-memory server: replica sets, auth/TLS, messaging backend
 - 🎯 **JMS API (experimental)** for standards-based messaging
-- 📚 **[Jakarta Data 1.0](#-jakarta-data-and-the-frameworks)** — `@Repository` interfaces for Quarkus and Spring Boot; **passes all 73 tests of the standalone TCK suite** (from the release after 6.3.14)
+- 📚 **[Jakarta Data 1.0](#-jakarta-data-and-the-frameworks)** — `@Repository` interfaces for Quarkus and Spring Boot; **passes all 73 tests of the standalone TCK suite** (from 7.0)
 - 🚀 **Java 21+** — modern language baseline (pattern matching, sealed types)
 
 [![Maven Central](https://img.shields.io/maven-central/v/de.caluga/morphium.svg)](https://search.maven.org/artifact/de.caluga/morphium)
@@ -332,7 +332,7 @@ direct access to `Morphium`).
 
 **Conformance:** the standalone entity tests of the **Jakarta Data TCK 1.0.0 pass 73 of 73**, on the in-memory driver
 and on a real MongoDB 8, with an empty exclusion list (CDI, signature and web parts need a Jakarta EE container and are
-not run). This is on `develop` and ships with the release after 6.3.15. Reproduce it with
+not run). This is on `develop` and ships with 7.0. Reproduce it with
 `cd spring-boot-morphium && mvn -nsu test -Dtest=JakartaDataTckTest`; details in the
 [Jakarta Data guide](docs/jakarta-data.md#conformance-jakarta-data-tck).
 

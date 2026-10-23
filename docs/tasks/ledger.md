@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 20, done 80
+Status: open 20, done 81
 
 ## Overview
 
@@ -94,6 +94,7 @@ Status: open 20, done 80
 | MOR-095 | done | 2 | verification | Verification: the showcase against this version, and two findings (scram-client pinned by the Quarkus BOM, no LICENSE file) | S |  |  |
 | MOR-096 | done | 2 | infrastructure | Quarkus extension: build and test against Quarkus 3.40.1 (was 3.32.3) | S |  |  |
 | MOR-099 | done | 2 | implementation | LeaseManager: a key other than the @Id, a fencing token, a generated _id, an acquisition time and renew | M |  |  |
+| MOR-102 | done | 2 | implementation | Release 7.0: remove the global raiseOnWriteErrors switch and bring the version statements of our changes in line | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
@@ -1799,4 +1800,21 @@ Acceptance:
 - A decision with the examples it is based on; if yes, a WorkClaim with tests on the InMemoryDriver and a real MongoDB
 
 Source: docs/howtos/conditional-writes.md
+
+### MOR-102 Release 7.0: remove the global raiseOnWriteErrors switch and bring the version statements of our changes in line
+
+Status **done**, priority 2, type implementation, effort S
+
+The stack of changes now lands on release/7.x (7.0.0-SNAPSHOT, based on v6.3.15). WriterSettings.raiseOnWriteErrors (with isRaiseOnWriteErrors, setRaiseOnWriteErrors, enableRaiseOnWriteErrors, disableRaiseOnWriteErrors) was a temporary migration switch of MOR-059, announced as deprecated and removed in 7.0, and it was never released: it is removed. A rejected write always raises; Query.setRaiseOnWriteErrors(false) stays as the per-query override; the entity paths and the bulk context always raise. The statements about 6.4, "incubating until 6.3" and "the release after 6.3.14/6.3.15" are replaced by 7.0 (the incubating APIs stay incubating in 7.0).
+
+Evidence: RaiseOnWriteErrorsTest, BulkRaiseOnWriteErrorsTest, DeleteRaisesOnRejectedDeleteTest, StoreRaisesOnRejectedUpdateTest, QueryRaiseOnWriteErrorsTest, MorphiumConfigTest and FindAndModifyWriteErrorTest pass on the InMemoryDriver and against mongo:8 with the PooledDriver; the tests of the switch (bulk, store, config) were removed, the delete and query tests use the per-query override; all modules build. Not changed: the research notes under docs/research (history).
+
+Acceptance:
+
+- No reference to WriterSettings.raiseOnWriteErrors in main code, tests, API reference and configuration reference
+- The tests of the rejected-writes behaviour pass on the InMemoryDriver and on a real MongoDB
+
+Source: morphium-core/src/main/java/de/caluga/morphium/config/WriterSettings.java, morphium-core/src/main/java/de/caluga/morphium/query/Query.java
+
+Commits: FIXME
 

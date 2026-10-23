@@ -2077,17 +2077,16 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
     /**
      * MOR-059: the exception for a rejected write (the {@code writeErrors} / {@code writeConcernError} of an update reply), or null if there is none or raising is
-     * switched off for the query ({@code Query.setRaiseOnWriteErrors}, else {@code WriterSettings.raiseOnWriteErrors}). It is returned, not thrown: the caller clears the
+     * switched off for the query ({@code Query.setRaiseOnWriteErrors(false)}). It is returned, not thrown: the caller clears the
      * caches and fires the events for what was applied before it throws.
      */
     private MorphiumDriverException rejectionOf(Query<?> query, String coll, Map<String, Object> reply) {
         return query.isRaiseOnWriteErrors() ? WriteReplyErrors.rejectionOf(getDbName(), coll, reply) : null;
     }
 
-    /** as {@link #rejectionOf(Query, String, Map)} for the writes that start from an entity and have no query to carry an override: the configuration decides */
-    @SuppressWarnings("deprecation")
+    /** as {@link #rejectionOf(Query, String, Map)} for the writes that start from an entity and have no query to carry an override: they always raise */
     private MorphiumDriverException entityRejectionOf(String coll, Map<String, Object> reply) {
-        return morphium.getConfig().writerSettings().isRaiseOnWriteErrors() ? WriteReplyErrors.rejectionOf(getDbName(), coll, reply) : null;
+        return WriteReplyErrors.rejectionOf(getDbName(), coll, reply);
     }
 
     /**

@@ -112,25 +112,6 @@ public class StoreRaisesOnRejectedUpdateTest extends MultiDriverTestBase {
         }
     }
 
-    @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
-    @SuppressWarnings("deprecation")
-    public void withTheSwitchOffTheRejectionIsIgnoredAsBefore(Morphium m) throws Exception {
-        try (m) {
-            assumeFalse(m.getDriver() instanceof InMemoryDriver, "the InMemoryDriver throws a violated unique index of an ordered update itself");
-            setup(m);
-            m.getConfig().writerSettings().disableRaiseOnWriteErrors();
-
-            try {
-                Unique u = load(m, "u0");
-                u.code = "c1";
-                m.store(u);
-                assertEquals("c0", load(m, "u0").code, "the update was rejected by the server and nobody noticed");
-            } finally {
-                m.getConfig().writerSettings().enableRaiseOnWriteErrors();
-            }
-        }
-    }
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")

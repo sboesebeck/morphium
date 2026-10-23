@@ -71,7 +71,7 @@ import java.util.Set;
  * collection name, write concern of the class.
  *
  * @param <T> the entity type
- * @apiNote incubating until 6.3: the name and package may change
+ * @apiNote incubating in 7.0, may change in a later 7.x release: the name and package may change
  */
 public final class UpdateBuilder<T> {
     private final Morphium morphium;

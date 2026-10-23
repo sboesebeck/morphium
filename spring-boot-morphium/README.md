@@ -1,6 +1,6 @@
 # Morphium Spring Boot Starter
 
-> **Jakarta Data TCK: 73 of 73.** The repositories of this starter run on `morphium-jakarta-data`, which passes all 73 tests of the standalone Jakarta Data 1.0 TCK suite (from the release after 6.3.14) on the in-memory driver and on a real MongoDB 8. See the [Jakarta Data guide](../docs/jakarta-data.md#conformance-jakarta-data-tck).
+> **Jakarta Data TCK: 73 of 73.** The repositories of this starter run on `morphium-jakarta-data`, which passes all 73 tests of the standalone Jakarta Data 1.0 TCK suite (from 7.0) on the in-memory driver and on a real MongoDB 8. See the [Jakarta Data guide](../docs/jakarta-data.md#conformance-jakarta-data-tck).
 
 [![Build](https://github.com/Bardioc1977/spring-boot-morphium/actions/workflows/build.yml/badge.svg)](https://github.com/Bardioc1977/spring-boot-morphium/actions/workflows/build.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
