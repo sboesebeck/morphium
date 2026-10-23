@@ -21,7 +21,7 @@ Java field name to the stored name. Measured on a real MongoDB (`mongo:8`, v8.3.
 | `Query.set(map)` | **no** | yes |
 | `Query.setEnum(map)` | **no** | yes |
 | `Query.set(enum)` | **no** | yes |
-| `Query.set(dotted path)` | **no** | **no** |
+| `Query.set(dotted path)` | **no** | yes |
 | `Query.unset(field)` | **no** | yes |
 | `Query.unset(enum)` | **no** | yes |
 | `Query.inc(field,Integer)` | **no** | yes |
@@ -29,12 +29,12 @@ Java field name to the stored name. Measured on a real MongoDB (`mongo:8`, v8.3.
 | `Query.inc(field,Double)` | **no** | yes |
 | `Query.inc(field,Number)` | **no** | yes |
 | `Query.inc(enum)` | **no** | yes |
-| `Query.inc(dotted path)` | **no** | **no** |
+| `Query.inc(dotted path)` | **no** | yes |
 | `Query.dec(field,Integer)` | **no** | yes |
 | `Query.dec(field,Number)` | **no** | yes |
-| `Morphium.inc(query,map)` | **no** | **no** |
-| `Morphium.inc(enumMap,query)` | n/m | **no** |
-| `Morphium.dec(query,map)` | **no** | **no** |
+| `Morphium.inc(query,map)` | **no** | yes |
+| `Morphium.inc(enumMap,query)` | n/m | yes |
+| `Morphium.dec(query,map)` | **no** | yes |
 | `Query.push(field)` | **no** | yes |
 | `Query.push(enum)` | **no** | yes |
 | `Query.pushAll(field)` | **no** | yes |
@@ -43,7 +43,7 @@ Java field name to the stored name. Measured on a real MongoDB (`mongo:8`, v8.3.
 | `Morphium.addToSet` | **no** | yes |
 | `Morphium.currentDate(field)` | **no** | yes |
 | `Morphium.currentDate(enum)` | n/m | yes |
-| `Morphium.currentDate(dotted path)` | n/m | **no** |
+| `Morphium.currentDate(dotted path)` | n/m | yes |
 | `Morphium.setInEntity(field)` | **no** | yes |
 | `Morphium.inc(entity)` | **no** | yes |
 | `Morphium.dec(entity)` | **no** | yes |
@@ -57,16 +57,18 @@ Java field name to the stored name. Measured on a real MongoDB (`mongo:8`, v8.3.
 
 ## Findings
 
+The translation column shows the state after the fixes of MOR-060 to MOR-062; the raise column is the state of the audit (MOR-059 is open).
+
 1. **Almost no write path raises** (ledger task MOR-059, priority 1). The update command reports a rejected statement in its reply (`writeErrors`) and does not throw; only
    `Morphium.inc(entity, ...)` and `dec(entity, ...)` look at the reply. All other paths (`Query.set/unset/inc/dec/push/pushAll/pull/pullAll`, `addToSet`, `currentDate`,
    the entity variants of set/unset/push, the Map variants of inc/dec, the bulk context) return normally. Example: `query.set("counterValue", 2)` that violates a unique index returns
    as if the write had happened. `Query.updateMapped` (the count terminals of the update builder) is the model for the fix. GitHub #408 (a `writeConcernError` is ignored) is the same
    family; the `writeConcernError` part is not measured here.
-2. **Java names are written untranslated** (MOR-060): `Morphium.inc(Query, Map)`, `inc(Map<Enum,Number>, Query)` and `dec(Query, Map)` copy the keys into `$inc` (confirms the finding of MOR-042
+2. **Java names were written untranslated** (MOR-060, fixed): `Morphium.inc(Query, Map)`, `inc(Map<Enum,Number>, Query)` and `dec(Query, Map)` copy the keys into `$inc` (confirms the finding of MOR-042
    about `MorphiumWriterImpl.inc(Query, Map)`); `Query.set`, `Query.inc` and `Morphium.currentDate` translate only the first segment of a dotted path, so `box.innerValue` is written next to the
    stored `box.inner_value`. The update builder translates the same paths correctly (`resolveFieldPath`).
-3. **`dec` with a Map increments** (MOR-062): `dec(Query, Map)` and `dec(Map<Enum,Number>, Query)` pass the amounts to `inc` without negating them.
-4. **`Query.dec(field, Integer)` stores a double** (MOR-061): the call resolves to the `Number` overload of `Morphium.dec`, which subtracts `amount.doubleValue()`.
+3. **`dec` with a Map incremented** (MOR-062, fixed): `dec(Query, Map)` and `dec(Map<Enum,Number>, Query)` pass the amounts to `inc` without negating them.
+4. **`Query.dec(field, Integer)` stored a double** (MOR-061, fixed): the call resolves to the `Number` overload of `Morphium.dec`, which subtracts `amount.doubleValue()`.
 5. The bulk context takes stored names (it builds raw update documents) and does translate the names given here (`counterValue` is stored as `counter_value`).
 
 The InMemoryDriver raises in some of the cases where a real MongoDB does not (it throws for a unique index violation of `$set` itself) and does not enforce unique multikey indexes on `$push`;
