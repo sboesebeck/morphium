@@ -176,6 +176,32 @@ public final class UpdateBuilder<T> {
     }
 
     /**
+     * Like {@link #findOneAndUpdate(ReturnDocument)} (same validation, mapping, version and timestamp handling, same atomic findAndModify), but returns a typed
+     * {@link UpdateOutcome} instead of a document that is {@code null} for different reasons and an exception that has to be classified by its code:
+     * <table>
+     * <caption>outcomes</caption>
+     * <tr><th>upsert</th><th>a document matches</th><th>kind</th></tr>
+     * <tr><td>any</td><td>yes</td><td>{@code UPDATED}</td></tr>
+     * <tr><td>yes</td><td>no, the insert works</td><td>{@code INSERTED} (with the upserted id; document {@code null} for {@code BEFORE})</td></tr>
+     * <tr><td>yes</td><td>no, the insert collides with an existing document</td><td>{@code DUPLICATE_KEY} - the lost conditional upsert, "held by somebody else"</td></tr>
+     * <tr><td>no</td><td>no</td><td>{@code NOT_MATCHED}</td></tr>
+     * </table>
+     * Only a duplicate key of an upsert is returned as a value; everything else (a duplicate key without upsert, a failing update, a lost connection) is thrown
+     * as by {@code findOneAndUpdate}.
+     *
+     * @param which the state to return in the document; there is deliberately no default
+     */
+    public UpdateOutcome<T> tryFindOneAndUpdate(ReturnDocument which) {
+        if (which == null) {
+            throw new IllegalArgumentException("ReturnDocument must not be null");
+        }
+
+        validate(false, false);
+        Map<String, Object> document = build();
+        return query.findOneAndUpdateOutcome(document, upsert, which == ReturnDocument.AFTER);
+    }
+
+    /**
      * Executes the update on ONE document of the filter (the first the server finds - there is no sort) as an {@code update} command and returns the counts.
      * Same validation, mapping, version and timestamp handling as {@link #findOneAndUpdate(ReturnDocument)}; additionally a sort on the query is rejected (MongoDB
      * supports it in an update statement only from 8.0, the InMemoryDriver ignores it) and a limit above 1.

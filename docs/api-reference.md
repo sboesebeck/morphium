@@ -282,6 +282,17 @@ UpdateResult r = jobs.f("state").eq(PENDING).modify().set("state", RUNNING).unse
 ```
 A lost conditional upsert raises a `MorphiumDriverException` with `isDuplicateKey()` on every driver; sort is rejected for the count terminals.
 
+`tryFindOneAndUpdate(ReturnDocument)` is `findOneAndUpdate` with a typed result, `UpdateOutcome<T>`, instead of a document that is `null` for different reasons:
+```java
+UpdateOutcome<Lease> o = leaseFilter.modify().set("owner", me).set("expiresAt", until).upsert().tryFindOneAndUpdate(ReturnDocument.AFTER);
+switch (o.getKind()) {
+    case INSERTED, UPDATED -> use(o.getDocument());   // INSERTED also has getUpsertedId(); the document is null for BEFORE
+    case DUPLICATE_KEY -> held();                     // the insert of the upsert collided with the existing document
+    case NOT_MATCHED -> missing();                    // no match, no upsert
+}
+```
+Only the duplicate key of an upsert is returned as a value (without `upsert()` it is thrown, a unique index on a modified field is not "held"); every other failure is thrown as by `findOneAndUpdate`.
+
 ## Aggregation API
 
 ### Aggregator Interface
