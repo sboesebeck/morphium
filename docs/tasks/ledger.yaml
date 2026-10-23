@@ -1972,7 +1972,7 @@ tasks:
   - morphium-core/src/main/java/de/caluga/morphium/query/LeaseResult.java
   evidence: 'KeyedLeaseManagerTest (14 tests) and LeaseManagerTest (11, unchanged) pass, together with ConditionalWritesRecipesTest (3), on the InMemoryDriver and against mongo:8 with the PooledDriver (28 of 28 on both): generated UUID _id, first token 1, held lease untouched, the holder acquiring again counts, expiry at the deadline, renew keeps token and acquisition time, a stale token or owner is LOST and changes nothing, an expired lease that nobody took over can be renewed, release keeps the counter, eight contenders on five fresh keys have one winner and one document each, release with a token gives up only that grant, without an id generator the database assigns the id, validation (types, missing unique index, id generator without key field, token required for renew). Changed behaviour of the existing of(...): a lease is expired at its deadline (<= now, was <). Not covered: the two-step acquire that avoids the failed upsert on contention (a possible strategy), a heartbeat, the server clock.'
   commits:
-  - daa609690
+  - 78741299b
 - id: MOR-100
   title: 'Documentation: conditional single-document writes as the pattern behind leases, claims, idempotency keys and optimistic locks'
   type: documentation
@@ -1986,7 +1986,7 @@ tasks:
   - docs/howtos/conditional-writes.md
   evidence: 'The page is in mkdocs.yml and linked from the LeaseManager section of the API reference. ConditionalWritesRecipesTest (3 tests, InMemoryDriver and mongo:8) runs the recipes of the page, among them create-or-join with a partial unique index (eight contenders, three rounds: one OPEN case, every request joined, a loser repeats once on DUPLICATE_KEY; the lesson of a consuming application whose create-or-join turned the lost insert race into an exception): run once (INSERTED, then UPDATED with nothing changed - the review found that the first draft said DUPLICATE_KEY, which a filter without a guard never produces), a job claim (UPDATED, then NOT_MATCHED) and an OPEN to CLOSED transition that is a no-op the second time.'
   commits:
-  - daa609690
+  - 78741299b
 - id: MOR-101
   title: 'WorkClaim: a recipe for claiming a unit of work (state, allowed from-states, visibility timeout, attempts)'
   type: analysis

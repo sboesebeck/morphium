@@ -1768,7 +1768,7 @@ Acceptance:
 
 Source: morphium-core/src/main/java/de/caluga/morphium/query/LeaseManager.java, morphium-core/src/main/java/de/caluga/morphium/query/LeaseResult.java
 
-Commits: daa609690
+Commits: 78741299b
 
 ### MOR-100 Documentation: conditional single-document writes as the pattern behind leases, claims, idempotency keys and optimistic locks
 
@@ -1784,7 +1784,7 @@ Acceptance:
 
 Source: docs/howtos/conditional-writes.md
 
-Commits: daa609690
+Commits: 78741299b
 
 ### MOR-101 WorkClaim: a recipe for claiming a unit of work (state, allowed from-states, visibility timeout, attempts)
 
