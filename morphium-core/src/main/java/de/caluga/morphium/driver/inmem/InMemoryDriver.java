@@ -5013,6 +5013,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         // del.addDelete(Doc.of("q", new HashMap<>(), "limit", 0));
         int totalDeleted = 0;
+        List<Map<String, Object>> writeErrors = new ArrayList<>();
+        int index = 0;
 
         for (var del : cmd.getDeletes()) {
             boolean multi = true;
@@ -5023,16 +5025,31 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (del.get("collation") instanceof Map) {
                 collation = (Map<String, Object>) del.get("collation");
             }
-            Map<String, Object> deleteStats = delete (cmd.getDb(), cmd.getColl(), (Map) del.get("q"), null, multi,
-                                              collation, null);
+            Map<String, Object> deleteStats;
+
+            try {
+                deleteStats = delete (cmd.getDb(), cmd.getColl(), (Map) del.get("q"), null, multi,
+                                      collation, null);
+            } catch (IllegalArgumentException e) {
+                // a statement that mongod refuses at parse time (an unknown operator, ...) is reported in the reply as BadValue, and an ordered delete stops there
+                writeErrors.add(Doc.of("index", index, "code", 2, "errmsg", String.valueOf(e.getMessage())));
+                break;
+            }
             if (deleteStats.get("n") instanceof Number n) {
                 totalDeleted += n.intValue();
             }
+
+            index++;
         }
 
         Map<String, Object> result = prepareResult();
         result.put("ok", 1.0);
         result.put("n", totalDeleted);
+
+        if (!writeErrors.isEmpty()) {
+            result.put("writeErrors", writeErrors);
+        }
+
         addResult(ret, result);
         return ret;
     }

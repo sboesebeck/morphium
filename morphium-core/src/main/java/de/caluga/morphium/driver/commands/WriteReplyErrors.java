@@ -39,7 +39,7 @@ public final class WriteReplyErrors {
             Object errmsg = errors.get(0).get("errmsg");
             MorphiumDriverException e = new MorphiumDriverException("Write to " + collection + " failed: " + errmsg + " (code " + code + ")"
                     + (errors.size() > 1 ? " (+" + (errors.size() - 1) + " more, " + errors.size() + " errors)" : "") + "; the reply reported matched=" + n + ", modified=" + modified
-                    + " before the error, documents updated before the error are not rolled back");
+                    + " before the error, documents changed before the error are not rolled back");
             e.setMongoCode(code);
             e.setWriteErrors(errors);
             e.setCollection(collection);
