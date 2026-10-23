@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+#### `Query.findOneAndUpdate`: the keys of the operator maps are translated to the stored field names (MOR-041)
+`Query.f(...)` has always translated Java names, but the update side wrote the key as given: `{"$set": {"expiresAt": d}}` on an entity with
+camel case translation created a stray field `expiresAt` next to the real `expires_at`, which is never read back, and `$unset` or `$rename`
+on the Java name did nothing to the real field. All operators now resolve their keys (`$set`, `$setOnInsert`, `$inc`, `$mul`, `$min`, `$max`,
+`$push`, `$addToSet`, `$pull`, `$pullAll`, `$pop`, `$currentDate`, `$bit`, and also the key of `$unset` and key and target of `$rename`) with the
+new `AnnotationAndReflectionHelper.resolveFieldPath(Class, String)` / `resolveStoredFieldName(Class, String)`: a Java name becomes the stored name
+(`expiresAt` to `expires_at`, `id` to `_id`, `@Property(fieldName)`/`@Reference(fieldName)` names), a name that is already a stored name stays,
+and dotted keys are resolved segment by segment through single `@Embedded`/`@Entity` fields with the naming of each class. Never translated:
+`@Aliases` names, unknown keys, positional keys (`$`, `$[]`, `$[x]`, numeric segments), keys starting with `$`, and everything behind a
+collection, map, `Object` or `@Reference` segment. Two keys that denote the same field are merged if their values are equal and rejected with an
+`IllegalArgumentException` otherwise. A write to an `@Encrypted` field is rejected (a plaintext value would bypass the encryption and break every
+read); `$unset` and `$rename` are allowed. Enum constants are accepted as keys.
+
+Kill switch: `ObjectMappingSettings.translateUpdateFieldNames` (default `true`; `false` writes the keys as given), per query
+`Query.setTranslateUpdateFieldNames(Boolean)`; the override `false` is also the way to remove a stray field that an earlier version created.
+Existing stray fields are not touched and stay in the documents. Consequences to be aware of: `{"$setOnInsert": {"id": x}}` now sets `_id` (and pins the id for an
+upsert, so no generated `_id` is added); a `String` for the `_id` of an entity with a `MorphiumId` is not converted; `Query.f` still falls back to the raw string behind
+a collection or map segment and for entities with `@AdditionalData`, so a filter and an update on such a path can differ; `Query.set`, `push` and the bulk
+context keep their own key handling.
+
+#### `AnnotationAndReflectionHelper`: the default constructor uses a thread safe `realClassCache`
+`getRealClass` writes that map on the first use of a class from any thread; it was a plain `HashMap`.
+
 ### Fixed
 
 #### `Query.findOneAndUpdate`: embedded objects, entities and enums in update documents (MOR-002)
@@ -19,8 +44,8 @@ objects become documents (with `class_name` inside a container, without it as a 
 them), enums become their constant name (`name()`, not `toString()`), a `MorphiumId` inside a container becomes an
 `ObjectId`, and `AtomicBoolean`/`AtomicInteger`/`AtomicLong`/`BigInteger` are written by their type mapper. Sets and
 non-primitive arrays reach the InMemoryDriver as lists, like on a real MongoDB. Documents which are already serialised
-are not changed again, the caller's map is never modified, field names are not translated and an update document without
-a `$`-operator (a replacement document) is sent as it is. An entity for a `@Reference` field is rejected with an
+are not changed again, the caller's map is never modified and an update document without a `$`-operator (a replacement
+document) is sent as it is. An entity for a `@Reference` field is rejected with an
 `IllegalArgumentException` instead of being embedded. A map key that is neither a `String` nor an enum is rejected.
 Not covered: `Query.set`/`push`/`pushAll` (writer path), `Expr` values, `findOneAndUpdateEnums`.
 
