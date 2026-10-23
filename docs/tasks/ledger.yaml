@@ -1562,7 +1562,7 @@ tasks:
   - poppydb/src/main/java/de/caluga/poppydb/netty/MongoCommandHandler.java
   evidence: 'FastPathOptionsTest (14 tests, 3 new): a delete with an unknown operator is answered with writeErrors (index 0, code 2) and deletes nothing, an ordered delete stops at the first rejected statement while ordered:false runs the next one, a successful delete still answers the count; the first two failed before the change. DeleteRaisesOnRejectedDeleteTest against a single node PoppyDB with the PooledDriver: 8 tests, 0 failures, 2 skipped (it failed for this reason before).'
   commits:
-  - FIXME
+  - 5c96f6fe8
 - id: MOR-071
   title: 'Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange'
   type: defect
