@@ -128,6 +128,26 @@ and, since 7.0, the writer path (`Query.set`, `push`, `pushAll`, `pull` and the 
 
 Test: `WriterPathGuardTest`.
 
+## 9. `$pull` conditions and elements of mixed shapes
+
+**The keys of a `$pull` condition are not translated.** `pull("items", Map.of("fileName", "x"))` removes the elements whose field is
+called `fileName` in the stored document. The keys of the condition name fields of the *embedded documents*, which the update does not
+know the type of, so they are sent as given (the keys of every other operator are translated). Write the stored name (`file_name` for an
+`@Embedded` class with `translateCamelCase=true`).
+
+**Elements are written like `store()` writes the members of a container.** `push`, `addToSet`, `$each` members and the element of a `pull`
+are marshalled alike: an embedded value or an entity is a document with `class_name`, a custom-mapped scalar is wrapped
+(`{"value": scalar}`). A document in an array that `store()` or a current update wrote is therefore equal to a later `addToSet` of the same
+value, and `pull` of that value removes it. MongoDB compares whole documents, field by field, so the equality is lost when the array holds
+another shape of the same element: a document written by a raw command, by another application or by an update path before 7.0 (a custom-mapped
+scalar was written flat then; `pull` removes both forms). `addToSet` adds a second copy and `pull` by element leaves the old one.
+
+To remove an element whatever shape it has, pull by a condition on its fields (`pull("items", Map.of("name", "x"))`). To keep an array free of
+duplicates when the shapes may differ, make the update conditional on the key (`f("items.name").ne("x").push("items", item)`) instead of relying on
+`addToSet`.
+
+Tests: `UpdateDocumentMapperKeyTest` (the keys of a `$pull` condition), `UpdateValueMarshallingTest` (the shape of the elements).
+
 ## Checklist
 
 - Prefer `store()` for whole entities, the builder for partial updates.
