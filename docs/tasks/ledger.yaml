@@ -577,7 +577,7 @@ tasks:
   - morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlParser.java
   evidence: 'JdqlParserOperandTest (6 tests): the three examples of the task, the position of the failing condition in a longer clause, BETWEEN/IN/LIKE operands, and parameters, ordinals, string, number, boolean, null and enum constants still parse; 5 of them failed before the change. JdqlOperandsTest now reads the message of the parser. The jakarta-data module (204 tests) and the Jakarta Data TCK in the Spring module pass.'
   commits:
-  - FIXME
+  - 766e4d161
 - id: MOR-022
   title: 'Jakarta Data: derived update methods (updateByX)'
   type: implementation

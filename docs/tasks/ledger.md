@@ -519,7 +519,7 @@ Acceptance:
 
 Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlOperands.java, morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlParser.java
 
-Commits: FIXME
+Commits: 766e4d161
 
 ### MOR-022 Jakarta Data: derived update methods (updateByX)
 
