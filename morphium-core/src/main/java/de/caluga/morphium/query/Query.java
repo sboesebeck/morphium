@@ -1274,7 +1274,7 @@ public class Query<T> implements Cloneable {
         String cf;
         Class<?> clz = type;
 
-        if (additionalDataPresent) {
+        if (additionalDataPresent && !f.contains(".")) {
             MongoField<T> fld = new MongoFieldImpl<>();
             fld.setFieldString(f);
             fld.setMapper(morphium.getMapper());
@@ -1283,10 +1283,21 @@ public class Query<T> implements Cloneable {
             return fld;
         }
 
-        if (f.contains(".") && !additionalDataPresent) {
+        if (additionalDataPresent) {
+            // MOR-043: the entity takes free-form keys, so an unknown segment cannot be rejected; a known path is translated like an update does
+            MongoField<T> fld = new MongoFieldImpl<>();
+            fld.setFieldString(getARHelper().resolveFieldPath(type, f));
+            fld.setMapper(morphium.getMapper());
+            fld.setQuery(this);
+            return fld;
+        }
+
+        if (f.contains(".")) {
             String[] fieldNames = f.split("\\.");
+            int consumed = 0;
 
             for (String fieldName : fieldNames) {
+                consumed++;
                 String fieldNameInstance = getARHelper().getMongoFieldName(clz, fieldName);
                 Field field = getARHelper().getField(clz, fieldNameInstance);
 
@@ -1318,7 +1329,15 @@ public class Query<T> implements Cloneable {
             }
 
             if (clz.equals(Object.class)) {
-                cf = f;
+                // MOR-043: behind a List, a Map or an Object field the names are not known; the segments up to and including that field are translated (as
+                // resolveFieldPath does for an update), the rest is taken as written. It used to be the whole path as written, the leading segments included.
+                StringBuilder rest = new StringBuilder();
+
+                for (int i = consumed; i < fieldNames.length; i++) {
+                    rest.append('.').append(fieldNames[i]);
+                }
+
+                cf = fieldPath.length() == 0 ? f : fieldPath.substring(0, fieldPath.length() - 1) + rest;
             } else {
                 cf = fieldPath.substring(0, fieldPath.length() - 1);
             }
