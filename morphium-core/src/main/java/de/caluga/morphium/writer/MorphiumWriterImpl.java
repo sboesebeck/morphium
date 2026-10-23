@@ -2023,7 +2023,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(cls), MorphiumStorageListener.UpdateTypes.INC);
                 String coll = query.getCollectionName();
                 Map<String, Object> update = new HashMap<>();
-                update.put("$inc", new HashMap<String, Object>(fieldsToInc));
+                // the Map variants of inc/dec used to write the Java field names into $inc (MOR-060)
+                Map<String, Object> incs = new LinkedHashMap<>();
+                fieldsToInc.forEach((k, v) -> incs.put(morphium.getARHelper().getMongoFieldName(cls, k), v));
+                update.put("$inc", incs);
                 handleLastChange((Class <? extends T > ) cls, update);
                 Map<String, Object> qobj = query.toQueryObject();
 
@@ -2369,13 +2372,38 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 String coll = query.getCollectionName();
                 morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(cls), MorphiumStorageListener.UpdateTypes.SET);
                 Map<String, Object> toSet = new HashMap<>();
+                // an entry whose key starts with $ and whose value is a map is an update operator of its own ($currentDate, ...),
+                // not a field of $set (MOR-004: currentDate used to send {$set: {$currentDate: ...}}, which the server rejects)
+                Map<String, Object> operators = new LinkedHashMap<>();
 
                 for (Map.Entry<String, Object> ef : values.entrySet()) {
-                    String fieldName = morphium.getARHelper().getMongoFieldName(cls, ef.getKey());
-                    toSet.put(fieldName, marshallIfNecessary(ef.getValue()));
+                    if (ef.getKey().startsWith("$") && ef.getValue() instanceof Map) {
+                        Map<String, Object> fields = new LinkedHashMap<>();
+
+                        for (Map.Entry<?, ?> f : ((Map<?, ?>) ef.getValue()).entrySet()) {
+                            fields.put(morphium.getARHelper().getMongoFieldName(cls, String.valueOf(f.getKey())), marshallIfNecessary(f.getValue()));
+                        }
+
+                        operators.put(ef.getKey(), fields);
+                    } else {
+                        String fieldName = morphium.getARHelper().getMongoFieldName(cls, ef.getKey());
+                        toSet.put(fieldName, marshallIfNecessary(ef.getValue()));
+                    }
                 }
 
-                Map<String, Object> update = UtilsMap.of("$set", toSet);
+                Object explicitSet = operators.remove("$set");
+
+                if (explicitSet instanceof Map) {
+                    toSet.putAll((Map<String, Object>) explicitSet);
+                }
+
+                Map<String, Object> update = new LinkedHashMap<>();
+
+                if (!toSet.isEmpty() || operators.isEmpty()) {
+                    update.put("$set", toSet);
+                }
+
+                update.putAll(operators);
                 Map<String, Object> qobj = query.toQueryObject();
                 // Entity en = morphium.getARHelper() .getAnnotationFromHierarchy(cls,
                 // Entity.class);
