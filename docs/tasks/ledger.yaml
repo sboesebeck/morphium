@@ -1066,7 +1066,7 @@ tasks:
 - id: MOR-045
   title: 'Update documents: a String value for _id of a MorphiumId entity is not coerced'
   type: defect
-  status: open
+  status: done
   priority: 3
   effort: S
   description: With key translation an id key of the update becomes _id and pins the id; a String value for an entity
@@ -1078,6 +1078,9 @@ tasks:
   depends_on:
   - MOR-041
   source: *id001
+  evidence: 'IdValueCoercionTest (3 tests, InMemoryDriver and mongo:8 with the PooledDriver): an upsert with $setOnInsert id as a 24 digit String stores an id that reads back through the mapper, a String that is no id is refused and nothing is written, a MorphiumId is stored as it is; two failed before the change (a String _id, no refusal). UpdateValueMarshallingTest, ModifyValuesAndKeysTest, FindOneAndUpdateUpsertTest and UpdateContractLedgerTest pass.'
+  commits:
+  - FIXME
 - id: MOR-046
   title: BufferedMorphiumWriterImpl does not marshal update values and emits push for a pull of a list
   type: defect

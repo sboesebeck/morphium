@@ -187,6 +187,10 @@ The switch that restored the silent behaviour of rejected writes was introduced 
 
 ### Fixed
 
+#### Update documents: a String id for an entity with a `MorphiumId` is an id (MOR-045)
+The key `id` of a `findOneAndUpdate(Map)` update becomes `_id`. A String value for an entity whose `@Id` is a `MorphiumId` (or an `ObjectId`) was written as a String `_id`, which the mapper cannot read back. A String of 24 hexadecimal digits becomes the id now (`$set`, `$setOnInsert`); any other String is refused with an `IllegalArgumentException` that names the value, before anything is written. Ids of other types and values that already are ids are left alone.
+
+
 #### `@Version(fieldName = ...)`: store, filter and update builder use the same stored name (MOR-044)
 `getFields` honoured only the field names of `@Reference` and `@Property`, so `store()` wrote a `@Version(fieldName = "rev")` field under its Java name (`revision`) while `getMongoFieldName` and the filters used `rev`. `getFields` and `getField` honour `@Version(fieldName)` now: the version is stored under `rev`, read back from it and found by a filter on the Java name. The update builder, which rejected such an entity because of this, increments the field under its stored name (an insert starts at 1). Documents of an entity with `@Version(fieldName)` that were stored under the Java name before keep that name: they read back with a version of 0 and are not found by a filter on the stored name; migrate them (rename the field) or remove the `fieldName`.
 
