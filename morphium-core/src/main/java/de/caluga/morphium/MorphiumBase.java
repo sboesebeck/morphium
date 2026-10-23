@@ -105,7 +105,30 @@ public abstract class MorphiumBase {
             throw new RuntimeException("Cannot update null!");
         }
 
-        return getWriterForClass(query.getType()).inc(query, toUpdate, upsert, multiple, callback);
+        Map<String, Number> negated = new LinkedHashMap<>();
+        toUpdate.forEach((k, v) -> negated.put(k, negate(v)));
+        return getWriterForClass(query.getType()).inc(query, negated, upsert, multiple, callback);
+    }
+
+    /** -amount in the number type of the amount (an Integer stays an Integer, so that decrementing an int field does not turn it into a double) */
+    static Number negate(Number amount) {
+        if (amount instanceof Integer i) {
+            return i == Integer.MIN_VALUE ? (Number) (-(long) i) : (Number) (-i);
+        }
+
+        if (amount instanceof Long l) {
+            return -l;
+        }
+
+        if (amount instanceof Float f) {
+            return -f;
+        }
+
+        if (amount instanceof Short || amount instanceof Byte) {
+            return -amount.intValue();
+        }
+
+        return -amount.doubleValue();
     }
 
     public Map<String, Object> inc(final Query<?> query, final String name, final long amount, final boolean upsert, final boolean multiple) {
@@ -217,7 +240,7 @@ public abstract class MorphiumBase {
             throw new RuntimeException("Cannot update null!");
         }
 
-        return getWriterForClass(query.getType()).inc(query, name, -amount.doubleValue(), upsert, multiple, callback);
+        return getWriterForClass(query.getType()).inc(query, name, negate(amount), upsert, multiple, callback);
     }
 
     /**
@@ -317,7 +340,7 @@ public abstract class MorphiumBase {
     }
 
     public void dec(Object toDec, String field, Number amount) {
-        inc(toDec, field, -amount.doubleValue());
+        inc(toDec, field, negate(amount));
     }
 
     public void inc(final Object toSet, final Enum<?> field, final long i) {
@@ -912,7 +935,7 @@ public abstract class MorphiumBase {
 
     @SuppressWarnings("unused")
     public Map<String, Object> dec(Query<?> query, Enum<?> field, Number amount, boolean upsert, boolean multiple) {
-        return dec(query, field.name(), amount.doubleValue(), upsert, multiple);
+        return dec(query, field.name(), amount, upsert, multiple);
     }
 
     @SuppressWarnings("unused")
@@ -934,7 +957,7 @@ public abstract class MorphiumBase {
 
     @SuppressWarnings("unused")
     public Map<String, Object> dec(Query<?> query, String field, Number amount, boolean upsert, boolean multiple) {
-        return inc(query, field, -amount.doubleValue(), upsert, multiple);
+        return inc(query, field, negate(amount), upsert, multiple);
     }
 
     @SuppressWarnings("unused")
@@ -953,7 +976,7 @@ public abstract class MorphiumBase {
 
     @SuppressWarnings("unused")
     public Map<String, Object> dec(Query<?> query, String field, Number amount) {
-        return inc(query, field, -amount.doubleValue(), false, false);
+        return inc(query, field, negate(amount), false, false);
     }
 
     @SuppressWarnings({"UnusedDeclaration"})
@@ -973,7 +996,7 @@ public abstract class MorphiumBase {
 
     @SuppressWarnings("unused")
     public Map<String, Object> dec(Query<?> query, Enum<?> field, Number amount) {
-        return inc(query, field, -amount.doubleValue(), false, false);
+        return inc(query, field, negate(amount), false, false);
     }
 
     @SuppressWarnings("unused")

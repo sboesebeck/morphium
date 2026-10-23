@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### `Morphium.dec` with a Map or a `Number` amount subtracts, in the number's own type; the Map variants of `inc`/`dec` write the stored field names (MOR-060/061/062, from Heiko Kopp's #424)
+`dec(Query, Map)` and `dec(Map<Enum, Number>, Query)` handed the amounts to `inc` unchanged and therefore added instead of subtracting. `dec` with a `Number` amount (`Query.dec(field, Integer)`, `dec(entity, field, Number)`) negated through `doubleValue()` and turned an int counter into a double on the server. The Map variants of `inc`/`dec` wrote the Java field names into `$inc`, so an entity with translated names got a stray field instead of its counter changed. The amount is now negated in its own number type and the keys are translated like every other update path. Ported from the 7.0 update-path stack (`fa03a4142`) without the dotted-path resolution, which needs the key-translation layer of that stack. Pinned by `DecIncMapVariantsTest`.
+
 #### `Morphium.currentDate` sets the date instead of failing silently (MOR-004, from Heiko Kopp's #413)
 `currentDate(query, field, ...)` delegated to `set(query, {"$currentDate": {field: 1}})`, so the operator ended up INSIDE a `$set` (`{"$set": {"$currentDate": {...}}}`). A real MongoDB rejected that with code 52 in the `writeErrors` of the returned map (no exception, the field stayed unchanged), and the InMemoryDriver reported `n=1, nModified=1` without changing anything. `Query.set` now treats a map entry whose key starts with `$` and whose value is a map as an update operator of its own (it can be mixed with plain fields and is not sent as an empty `$set` if it is the only entry), and `currentDate` sends `true` instead of `1` (MongoDB rejects an int). The InMemoryDriver rejects a `$`-prefixed field name under `$set` with code 52 like MongoDB. Cherry-picked from the 7.0 update-path stack for the next 6.x release.
 

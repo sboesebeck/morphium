@@ -2023,7 +2023,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(cls), MorphiumStorageListener.UpdateTypes.INC);
                 String coll = query.getCollectionName();
                 Map<String, Object> update = new HashMap<>();
-                update.put("$inc", new HashMap<String, Object>(fieldsToInc));
+                // the Map variants of inc/dec used to write the Java field names into $inc (MOR-060)
+                Map<String, Object> incs = new LinkedHashMap<>();
+                fieldsToInc.forEach((k, v) -> incs.put(morphium.getARHelper().getMongoFieldName(cls, k), v));
+                update.put("$inc", incs);
                 handleLastChange((Class <? extends T > ) cls, update);
                 Map<String, Object> qobj = query.toQueryObject();
 
