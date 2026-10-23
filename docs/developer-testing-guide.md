@@ -149,6 +149,18 @@ morphium.readTimeout=10000
 morphium.serverSelectionTimeout=15000
 ```
 
+### Update contract suite
+
+`de.caluga.test.mongo.suite.contract` holds a table of raw update statements with the result of a real MongoDB (`UpdateContract`), run as `update` and as `findAndModify`
+on every driver of `getMorphiumInstances()`. Where the InMemoryDriver deviates, the case pins what it does today and names the ledger task that removes the deviation
+(`Case.inMem("MOR-nnn", result)`); `UpdateContractLedgerTest` fails when such a task is done or unknown, so a fixed deviation cannot stay pinned. To check a change of the
+InMemoryDriver update code against a real MongoDB, run the suite on both drivers:
+
+```bash
+mvn -pl morphium-core test -Pexternal -Dmorphium.driver=pooled,inmem \
+    -Dmorphium.uri=mongodb://127.0.0.1:27017/morphium_contract -Dtest='*ContractTest,UpdateContractLedgerTest'
+```
+
 ## runtests.sh Script
 
 The `runtests.sh` script provides a convenient wrapper around Maven with additional features.

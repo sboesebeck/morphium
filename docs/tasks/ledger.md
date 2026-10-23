@@ -4,14 +4,13 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 39, done 13
+Status: open 44, done 14
 
 ## Overview
 
 | ID | Status | Prio | Type | Title | Effort | Ticket | Depends on |
 |---|---|---|---|---|---|---|---|
 | MOR-027 | open | 1 | documentation | Documentation page: raw commands, embedded objects and lifecycle contract | S |  |  |
-| MOR-028 | open | 1 | infrastructure | Contract tests InMem vs real MongoDB for all update paths | M |  |  |
 | MOR-005 | open | 2 | verification | Audit Query.set/inc/push write paths for swallowed writeErrors and missing name translation | S |  |  |
 | MOR-007 | open | 2 | implementation | Option A extension: min, max, mul, rename, currentDate, addToSet/push with each | M |  | MOR-006 |
 | MOR-008 | open | 2 | implementation | Options object for findAndModify and a defined result for upsert without returnNew | S |  | MOR-006 |
@@ -30,6 +29,10 @@ Status: open 39, done 13
 | MOR-037 | open | 2 | defect | Morphium.simplifyQueryObject loses predicates for repeated operator keys | S |  |  |
 | MOR-043 | open | 2 | defect | Query.f should resolve field paths with resolveFieldPath | M |  | MOR-041 |
 | MOR-046 | open | 2 | defect | BufferedMorphiumWriterImpl does not marshal update values and emits push for a pull of a list | M |  | MOR-042 |
+| MOR-053 | open | 2 | defect | InMemoryDriver: type checks of the update operators ($inc, $mul, $push, $addToSet, $pull, $pop) | M |  |  |
+| MOR-054 | open | 2 | defect | InMemoryDriver: validate the shape of an update document (unknown operator, mixed fields, _id, names) | S |  |  |
+| MOR-055 | open | 2 | defect | InMemoryDriver: number and BSON comparison semantics of $inc, $mul, $min, $max and $addToSet | M |  |  |
+| MOR-058 | open | 2 | defect | InMemoryDriver: findAndModify does not reject what the update command rejects | S |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
 | MOR-015 | open | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
@@ -49,11 +52,14 @@ Status: open 39, done 13
 | MOR-049 | open | 3 | implementation | Writer path has no guard for @Reference and @Encrypted fields | M |  | MOR-042 |
 | MOR-051 | open | 3 | defect | InMemoryDriver: reject path conflicts in update documents like MongoDB | S |  |  |
 | MOR-052 | open | 3 | defect | updateLastAccess writes the untranslated Java field name | S |  |  |
+| MOR-056 | open | 3 | defect | InMemoryDriver: upsert seeds the equalities of a single-branch $or | S |  |  |
+| MOR-057 | open | 3 | defect | InMemoryDriver: an inserted document is stored by reference | S |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
 | MOR-004 | done | 1 | defect | MorphiumBase.currentDate sends $set: {$currentDate: ...} and fails silently | S |  |  |
 | MOR-006 | done | 1 | implementation | Option A core: mapper-aware update builder (set, setOnInsert, inc, unset) with findOneAndUpdate terminal | L |  | MOR-001, MOR-002 |
+| MOR-028 | done | 1 | infrastructure | Contract tests InMem vs real MongoDB for all update paths | M |  |  |
 | MOR-030 | done | 1 | defect | InMemoryDriver: honour the filter in conditional upsert and raise E11000 | M |  |  |
 | MOR-009 | done | 2 | implementation | Lifecycle handling in the builder: @LastChange, @CreationTime, @Version | M |  | MOR-006 |
 | MOR-010 | done | 2 | implementation | Typed duplicate-key exception and typed result for a lost conditional upsert | M |  | MOR-006 |
@@ -506,9 +512,11 @@ Source: docs/research/reproduction-results.md, update-path research, 2026-10-15
 
 ### MOR-028 Contract tests InMem vs real MongoDB for all update paths
 
-Status **open**, priority 1, type infrastructure, effort M
+Status **done**, priority 1, type infrastructure, effort M
 
 Turn the reproduction tests into a maintained contract suite that runs the same update paths ($set with embedded lists/sets, $setOnInsert, $inc, $addToSet, $currentDate, conditional upsert, raw key names) against both drivers and declares divergences explicitly. The repo has no known-defect annotation; introduce a small one or an assumption convention so divergences are tracked, not hidden. Move the tests out of the repro package when the defects are fixed.
+
+Evidence: Contract suite (FieldOperator, ArrayOperator, UpsertAndError, StatementIsolation and UpdateContractLedgerTest, 26 invocations) with 125 statements run as update command and as findAndModify: green on PooledDriver (mongo:8, v8.3.x) with no pinned deviation, and on the InMemoryDriver with the deviations pinned. The expectations were written from the MongoDB semantics and all matched mongo:8 on the first run. The suite found 31 InMemoryDriver deviations, tracked as MOR-051, MOR-053 to MOR-058; each pin names its task and UpdateContractLedgerTest fails when the task is done or unknown (mutation checked: marking MOR-058 done fails it). Harness mutation check: a wrong expectation fails with the case name. Default build (InMemoryDriver only) stays green. Not covered: $currentDate, $bit, pipeline updates, collation, hint, transactions, the Morphium write paths above the raw statement layer.
 
 Acceptance:
 
@@ -518,6 +526,8 @@ Acceptance:
 - Verified against a real MongoDB (not only the InMemoryDriver).
 
 Source: docs/research/reproduction-results.md, update-path research, 2026-10-15
+
+Commits: b3db32f0a
 
 ### MOR-029 InMemoryDriver: reject values BsonEncoder cannot encode
 
@@ -850,7 +860,8 @@ A real MongoDB rejects an update document that touches the same path twice or a 
 
 Acceptance:
 
-- The InMemoryDriver rejects set a plus set a.b and set plus inc on one path with code 40, like mongo:8
+- The InMemoryDriver rejects set a plus set a.b, set plus inc, set plus unset, a parent set plus a child unset and push plus pull on one path with code 40, like mongo:8
+- The pinned deviations in the update contract suite that name this task are removed
 
 Source: docs/research/plan-mor-006.md
 
@@ -865,4 +876,82 @@ Acceptance:
 - After a findOneAndUpdate on an @LastAccess entity the stored last-access field is updated under its stored name, on a real MongoDB
 
 Source: docs/research/plan-mor-006.md
+
+### MOR-053 InMemoryDriver: type checks of the update operators ($inc, $mul, $push, $addToSet, $pull, $pop)
+
+Status **open**, priority 2, type defect, effort M
+
+Found by the update contract suite (MOR-028). A real MongoDB rejects $inc and $mul on a string or null and with a non-numeric operand (code 14), $push and $addToSet on a field that is not an array (code 2), $pop on a non-array (code 14) and $pull on a non-array (code 2), and a failing statement changes nothing. The InMemoryDriver ignores $inc, $mul and $pull on the wrong type without an error, applies the other operators of the statement before the failing one, and fails $push, $addToSet and $pop with an exception that is not a MorphiumDriverException. Tests that run on the InMemoryDriver therefore pass with updates that a real MongoDB refuses.
+
+Acceptance:
+
+- The InMemoryDriver raises a MorphiumDriverException with the same code as mongo:8 for each of these cases, before any change of the document (a multi update stops at the first error without a rollback of earlier documents)
+- The pinned deviations in the update contract suite that name this task are removed
+
+Source: docs/research/plan-mor-028.md
+
+### MOR-054 InMemoryDriver: validate the shape of an update document (unknown operator, mixed fields, _id, names)
+
+Status **open**, priority 2, type defect, effort S
+
+Found by the update contract suite (MOR-028). A real MongoDB rejects an unknown operator and operators mixed with plain fields (code 9), a change of _id (code 66), an empty field name (code 56), $rename onto itself or with a non-string target (code 2) and an arrayFilters identifier that the update does not use (code 9). The InMemoryDriver applies a change of _id, stores a field with an empty or numeric name, ignores a rename onto itself, and fails the other cases with an exception that is not a MorphiumDriverException.
+
+Acceptance:
+
+- The InMemoryDriver raises a MorphiumDriverException with the same code as mongo:8 for each of these cases and changes nothing
+- The pinned deviations in the update contract suite that name this task are removed
+
+Source: docs/research/plan-mor-028.md
+
+### MOR-055 InMemoryDriver: number and BSON comparison semantics of $inc, $mul, $min, $max and $addToSet
+
+Status **open**, priority 2, type defect, effort M
+
+Found by the update contract suite (MOR-028). $inc on an int that overflows wraps around to a negative int in the InMemoryDriver, a real MongoDB widens to a long. $mul of an int by a double and $min / $max across types (a number against a string) or with an equal value of another number type fail with an exception, a real MongoDB follows the BSON comparison order. $addToSet treats 1 and 1.0 as different values and a document with another field order as equal, a real MongoDB does the opposite. A wrapped counter is silent data corruption in tests.
+
+Acceptance:
+
+- The InMemoryDriver gives the results of mongo:8 for the cases of the update contract suite that name this task
+- The pinned deviations in the update contract suite that name this task are removed
+
+Source: docs/research/plan-mor-028.md
+
+### MOR-056 InMemoryDriver: upsert seeds the equalities of a single-branch $or
+
+Status **open**, priority 3, type defect, effort S
+
+Found by the update contract suite (MOR-028). A real MongoDB seeds the document of an upsert from the equality of a $or with a single branch, the InMemoryDriver ignores it, so the inserted document lacks the field.
+
+Acceptance:
+
+- An upsert with a single-branch $or inserts the seeded field on the InMemoryDriver, like mongo:8
+- The pinned deviation in the update contract suite is removed
+
+Source: docs/research/plan-mor-028.md
+
+### MOR-057 InMemoryDriver: an inserted document is stored by reference
+
+Status **open**, priority 3, type defect, effort S
+
+Found by the update contract suite (MOR-028). InsertMongoCommand on the InMemoryDriver stores the map the caller passed, so a later update through the driver changes the caller's own map (and a change of the map changes the stored document). A wire driver serialises the document and cannot do either. Morphium.store() is not affected because the mapper creates a new map per call; raw command users and test fixtures are.
+
+Acceptance:
+
+- After an insert and an update on the InMemoryDriver the document the caller passed to the insert is unchanged
+- The pinned deviation in StatementIsolationContractTest is replaced by the common expectation
+
+Source: docs/research/plan-mor-028.md
+
+### MOR-058 InMemoryDriver: findAndModify does not reject what the update command rejects
+
+Status **open**, priority 2, type defect, effort S
+
+Found by the update contract suite (MOR-028). The InMemoryDriver update command rejects a field name with a leading dollar sign (code 52) and setting a field below a scalar or below an array with a non-numeric segment (code 28), like a real MongoDB. The findAndModify path of the InMemoryDriver, which the lease and counter use cases run through, silently accepts all three: it stores nothing, or leaves the document unchanged, and reports success.
+
+Acceptance:
+
+- findAndModify on the InMemoryDriver raises the same error as mongo:8 for these cases and changes nothing
+- The pinned deviations in the update contract suite that name this task are removed
+
+Source: docs/research/plan-mor-028.md
 
