@@ -21,7 +21,7 @@ import java.util.Set;
  * <p>
  * Contract (MOR-002, MOR-041):
  * <ul>
- * <li>An update document without any {@code $}-operator key (a replacement document) is returned as it is.</li>
+ * <li>A non-empty update document without any {@code $}-operator key is wrapped in {@code $set} (MOR-013); an empty one is returned as it is.</li>
  * <li>With {@code translateKeys} the key of every operator map, including {@code $unset} and the key and the target of {@code $rename}, is
  * resolved with {@link de.caluga.morphium.AnnotationAndReflectionHelper#resolveFieldPath(Class, String)}: Java names become stored names,
  * stored names, {@code @Aliases}, unknown, positional and {@code $}-prefixed keys stay as they are. Without it the keys are used as given.</li>
