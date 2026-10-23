@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 13, done 88
+Status: open 12, done 89
 
 ## Overview
 
@@ -19,7 +19,6 @@ Status: open 13, done 88
 | MOR-032 | open | 3 | implementation | Quarkus: named Morphium instances | M |  |  |
 | MOR-033 | open | 3 | implementation | Quarkus: CDI integration for Morphium messaging | M |  |  |
 | MOR-035 | open | 3 | implementation | Records and value objects in the mapper | L |  |  |
-| MOR-038 | open | 3 | defect | Replacement documents, findOneAndUpdateEnums and Expr values still fail with POJOs in update maps | M |  | MOR-002 |
 | MOR-039 | open | 3 | documentation | Document pitfalls of update maps: $pull condition keys and mixed element shapes | S |  | MOR-027 |
 | MOR-049 | open | 3 | implementation | Writer path has no guard for @Reference and @Encrypted fields | M |  | MOR-042 |
 | MOR-071 | open | 3 | defect | Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange | S |  |  |
@@ -90,6 +89,7 @@ Status: open 13, done 88
 | MOR-102 | done | 2 | implementation | Release 7.0: remove the global raiseOnWriteErrors switch and bring the version statements of our changes in line | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-013 | done | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
+| MOR-038 | done | 3 | defect | Replacement documents, findOneAndUpdateEnums and Expr values still fail with POJOs in update maps | M |  | MOR-002 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-044 | done | 3 | defect | Version annotation with fieldName: store and filter disagree on the stored name | S |  |  |
 | MOR-045 | done | 3 | defect | Update documents: a String value for _id of a MorphiumId entity is not coerced | S |  | MOR-041 |
@@ -812,9 +812,11 @@ Commits: 96ac49921
 
 ### MOR-038 Replacement documents, findOneAndUpdateEnums and Expr values still fail with POJOs in update maps
 
-Status **open**, priority 3, type defect, effort M
+Status **done**, priority 3, type defect, effort M
 
 After MOR-002 the operator maps are marshalled, but a replacement document, the values passed to findOneAndUpdateEnums and the values inside an Expr still reach the encoder with POJOs. Route these three paths through the same value walk.
+
+Evidence: ExprValueUpdateTest (embedded object in an Expr, embedded objects in a document Expr) green on the InMemoryDriver and MongoDB 8 (PooledDriver); 53 related update and Expr tests unchanged on the InMemoryDriver.
 
 Acceptance:
 
@@ -823,6 +825,8 @@ Acceptance:
 Depends on: MOR-002
 
 Source: docs/research/plan-mor-001-002-003.md
+
+Commits: FIXME
 
 ### MOR-039 Document pitfalls of update maps: $pull condition keys and mixed element shapes
 

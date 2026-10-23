@@ -191,6 +191,10 @@ The switch that restored the silent behaviour of rejected writes was introduced 
 
 ### Fixed
 
+#### Update documents: an `Expr` as a value is replaced by what it describes, and the values inside are marshalled (MOR-038)
+An `Expr` in the operand of an update (`{"$set": {"inner": Expr.parse(pojo)}}`) reached the encoder as a Java object: a document expression (`Expr.mapExpr`) was stored as nothing and a POJO inside an `Expr` failed with `Unhandled Data type`. The update-value walk replaces an `Expr` by its `toQueryObject()` and marshals the result like every other value (embedded objects with `class_name`, enums, `java.time`). The other two paths of the task are covered by MOR-013: a map without operators is a `$set` and goes through the same walk, and so does `findOneAndUpdateEnums`. Tests: `ExprValueUpdateTest` (InMemoryDriver and MongoDB 8).
+
+
 #### Update documents: a String id for an entity with a `MorphiumId` is an id (MOR-045)
 The key `id` of a `findOneAndUpdate(Map)` update becomes `_id`. A String value for an entity whose `@Id` is a `MorphiumId` (or an `ObjectId`) was written as a String `_id`, which the mapper cannot read back. A String of 24 hexadecimal digits becomes the id now (`$set`, `$setOnInsert`); any other String is refused with an `IllegalArgumentException` that names the value, before anything is written. Ids of other types and values that already are ids are left alone.
 
