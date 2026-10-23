@@ -8319,10 +8319,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     if (ordered) {
                         throw new MorphiumDriverException("Duplicate _id! " + o.get("_id"), null);
                     }
+                    // mongod's shape: keyPattern/keyValue name the violated index and key, the
+                    // message names the index - the write retry's own-_id reconciliation
+                    // (InsertMongoCommand) reads exactly these fields
                     writeErrors.add(Doc.of(
                         "index", origIdx.get(objIdx),
                         "code", 11000,
-                        "errmsg", "E11000 duplicate key error collection: " + db + "." + collection + " dup key: { _id: " + o.get("_id") + " }"
+                        "keyPattern", Doc.of("_id", 1),
+                        "keyValue", Doc.of("_id", o.get("_id")),
+                        "errmsg", "E11000 duplicate key error collection: " + db + "." + collection
+                                  + " index: _id_ dup key: { _id: " + o.get("_id") + " }"
                     ));
                     idDuplicatePos.add(objIdx);
                     continue;
