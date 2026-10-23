@@ -2014,4 +2014,4 @@ tasks:
   - morphium-core/src/main/java/de/caluga/morphium/query/Query.java
   evidence: 'RaiseOnWriteErrorsTest, BulkRaiseOnWriteErrorsTest, DeleteRaisesOnRejectedDeleteTest, StoreRaisesOnRejectedUpdateTest, QueryRaiseOnWriteErrorsTest, MorphiumConfigTest and FindAndModifyWriteErrorTest pass on the InMemoryDriver and against mongo:8 with the PooledDriver; the tests of the switch (bulk, store, config) were removed, the delete and query tests use the per-query override; all modules build. Not changed: the research notes under docs/research (history).'
   commits:
-  - FIXME
+  - 99a6a56db

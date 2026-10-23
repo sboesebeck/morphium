@@ -1816,5 +1816,5 @@ Acceptance:
 
 Source: morphium-core/src/main/java/de/caluga/morphium/config/WriterSettings.java, morphium-core/src/main/java/de/caluga/morphium/query/Query.java
 
-Commits: FIXME
+Commits: 99a6a56db
 
