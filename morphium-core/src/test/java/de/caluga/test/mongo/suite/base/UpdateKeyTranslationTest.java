@@ -434,12 +434,9 @@ public class UpdateKeyTranslationTest extends MultiDriverTestBase {
             assertEquals("A", renewed.ownerName);
             assertEquals(1, m.createQueryFor(Lease.class).countAll());
 
-            if (!(m.getDriver() instanceof InMemoryDriver)) {
-                // MOR-030: the InMemoryDriver takes a held lease over instead of raising a duplicate key error
-                Throwable t = assertThrows(RuntimeException.class, () -> leaseFilter(m, "B").findOneAndUpdate(set("ownerName", "B", "expiresAt", new Date(System.currentTimeMillis() + 60_000)), true, true));
-                assertNotNull(t);
-                assertEquals("A", m.createQueryFor(Lease.class).get().ownerName);
-            }
+            Throwable t = assertThrows(RuntimeException.class, () -> leaseFilter(m, "B").findOneAndUpdate(set("ownerName", "B", "expiresAt", new Date(System.currentTimeMillis() + 60_000)), true, true));
+            assertNotNull(t);
+            assertEquals("A", m.createQueryFor(Lease.class).get().ownerName);
 
             // release: expire the lease and drop the owner, with Java names
             leaseFilter(m, "A").findOneAndUpdate(UtilsMap.of("$set", UtilsMap.of("expiresAt", new Date(System.currentTimeMillis() - 1000)), "$unset", UtilsMap.of("ownerName", "")), false, true);

@@ -114,20 +114,6 @@ public class ConditionalUpsertReproductionTest extends MultiDriverTestBase {
         }
     }
 
-    /**
-     * InMemoryDriver divergence: a non-matching filter with upsert=true and an existing document with the same
-     * _id does NOT raise a duplicate key error; the existing document is silently overwritten by the upsert,
-     * i.e. in an InMem test B "steals" the lease that A holds.
-     */
-    private void assertInMemOverwroteHeldLease(Morphium morphium, Outcome<Lease> second) {
-        assertFalse(second.failed(), "InMem does not raise E11000: " + second.describe());
-        List<Map<String, Object>> docs = morphium.createQueryFor(Lease.class).asMapList();
-        assertEquals(1, docs.size(), String.valueOf(docs));
-        assertEquals("job", docs.get(0).get("_id"));
-        assertEquals("B", docs.get(0).get("owner"), "the held lease was silently taken over: " + docs);
-        assertEquals("B", second.value.owner);
-    }
-
     private void assertDuplicateKey(Morphium morphium, Outcome<?> o) {
         MorphiumDriverException mde = o.find(MorphiumDriverException.class);
         assertNotNull(mde, "expected MorphiumDriverException in chain: " + o.describe());
@@ -162,10 +148,6 @@ public class ConditionalUpsertReproductionTest extends MultiDriverTestBase {
             Outcome<Lease> second = ReproSupport.attempt(() -> acquireFilter(morphium, "job", "B").findOneAndUpdate(acquireUpdatePinned("job", "B", 60_000), true, true));
             ReproSupport.report(driver, "H5 held lease (non-matching filter, upsert=true)", second.describe());
             ReproSupport.report(driver, "H5 held lease: raw documents afterwards", String.valueOf(morphium.createQueryFor(Lease.class).asMapList()));
-            if (isInMem(morphium)) {
-                assertInMemOverwroteHeldLease(morphium, second);
-                return;
-            }
             assertTrue(second.failed(), "expected a failure, got " + second.describe());
             assertDuplicateKey(morphium, second);
             assertTrue(second.describe().contains("E11000") && second.describe().contains("duplicate key"), second.describe());
@@ -210,10 +192,6 @@ public class ConditionalUpsertReproductionTest extends MultiDriverTestBase {
                     () -> viaRawCommand(morphium, acquireFilter(morphium, "job", "B"), acquireUpdate("B", 60_000), true, true));
             ReproSupport.report(driver, "H5 raw command: held lease", second.describe());
             ReproSupport.report(driver, "H5 raw command: raw documents after held lease", String.valueOf(morphium.createQueryFor(Lease.class).asMapList()));
-            if (isInMem(morphium)) {
-                assertInMemOverwroteHeldLease(morphium, second);
-                return;
-            }
             assertTrue(second.failed(), second.describe());
             assertDuplicateKey(morphium, second);
             assertEquals(1, morphium.createQueryFor(Lease.class).countAll());
@@ -227,7 +205,7 @@ public class ConditionalUpsertReproductionTest extends MultiDriverTestBase {
      * InMemoryDriver stored the document under the generated id. Now the _id reachable through {@code $and} counts as
      * pinned (the server seeds it from the filter, see docs/research/upsert-id-seeding-probe.md): the first acquire inserts
      * the document under "job", and a second contender gets the duplicate key error of a held lease on a real MongoDB.
-     * The InMemoryDriver still overwrites the held lease (MOR-030).
+     * The InMemoryDriver behaves the same since MOR-030 (it used to overwrite the held lease).
      */
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
@@ -247,15 +225,9 @@ public class ConditionalUpsertReproductionTest extends MultiDriverTestBase {
             ReproSupport.report(driver, "H5 Query path: raw documents afterwards", String.valueOf(morphium.createQueryFor(Lease.class).asMapList()));
             assertEquals(1, morphium.createQueryFor(Lease.class).countAll());
 
-            if (isInMem(morphium)) {
-                // MOR-030: the InMemoryDriver does not raise E11000 and takes the held lease over
-                assertFalse(second.failed(), second.describe());
-                assertEquals("B", second.value.owner);
-            } else {
-                assertTrue(second.failed(), second.describe());
-                assertDuplicateKey(morphium, second);
-                assertEquals("A", morphium.createQueryFor(Lease.class).f("_id").eq("job").get().owner);
-            }
+            assertTrue(second.failed(), second.describe());
+            assertDuplicateKey(morphium, second);
+            assertEquals("A", morphium.createQueryFor(Lease.class).f("_id").eq("job").get().owner);
         }
     }
 
