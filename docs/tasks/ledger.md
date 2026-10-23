@@ -4,14 +4,13 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 14, done 87
+Status: open 13, done 88
 
 ## Overview
 
 | ID | Status | Prio | Type | Title | Effort | Ticket | Depends on |
 |---|---|---|---|---|---|---|---|
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
-| MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
 | MOR-015 | open | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
 | MOR-016 | open | 3 | implementation | Migration tooling for changed key names | M |  | MOR-015 |
 | MOR-020 | open | 3 | implementation | Jakarta Data 1.1: @Is, constraints, @First and attribute-only Restriction | L |  | MOR-019, MOR-023 |
@@ -90,6 +89,7 @@ Status: open 14, done 87
 | MOR-099 | done | 2 | implementation | LeaseManager: a key other than the @Id, a fencing token, a generated _id, an acquisition time and renew | M |  |  |
 | MOR-102 | done | 2 | implementation | Release 7.0: remove the global raiseOnWriteErrors switch and bring the version statements of our changes in line | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
+| MOR-013 | done | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-044 | done | 3 | defect | Version annotation with fieldName: store and filter disagree on the stored name | S |  |  |
 | MOR-045 | done | 3 | defect | Update documents: a String value for _id of a MorphiumId entity is not coerced | S |  | MOR-041 |
@@ -346,9 +346,11 @@ Source: update-path research, 2026-10-15
 
 ### MOR-013 findOneAndUpdate(Map) accepts a plain field map (auto $set)
 
-Status **open**, priority 3, type implementation, effort S
+Status **done**, priority 3, type implementation, effort S
 
 Spring and Panache wrap a plain field map in $set when no top-level key starts with '$'. Adopt this rule for the raw Map overloads without changing behaviour for maps that already contain operators.
+
+Evidence: PlainMapUpdateTest (4 cases: $set keeps the other fields, upsert, a map with operators is unchanged, findOneAndUpdateEnums) and UpdateEntryPointsLifecycleTest green on the InMemoryDriver and on MongoDB 8 (PooledDriver).
 
 Acceptance:
 
@@ -358,6 +360,8 @@ Acceptance:
 Depends on: MOR-002
 
 Source: docs/research/other-clients.md pattern 3
+
+Commits: FIXME
 
 ### MOR-014 Option E: startup guard for @Embedded under @Entity(translateCamelCase=false)
 

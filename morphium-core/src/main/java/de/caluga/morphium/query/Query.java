@@ -494,7 +494,8 @@ public class Query<T> implements Cloneable {
      * Atomic find-and-update (no upsert), returns the document as it was BEFORE the update.
      * <p>
      * The values of the operator maps in {@code update} are marshalled, see
-     * {@link #findOneAndUpdate(Map, boolean, boolean)}.
+     * {@link #findOneAndUpdate(Map, boolean, boolean)}. A map without operators ({@code {"status": "done"}}) is an update of the fields it names ({@code $set}, MOR-013),
+     * not a replacement document: the fields that it does not name are kept.
      */
     public T findOneAndUpdate(Map<String, Object> update) {
         // find-and-update always has a write side-effect - it must never be served

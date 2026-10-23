@@ -382,7 +382,7 @@ tasks:
 - id: MOR-013
   title: findOneAndUpdate(Map) accepts a plain field map (auto $set)
   type: implementation
-  status: open
+  status: done
   priority: 3
   effort: S
   description: Spring and Panache wrap a plain field map in $set when no top-level key starts with '$'. Adopt this
@@ -394,6 +394,9 @@ tasks:
   - MOR-002
   source:
   - docs/research/other-clients.md pattern 3
+  evidence: 'PlainMapUpdateTest (4 cases: $set keeps the other fields, upsert, a map with operators is unchanged, findOneAndUpdateEnums) and UpdateEntryPointsLifecycleTest green on the InMemoryDriver and on MongoDB 8 (PooledDriver).'
+  commits:
+  - FIXME
 - id: MOR-014
   title: 'Option E: startup guard for @Embedded under @Entity(translateCamelCase=false)'
   type: implementation

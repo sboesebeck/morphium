@@ -55,8 +55,16 @@ final class UpdateDocumentMapper {
 
     @SuppressWarnings("unchecked")
     Map<String, Object> map(Map<String, Object> update) {
-        if (update == null || update.keySet().stream().noneMatch(k -> k != null && k.startsWith("$"))) {
+        if (update == null || update.isEmpty()) {
             return update;
+        }
+
+        if (update.keySet().stream().noneMatch(k -> k != null && k.startsWith("$"))) {
+            // MOR-013: a map without operators sets the fields it names, as in Spring Data and Panache. Handed on as it is it would be a replacement document: every field that
+            // the map does not name would be gone. A map with an operator at the top level, mixed or not, is left to the rules of the server.
+            Map<String, Object> set = new LinkedHashMap<>();
+            set.put("$set", update);
+            return map(set);
         }
 
         Map<String, Object> ret = new LinkedHashMap<>();
