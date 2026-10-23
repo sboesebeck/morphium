@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### `LeaseManager`: a key other than the `@Id`, a fencing token, a generated `_id` and `renew` (MOR-099, incubating)
+`LeaseManager.builder(morphium, JobLease.class)` with `keyField`, `ownerField`, `expiresAtField`, `acquiredAtField`, `fencingField`, `idGenerator` and `assumeUniqueKey()`; `LeaseManager.of(...)` is unchanged. A key field other than the `@Id` needs a declared unique index (`build()` refuses it otherwise): the unique index is what makes the second contender lose. Every grant (a new lease, a takeover, the holder acquiring again) counts the fencing token up, `LeaseResult.getFencingToken()` returns it. `renew(key, owner, token, ttl)` only moves the deadline, keeps the token and the acquisition time, filters on the token and returns the new status `LeaseResult.Status.LOST` if the lease was taken over; `release` keeps the counter. A lease is now expired at its deadline (`expiresAt <= now`, it was `<`). New page: [Conditional single-document writes](docs/howtos/conditional-writes.md), the pattern behind leases, job claims, idempotency keys and optimistic locks.
+
 #### Enums can be stored by their ordinal: `@Enumerated` and `objectMappingSettings().setEnumType(...)` (MOR-093)
 An enum is stored by the name of its constant, as before. `@Enumerated(EnumType.ORDINAL)` on a field (also for the enums in a `List`, `Set` or `Map` value) stores the ordinal, and the setting
 `objectMappingSettings().setEnumType(EnumType.ORDINAL)` (`morphium.enum-type` in Spring, `quarkus.morphium.enum-type` in Quarkus) does it for every field without the annotation; the annotation wins.
