@@ -2746,7 +2746,7 @@ public class PooledDriver extends DriverBase {
                     res.put("upsertedIds", upsertedIds);
                 }
 
-                raiseOrLog(db, collection, ordered, requests.size(), res, failures);
+                raiseRejected(db, collection, ordered, requests.size(), res, failures);
                 return res;
             }
 

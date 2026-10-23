@@ -31,7 +31,7 @@ public abstract class BulkRequestContext {
     /**
      * MOR-059: the end of an {@code execute()}. The failures of the requests were collected (an ordered context stops at the first one, an unordered one runs every
      * request); one {@link BulkWriteException} carrying the counts of what was applied is thrown. */
-    protected final void raiseOrLog(String db, String collection, boolean ordered, int requestCount, Map<String, Object> partialResult, List<MorphiumDriverException> failures) {
+    protected final void raiseRejected(String db, String collection, boolean ordered, int requestCount, Map<String, Object> partialResult, List<MorphiumDriverException> failures) {
         if (failures.isEmpty()) {
             return;
         }
