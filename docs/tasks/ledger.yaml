@@ -396,7 +396,7 @@ tasks:
   - docs/research/other-clients.md pattern 3
   evidence: 'PlainMapUpdateTest (4 cases: $set keeps the other fields, upsert, a map with operators is unchanged, findOneAndUpdateEnums) and UpdateEntryPointsLifecycleTest green on the InMemoryDriver and on MongoDB 8 (PooledDriver).'
   commits:
-  - FIXME
+  - e444b7ad7
 - id: MOR-014
   title: 'Option E: startup guard for @Embedded under @Entity(translateCamelCase=false)'
   type: implementation

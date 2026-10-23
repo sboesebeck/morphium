@@ -361,7 +361,7 @@ Depends on: MOR-002
 
 Source: docs/research/other-clients.md pattern 3
 
-Commits: FIXME
+Commits: e444b7ad7
 
 ### MOR-014 Option E: startup guard for @Embedded under @Entity(translateCamelCase=false)
 
