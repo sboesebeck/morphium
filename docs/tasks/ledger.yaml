@@ -1127,7 +1127,7 @@ tasks:
   source: *id002
   evidence: 'SetEnumTest (1 test, InMemoryDriver and mongo:8 with the PooledDriver): setEnum with an int and a String value stores 5 under counter_value and the text under label; it failed before the change (the field was not stored).'
   commits:
-  - FIXME
+  - d79de7ed2
 - id: MOR-049
   title: Writer path has no guard for @Reference and @Encrypted fields
   type: implementation

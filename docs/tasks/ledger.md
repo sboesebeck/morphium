@@ -991,7 +991,7 @@ Acceptance:
 
 Source: docs/research/plan-mor-042.md
 
-Commits: FIXME
+Commits: d79de7ed2
 
 ### MOR-049 Writer path has no guard for @Reference and @Encrypted fields
 
