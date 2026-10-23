@@ -249,6 +249,33 @@ morphium.createQueryFor(Measurement.class)
 each document defines one `$[<identifier>]` placeholder. Paths containing `$` bypass
 property-name translation, so write the MongoDB field names in the path.
 
+**Atomic update builder** (`Query.modify()`, incubating until 6.3):
+```java
+// lease: conditional upsert, a second contender gets a MorphiumDriverException with isDuplicateKey() == true
+Query<Lease> q = morphium.createQueryFor(Lease.class).f(Lease.Fields.id).eq(leaseId);
+q.or(morphium.createQueryFor(Lease.class).f(Lease.Fields.expiresAt).lt(now),
+     morphium.createQueryFor(Lease.class).f(Lease.Fields.ownerName).eq(me));
+try {
+    Lease l = q.modify()
+                .set(Lease.Fields.ownerName, me)           // Java names, stored names or dotted paths
+                .set(Lease.Fields.expiresAt, now.plus(ttl)) // values are marshalled: embedded objects, enums, java.time, collections
+                .setOnInsert(Lease.Fields.createdBy, me)
+                .upsert()
+                .findOneAndUpdate(ReturnDocument.AFTER);
+} catch (MorphiumDriverException e) {
+    if (e.isDuplicateKey()) { /* the lease is held */ } else { throw e; }
+}
+
+// counter
+long hits = morphium.createQueryFor(Counter.class).f("id").eq(key).modify().inc("hits", 1).upsert()
+                .findOneAndUpdate(ReturnDocument.AFTER).hits;
+```
+`set`, `setOnInsert`, `inc` and `unset` collect one update document; **nothing is written until `findOneAndUpdate(ReturnDocument)` is called**.
+Field names are always translated to the stored names, values are marshalled at the call, a path and its child (or two operators on one path) are
+rejected at the call, an empty update is rejected (it would replace the document), and an `@Version` field is incremented (an insert starts at 1) unless the
+update touches it. `ReturnDocument` has no default: an upsert that inserts returns `null` for `BEFORE`. `@LastChange` and `@CreationTime` are not applied (MOR-009),
+no update events are fired, skip, limit above 1, hint and projection are rejected. See the Javadoc of `UpdateBuilder` for the complete contract.
+
 ## Aggregation API
 
 ### Aggregator Interface

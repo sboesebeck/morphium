@@ -147,7 +147,7 @@ tasks:
 - id: MOR-006
   title: 'Option A core: mapper-aware update builder (set, setOnInsert, inc, unset) with findOneAndUpdate terminal'
   type: implementation
-  status: open
+  status: done
   priority: 1
   effort: L
   description: 'Query.modify() returns an UpdateBuilder with set, setOnInsert, inc, unset and upsert and the terminal
@@ -179,6 +179,26 @@ tasks:
   source:
   - docs/research/plan-mor-001-002-003.md
   - docs/research/plan-mor-006.md
+  evidence: 'New: JavaTimeInUpdateDocumentTest 6 (the spike: an Instant in an update document was not readable on
+    the InMemoryDriver, fixed by routing the java.time types through their mappers, shapes equal store() on both
+    drivers), FindOneAndUpdateArrayFiltersAndSortTest 8 (6 failed before the arrayFilters wiring), UpdateOperationsTest
+    16, MorphiumDriverExceptionDuplicateKeyTest 4, ModifyLeaseAndCounterTest 32, ModifyValuesAndKeysTest 26, ModifyValidationTest
+    34; all green on PooledDriver (mongo:8, v8.3.11) and InMemoryDriver. Lease: first acquire under the filter _id,
+    held lease isDuplicateKey on both drivers with the document untouched, 8 racing threads on a fresh and on an
+    expired lease have exactly one winner, store() after a builder upsert works and a stale store() is rejected.
+    Mutation check: with the version injection disabled 10 of the new tests fail. Regression subset (63 classes):
+    851 tests on the InMemoryDriver with 2 errors (ReferenceCascadeTest, Byte Buddy does not support Java 25, the
+    JDK of the run); on a real MongoDB plus InMem 992 tests with ReferenceCascadeTest (4), ExclusiveMessageTests.exclusiveTest/exclusivityTest
+    (fail identically on the commit before PR 3, see MOR-042), CoreFunctionalityTests.cachedObjectOperationsTest
+    (timing, passes when repeated, see MOR-042) and WriterPathWiringTest.currentDateStillDoesNotSetTheField, which
+    pinned the MOR-004 defect and was turned into the positive expectation. Not covered: updateOne/updateMany (MOR-050),
+    @LastChange/@CreationTime (MOR-009), PoppyDB, SingleMongoConnectDriver, replica sets, the Quarkus and Spring
+    modules.'
+  commits:
+  - 29c154343
+  - 22b58f60b
+  - 8d89c0770
+  - cdeba478e
 - id: MOR-007
   title: 'Option A extension: min, max, mul, rename, currentDate, addToSet/push with each'
   type: implementation
