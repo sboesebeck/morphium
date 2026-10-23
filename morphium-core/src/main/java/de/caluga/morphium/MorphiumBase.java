@@ -1085,7 +1085,7 @@ public abstract class MorphiumBase {
 
     @SuppressWarnings({"UnusedDeclaration"})
     public Map<String, Object> pullAll(Query<?> query, Enum<?> field, List<Object> value, boolean upsert, boolean multiple) {
-        return pull(query, field.name(), value, upsert, multiple, null);
+        return pullAll(query, field.name(), value, upsert, multiple, null);
     }
 
     public <T> Map<String, Object> push(final Query<T> query, final String field, final Object value, final boolean upsert, final boolean multiple) {
@@ -1299,7 +1299,8 @@ public abstract class MorphiumBase {
 
     @SuppressWarnings({"UnusedDeclaration"})
     public Map<String, Object> pullAll(Query<?> query, String field, List<Object> value, boolean upsert, boolean multiple) {
-        return pull(query, field, value, upsert, multiple, null);
+        // $pullAll: remove every element of the list (pull would remove the list as ONE element)
+        return pullAll(query, field, value, upsert, multiple, null);
     }
 
     /**
