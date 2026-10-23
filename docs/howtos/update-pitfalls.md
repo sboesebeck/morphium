@@ -118,6 +118,16 @@ Use the builder where `@Version` or `@LastChange` matter.
 
 Test: `UpdateEntryPointsLifecycleTest`.
 
+## 8. An entity for a `@Reference`, a plaintext value for an `@Encrypted` field
+
+An update does not know what the declared type of a field means for the storage. An entity in a `@Reference` field would be embedded
+as a full document instead of a reference, and a plaintext value in an `@Encrypted` field bypasses the encryption and cannot be read
+back. Every entry point refuses both with an `IllegalArgumentException` before anything is written: `findOneAndUpdate(Map)`, the builder
+and, since 7.0, the writer path (`Query.set`, `push`, `pushAll`, `pull` and the buffered writer). Pass the id of the referenced entity (or a
+`MorphiumReference`), and `store()` the entity to write an encrypted field (MOR-049).
+
+Test: `WriterPathGuardTest`.
+
 ## Checklist
 
 - Prefer `store()` for whole entities, the builder for partial updates.

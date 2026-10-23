@@ -89,6 +89,10 @@ An empty builder (it would replace the document), `setOnInsert` without `upsert(
 
 ### Changed
 
+#### Breaking: `Query.set`, `push`, `pushAll` and `pull` refuse an entity for a `@Reference` field and a plaintext value for an `@Encrypted` field (MOR-049)
+`findOneAndUpdate(Map)` and the update builder already refused both; the writer path (`Query.set`, `push`, `pushAll`, `pull`, `addToSet` and their entity and `Morphium` variants, synchronous and buffered) accepted them: an entity was embedded as a full document into a `@Reference` field, and a plaintext value was written into an `@Encrypted` field, where the encryption provider cannot read it back. Both are an `IllegalArgumentException` that names the field and the operator now, thrown on the calling thread before anything is written. The ids of referenced entities, `MorphiumReference`s and every other field are written as before. The rules sit in one place, `UpdateFieldGuards`, which the update document mapper uses as well. Code that relied on the embedding must write the id of the referenced entity; an encrypted field is written by `store()`. Tests: `WriterPathGuardTest` (InMemoryDriver and MongoDB 8).
+
+
 #### Breaking: a map without operators in `findOneAndUpdate(Map)` is a `$set`, not a replacement document (MOR-013)
 A map whose keys do not start with `$` (`{"status": "done"}`) was handed to the server as it was, which makes it a replacement document: every field that the map did not name was gone, and nothing marshalled its values. `Query.findOneAndUpdate(Map)`, its `upsert`/`returnNew` and `FindAndModifyOptions` overloads and `findOneAndUpdateEnums(Map)` wrap such a map in `$set` now, as Spring Data and Panache do, and marshal the values like those of `$set` (keys are translated, an `Instant` is a date, an embedded object an embedded document, a String id of a `MorphiumId` entity an id). A map with an operator at the top level is unchanged, mixed or not; an empty map stays as it is. Code that relied on the replacement (it had to name every field) must name the fields it wants to keep or use `store()`. Tests: `PlainMapUpdateTest` (InMemoryDriver and MongoDB 8).
 
