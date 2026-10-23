@@ -1055,7 +1055,7 @@ Acceptance:
 
 Source: docs/research/plan-mor-006.md
 
-Commits: FIXME
+Commits: ec1aeeec1
 
 ### MOR-053 InMemoryDriver: type checks of the update operators ($inc, $mul, $push, $addToSet, $pull, $pop)
 
