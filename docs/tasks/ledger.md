@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 9, done 92
+Status: open 8, done 93
 
 ## Overview
 
@@ -15,7 +15,6 @@ Status: open 9, done 92
 | MOR-016 | open | 3 | implementation | Migration tooling for changed key names | M |  | MOR-015 |
 | MOR-020 | open | 3 | implementation | Jakarta Data 1.1: @Is, constraints, @First and attribute-only Restriction | L |  | MOR-019, MOR-023 |
 | MOR-022 | open | 3 | implementation | Jakarta Data: derived update methods (updateByX) | M |  | MOR-006 |
-| MOR-023 | open | 3 | verification | Verify which Jakarta Data providers implement the 1.1 features | S |  |  |
 | MOR-032 | open | 3 | implementation | Quarkus: named Morphium instances | M |  |  |
 | MOR-033 | open | 3 | implementation | Quarkus: CDI integration for Morphium messaging | M |  |  |
 | MOR-035 | open | 3 | implementation | Records and value objects in the mapper | L |  |  |
@@ -86,6 +85,7 @@ Status: open 9, done 92
 | MOR-102 | done | 2 | implementation | Release 7.0: remove the global raiseOnWriteErrors switch and bring the version statements of our changes in line | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-013 | done | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
+| MOR-023 | done | 3 | verification | Verify which Jakarta Data providers implement the 1.1 features | S |  |  |
 | MOR-038 | done | 3 | defect | Replacement documents, findOneAndUpdateEnums and Expr values still fail with POJOs in update maps | M |  | MOR-002 |
 | MOR-039 | done | 3 | documentation | Document pitfalls of update maps: $pull condition keys and mixed element shapes | S |  | MOR-027 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
@@ -542,15 +542,19 @@ Source: docs/research/other-clients.md pattern 11
 
 ### MOR-023 Verify which Jakarta Data providers implement the 1.1 features
 
-Status **open**, priority 3, type verification, effort S
+Status **done**, priority 3, type verification, effort S
 
 Not verified in the research: whether Hibernate 7.4/8.x, Eclipse JNoSQL or Micronaut implement @Is, Restriction and @First, whether the 1.1.0-M4 jar differs from main in more than the file set, and whether TCK 1.1 contains update tests beyond UPDATE ... SET. Check before MOR-020 fixes its scope.
+
+Evidence: docs/research/jakarta-data-1.1.md section 6: provider table with sources checked at named tags (Hibernate ORM 7.4.13 no; 8.0.0.Beta3 and main yes, on API 1.1.0-M3/M4; Eclipse JNoSQL 1.1.20 no, 1.2.0-M2 yes on M4; Micronaut Data 5.2.4 yes on M4), what the TCK on main exercises for @Is, Restriction, @First (RestrictionTests, ConstraintTests, FirstTests), update tests in the TCK are only UPDATE ... SET statements (11 simple ones plus two arithmetic ones, no upsert or find-and-modify), and a correction: 1.1.0-M4 and main differ in more than Javadoc (new @Fetching annotation, widened attribute generics in the SPI, a TemporalLiteralRecord fix). NOT verified: that the providers pass the 1.1 TCK tests for these features (source and build files were read, no TCK was run).
 
 Acceptance:
 
 - docs/research/jakarta-data-1.1.md gets a verified provider table with sources
 
 Source: docs/research/jakarta-data-1.1.md 'could not be verified'
+
+Commits: FIXME
 
 ### MOR-024 Jakarta Data: support ordinal parameters (?1) in @Query
 
