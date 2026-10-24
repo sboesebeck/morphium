@@ -21,7 +21,7 @@ import java.util.Set;
  * <p>
  * Contract (MOR-002, MOR-041):
  * <ul>
- * <li>An update document without any {@code $}-operator key (a replacement document) is returned as it is.</li>
+ * <li>A non-empty update document without any {@code $}-operator key is wrapped in {@code $set} (MOR-013); an empty one is returned as it is.</li>
  * <li>With {@code translateKeys} the key of every operator map, including {@code $unset} and the key and the target of {@code $rename}, is
  * resolved with {@link de.caluga.morphium.AnnotationAndReflectionHelper#resolveFieldPath(Class, String)}: Java names become stored names,
  * stored names, {@code @Aliases}, unknown, positional and {@code $}-prefixed keys stay as they are. Without it the keys are used as given.</li>
@@ -55,8 +55,16 @@ final class UpdateDocumentMapper {
 
     @SuppressWarnings("unchecked")
     Map<String, Object> map(Map<String, Object> update) {
-        if (update == null || update.keySet().stream().noneMatch(k -> k != null && k.startsWith("$"))) {
+        if (update == null || update.isEmpty()) {
             return update;
+        }
+
+        if (update.keySet().stream().noneMatch(k -> k != null && k.startsWith("$"))) {
+            // MOR-013: a map without operators sets the fields it names, as in Spring Data and Panache. Handed on as it is it would be a replacement document: every field that
+            // the map does not name would be gone. A map with an operator at the top level, mixed or not, is left to the rules of the server.
+            Map<String, Object> set = new LinkedHashMap<>();
+            set.put("$set", update);
+            return map(set);
         }
 
         Map<String, Object> ret = new LinkedHashMap<>();

@@ -494,7 +494,8 @@ public class Query<T> implements Cloneable {
      * Atomic find-and-update (no upsert), returns the document as it was BEFORE the update.
      * <p>
      * The values of the operator maps in {@code update} are marshalled, see
-     * {@link #findOneAndUpdate(Map, boolean, boolean)}.
+     * {@link #findOneAndUpdate(Map, boolean, boolean)}. A map without operators ({@code {"status": "done"}}) is an update of the fields it names ({@code $set}, MOR-013),
+     * not a replacement document: the fields that it does not name are kept.
      */
     public T findOneAndUpdate(Map<String, Object> update) {
         // find-and-update always has a write side-effect - it must never be served
@@ -579,7 +580,7 @@ public class Query<T> implements Cloneable {
      * {@link de.caluga.morphium.AnnotationAndReflectionHelper#resolveFieldPath(Class, String)}. The configuration
      * {@code ObjectMappingSettings.translateUpdateFieldNames} (default true) is the kill switch, {@link #setTranslateUpdateFieldNames(Boolean)}
      * overrides it for this query. Two keys that denote the same field are merged if their values are equal and rejected otherwise.
-     * An update document without any {@code $}-operator (a replacement document) is sent as it is.
+     * An update document without any {@code $}-operator is a {@code $set} of the fields it names (MOR-013), not a replacement document.
      * An entity for a {@code @Reference} field and a write to an {@code @Encrypted} field are rejected with an {@link IllegalArgumentException}. The caller's map is
      * not modified. {@code @LastChange}, {@code @CreationTime}, {@code @Version} and the store events are NOT applied.
      *

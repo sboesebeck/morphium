@@ -89,6 +89,10 @@ An empty builder (it would replace the document), `setOnInsert` without `upsert(
 
 ### Changed
 
+#### Breaking: a map without operators in `findOneAndUpdate(Map)` is a `$set`, not a replacement document (MOR-013)
+A map whose keys do not start with `$` (`{"status": "done"}`) was handed to the server as it was, which makes it a replacement document: every field that the map did not name was gone, and nothing marshalled its values. `Query.findOneAndUpdate(Map)`, its `upsert`/`returnNew` and `FindAndModifyOptions` overloads and `findOneAndUpdateEnums(Map)` wrap such a map in `$set` now, as Spring Data and Panache do, and marshal the values like those of `$set` (keys are translated, an `Instant` is a date, an embedded object an embedded document, a String id of a `MorphiumId` entity an id). A map with an operator at the top level is unchanged, mixed or not; an empty map stays as it is. Code that relied on the replacement (it had to name every field) must name the fields it wants to keep or use `store()`. Tests: `PlainMapUpdateTest` (InMemoryDriver and MongoDB 8).
+
+
 #### Quarkus extension is built and tested against Quarkus 3.40.1 (MOR-096)
 The extension moved from Quarkus 3.32.3 to 3.40.1 (`quarkus.version` in the parent pom). Nothing in the extension had to change, and an application on Quarkus 3.32.3 still works with it (integration tests and the showcase were run on 3.32.3 and on 3.40.1): it compiles, and the 313 integration tests pass (the first full run had two failures in `MorphiumMigrationTest`, the lock heartbeat tests; they pass alone on 3.32.3 and on 3.40.1 and passed in the second full run, so they look load dependent: see MOR-074). The Quarkus 3.40 platform BOM manages `scram-client` 3.3, so an application on it no longer needs the `scram-client` pin (CVE-2026-53712 is fixed in 3.3). `quarkus update` does not apply to an extension (it migrates applications); it made no change.
 

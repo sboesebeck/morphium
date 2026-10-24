@@ -155,10 +155,12 @@ public class UpdateDocumentMapperKeyTest extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesInMemOnly")
-    public void replacementDocumentIsNotTouched(Morphium morphium) throws Exception {
+    public void aMapWithoutOperatorsIsASetOfTheTranslatedFields(Morphium morphium) throws Exception {
         try (morphium) {
+            // MOR-013: not a replacement document
             Map<String, Object> in = m("ownerName", "x", "expiresAt", 1);
-            assertEquals(in, mapper(morphium).map(in));
+            assertEquals(m("$set", m("owner_name", "x", "expires_at", 1)), mapper(morphium).map(in));
+            assertEquals(m(), mapper(morphium).map(m()), "an empty map stays as it is");
         }
     }
 

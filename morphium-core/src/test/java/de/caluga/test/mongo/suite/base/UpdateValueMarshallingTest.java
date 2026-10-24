@@ -8,7 +8,6 @@ import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.Reference;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
-import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -29,7 +28,6 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
  * MOR-002: update documents handed to {@code Query.findOneAndUpdate} are marshalled (POJOs and enums are rewritten,
@@ -205,14 +203,13 @@ public class UpdateValueMarshallingTest extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
-    public void replacementDocumentWithoutOperatorsIsSentUnchanged(Morphium m) throws Exception {
+    public void mapWithoutOperatorsIsSetOnUpsert(Morphium m) throws Exception {
         try (m) {
-            // the InMemoryDriver cannot apply a replacement document at all (GitHub #399)
-            assumeFalse(m.getDriver() instanceof InMemoryDriver);
-            Map<String, Object> replacement = new HashMap<>();
-            replacement.put("key", "repl");
-            replacement.put("text", "hello");
-            upsert(m, "repl", replacement);
+            // a map without operators is a $set (MOR-013), not a replacement document; the InMemoryDriver could not apply the latter (GitHub #399)
+            Map<String, Object> plain = new HashMap<>();
+            plain.put("key", "repl");
+            plain.put("text", "hello");
+            upsert(m, "repl", plain);
             Map<String, Object> r = raw(m, "repl");
             assertEquals("hello", r.get("text"));
         }

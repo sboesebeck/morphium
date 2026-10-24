@@ -31,8 +31,9 @@ driver and fails with `Unhandled Data type`. The InMemoryDriver used to accept i
 passed that a real MongoDB then rejected. Since MOR-029 the InMemoryDriver refuses what the wire encoder refuses, before
 anything is written.
 
-The typed entry points marshal embedded objects, entities, enums, `Set` and `java.time` values (MOR-002, MOR-042). Still open:
-replacement documents, `findOneAndUpdateEnums` and `Expr` values (MOR-038).
+The typed entry points marshal embedded objects, entities, enums, `Set` and `java.time` values (MOR-002, MOR-042). A map without
+operators passed to `findOneAndUpdate(Map)` or `findOneAndUpdateEnums(Map)` is a `$set` of the fields it names, not a replacement
+document (MOR-013, 7.0), so its values are marshalled like those of `$set`. Still open: POJOs in `Expr` values (MOR-038).
 
 Tests: `PojoInSetOperatorReproductionTest`, `UnencodableValuesTest`.
 
