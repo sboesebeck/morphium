@@ -1505,7 +1505,7 @@ tasks:
 - id: MOR-073
   title: 'Query.push, pull and addToSet fire the update events twice, and the post event is always PUSH'
   type: defect
-  status: open
+  status: done
   priority: 3
   effort: S
   description: 'Found by MOR-031 (a timer count of 2 for one push). MorphiumWriterImpl.pushPull fires firePreUpdateEvent(type) and pushIt fires it again, pushIt fires the post event and pushPull fires it a second time, with UpdateTypes.PUSH hard-coded, so a pull or an addToSet is followed by a post event of type PUSH. A listener counts every push, pull and addToSet twice and cannot pair a pull. Fire each event once, with the real type.'
@@ -1513,3 +1513,6 @@ tasks:
   - A listener sees one preUpdate and one postUpdate per Query.push, pull and addToSet, with the type of the call
   source:
   - morphium-core/src/main/java/de/caluga/morphium/writer/MorphiumWriterImpl.java pushPull and pushIt
+  evidence: 'UpdateEventsTest (6 tests) records the events of a MorphiumStorageListener: push, pull, addToSet, pushAll, pullAll, set and inc each fire exactly one preUpdate and one postUpdate with the type of the call. Before the fix four of them failed (push and addToSet fired pre/post twice, pull and pullAll ended with post PUSH). Fix in MorphiumWriterImpl: pushIt no longer fires the pre event and fires the post event with the real type, pushPull no longer fires a second post event, pushPullAll fires post with its type. Runs on the InMemoryDriver and on mongo:8; the quarkus timer test now asserts exactly 1 for a push. Regression: 1556 test methods (core and messaging) on the InMemoryDriver, all passed.'
+  commits:
+  - 1358b433d

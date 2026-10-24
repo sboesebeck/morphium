@@ -122,6 +122,12 @@ context keep their own key handling.
 
 ### Fixed
 
+#### `Query.push`, `pull`, `addToSet` and `pullAll` fire their update events once, with the type of the call (MOR-073)
+`push`, `pull` and `addToSet` fired `preUpdate` and `postUpdate` twice, and the `postUpdate` of `pull`, `addToSet` and `pullAll` was always
+`PUSH`. A `MorphiumStorageListener` counted every push twice and could not pair a pull with its end. Each call fires one `preUpdate` and one
+`postUpdate`, both with `PUSH`, `PULL` or `ADD_TO_SET` as called. A listener that relied on the extra events or on `PUSH` after a pull sees the
+change.
+
 #### Update values take the shape `store()` writes at their position (reconciles #335)
 Upstream 6.3.10 made `Query.set/push/addToSet` write custom-mapped values (`java.time`, `BigDecimal`, `Character`, `Timestamp`, `Atomic*`, `BigInteger`) in the shape `store()` writes: the bare
 mapper output for a whole field, `serialize()`'s shape for a member of a container (`{"value": scalar}` for a scalar mapper, a map with `class_name` for a map-returning one). The update paths
