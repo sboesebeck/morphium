@@ -445,7 +445,7 @@ tasks:
 - id: MOR-016
   title: Migration tooling for changed key names
   type: implementation
-  status: open
+  status: done
   priority: 3
   effort: M
   description: If option D or an application-side fix changes stored key names, provide a @MorphiumChangeUnit based
@@ -457,6 +457,9 @@ tasks:
   - MOR-015
   source:
   - update-path research, 2026-10-15
+  evidence: 'KeyRenameTest (3 cases: snake_case to camelCase in an embedded list, a single embedded document and two levels, with the fixed entity reading the migrated data; explicit renames and a repeated run; the refused overwrite writes nothing) green on the InMemoryDriver and on MongoDB 8 (PooledDriver). The change unit in the howto was not run as a change unit, the helper it calls was. NOT verified: collections too big to read into memory at once (the documents of the path are read in one query).'
+  commits:
+  - FIXME
 - id: MOR-017
   title: 'Jakarta Data: JDQL DELETE FROM'
   type: implementation

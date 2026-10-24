@@ -107,6 +107,7 @@ nav:
     - Field Name Mapping: howtos/field-names.md
     - Optimistic Locking: howtos/optimistic-locking.md
     - Update Pitfalls: howtos/update-pitfalls.md
+    - Migrating Embedded Key Names: howtos/embedded-key-migration.md
     - Conditional Writes: howtos/conditional-writes.md
     - References & Relationships: howtos/references-and-relationships.md
   - Core Features:
