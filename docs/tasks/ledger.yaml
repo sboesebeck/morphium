@@ -887,7 +887,7 @@ tasks:
   - 'GitHub #116, #334'
   evidence: 'RecordMappingTest (3 cases: a record in a field, a list and a map with nested records, enums and Instant; set, push and a dotted query; a single-value record as a bare string in the document, in a query and in an update) green on the InMemoryDriver and on MongoDB 8 (PooledDriver); the object mapping tests (CollectionMappingTest, CustomMapperTest, ObjectMapper*Test, ObjectMappingTests, ScalarCustomMapperContainerTest, EncryptedObjectMappingTests, BigDecimalMapperTest) and the 401 unit tests of the package tree pass except the known HeapReadingFreshnessTest. NOT covered: records as entities, lists of single-value objects, a record with @Reference or @AdditionalData components.'
   commits:
-  - FIXME
+  - e59b44b8e
 - id: MOR-036
   title: Re-run the reproduction on other topologies and server versions
   type: verification
