@@ -9,10 +9,8 @@ import jakarta.data.exceptions.EmptyResultException;
 import jakarta.data.exceptions.NonUniqueResultException;
 import jakarta.data.page.Page;
 import jakarta.data.page.PageRequest;
-import jakarta.data.page.impl.CursoredPageRecord;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -179,43 +177,7 @@ public final class FindMethodBridge {
         List<CursorHelper.SortSpec> sortSpecs = !dynamicSortSpecs.isEmpty()
                 ? dynamicSortSpecs
                 : CursorHelper.parseSortSpecs(orderBySpec);
-        boolean isForward = pageRequest.mode() != PageRequest.Mode.CURSOR_PREVIOUS;
-        int requestedSize = pageRequest.size();
-
-        if (pageRequest.mode() != PageRequest.Mode.OFFSET) {
-            // Cursor-based: apply cursor condition and adjusted sort
-            PageRequest.Cursor cursor = pageRequest.cursor()
-                    .orElseThrow(() -> new IllegalArgumentException(
-                            "PageRequest mode is " + pageRequest.mode() + " but no cursor provided"));
-            CursorHelper.applyCursorCondition(query, cursor, sortSpecs, morphium, entityClass, isForward);
-        } else {
-            // CursoredPage requested in classic offset mode (PageRequest.Mode.OFFSET): no cursor
-            // condition applies, but we still need to skip to the requested page, exactly like the
-            // Page<T> branch above (query.skip(skip).limit(size)) does for a normal offset page.
-            int skip = (int) ((pageRequest.page() - 1) * requestedSize);
-            query.skip(skip);
-        }
-
-        // Apply sort (inverted for CURSOR_PREVIOUS)
-        CursorHelper.applySort(query, sortSpecs, morphium, entityClass, isForward);
-        // Fetch one extra to determine hasNext precisely
-        query.limit(requestedSize + 1);
-
-        List content = query.asList();
-        boolean hasMore = content.size() > requestedSize;
-        if (hasMore) {
-            content = new ArrayList(content.subList(0, requestedSize));
-        }
-        if (!isForward) {
-            Collections.reverse(content);
-        }
-
-        // Extract cursors for each row
-        List<String> sortFields = sortSpecs.stream().map(CursorHelper.SortSpec::javaField).toList();
-        List<PageRequest.Cursor> cursors = CursorHelper.extractCursors(content, sortFields, morphium, entityClass);
-
-        long totalElements = -1;
-        if (pageRequest.requestTotal()) {
+        return CursorHelper.page(query, pageRequest, sortSpecs, () -> {
             Query countQuery = morphium.createQueryFor(entityClass);
             if (!conditionsSpec.isEmpty()) {
                 for (String p : conditionsSpec.split(",")) {
@@ -224,19 +186,8 @@ public final class FindMethodBridge {
                     countQuery.f(mongoField).eq(args[Integer.parseInt(fieldAndIdx[1])]);
                 }
             }
-            totalElements = countQuery.countAll();
-        }
-
-        boolean isFirstPage = pageRequest.mode() == PageRequest.Mode.OFFSET;
-        boolean isLastPage = !hasMore;
-
-        if (content.isEmpty()) {
-            return new CursoredPageRecord<>(content, cursors, totalElements, pageRequest,
-                    (PageRequest) null, (PageRequest) null);
-        }
-
-        return new CursoredPageRecord<>(content, cursors, totalElements, pageRequest,
-                isFirstPage, isLastPage);
+            return countQuery;
+        }, morphium, entityClass);
     }
 
     /**

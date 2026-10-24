@@ -95,6 +95,30 @@ public final class QueryMethodBridge {
                                       int orderParamIndex,
                                       int pageRequestParamIndex,
                                       int limitParamIndex) {
+        return executeQuery(repo, methodName, args, returnsSingle, returnsOptional, returnsBoolean, returnsStream, orderBySpec, sortParamIndex, orderParamIndex, pageRequestParamIndex,
+                limitParamIndex, false);
+    }
+
+    /**
+     * {@link #executeQuery} for a method that may return a {@code CursoredPage} (MOR-086): the keyset is the order of the method name, then the {@code @OrderBy}, then every dynamic
+     * {@code Sort}, {@code Sort...} and {@code Order}.
+     *
+     * @param returnsCursoredPage whether the method returns {@code CursoredPage<T>}; it needs a {@code PageRequest} parameter
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static Object executeQuery(AbstractMorphiumRepository<?, ?> repo,
+                                      String methodName,
+                                      Object[] args,
+                                      boolean returnsSingle,
+                                      boolean returnsOptional,
+                                      boolean returnsBoolean,
+                                      boolean returnsStream,
+                                      String orderBySpec,
+                                      int sortParamIndex,
+                                      int orderParamIndex,
+                                      int pageRequestParamIndex,
+                                      int limitParamIndex,
+                                      boolean returnsCursoredPage) {
         if (sortParamIndex < 0 && orderParamIndex < 0 && pageRequestParamIndex < 0 && limitParamIndex < 0) {
             // No dynamic parameter present -- identical to the simpler overload, avoids
             // building the query twice (once here, once inside QueryExecutor.execute).
@@ -153,7 +177,8 @@ public final class QueryMethodBridge {
         QueryExecutor.applyConditions(query, descriptor, args, morphium, entityClass);
 
         // The static order (method name, @OrderBy) first, then every dynamic Sort / Sort... / Order in the order of the parameters (MOR-081)
-        SortPlan.apply(query, SortPlan.merge(SortPlan.fromOrderSpecs(descriptor.orderBy()), SortPlan.dynamic(args)), morphium, entityClass);
+        List<SortPlan.Entry> order = SortPlan.merge(SortPlan.fromOrderSpecs(descriptor.orderBy()), SortPlan.dynamic(args));
+        SortPlan.apply(query, order, morphium, entityClass);
 
         // findFirstBy... / findFirst3By... has its own limit: the specification does not combine it with a Limit or PageRequest parameter
         if (descriptor.limit() > 0) {
@@ -171,6 +196,16 @@ public final class QueryMethodBridge {
         }
         if (pageRequestParamIndex >= 0 && args[pageRequestParamIndex] != null) {
             PageRequest pageRequest = (PageRequest) args[pageRequestParamIndex];
+
+            if (returnsCursoredPage) {
+                List<CursorHelper.SortSpec> keyset = order.stream().map(e -> new CursorHelper.SortSpec(e.property(), e.ascending())).toList();
+                return CursorHelper.page(query, pageRequest, keyset, () -> {
+                    Query countQuery = morphium.createQueryFor(entityClass);
+                    QueryExecutor.applyConditions(countQuery, descriptor, args, morphium, entityClass);
+                    return countQuery;
+                }, morphium, entityClass);
+            }
+
             int size = pageRequest.size();
             long page = pageRequest.page();
             int skip = (int) ((page - 1) * size);
@@ -348,6 +383,26 @@ public final class QueryMethodBridge {
         return CompletableFuture.supplyAsync(
                 () -> executeQuery(repo, methodName, args, returnsSingle, returnsOptional, returnsBoolean, returnsStream,
                         orderBySpec, sortParamIndex, orderParamIndex, pageRequestParamIndex, limitParamIndex),
+                repo.getAsyncExecutor());
+    }
+
+    /** {@link #executeQuery} with the flag for a {@code CursoredPage} result, on the async executor (MOR-086) */
+    public static CompletionStage<Object> executeQueryAsync(AbstractMorphiumRepository<?, ?> repo,
+                                                             String methodName,
+                                                             Object[] args,
+                                                             boolean returnsSingle,
+                                                             boolean returnsOptional,
+                                                             boolean returnsBoolean,
+                                                             boolean returnsStream,
+                                                             String orderBySpec,
+                                                             int sortParamIndex,
+                                                             int orderParamIndex,
+                                                             int pageRequestParamIndex,
+                                                             int limitParamIndex,
+                                                             boolean returnsCursoredPage) {
+        return CompletableFuture.supplyAsync(
+                () -> executeQuery(repo, methodName, args, returnsSingle, returnsOptional, returnsBoolean, returnsStream,
+                        orderBySpec, sortParamIndex, orderParamIndex, pageRequestParamIndex, limitParamIndex, returnsCursoredPage),
                 repo.getAsyncExecutor());
     }
 

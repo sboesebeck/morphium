@@ -1016,9 +1016,16 @@ public class MorphiumDataProcessor {
         boolean returnsPage = effectiveReturnType.name().equals(PAGE_TYPE);
         boolean returnsOptional = isOptional(effectiveReturnType);
         boolean returnsStream = isStream(effectiveReturnType);
+        boolean returnsCursoredPage = effectiveReturnType.name().equals(CURSORED_PAGE_TYPE);
         boolean returnsSingle = !isList(effectiveReturnType) && !returnsStream
-                && !returnsOptional && !returnsPage
+                && !returnsOptional && !returnsPage && !returnsCursoredPage
                 && descriptor.prefix() == QueryDescriptor.Prefix.FIND;
+
+        if (returnsCursoredPage && pageRequestParamIndex < 0) {
+            throw new IllegalStateException(
+                    "Unsupported repository method " + method.declaringClass().name() + "." + methodName
+                            + "() -- a CursoredPage result needs a PageRequest parameter: the page request carries the size and the cursor.");
+        }
 
         // Build actual parameter type descriptors from the Jandex method info
         String[] paramTypeNames = new String[method.parametersCount()];
@@ -1086,6 +1093,7 @@ public class MorphiumDataProcessor {
                     ResultHandle orderIdxHandle = mc.load(orderParamIndex);
                     ResultHandle pageRequestIdxHandle = mc.load(pageRequestParamIndex);
                     ResultHandle limitIdxHandle = mc.load(limitParamIndex);
+                    // the overload with the flag for a CursoredPage result (MOR-086)
                     result = mc.invokeStaticMethod(
                             MethodDescriptor.ofMethod(
                                     QueryMethodBridge.class,
@@ -1102,11 +1110,12 @@ public class MorphiumDataProcessor {
                                     int.class,
                                     int.class,
                                     int.class,
-                                    int.class),
+                                    int.class,
+                                    boolean.class),
                             thisHandle, methodNameHandle, argsArray, returnsSingleHandle,
                             returnsOptionalHandle, returnsBooleanHandle, returnsStreamHandle,
                             orderBySpecHandle, sortIdxHandle, orderIdxHandle,
-                            pageRequestIdxHandle, limitIdxHandle);
+                            pageRequestIdxHandle, limitIdxHandle, mc.load(returnsCursoredPage));
                 } else {
                     result = mc.invokeStaticMethod(
                             MethodDescriptor.ofMethod(

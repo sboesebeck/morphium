@@ -118,6 +118,19 @@ abstract class AbstractMorphiumDataOrdinalQueryTest {
     }
 
     @Test
+    @DisplayName("a derived query may return a CursoredPage (MOR-086)")
+    void derivedCursoredPage() {
+        var first = repository.findByStatusOrderByAmountAsc("OPEN", jakarta.data.page.PageRequest.ofSize(1));
+
+        assertThat(first.content()).extracting(OrderEntity::getCustomerId).containsExactly("C1");
+        assertThat(first.hasNext()).isTrue();
+
+        var second = repository.findByStatusOrderByAmountAsc("OPEN", first.nextPageRequest());
+        assertThat(second.content()).extracting(OrderEntity::getCustomerId).containsExactly("C2");
+        assertThat(second.hasNext()).isFalse();
+    }
+
+    @Test
     @DisplayName("SELECT field answers the values of the field when the method returns them (MOR-083)")
     void selectedValues() {
         assertThat(repository.customersByStatus("OPEN")).containsExactly("C1", "C2");

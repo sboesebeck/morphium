@@ -4,6 +4,7 @@ import de.caluga.morphium.data.MorphiumRepository;
 import de.caluga.morphium.driver.MorphiumId;
 import jakarta.data.Order;
 import jakarta.data.Sort;
+import jakarta.data.page.CursoredPage;
 import jakarta.data.page.Page;
 import jakarta.data.page.PageRequest;
 import jakarta.data.repository.By;
@@ -116,6 +117,9 @@ public interface TestEntityRepository extends MorphiumRepository<TestEntity, Mor
     List<TestEntity> findFirst2ByStatusOrderByPriorityAsc(String status);
 
     List<TestEntity> findFirst2ByStatus(String status, jakarta.data.Limit limit);
+
+    /** a derived query may return a CursoredPage; the keyset is the order of the method name (MOR-086) */
+    CursoredPage<TestEntity> findByStatusOrderByPriorityAsc(String status, PageRequest pageRequest);
 
     /** SELECT field answers the values of the field when the method returns them (MOR-083) */
     @Query("SELECT name WHERE status = :status ORDER BY priority")

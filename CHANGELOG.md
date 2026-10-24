@@ -158,6 +158,15 @@ context keep their own key handling.
 
 ### Fixed
 
+#### Jakarta Data: a derived query may return a `CursoredPage` (MOR-086)
+`findByStatusOrderByAmountAsc(String status, PageRequest request)` with a `CursoredPage` return type answered an offset `Page`, which the generated code could not cast. The keyset is the order of
+the method name, then `@OrderBy`, then every dynamic `Sort`, `Sort...` and `Order`; a cursor request without any order fails with a message. The three places that built a cursored page
+(`@Find`, `@Query`, derived) share one implementation now (`CursorHelper.page`).
+
+#### A `short` or `Short` field is stored as a number (MOR-084)
+`ShortMapper` existed but was never registered, so a `short` or `Short` field was written as a Base64 Java-serialization blob (`{_b64data: ...}`): the database could not compare, sort or
+increment it. It is written as a number like an int now; documents that were written as a blob are still read (the blob may only hold a `Short`, any other class is refused).
+
 #### InMemoryDriver: a missing value or null sorts last when descending (MOR-085)
 MongoDB sorts a missing value or null before every number, so it comes first in an ascending sort and last in a descending one; the InMemoryDriver put it first in both. Found by the TCK of
 the Jakarta Data module.
