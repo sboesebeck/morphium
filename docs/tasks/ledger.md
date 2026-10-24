@@ -546,7 +546,7 @@ Depends on: MOR-006
 
 Source: docs/research/other-clients.md pattern 11
 
-Commits: FIXME
+Commits: b11942cd8
 
 ### MOR-023 Verify which Jakarta Data providers implement the 1.1 features
 
