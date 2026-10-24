@@ -207,6 +207,50 @@ public class FastPathOptionsTest {
         assertEquals(2, ((Number) we.get(0).get("code")).intValue(), "BadValue, as mongod: " + we);
     }
 
+    // MOR-070: a delete that the driver rejects is answered with writeErrors, not with ok and the count of what was deleted
+
+    @Test
+    public void deleteDirect_rejectedQueryIsAWriteError() throws Exception {
+        seedForUpdate();
+
+        Map<String, Object> answer = handler().processDeleteDirect(Doc.of(
+            "$db", db, "delete", coll, "deletes", List.of(Doc.of("q", Doc.of("n", Doc.of("$bogus", 1)), "limit", 0))));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> we = (List<Map<String, Object>>) answer.get("writeErrors");
+        assertNotNull(we, "the delete is rejected and the answer says so: " + answer);
+        assertEquals(0, ((Number) we.get(0).get("index")).intValue());
+        assertEquals(2, ((Number) we.get(0).get("code")).intValue(), "BadValue, like mongod: " + we);
+        assertEquals(0, ((Number) answer.get("n")).intValue());
+        assertEquals(1, countAll(), "nothing was deleted");
+    }
+
+    @Test
+    public void deleteDirect_orderedStopsAtTheFirstRejectedStatementUnorderedGoesOn() throws Exception {
+        MorphiumId id = seedForUpdate();
+        Map<String, Object> bad = Doc.of("q", Doc.of("n", Doc.of("$bogus", 1)), "limit", 0);
+        Map<String, Object> good = Doc.of("q", Doc.of("_id", id), "limit", 0);
+
+        Map<String, Object> ordered = handler().processDeleteDirect(Doc.of("$db", db, "delete", coll, "deletes", List.of(bad, good)));
+        assertNotNull(ordered.get("writeErrors"));
+        assertEquals(1, countAll(), "ordered: the statement behind the error is not run");
+
+        Map<String, Object> unordered = handler().processDeleteDirect(Doc.of("$db", db, "delete", coll, "ordered", false, "deletes", List.of(bad, good)));
+        assertNotNull(unordered.get("writeErrors"));
+        assertEquals(1, ((Number) unordered.get("n")).intValue(), "unordered: the good statement was run");
+        assertEquals(0, countAll());
+    }
+
+    @Test
+    public void deleteDirect_aSuccessfulDeleteStillAnswersTheCount() throws Exception {
+        MorphiumId id = seedForUpdate();
+
+        Map<String, Object> answer = handler().processDeleteDirect(Doc.of("$db", db, "delete", coll, "deletes", List.of(Doc.of("q", Doc.of("_id", id), "limit", 1))));
+
+        assertNull(answer.get("writeErrors"));
+        assertEquals(1, ((Number) answer.get("n")).intValue());
+    }
+
     @Test
     public void insertDirect_orderedStopReportsActualInsertCount() throws Exception {
         MorphiumId x = new MorphiumId();

@@ -1552,7 +1552,7 @@ tasks:
 - id: MOR-070
   title: 'PoppyDB: the delete fast path swallows errors'
   type: defect
-  status: open
+  status: done
   priority: 3
   effort: S
   description: 'Found by the topology matrix of MOR-036. MongoCommandHandler.processDeleteDirect catches every exception of driver.delete, logs a warning and answers ok with the count of what was deleted, without writeErrors. A delete with a query mongod refuses (an unknown operator) looks successful to the client; DeleteRaisesOnRejectedDeleteTest fails against PoppyDB for this reason (the InMemoryDriver reports the rejection in its own command path since MOR-065).'
@@ -1560,6 +1560,9 @@ tasks:
   - A delete with an unparsable query is answered with a writeErrors entry (code 2) by PoppyDB, like by mongod
   source:
   - poppydb/src/main/java/de/caluga/poppydb/netty/MongoCommandHandler.java
+  evidence: 'FastPathOptionsTest (14 tests, 3 new): a delete with an unknown operator is answered with writeErrors (index 0, code 2) and deletes nothing, an ordered delete stops at the first rejected statement while ordered:false runs the next one, a successful delete still answers the count; the first two failed before the change. DeleteRaisesOnRejectedDeleteTest against a single node PoppyDB with the PooledDriver: 8 tests, 0 failures, 2 skipped (it failed for this reason before).'
+  commits:
+  - 5c96f6fe8
 - id: MOR-071
   title: 'Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange'
   type: defect

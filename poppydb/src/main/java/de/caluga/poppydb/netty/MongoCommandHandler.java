@@ -3355,8 +3355,12 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         List<Map<String, Object>> deletes = (List<Map<String, Object>>) doc.get("deletes");
         if (deletes == null) return Doc.of("ok", 1.0, "n", 0);
 
+        // like mongod: an ordered delete (the default) stops at the first rejected statement, ordered:false goes on (MOR-070)
+        boolean ordered = !(Boolean.FALSE.equals(doc.get("ordered")));
         int totalDeleted = 0;
-        for (var del : deletes) {
+        List<Map<String, Object>> writeErrors = new ArrayList<>();
+        for (int i = 0; i < deletes.size(); i++) {
+            var del = deletes.get(i);
             Map<String, Object> q = (Map<String, Object>) del.get("q");
             int limit = del.get("limit") instanceof Number ? ((Number) del.get("limit")).intValue() : 0;
             try {
@@ -3367,10 +3371,18 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                     totalDeleted += ((Number) result.get("n")).intValue();
                 }
             } catch (Exception e) {
+                // the delete was swallowed with a log line and answered ok: a query that mongod refuses looked like a delete of nothing
                 log.warn("Delete error: {}", e.getMessage());
+                writeErrors.add(Doc.of("index", i, "code", rejectionCode(e), "errmsg", String.valueOf(e.getMessage())));
+            }
+
+            if (ordered && !writeErrors.isEmpty()) {
+                break;
             }
         }
-        return Doc.of("ok", 1.0, "n", totalDeleted);
+        Map<String, Object> answer = Doc.of("ok", 1.0, "n", totalDeleted);
+        if (!writeErrors.isEmpty()) answer.put("writeErrors", writeErrors);
+        return answer;
     }
 
     @SuppressWarnings("unchecked")

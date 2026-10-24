@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 19, done 82
+Status: open 18, done 83
 
 ## Overview
 
@@ -27,7 +27,6 @@ Status: open 19, done 82
 | MOR-048 | open | 3 | defect | MorphiumBase.setEnum looks the value up by the map value instead of the key | S |  |  |
 | MOR-049 | open | 3 | implementation | Writer path has no guard for @Reference and @Encrypted fields | M |  | MOR-042 |
 | MOR-052 | open | 3 | defect | updateLastAccess writes the untranslated Java field name | S |  |  |
-| MOR-070 | open | 3 | defect | PoppyDB: the delete fast path swallows errors | S |  |  |
 | MOR-071 | open | 3 | defect | Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange | S |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
@@ -102,6 +101,7 @@ Status: open 19, done 82
 | MOR-057 | done | 3 | defect | InMemoryDriver: an inserted document is stored by reference | S |  |  |
 | MOR-061 | done | 3 | defect | Query.dec(field, Integer) turns an int counter into a double | S |  |  |
 | MOR-065 | done | 3 | defect | Delete paths ignore the writeErrors of the delete reply | S |  |  |
+| MOR-070 | done | 3 | defect | PoppyDB: the delete fast path swallows errors | S |  |  |
 | MOR-072 | done | 3 | defect | The update builder, findOneAndUpdate(Map), updateOne and updateMany fire no storage-listener update events | M |  |  |
 | MOR-073 | done | 3 | defect | Query.push, pull and addToSet fire the update events twice, and the post event is always PUSH | S |  |  |
 | MOR-074 | done | 3 | verification | MorphiumMigrationTest (2) and MultithreaddedMessagingTests (1) fail on this machine, with and without the latest changes | S |  |  |
@@ -1324,15 +1324,19 @@ Commits: ff9e3d5c5
 
 ### MOR-070 PoppyDB: the delete fast path swallows errors
 
-Status **open**, priority 3, type defect, effort S
+Status **done**, priority 3, type defect, effort S
 
 Found by the topology matrix of MOR-036. MongoCommandHandler.processDeleteDirect catches every exception of driver.delete, logs a warning and answers ok with the count of what was deleted, without writeErrors. A delete with a query mongod refuses (an unknown operator) looks successful to the client; DeleteRaisesOnRejectedDeleteTest fails against PoppyDB for this reason (the InMemoryDriver reports the rejection in its own command path since MOR-065).
+
+Evidence: FastPathOptionsTest (14 tests, 3 new): a delete with an unknown operator is answered with writeErrors (index 0, code 2) and deletes nothing, an ordered delete stops at the first rejected statement while ordered:false runs the next one, a successful delete still answers the count; the first two failed before the change. DeleteRaisesOnRejectedDeleteTest against a single node PoppyDB with the PooledDriver: 8 tests, 0 failures, 2 skipped (it failed for this reason before).
 
 Acceptance:
 
 - A delete with an unparsable query is answered with a writeErrors entry (code 2) by PoppyDB, like by mongod
 
 Source: poppydb/src/main/java/de/caluga/poppydb/netty/MongoCommandHandler.java
+
+Commits: 5c96f6fe8
 
 ### MOR-071 Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange
 

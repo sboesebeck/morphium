@@ -187,6 +187,10 @@ The switch that restored the silent behaviour of rejected writes was introduced 
 
 ### Fixed
 
+#### PoppyDB: the delete fast path answers a rejected delete with writeErrors and honours ordered (MOR-070)
+`processDeleteDirect` caught every exception of the driver, logged a warning and answered `ok` with the count of what was deleted: a delete with a query that mongod refuses (an unknown operator) looked like a delete of nothing to the client. It answers a `writeErrors` entry with the code of the driver (BadValue, 2, for an unknown operator) now; an ordered delete (the default) stops at the first rejected statement, `ordered: false` goes on.
+
+
 #### Jakarta Data: the JDQL parser refuses an operand that is neither a parameter nor a literal (MOR-075)
 `WHERE id == :id` was the condition `id = "= :id"`, `WHERE price >> 5` was `price > "> 5"` and `WHERE id = :id garbage` an operand `id garbage`: each matched nothing and nobody told, a `SELECT` returned an empty list. `JdqlParser.parse` throws an `IllegalArgumentException` with the position and the operand now (also for `BETWEEN`, `IN` and `LIKE`); the build-time check of `@AtomicUpdate`, `DELETE` and `UPDATE` reports the same message.
 
