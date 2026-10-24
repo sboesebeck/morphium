@@ -554,7 +554,7 @@ Acceptance:
 
 Source: docs/research/jakarta-data-1.1.md 'could not be verified'
 
-Commits: FIXME
+Commits: e73b63fbd
 
 ### MOR-024 Jakarta Data: support ordinal parameters (?1) in @Query
 
