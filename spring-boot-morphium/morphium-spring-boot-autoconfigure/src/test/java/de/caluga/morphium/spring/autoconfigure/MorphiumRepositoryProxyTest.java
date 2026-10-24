@@ -1,6 +1,7 @@
 package de.caluga.morphium.spring.autoconfigure;
 
 import de.caluga.morphium.Morphium;
+import jakarta.data.Order;
 import jakarta.data.Sort;
 import jakarta.data.page.Page;
 import jakarta.data.page.PageRequest;
@@ -295,6 +296,31 @@ class MorphiumRepositoryProxyTest {
         assertEquals(List.of(11, 15), repository.findByStatus("active").stream().map(TestEntity::getPriority).sorted().toList());
         assertTrue(repository.finish("a"));
         assertFalse(repository.finish("nobody"));
+    }
+
+    private void saveSortFixture() {
+        repository.save(new TestEntity("a", "x", 2));
+        repository.save(new TestEntity("b", "x", 1));
+        repository.save(new TestEntity("c", "x", 2));
+        repository.save(new TestEntity("d", "x", 1));
+    }
+
+    @Test
+    void severalSortParametersAreAppliedInTheOrderOfTheParameters() {
+        saveSortFixture();
+
+        assertEquals(List.of("d", "b", "c", "a"),
+                repository.findByStatus("x", Sort.asc("priority"), Sort.desc("name")).stream().map(TestEntity::getName).toList());
+        assertEquals(List.of("d", "b", "c", "a"),
+                repository.findByStatus("x", Sort.asc("priority"), Sort.desc("name"), Sort.asc("id")).stream().map(TestEntity::getName).toList());
+    }
+
+    @Test
+    void theStaticOrderComesFirstAndTheDynamicOrderBreaksTheTies() {
+        saveSortFixture();
+
+        assertEquals(List.of("d", "b", "c", "a"),
+                repository.findByStatusOrderByPriorityAsc("x", Order.by(Sort.desc("priority"), Sort.desc("name"))).stream().map(TestEntity::getName).toList());
     }
 
     @Test

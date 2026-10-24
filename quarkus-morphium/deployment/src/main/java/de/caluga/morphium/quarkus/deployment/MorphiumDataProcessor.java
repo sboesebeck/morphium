@@ -968,7 +968,7 @@ public class MorphiumDataProcessor {
         int limitParamIndex = -1;
         for (int i = 0; i < method.parametersCount(); i++) {
             DotName paramTypeName = method.parameterType(i).name();
-            if (paramTypeName.equals(SORT_TYPE)) {
+            if (isSortParameter(method.parameterType(i))) {
                 sortParamIndex = i;
             } else if (paramTypeName.equals(ORDER_TYPE)) {
                 orderParamIndex = i;
@@ -1288,7 +1288,7 @@ public class MorphiumDataProcessor {
             DotName paramTypeName = paramType.name();
 
             // Check for special parameter types
-            if (paramTypeName.equals(SORT_TYPE)) {
+            if (isSortParameter(method.parameterType(i))) {
                 sortParamIndex = i;
                 continue;
             }
@@ -1777,7 +1777,7 @@ public class MorphiumDataProcessor {
             DotName paramTypeName = paramType.name();
 
             // Check for special parameter types
-            if (paramTypeName.equals(SORT_TYPE)) {
+            if (isSortParameter(method.parameterType(i))) {
                 sortParamIndex = i;
                 continue;
             }
@@ -1964,7 +1964,7 @@ public class MorphiumDataProcessor {
         for (int i = 0; i < method.parametersCount(); i++) {
             DotName type = method.parameterType(i).name();
 
-            if (type.equals(SORT_TYPE) || type.equals(ORDER_TYPE) || type.equals(PAGE_REQUEST_TYPE) || type.equals(LIMIT_TYPE)) {
+            if (isSortParameter(method.parameterType(i)) || type.equals(ORDER_TYPE) || type.equals(PAGE_REQUEST_TYPE) || type.equals(LIMIT_TYPE)) {
                 throw new IllegalStateException("@AtomicUpdate on " + where + ": takes no Sort, Order, PageRequest or Limit parameter (use @OrderBy for the order)");
             }
 
@@ -2133,7 +2133,7 @@ public class MorphiumDataProcessor {
         for (int i = 0; i < method.parametersCount(); i++) {
             DotName paramTypeName = method.parameterType(i).name();
 
-            if (paramTypeName.equals(SORT_TYPE) || paramTypeName.equals(ORDER_TYPE) || paramTypeName.equals(PAGE_REQUEST_TYPE) || paramTypeName.equals(LIMIT_TYPE)) {
+            if (isSortParameter(method.parameterType(i)) || paramTypeName.equals(ORDER_TYPE) || paramTypeName.equals(PAGE_REQUEST_TYPE) || paramTypeName.equals(LIMIT_TYPE)) {
                 throw new IllegalStateException("@Query on " + where + ": a " + statementKind + " statement takes no Sort, Order, PageRequest or Limit parameter");
             }
 
@@ -2217,7 +2217,7 @@ public class MorphiumDataProcessor {
             int queryParams = 0;
             for (int i = 0; i < method.parametersCount(); i++) {
                 DotName type = method.parameterType(i).name();
-                if (!type.equals(SORT_TYPE) && !type.equals(ORDER_TYPE) && !type.equals(PAGE_REQUEST_TYPE) && !type.equals(LIMIT_TYPE)) {
+                if (!isSortParameter(method.parameterType(i)) && !type.equals(ORDER_TYPE) && !type.equals(PAGE_REQUEST_TYPE) && !type.equals(LIMIT_TYPE)) {
                     queryParams++;
                 }
             }
@@ -2369,6 +2369,12 @@ public class MorphiumDataProcessor {
             return false;
         }
         return paramType.name().toString().equals(entityClassName);
+    }
+
+    /** a {@code Sort} parameter, or a {@code Sort...} varargs parameter */
+    private boolean isSortParameter(Type type) {
+        return type.name().equals(SORT_TYPE)
+                || (type.kind() == Type.Kind.ARRAY && type.asArrayType().component().name().equals(SORT_TYPE));
     }
 
     private boolean isList(Type type) {

@@ -351,38 +351,12 @@ public final class JdqlMethodBridge {
         // Apply conditions
         applyConditions(mQuery, query, paramValues, morphium, entityClass);
 
-        // Apply JDQL ORDER BY
-        if (!query.orderBy().isEmpty()) {
-            Map<String, Integer> sortMap = new LinkedHashMap<>();
-            for (JdqlQuery.OrderSpec spec : query.orderBy()) {
-                String mongoField = resolveMongoField(morphium, entityClass, spec.field());
-                sortMap.put(mongoField, spec.ascending() ? 1 : -1);
-            }
-            mQuery.sort(sortMap);
+        // The ORDER BY of the query first, then every dynamic Sort / Sort... / Order in the order of the parameters (MOR-081)
+        List<SortPlan.Entry> jdqlOrder = new ArrayList<>();
+        for (JdqlQuery.OrderSpec spec : query.orderBy()) {
+            jdqlOrder.add(new SortPlan.Entry(spec.field(), spec.ascending()));
         }
-
-        // Apply dynamic Sort<T> parameter
-        if (sortParamIndex >= 0 && args[sortParamIndex] != null) {
-            Sort sort = (Sort) args[sortParamIndex];
-            Map<String, Integer> sortMap = new LinkedHashMap<>();
-            String mongoField = resolveMongoField(morphium, entityClass, sort.property());
-            sortMap.put(mongoField, sort.isAscending() ? 1 : -1);
-            mQuery.sort(sortMap);
-        }
-
-        // Apply dynamic Order<T> parameter
-        if (orderParamIndex >= 0 && args[orderParamIndex] != null) {
-            Order order = (Order) args[orderParamIndex];
-            if (!order.sorts().isEmpty()) {
-                Map<String, Integer> sortMap = new LinkedHashMap<>();
-                for (Object s : order.sorts()) {
-                    Sort sort = (Sort) s;
-                    String mongoField = resolveMongoField(morphium, entityClass, sort.property());
-                    sortMap.put(mongoField, sort.isAscending() ? 1 : -1);
-                }
-                mQuery.sort(sortMap);
-            }
-        }
+        SortPlan.apply(mQuery, SortPlan.merge(jdqlOrder, SortPlan.dynamic(args)), morphium, entityClass);
 
         // Apply Limit
         if (limitParamIndex >= 0 && args[limitParamIndex] != null) {

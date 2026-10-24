@@ -84,45 +84,14 @@ public final class FindMethodBridge {
             }
         }
 
-        // Apply static @OrderBy sorting
-        if (!orderBySpec.isEmpty()) {
-            Map<String, Integer> sortMap = new LinkedHashMap<>();
-            for (String part : orderBySpec.split(",")) {
-                String[] fieldAndDir = part.split(":");
-                String javaField = fieldAndDir[0];
-                String dir = fieldAndDir[1];
-                String mongoField = resolveMongoField(morphium, entityClass, javaField);
-                sortMap.put(mongoField, "DESC".equals(dir) ? -1 : 1);
-            }
-            query.sort(sortMap);
-        }
-
-        // Apply dynamic Sort<T> parameter
-        // Also record it as CursorHelper.SortSpec, in the same field:direction shape as orderBySpec,
-        // so that executeCursoredFind() can use it as the cursor keyset below — otherwise a dynamic
-        // Sort/Order argument would silently be dropped for CursoredPage methods (see Bug 2).
+        // The static @OrderBy first, then every dynamic Sort / Sort... / Order in the order of the parameters (MOR-081). The merged list is also the keyset of a CursoredPage.
+        List<SortPlan.Entry> dynamicEntries = SortPlan.dynamic(args);
+        List<SortPlan.Entry> allSorts = SortPlan.merge(SortPlan.fromSpec(orderBySpec), dynamicEntries);
+        SortPlan.apply(query, allSorts, morphium, entityClass);
         List<CursorHelper.SortSpec> dynamicSortSpecs = new ArrayList<>();
-        if (sortParamIndex >= 0 && args[sortParamIndex] != null) {
-            Sort sort = (Sort) args[sortParamIndex];
-            Map<String, Integer> sortMap = new LinkedHashMap<>();
-            String mongoField = resolveMongoField(morphium, entityClass, sort.property());
-            sortMap.put(mongoField, sort.isAscending() ? 1 : -1);
-            query.sort(sortMap);
-            dynamicSortSpecs.add(new CursorHelper.SortSpec(sort.property(), sort.isAscending()));
-        }
-
-        // Apply dynamic Order<T> parameter (contains multiple Sort entries)
-        if (orderParamIndex >= 0 && args[orderParamIndex] != null) {
-            Order order = (Order) args[orderParamIndex];
-            if (!order.sorts().isEmpty()) {
-                Map<String, Integer> sortMap = new LinkedHashMap<>();
-                for (Object s : order.sorts()) {
-                    Sort sort = (Sort) s;
-                    String mongoField = resolveMongoField(morphium, entityClass, sort.property());
-                    sortMap.put(mongoField, sort.isAscending() ? 1 : -1);
-                    dynamicSortSpecs.add(new CursorHelper.SortSpec(sort.property(), sort.isAscending()));
-                }
-                query.sort(sortMap);
+        if (!dynamicEntries.isEmpty()) {
+            for (SortPlan.Entry e : allSorts) {
+                dynamicSortSpecs.add(new CursorHelper.SortSpec(e.property(), e.ascending()));
             }
         }
 
