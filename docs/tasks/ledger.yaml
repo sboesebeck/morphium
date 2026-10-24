@@ -1955,3 +1955,47 @@ tasks:
   evidence: 'MultikeyUniqueIndexTest (12 tests, InMemoryDriver): $push, $push with $each and $addToSet of a value that another document holds raise 11000 and change nothing, a free value works and is then held, a pulled element and a deleted document free their elements, an insert with a held element and an insert of a scalar that an array holds raise 11000, the same value twice in one document is allowed, a store build over overlapping arrays is rejected and registers nothing, an array of sub documents (items.sku) is unique per element for insert and update; 7 of the first 11 failed before the change; the 12th (a rejected first array leaves no phantom elements behind) was written for a defect found in review, the element buckets were built from the changed document of an update that is rolled back (the sub document test passed for the wrong reason, both documents were MISSING; it now also inserts a free sku). Implementation: IndexKey.elementKeys (element keys incl. dotted paths through arrays and the product for a compound index) and an element bucket map per unique index other than _id_, built when the first array turns up. UniqueIndexTest, CollectionIndexStoreTest, IndexKeyTest, UpdateRejectionTest pass. Regression, tags core and inmemory on the InMemoryDriver: 2630 tests, 3 classes unsuccessful, all three known (InMemUpsertAndExtractionTest, WireWriteSplittingTest fail without the change, HeapReadingFreshnessTest fills the heap). All contract suites (*Contract*, 20 tests) against a single node PoppyDB with the PooledDriver pass, WritePathAuditContractTest 5 of 5 (the six push cases of this entry pass); the PoppyDB CLI jar of that run was built before the review fix. Note: runtests.sh --poppydb rebuilds the PoppyDB CLI jar only when poppydb/src is newer than the jar, so a change in morphium-core needs a mvn package -pl poppydb -am first. Not covered: the index is not used by the planner for lookups per element (an index that holds an array is still left out of planning); parallel arrays in a compound index are taken as a product (mongod rejects them with 171).'
   commits:
   - 04add0076
+- id: MOR-099
+  title: 'LeaseManager: a key other than the @Id, a fencing token, a generated _id, an acquisition time and renew'
+  type: implementation
+  status: done
+  priority: 2
+  effort: M
+  description: 'The leases of a consuming application are keyed by a field with its own unique index (a lease name), have a generated UUID _id and count a fencing token with $inc on every grant; a renewal keeps the token and filters on it. LeaseManager keyed the lease by the @Id and had no token, so the application built these leases with the update builder by hand. The builder gets keyField (unique index required, checked), fencingField, acquiredAtField, idGenerator and assumeUniqueKey(); renew(key, owner, token, ttl) is a separate operation that filters on the token and never counts; LeaseResult gets getFencingToken() and the status LOST. The semantics follow what the application does: tryAcquire counts also for the holder acquiring again, renew never.'
+  acceptance:
+  - 'A lease keyed by another field is acquired, held, taken over and released; one document per key under eight contenders'
+  - 'The fencing token grows with every grant, stays with a renewal, survives a release; a renewal with a stale token or another owner is LOST'
+  - 'A key field without a declared unique index is refused unless assumeUniqueKey() is used'
+  - 'LeaseManager.of(...) keeps working'
+  source:
+  - morphium-core/src/main/java/de/caluga/morphium/query/LeaseManager.java
+  - morphium-core/src/main/java/de/caluga/morphium/query/LeaseResult.java
+  evidence: 'KeyedLeaseManagerTest (14 tests) and LeaseManagerTest (11, unchanged) pass, together with ConditionalWritesRecipesTest (3), on the InMemoryDriver and against mongo:8 with the PooledDriver (28 of 28 on both): generated UUID _id, first token 1, held lease untouched, the holder acquiring again counts, expiry at the deadline, renew keeps token and acquisition time, a stale token or owner is LOST and changes nothing, an expired lease that nobody took over can be renewed, release keeps the counter, eight contenders on five fresh keys have one winner and one document each, release with a token gives up only that grant, without an id generator the database assigns the id, validation (types, missing unique index, id generator without key field, token required for renew). Changed behaviour of the existing of(...): a lease is expired at its deadline (<= now, was <). Not covered: the two-step acquire that avoids the failed upsert on contention (a possible strategy), a heartbeat, the server clock.'
+  commits:
+  - 78741299b
+- id: MOR-100
+  title: 'Documentation: conditional single-document writes as the pattern behind leases, claims, idempotency keys and optimistic locks'
+  type: documentation
+  status: done
+  priority: 3
+  effort: S
+  description: 'The lease, the job claim, the run-once marker, the optimistic lock and the rate limit are one operation: an atomic compare-and-set on one document (key, guard, effect, typed outcome). The update builder with UpdateOutcome is already that primitive; LeaseManager is one policy on it. docs/howtos/conditional-writes.md says so, with a recipe table and two examples, and states the limits (one document, no transaction for the upsert forms, caller clock, unique index).'
+  acceptance:
+  - 'A howto page with the concepts, the recipe table, examples and limits; linked from the API reference and the mkdocs navigation'
+  source:
+  - docs/howtos/conditional-writes.md
+  evidence: 'The page is in mkdocs.yml and linked from the LeaseManager section of the API reference. ConditionalWritesRecipesTest (3 tests, InMemoryDriver and mongo:8) runs the recipes of the page, among them create-or-join with a partial unique index (eight contenders, three rounds: one OPEN case, every request joined, a loser repeats once on DUPLICATE_KEY; the lesson of a consuming application whose create-or-join turned the lost insert race into an exception): run once (INSERTED, then UPDATED with nothing changed - the review found that the first draft said DUPLICATE_KEY, which a filter without a guard never produces), a job claim (UPDATED, then NOT_MATCHED) and an OPEN to CLOSED transition that is a no-op the second time.'
+  commits:
+  - 78741299b
+- id: MOR-101
+  title: 'WorkClaim: a recipe for claiming a unit of work (state, allowed from-states, visibility timeout, attempts)'
+  type: analysis
+  status: done
+  priority: 3
+  effort: S
+  description: 'The fetch-state, ingest and process repositories of a consuming application (about 36 sites with a raw FindAndModifyMongoCommand) claim work with a conditional update. If they were a state IDLE (or an expired claim) to RUNNING with attempts up and a deadline, that would be a lease with another guard, not a LeaseManager. Collect 2-3 representative sites from the application (state field, from-states, visibility timeout, attempts counter, treatment of a lost race), then decide whether a typed recipe (WorkClaim) is worth having or whether the howto on conditional writes is enough.'
+  acceptance:
+  - 'A decision with the examples it is based on; if yes, a WorkClaim with tests on the InMemoryDriver and a real MongoDB'
+  source:
+  - docs/howtos/conditional-writes.md
+  evidence: 'Decision: no WorkClaim. The consuming application was searched for a claim of the shape state A to RUNNING with a visibility timeout and an attempts counter (claim, RUNNING, IN_PROGRESS, lockedUntil, $inc, attempt) over its ~36 raw find-and-modify sites and four representative ones were read: there is none. The sites are atomic upserts with a due clock (exclusivity comes from a job lease and its fencing token), conditional transitions (OPEN to CLOSED, a missing result means lost; a conditional upsert that joins an open case with $addToSet), a raw upsert whose attempts and state exist only as model fields, and a three step array update. The leases were the only counter-like claim and are covered by MOR-099. The two real shapes, the conditional transition and the conditional upsert that joins, are covered by the howto on conditional writes (MOR-100, with the OPEN to CLOSED and the create-or-join example). Reopen if a second consumer shows a claim with a visibility timeout.'

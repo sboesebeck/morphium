@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 20, done 77
+Status: open 20, done 80
 
 ## Overview
 
@@ -93,6 +93,7 @@ Status: open 20, done 77
 | MOR-094 | done | 2 | documentation | README: the Jakarta Data TCK result and our modules added to the entry page, release history of 6.2 and older moved out | S |  |  |
 | MOR-095 | done | 2 | verification | Verification: the showcase against this version, and two findings (scram-client pinned by the Quarkus BOM, no LICENSE file) | S |  |  |
 | MOR-096 | done | 2 | infrastructure | Quarkus extension: build and test against Quarkus 3.40.1 (was 3.32.3) | S |  |  |
+| MOR-099 | done | 2 | implementation | LeaseManager: a key other than the @Id, a fencing token, a generated _id, an acquisition time and renew | M |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
@@ -107,6 +108,8 @@ Status: open 20, done 77
 | MOR-092 | done | 3 | defect | Jakarta Data: IgnoreCase before Between, NotIn and the comparison operators | M |  |  |
 | MOR-097 | done | 3 | defect | InMemoryDriver: $inc, $mul and $currentDate below a scalar value are applied instead of rejected (PathNotViable) | S |  |  |
 | MOR-098 | done | 3 | defect | InMemoryDriver: a unique index on an array field is not enforced per element (multikey unique index) | M |  |  |
+| MOR-100 | done | 3 | documentation | Documentation: conditional single-document writes as the pattern behind leases, claims, idempotency keys and optimistic locks | S |  |  |
+| MOR-101 | done | 3 | analysis | WorkClaim: a recipe for claiming a unit of work (state, allowed from-states, visibility timeout, attempts) | S |  |  |
 
 ## Details
 
@@ -1747,4 +1750,53 @@ Acceptance:
 Source: morphium-core/src/main/java/de/caluga/morphium/driver/inmem/IndexKey.java, morphium-core/src/main/java/de/caluga/morphium/driver/inmem/CollectionIndexStore.java
 
 Commits: 04add0076
+
+### MOR-099 LeaseManager: a key other than the @Id, a fencing token, a generated _id, an acquisition time and renew
+
+Status **done**, priority 2, type implementation, effort M
+
+The leases of a consuming application are keyed by a field with its own unique index (a lease name), have a generated UUID _id and count a fencing token with $inc on every grant; a renewal keeps the token and filters on it. LeaseManager keyed the lease by the @Id and had no token, so the application built these leases with the update builder by hand. The builder gets keyField (unique index required, checked), fencingField, acquiredAtField, idGenerator and assumeUniqueKey(); renew(key, owner, token, ttl) is a separate operation that filters on the token and never counts; LeaseResult gets getFencingToken() and the status LOST. The semantics follow what the application does: tryAcquire counts also for the holder acquiring again, renew never.
+
+Evidence: KeyedLeaseManagerTest (14 tests) and LeaseManagerTest (11, unchanged) pass, together with ConditionalWritesRecipesTest (3), on the InMemoryDriver and against mongo:8 with the PooledDriver (28 of 28 on both): generated UUID _id, first token 1, held lease untouched, the holder acquiring again counts, expiry at the deadline, renew keeps token and acquisition time, a stale token or owner is LOST and changes nothing, an expired lease that nobody took over can be renewed, release keeps the counter, eight contenders on five fresh keys have one winner and one document each, release with a token gives up only that grant, without an id generator the database assigns the id, validation (types, missing unique index, id generator without key field, token required for renew). Changed behaviour of the existing of(...): a lease is expired at its deadline (<= now, was <). Not covered: the two-step acquire that avoids the failed upsert on contention (a possible strategy), a heartbeat, the server clock.
+
+Acceptance:
+
+- A lease keyed by another field is acquired, held, taken over and released; one document per key under eight contenders
+- The fencing token grows with every grant, stays with a renewal, survives a release; a renewal with a stale token or another owner is LOST
+- A key field without a declared unique index is refused unless assumeUniqueKey() is used
+- LeaseManager.of(...) keeps working
+
+Source: morphium-core/src/main/java/de/caluga/morphium/query/LeaseManager.java, morphium-core/src/main/java/de/caluga/morphium/query/LeaseResult.java
+
+Commits: 78741299b
+
+### MOR-100 Documentation: conditional single-document writes as the pattern behind leases, claims, idempotency keys and optimistic locks
+
+Status **done**, priority 3, type documentation, effort S
+
+The lease, the job claim, the run-once marker, the optimistic lock and the rate limit are one operation: an atomic compare-and-set on one document (key, guard, effect, typed outcome). The update builder with UpdateOutcome is already that primitive; LeaseManager is one policy on it. docs/howtos/conditional-writes.md says so, with a recipe table and two examples, and states the limits (one document, no transaction for the upsert forms, caller clock, unique index).
+
+Evidence: The page is in mkdocs.yml and linked from the LeaseManager section of the API reference. ConditionalWritesRecipesTest (3 tests, InMemoryDriver and mongo:8) runs the recipes of the page, among them create-or-join with a partial unique index (eight contenders, three rounds: one OPEN case, every request joined, a loser repeats once on DUPLICATE_KEY; the lesson of a consuming application whose create-or-join turned the lost insert race into an exception): run once (INSERTED, then UPDATED with nothing changed - the review found that the first draft said DUPLICATE_KEY, which a filter without a guard never produces), a job claim (UPDATED, then NOT_MATCHED) and an OPEN to CLOSED transition that is a no-op the second time.
+
+Acceptance:
+
+- A howto page with the concepts, the recipe table, examples and limits; linked from the API reference and the mkdocs navigation
+
+Source: docs/howtos/conditional-writes.md
+
+Commits: 78741299b
+
+### MOR-101 WorkClaim: a recipe for claiming a unit of work (state, allowed from-states, visibility timeout, attempts)
+
+Status **done**, priority 3, type analysis, effort S
+
+The fetch-state, ingest and process repositories of a consuming application (about 36 sites with a raw FindAndModifyMongoCommand) claim work with a conditional update. If they were a state IDLE (or an expired claim) to RUNNING with attempts up and a deadline, that would be a lease with another guard, not a LeaseManager. Collect 2-3 representative sites from the application (state field, from-states, visibility timeout, attempts counter, treatment of a lost race), then decide whether a typed recipe (WorkClaim) is worth having or whether the howto on conditional writes is enough.
+
+Evidence: Decision: no WorkClaim. The consuming application was searched for a claim of the shape state A to RUNNING with a visibility timeout and an attempts counter (claim, RUNNING, IN_PROGRESS, lockedUntil, $inc, attempt) over its ~36 raw find-and-modify sites and four representative ones were read: there is none. The sites are atomic upserts with a due clock (exclusivity comes from a job lease and its fencing token), conditional transitions (OPEN to CLOSED, a missing result means lost; a conditional upsert that joins an open case with $addToSet), a raw upsert whose attempts and state exist only as model fields, and a three step array update. The leases were the only counter-like claim and are covered by MOR-099. The two real shapes, the conditional transition and the conditional upsert that joins, are covered by the howto on conditional writes (MOR-100, with the OPEN to CLOSED and the create-or-join example). Reopen if a second consumer shows a claim with a visibility timeout.
+
+Acceptance:
+
+- A decision with the examples it is based on; if yes, a WorkClaim with tests on the InMemoryDriver and a real MongoDB
+
+Source: docs/howtos/conditional-writes.md
 

@@ -339,8 +339,24 @@ LeaseResult<Lease> r = leases.tryAcquire("outbox-relay", nodeId, Duration.ofSeco
 if (r.isAcquired()) { /* r.getLease() has the new deadline and, with @Version, a fencing token */ }
 leases.release("outbox-relay", nodeId);                                                           // true if nodeId held it
 ```
-One atomic conditional upsert on the `@Id`; `HELD` is the lost insert (duplicate key). The deadline is compared with the caller's clock, there is no heartbeat (renew by calling `tryAcquire`), and
+One atomic conditional upsert on the `@Id`; `HELD` is the lost insert (duplicate key). The deadline is compared with the caller's clock (a lease is expired at its deadline), there is no heartbeat, and
 it must not be called inside a real MongoDB transaction (a duplicate key aborts it).
+
+A lease with a natural key, a generated `_id`, an acquisition time and a fencing token needs the builder (MOR-099):
+```java
+LeaseManager<JobLease> leases = LeaseManager.builder(morphium, JobLease.class)
+        .keyField("leaseName")                       // unique index required: @Index(options = "unique:true"), checked by build(); assumeUniqueKey() if it is created elsewhere
+        .ownerField("holder").expiresAtField("expiresAt")
+        .acquiredAtField("acquiredAt")               // set by every grant, not by a renewal
+        .fencingField("fencingToken")                // long or int; counted up by every grant
+        .idGenerator(() -> UUID.randomUUID().toString())   // the _id of a lease that is created
+        .build();
+LeaseResult<JobLease> r = leases.tryAcquire("outbox-relay", nodeId, ttl);   // ACQUIRED (r.getFencingToken()) or HELD
+LeaseResult<JobLease> k = leases.renew("outbox-relay", nodeId, r.getFencingToken(), ttl);   // ACQUIRED with the same token, or LOST
+```
+Every grant counts the token up: a new lease, a takeover, and the holder acquiring again. `renew` keeps the token and filters on it, so a lease that was taken over (or granted again) cannot be revived
+with an old token; an expired lease that nobody took over can still be renewed. `release` expires the lease and keeps the counter. `LeaseResult.Status` is `ACQUIRED`, `HELD` (acquire) or `LOST` (renew).
+The pattern behind this and its siblings (job claims, idempotency, optimistic locking, counters) is in [Conditional single-document writes](howtos/conditional-writes.md).
 
 ## Aggregation API
 
