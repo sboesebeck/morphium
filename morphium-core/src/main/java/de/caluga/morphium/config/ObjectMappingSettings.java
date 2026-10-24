@@ -16,6 +16,7 @@ public class ObjectMappingSettings extends Settings {
     // so a runtime setUseBsonDateForJavaTime(...) from another thread has to be visible to them.
     private volatile boolean useBsonDateForJavaTime = false;
     private boolean translateUpdateFieldNames = true;
+    private boolean strictEmbeddedNaming = false;
     public boolean isCheckForNew() {
         return checkForNew;
     }
@@ -211,6 +212,32 @@ public class ObjectMappingSettings extends Settings {
 
     public ObjectMappingSettings disableTranslateUpdateFieldNames() {
         translateUpdateFieldNames = false;
+        return this;
+    }
+
+    /**
+     * If enabled, an {@code @Embedded} class with the default {@code translateCamelCase=true} that sits in a class with {@code translateCamelCase=false} (an entity, or an embedded
+     * one) makes the mapper throw an {@code IllegalStateException} at the first use of that class. The default is {@code false}: the mapper logs a warning once per class instead.
+     * Either way the stored data is not changed: such an embedded class is stored in snake_case (file_name) while its owner keeps its names (ownerName), and reads back
+     * correctly, which is why it goes unnoticed until a raw query uses the wrong name. Set {@code @Embedded(translateCamelCase=false)} on the embedded class if camelCase
+     * keys are intended. MOR-014.
+     */
+    public boolean isStrictEmbeddedNaming() {
+        return strictEmbeddedNaming;
+    }
+
+    public ObjectMappingSettings setStrictEmbeddedNaming(boolean strictEmbeddedNaming) {
+        this.strictEmbeddedNaming = strictEmbeddedNaming;
+        return this;
+    }
+
+    public ObjectMappingSettings enableStrictEmbeddedNaming() {
+        strictEmbeddedNaming = true;
+        return this;
+    }
+
+    public ObjectMappingSettings disableStrictEmbeddedNaming() {
+        strictEmbeddedNaming = false;
         return this;
     }
 }
