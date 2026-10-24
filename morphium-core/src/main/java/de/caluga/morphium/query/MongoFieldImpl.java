@@ -167,9 +167,9 @@ public class MongoFieldImpl<T> implements MongoField<T> {
                         val = new MorphiumId((String) val);
                     } catch (Exception ignored) {
                     }
-                } else if (val instanceof Enum) {
-                    //noinspection ConstantConditions
-                    val = ((Enum) val).name();
+                } else if (val instanceof Enum || val instanceof String) {
+                    // the name or the ordinal, as the field is stored; the name of a constant for an enum field too (MOR-093)
+                    val = mapper.marshallEnumsIn(val, field);
                 }
             }
             // Apply custom type mappers (e.g. LocalDateTime -> BSON Date)

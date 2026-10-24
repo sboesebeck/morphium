@@ -27,6 +27,8 @@ class QueryExecutorEnumTest {
         @Id
         private long id;
         private Kind kind;
+        @de.caluga.morphium.annotations.Enumerated(de.caluga.morphium.annotations.EnumType.ORDINAL)
+        private Kind ranked;
         private int amount;
 
         Num() {}
@@ -34,6 +36,7 @@ class QueryExecutorEnumTest {
         Num(long id, Kind kind, int amount) {
             this.id = id;
             this.kind = kind;
+            this.ranked = kind;
             this.amount = amount;
         }
     }
@@ -48,6 +51,17 @@ class QueryExecutorEnumTest {
     private Morphium morphium;
     private NumRepo repo;
 
+    private void seed() {
+        morphium.clearCollection(Num.class);
+        morphium.store(new Num(1, Kind.ONE, 1));
+        morphium.store(new Num(2, Kind.PRIME, 2));
+        morphium.store(new Num(3, Kind.PRIME, 3));
+        morphium.store(new Num(4, Kind.COMPOSITE, 4));
+        morphium.store(new Num(5, Kind.PRIME, 5));
+        morphium.store(new Num(6, Kind.COMPOSITE, 6));
+        morphium.store(new Num(7, Kind.PRIME, 7));
+    }
+
     @BeforeEach
     void setUp() {
         MorphiumConfig cfg = new MorphiumConfig();
@@ -56,13 +70,7 @@ class QueryExecutorEnumTest {
         cfg.setDriverName(InMemoryDriver.driverName);
         morphium = new Morphium(cfg);
         repo = new NumRepo(morphium);
-        morphium.store(new Num(1, Kind.ONE, 1));
-        morphium.store(new Num(2, Kind.PRIME, 2));
-        morphium.store(new Num(3, Kind.PRIME, 3));
-        morphium.store(new Num(4, Kind.COMPOSITE, 4));
-        morphium.store(new Num(5, Kind.PRIME, 5));
-        morphium.store(new Num(6, Kind.COMPOSITE, 6));
-        morphium.store(new Num(7, Kind.PRIME, 7));
+        seed();
     }
 
     @AfterEach
@@ -84,5 +92,59 @@ class QueryExecutorEnumTest {
         assertThat(ids("findByKindIn", Set.of(Kind.COMPOSITE, Kind.ONE))).containsExactly(1L, 4L, 6L);
         assertThat(ids("findByKindNotIn", Set.of(Kind.COMPOSITE, Kind.ONE))).containsExactly(2L, 3L, 5L, 7L);
         assertThat(ids("findByKindAndAmountLessThan", Kind.PRIME, 5)).containsExactly(2L, 3L);
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Long> jdql(String jdql, Object... args) {
+        StringBuilder spec = new StringBuilder();
+
+        for (int i = 0; i < args.length; i++) {
+            spec.append(i == 0 ? "" : ",").append("p").append(i + 1).append(':').append(i);
+        }
+
+        Object result = JdqlMethodBridge.executeJdql(repo, jdql, spec.toString(), -1, -1, -1, -1, args, false, false, false, false, false, "", false, null);
+        return ((List<Num>) result).stream().map(n -> n.id).sorted().toList();
+    }
+
+    private void assertAllForms(String field) {
+        String cap = Character.toUpperCase(field.charAt(0)) + field.substring(1);
+
+        assertThat(ids("findBy" + cap, Kind.PRIME)).containsExactly(2L, 3L, 5L, 7L);
+        assertThat(ids("findBy" + cap + "Not", Kind.PRIME)).containsExactly(1L, 4L, 6L);
+        assertThat(ids("findBy" + cap + "In", Set.of(Kind.COMPOSITE, Kind.ONE))).containsExactly(1L, 4L, 6L);
+        assertThat(ids("findBy" + cap + "NotIn", Set.of(Kind.COMPOSITE, Kind.ONE))).containsExactly(2L, 3L, 5L, 7L);
+        assertThat(jdql("WHERE " + field + " = com.example.Kind.PRIME")).containsExactly(2L, 3L, 5L, 7L);
+        assertThat(jdql("WHERE " + field + " = 'COMPOSITE'")).containsExactly(4L, 6L);
+        assertThat(jdql("WHERE " + field + " IN ('ONE', 'COMPOSITE')")).containsExactly(1L, 4L, 6L);
+        assertThat(jdql("WHERE " + field + " <> ?1", Kind.PRIME)).containsExactly(1L, 4L, 6L);
+        assertThat(jdql("WHERE " + field + " IN ?1", List.of(Kind.PRIME, Kind.ONE))).containsExactly(1L, 2L, 3L, 5L, 7L);
+    }
+
+    @Test
+    @DisplayName("MOR-093: derived queries and JDQL find enums by name and by ordinal, per field and by the setting")
+    void storedByNameAndByOrdinal() {
+        assertAllForms("kind");
+        assertAllForms("ranked");
+
+        morphium.getConfig().objectMappingSettings().setEnumType(de.caluga.morphium.annotations.EnumType.ORDINAL);
+        seed();
+
+        assertAllForms("kind");
+        assertAllForms("ranked");
+        assertThat(morphium.getMapper().serialize(morphium.createQueryFor(Num.class).f("id").eq(2L).get()).get("kind")).isEqualTo(Kind.PRIME.ordinal());
+    }
+
+    @Test
+    @DisplayName("MOR-093: UPDATE ... SET enum = 'NAME' stores the enum as the field says")
+    void updateStoresTheFieldForm() {
+        morphium.getConfig().objectMappingSettings().setEnumType(de.caluga.morphium.annotations.EnumType.ORDINAL);
+        seed();
+
+        JdqlMethodBridge.executeJdqlUpdate(repo, "UPDATE Num SET kind = 'COMPOSITE', ranked = :r WHERE id = 1", "r:0", new Object[] {Kind.PRIME});
+
+        Num one = morphium.findById(Num.class, 1L, null);
+        assertThat(one.kind).isEqualTo(Kind.COMPOSITE);
+        assertThat(one.ranked).isEqualTo(Kind.PRIME);
+        assertThat(morphium.createQueryFor(Num.class).f("kind").eq(Kind.COMPOSITE).countAll()).isEqualTo(3);
     }
 }

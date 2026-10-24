@@ -266,12 +266,27 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
     @Override
     public Object marshallUpdateValue(Object value) {
-        return marshallUpdateValue(value, false);
+        return marshallUpdateValue(value, false, null);
     }
 
     @Override
     public Object marshallUpdateElement(Object value) {
-        return marshallUpdateValue(value, true);
+        return marshallUpdateValue(value, true, null);
+    }
+
+    @Override
+    public Object marshallUpdateValue(Object value, Field field) {
+        return marshallUpdateValue(value, false, enumTypeOf(field));
+    }
+
+    @Override
+    public Object marshallUpdateElement(Object value, Field field) {
+        return marshallUpdateValue(value, true, enumTypeOf(field));
+    }
+
+    @Override
+    public Object marshallUpdatePullOperand(Object operand, Field field) {
+        return marshallUpdatePullOperand(operand, enumTypeOf(field));
     }
 
     /**
@@ -281,13 +296,13 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
      * (ObjectMapperImpl#serializeIterable / #serializeMap), and for a {@code MorphiumId}, which is an {@code ObjectId} in a container.
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private Object marshallUpdateValue(Object o, boolean element) {
+    private Object marshallUpdateValue(Object o, boolean element, EnumType storage) {
         if (o == null) {
             return null;
         }
 
         if (o instanceof Enum) {
-            return ((Enum) o).name();
+            return effective(storage) == EnumType.ORDINAL ? (Object) ((Enum) o).ordinal() : ((Enum) o).name();
         }
 
         if (element && o instanceof MorphiumId) {
@@ -307,7 +322,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     throw new IllegalArgumentException("Can't use maps with a key that is not of type String in an update document: " + k);
                 }
 
-                ret.put((String) k, marshallUpdateValue(e.getValue(), true));
+                ret.put((String) k, marshallUpdateValue(e.getValue(), true, storage));
             }
 
             return ret;
@@ -317,7 +332,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             List<Object> ret = new ArrayList<>(((Collection) o).size());
 
             for (Object e : (Collection) o) {
-                ret.add(marshallUpdateValue(e, true));
+                ret.add(marshallUpdateValue(e, true, storage));
             }
 
             return ret;
@@ -334,7 +349,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             List<Object> ret = new ArrayList<>(length);
 
             for (int i = 0; i < length; i++) {
-                ret.add(marshallUpdateValue(Array.get(o, i), true));
+                ret.add(marshallUpdateValue(Array.get(o, i), true, storage));
             }
 
             return ret;
@@ -366,9 +381,13 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         return mapper != null ? mapper.marshall(o) : o;
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     @Override
     public Object marshallUpdatePullOperand(Object operand) {
+        return marshallUpdatePullOperand(operand, (EnumType) null);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private Object marshallUpdatePullOperand(Object operand, EnumType storage) {
         if (operand != null && !(operand instanceof Map) && !(operand instanceof Collection) && !operand.getClass().isArray() && !annotationHelper.isEntity(operand.getClass())
                 && !mongoTypes.contains(operand.getClass()) && customMappers.containsKey(operand.getClass())) {
             MorphiumTypeMapper mapper = customMappers.get(operand.getClass());
@@ -384,7 +403,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         }
 
         if (!(operand instanceof Map) || ((Map) operand).isEmpty()) {
-            return marshallUpdateElement(operand);
+            return marshallUpdateValue(operand, true, storage);
         }
 
         Map<String, Object> condition = new LinkedHashMap<>();
@@ -412,12 +431,12 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 List<Object> members = new ArrayList<>();
 
                 for (Object member : (Collection) v) {
-                    members.add(marshallUpdateValue(member, false));
+                    members.add(marshallUpdateValue(member, false, storage));
                 }
 
                 condition.put((String) k, members);
             } else {
-                condition.put((String) k, marshallUpdateValue(v, false));
+                condition.put((String) k, marshallUpdateValue(v, false, storage));
             }
         }
 
@@ -746,7 +765,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     if (!ad.readOnly()) {
                         //storing additional data
                         if (value != null) {
-                            dbo.putAll(serializeMap((Map) value, fld.getGenericType()));
+                            dbo.putAll(serializeMap((Map) value, fld.getGenericType(), enumTypeOf(fld)));
                         }
                     }
 
@@ -861,7 +880,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                         if (v != null) {
                             if (v instanceof Map) {
                                 //create MongoHashMap<String,Object>-Map
-                                v = serializeMap((Map) v, fld.getGenericType());
+                                v = serializeMap((Map) v, fld.getGenericType(), enumTypeOf(fld));
                             } else if (v.getClass().isArray()) {
                                 if (!v.getClass().getComponentType().equals(byte.class)) {
                                     int arrayLength = Array.getLength(v);
@@ -871,10 +890,10 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                                         lst.add(Array.get(v, i));
                                     }
 
-                                    v = serializeIterable(lst, fld.getType(), fld.getGenericType());
+                                    v = serializeIterable(lst, fld.getType(), fld.getGenericType(), enumTypeOf(fld));
                                 }
                             } else if (v instanceof Iterable) {
-                                v = serializeIterable((Iterable) v, fld.getType(), fld.getGenericType());
+                                v = serializeIterable((Iterable) v, fld.getType(), fld.getGenericType(), enumTypeOf(fld));
                             } else if (v instanceof Calendar) {
                                 v = ((Calendar) v).getTime();
                             } else if (v.getClass().equals(MorphiumId.class)) {
@@ -882,7 +901,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                             } else if (customMappers.containsKey(v.getClass())) {
                                 v = customMappers.get(v.getClass()).marshall(v);
                             } else if (v instanceof Enum) {
-                                v = serializeEnum(fld.getType(), ((Enum) v));
+                                v = serializeEnum(fld.getType(), ((Enum) v), enumTypeOf(fld));
                             } else if (!mongoTypes.contains(v.getClass()) && Serializable.class.isAssignableFrom(v.getClass())) {
                                 //not a type the driver does understand, but is serializable
                                 //try binary serialization
@@ -965,6 +984,10 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     }
 
     public List<Object> serializeIterable(Iterable v, Class<?> collectionClass, Type collectionType) {
+        return serializeIterable(v, collectionClass, collectionType, null);
+    }
+
+    private List<Object> serializeIterable(Iterable v, Class<?> collectionClass, Type collectionType, EnumType storage) {
         Class elementClass = null;
         Type elementType = null;
 
@@ -1011,13 +1034,13 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     marshall.put("class_name", cn);
                     lst.add(marshall);
                 } else if (lo instanceof Iterable) {
-                    lst.add(serializeIterable((Iterable) lo, elementClass, elementType));
+                    lst.add(serializeIterable((Iterable) lo, elementClass, elementType, storage));
                 } else if (lo instanceof Map) {
-                    lst.add(serializeMap(((Map) lo), elementType));
+                    lst.add(serializeMap(((Map) lo), elementType, storage));
                 } else if (lo instanceof MorphiumId) {
                     lst.add(new ObjectId(((MorphiumId) lo).getBytes()));
                 } else if (lo instanceof Enum) {
-                    lst.add(serializeEnum(elementClass, ((Enum) lo)));
+                    lst.add(serializeEnum(elementClass, ((Enum) lo), storage));
                 } else if (loClass.isPrimitive() || mongoTypes.contains(loClass)) {
                     lst.add(lo);
                 } else if (loClass.isArray()) {
@@ -1031,7 +1054,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                             loLst.add(Array.get(lo, i));
                         }
 
-                        lst.add(serializeIterable(loLst, elementClass, elementType));
+                        lst.add(serializeIterable(loLst, elementClass, elementType, storage));
                     }
                 } else {
                     lst.add(serialize(lo));
@@ -1068,6 +1091,10 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
     @SuppressWarnings("unchecked")
     public Map<String, Object> serializeMap(Map v, Type mapType) {
+        return serializeMap(v, mapType, null);
+    }
+
+    private Map<String, Object> serializeMap(Map v, Type mapType, EnumType storage) {
         Class<?> elementClass = null;
         Type elementType = null;
 
@@ -1107,9 +1134,9 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     obj.put("class_name", getTypeId(mvalClass, mvalEntity, mvalEmbedded));
                     mval = obj;
                 } else if (mval instanceof Map) {
-                    mval = serializeMap((Map) mval, elementType);
+                    mval = serializeMap((Map) mval, elementType, storage);
                 } else if (mval instanceof Iterable) {
-                    mval = serializeIterable((Iterable) mval, elementClass, elementType);
+                    mval = serializeIterable((Iterable) mval, elementClass, elementType, storage);
                 } else if (mvalClass.isArray()) {
                     if (!mvalClass.getComponentType().equals(byte.class)) {
                         int arrayLength = Array.getLength(mval);
@@ -1119,10 +1146,10 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                             lst.add(Array.get(mval, i));
                         }
 
-                        mval = serializeIterable(lst, elementClass, elementType);
+                        mval = serializeIterable(lst, elementClass, elementType, storage);
                     }
                 } else if (mval instanceof Enum) {
-                    mval = serializeEnum(elementClass, (Enum) mval);
+                    mval = serializeEnum(elementClass, (Enum) mval, storage);
                 } else if (mval instanceof MorphiumId) {
                     mval = new ObjectId(((MorphiumId) mval).getBytes());
                 } else if (!mvalClass.isPrimitive() && !mongoTypes.contains(mvalClass)) {
@@ -1137,6 +1164,106 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     }
 
     public Object serializeEnum(Class<?> declaredClass, Enum val) {
+        return serializeEnum(declaredClass, val, null);
+    }
+
+    /**
+     * The explicit {@code @Enumerated} of a field, null if it has none: the setting decides then (MOR-093).
+     */
+    EnumType enumTypeOf(Field fld) {
+        Enumerated e = fld == null ? null : fld.getAnnotation(Enumerated.class);
+        return e == null ? null : e.value();
+    }
+
+    private EnumType effective(EnumType explicit) {
+        if (explicit != null) {
+            return explicit;
+        }
+
+        return morphium != null && morphium.getConfig() != null ? morphium.getConfig().objectMappingSettings().getEnumType() : EnumType.STRING;
+    }
+
+    /**
+     * The value that is stored for an enum in a field, or in a query or an update on that field: the name or the ordinal, as the field's {@code @Enumerated} or the setting says.
+     *
+     * @param field the Java field, null if there is none: the setting decides
+     */
+    @Override
+    public Object marshallEnum(Field field, Enum<?> value) {
+        return effective(enumTypeOf(field)) == EnumType.ORDINAL ? (Object) value.ordinal() : value.name();
+    }
+
+    /** the enum of a field, or the enum of the elements of a collection field; null if the field holds none */
+    private static Class<?> enumOf(Field field) {
+        if (field == null) {
+            return null;
+        }
+
+        if (field.getType().isEnum()) {
+            return field.getType();
+        }
+
+        if (Collection.class.isAssignableFrom(field.getType()) && field.getGenericType() instanceof ParameterizedType p && p.getActualTypeArguments().length == 1
+                && p.getActualTypeArguments()[0] instanceof Class<?> c && c.isEnum()) {
+            return c;
+        }
+
+        return null;
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private Object marshallEnumOrName(Object x, Field field, Class<?> fieldEnum) {
+        if (x instanceof Enum<?> e) {
+            return marshallEnum(field, e);
+        }
+
+        // the name of a constant for a field of that enum: a query that has always been written with the name keeps finding what it found, whatever the field stores
+        if (x instanceof String name && fieldEnum != null) {
+            try {
+                return marshallEnum(field, Enum.valueOf((Class<? extends Enum>) fieldEnum, name));
+            } catch (IllegalArgumentException notAConstant) {
+                return x;
+            }
+        }
+
+        return x;
+    }
+
+    @Override
+    public Object marshallEnumsIn(Object value, Field field) {
+        Class<?> fieldEnum = enumOf(field);
+
+        if (value instanceof Enum<?> || value instanceof String) {
+            return marshallEnumOrName(value, field, fieldEnum);
+        }
+
+        if (value instanceof Collection<?> c && c.stream().anyMatch(x -> x instanceof Enum || (x instanceof String && fieldEnum != null))) {
+            List<Object> marshalled = new ArrayList<>(c.size());
+
+            for (Object x : c) {
+                marshalled.add(marshallEnumOrName(x, field, fieldEnum));
+            }
+
+            return marshalled;
+        }
+
+        if (value instanceof Map<?, ?> m && m.values().stream().anyMatch(x -> x instanceof Enum)) {
+            Map<Object, Object> marshalled = new LinkedHashMap<>();
+
+            for (Map.Entry<?, ?> e : m.entrySet()) {
+                marshalled.put(e.getKey(), e.getValue() instanceof Enum<?> en ? marshallEnum(field, en) : e.getValue());
+            }
+
+            return marshalled;
+        }
+
+        return value;
+    }
+
+    /**
+     * @param storage how the enum is stored, null for the setting
+     */
+    public Object serializeEnum(Class<?> declaredClass, Enum val, EnumType storage) {
         // Resolve anonymous enum subclasses (enum constants with body) to the declaring enum type
         Class<?> enumType = declaredClass;
         if (enumType != null && !enumType.isEnum()
@@ -1146,9 +1273,9 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         }
 
         if (enumType != null && enumType.isEnum()) {
-            // Typed field — store as plain String (the enum constant name).
+            // Typed field — store as plain String (the enum constant name) or as the ordinal.
             // Deserialization knows the target type from the field declaration.
-            return val.name();
+            return effective(storage) == EnumType.ORDINAL ? (Object) val.ordinal() : val.name();
         }
 
         // Untyped field (declared as Object, List<Object>, Map<String,Object>):
@@ -1174,6 +1301,20 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     @SuppressWarnings({"unchecked", "rawtypes"})
     private Enum<?> deserializeEnumValue(Class<?> enumClass, Object valueFromDb, String fieldName) {
         String enumName;
+
+        if (valueFromDb instanceof Number n) {
+            // the ordinal (MOR-093)
+            Object[] constants = enumClass.getEnumConstants();
+            int ordinal = n.intValue();
+
+            if (constants == null || ordinal != n.doubleValue() || ordinal < 0 || ordinal >= constants.length) {
+                throw new IllegalArgumentException(
+                        "Cannot deserialize enum" + (fieldName != null ? " field '" + fieldName + "'" : "") + " of type " + enumClass.getSimpleName()
+                                + ": the ordinal " + n + " is no constant (0 to " + (constants == null ? -1 : constants.length - 1) + ")");
+            }
+
+            return (Enum<?>) constants[ordinal];
+        }
 
         if (valueFromDb instanceof String s) {
             enumName = s;
@@ -2062,8 +2203,8 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             Object unmarshalled = unmarshallInternal(val);
             elementClass = ClassUtils.primitiveToWrapper(elementClass);
 
-            if (unmarshalled instanceof String && elementClass != null && elementClass.isEnum()) {
-                unmarshalled = Enum.valueOf((Class<? extends Enum>) elementClass, (String) unmarshalled);
+            if ((unmarshalled instanceof String || unmarshalled instanceof Number) && elementClass != null && elementClass.isEnum()) {
+                unmarshalled = deserializeEnumValue(elementClass, unmarshalled, null);
             } else if (unmarshalled != null && elementClass != null && !elementClass.isAssignableFrom(unmarshalled.getClass())) {
                 try {
                     unmarshalled = AnnotationAndReflectionHelper.convertType(unmarshalled, "", elementClass);
@@ -2307,8 +2448,8 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
             Object unmarshalled = unmarshallInternal(val);
 
-            if (unmarshalled instanceof String && elementClass != null && elementClass.isEnum()) {
-                unmarshalled = Enum.valueOf((Class<? extends Enum>) elementClass, (String) unmarshalled);
+            if ((unmarshalled instanceof String || unmarshalled instanceof Number) && elementClass != null && elementClass.isEnum()) {
+                unmarshalled = deserializeEnumValue(elementClass, unmarshalled, null);
             } else if (unmarshalled != null && elementClass != null && !elementClass.isAssignableFrom(unmarshalled.getClass())) {
                 try {
                     unmarshalled = AnnotationAndReflectionHelper.convertType(unmarshalled, "", elementClass);

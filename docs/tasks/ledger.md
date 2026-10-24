@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 22, done 69
+Status: open 22, done 70
 
 ## Overview
 
@@ -89,6 +89,7 @@ Status: open 22, done 69
 | MOR-089 | done | 2 | defect | Jakarta Data: a one-character string literal compares with a char field as the character | S |  |  |
 | MOR-090 | done | 2 | defect | Jakarta Data: an enum in Not, In, NotIn and range operators of a derived query is its name | S |  |  |
 | MOR-091 | done | 2 | defect | Jakarta Data: several ORs in one query narrow each other | S |  |  |
+| MOR-093 | done | 2 | implementation | Enums can be stored by their ordinal: @Enumerated and an opt-in setting | M |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
@@ -575,7 +576,7 @@ Status **done**, priority 2, type infrastructure, effort M
 
 No jakarta.data-tck dependency exists in any pom. Micronaut Data has a jakarta-data-tck/mongodb module as a model. Add the TCK matching the implemented API version and run it against a real MongoDB and PoppyDB/InMemoryDriver.
 
-Evidence: JakartaDataTckTest (Spring module, replaces the spike) runs the 73 standalone assertions of jakarta.data-tck 1.0.0 without Arquillian and fails when a test that is not excluded fails or an excluded test passes. 69 of 73 pass on the InMemoryDriver and on a real mongo:8 (PooledDriver, port 27099); the 4 exclusions have a reason each in the test: they sort an enum by its ordinal (Morphium stores an enum by its name). The test is part of the normal test run of the Spring module, so CI runs it wherever that module is built. Documented in docs/jakarta-data.md (Conformance). Fixed on the way, one task per cause: MOR-076, 078 to 091.
+Evidence: JakartaDataTckTest (Spring module, replaces the spike) runs the 73 standalone assertions of jakarta.data-tck 1.0.0 without Arquillian and fails when a test that is not excluded fails or an excluded test passes. all 73 pass on the InMemoryDriver and on a real mongo:8 (PooledDriver, port 27099), with morphium.enum-type=ORDINAL (MOR-093) for the four tests that sort an enum by its ordinal; there are no exclusions. The test is part of the normal test run of the Spring module, so CI runs it wherever that module is built. Documented in docs/jakarta-data.md (Conformance). Fixed on the way, one task per cause: MOR-076, 078 to 091.
 
 Acceptance:
 
@@ -1627,4 +1628,23 @@ Acceptance:
 Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/MethodNameParser.java
 
 Commits: e02ec8a43, 4d532da30
+
+### MOR-093 Enums can be stored by their ordinal: @Enumerated and an opt-in setting
+
+Status **done**, priority 2, type implementation, effort M
+
+Requested by the maintainer after the TCK (four tests sort an enum by the order of its constants). An enum was always stored by its name. Now @Enumerated(EnumType.STRING|ORDINAL) on a field decides, like @Enumerated of JPA, and objectMappingSettings().setEnumType(...) (morphium.enum-type in Spring, quarkus.morphium.enum-type in Quarkus) is the default for fields without it; the default of the setting is STRING, so nothing changes unless it is asked for. Reading accepts both forms. Queries, updates (UpdateBuilder, set/push/pull, bulk and buffered writers, partial store), JDQL and the derived queries write the form of the field.
+
+Evidence: EnumStorageTest (7: fields, setting, reading both forms, queries, sort, updates, bad ordinal) on the InMemoryDriver and on a real mongo:8; QueryExecutorEnumTest (derived queries and JDQL in both modes, UPDATE ... SET enum); Quarkus MorphiumEnumTypeTest for quarkus.morphium.enum-type; JakartaDataTckTest with morphium.enum-type=ORDINAL: 73 of 73 on the InMemoryDriver and on mongo:8.
+
+Acceptance:
+
+- An enum field is stored by name by default, by ordinal with @Enumerated(ORDINAL) or with the setting; the annotation wins over the setting
+- Queries, updates, JDQL and derived queries match the stored form; sorts and range queries follow the order of the constants for an ordinal field
+- Reading takes both forms; an ordinal that is no constant is refused with the field name
+- The setting is available in the Spring and the Quarkus module
+
+Source: morphium-core/src/main/java/de/caluga/morphium/annotations/Enumerated.java, morphium-core/src/main/java/de/caluga/morphium/ObjectMapperImpl.java
+
+Commits: 8dc2017ee, 72aec1d28
 

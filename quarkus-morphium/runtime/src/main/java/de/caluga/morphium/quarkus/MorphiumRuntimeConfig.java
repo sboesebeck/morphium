@@ -202,6 +202,14 @@ public interface MorphiumRuntimeConfig {
      */
     Optional<Boolean> useBsonDateForJavaTime();
 
+    /**
+     * How an enum is stored in a field without {@code @Enumerated}: {@code STRING} (the name of the constant, the default) or {@code ORDINAL} (its position, so a sort and a range query follow
+     * the order of the constants). Sets {@code ObjectMappingSettings#setEnumType}. Existing documents are not rewritten; reading takes both forms. The ordinal changes when a constant is
+     * inserted or moved: add new constants at the end. {@code @Enumerated} on a field wins over this setting.
+     */
+    @io.smallrye.config.WithDefault("STRING")
+    de.caluga.morphium.annotations.EnumType enumType();
+
     /** Nested database migration configuration. */
     MorphiumMigrationConfig migration();
 

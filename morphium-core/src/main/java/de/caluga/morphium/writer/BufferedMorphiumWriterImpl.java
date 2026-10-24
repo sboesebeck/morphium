@@ -633,7 +633,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
             for (String f : flds) {
                 String fld = morphium.getARHelper().getMongoFieldName(query.getType(), f);
-                set.put(fld, morphium.getARHelper().getValue(ent, f));
+                set.put(fld, morphium.getMapper().marshallEnumsIn(morphium.getARHelper().getValue(ent, f), morphium.getARHelper().getFieldOrNull(ent.getClass(), f)));
             }
             morphium.getCache().clearCacheIfNecessary(ent.getClass());
             morphium.firePostUpdateEvent(ent.getClass(), MorphiumStorageListener.UpdateTypes.SET);
@@ -655,7 +655,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         final Map<String, Object> marshalled = new LinkedHashMap<>();
 
         for (Map.Entry<String, Object> kv : values.entrySet()) {
-            marshalled.put(kv.getKey(), morphium.getMapper().marshallUpdateValue(kv.getValue()));
+            marshalled.put(kv.getKey(), morphium.getMapper().marshallUpdateValue(kv.getValue(), morphium.getARHelper().getFieldOrNull(query.getType(), kv.getKey())));
         }
 
         //        final AsyncOperationCallback<T> callback = c;
@@ -972,7 +972,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }
 
         // MOR-046: marshalled on the calling thread, like MorphiumWriterImpl.pushPull
-        final Object marshalledValue = type == MorphiumStorageListener.UpdateTypes.PULL ? morphium.getMapper().marshallUpdatePullOperand(value) : morphium.getMapper().marshallUpdateElement(value);
+        final java.lang.reflect.Field target = morphium.getARHelper().getFieldOrNull(q.getType(), field);
+        final Object marshalledValue = type == MorphiumStorageListener.UpdateTypes.PULL ? morphium.getMapper().marshallUpdatePullOperand(value, target) : morphium.getMapper().marshallUpdateElement(value, target);
         morphium.inc(StatisticKeys.WRITES_CACHED);
         addToWriteQueue(q.getType(), q.getCollectionName(), ctx -> {
             UpdateBulkRequest r = ctx.addUpdateBulkRequest();
@@ -1024,8 +1025,10 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         // MOR-046: marshalled on the calling thread, like MorphiumWriterImpl.pushPullAll
         final List<Object> marshalledValues = new ArrayList<>(value.size());
 
+        final java.lang.reflect.Field target = morphium.getARHelper().getFieldOrNull(q.getType(), field);
+
         for (Object o : value) {
-            marshalledValues.add(morphium.getMapper().marshallUpdateElement(o));
+            marshalledValues.add(morphium.getMapper().marshallUpdateElement(o, target));
         }
 
         morphium.inc(StatisticKeys.WRITES_CACHED);

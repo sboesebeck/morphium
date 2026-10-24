@@ -1524,7 +1524,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             // }
                         }
 
-                        update.put(f, value);
+                        update.put(f, morphium.getMapper().marshallEnumsIn(value, morphium.getARHelper().getFieldOrNull(ent.getClass(), f)));
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
@@ -2474,7 +2474,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         final Map<String, Object> marshalled = new LinkedHashMap<>();
 
         for (Map.Entry<String, Object> ef : values.entrySet()) {
-            marshalled.put(ef.getKey(), marshallIfNecessary(ef.getValue()));
+            marshalled.put(ef.getKey(), morphium.getMapper().marshallUpdateValue(ef.getValue(), morphium.getARHelper().getFieldOrNull(query.getType(), ef.getKey())));
         }
 
         return submitAndBlockIfNecessary(callback, new WriterTask() {
@@ -2826,7 +2826,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     public <T> Map<String, Object> pushPull(final MorphiumStorageListener.UpdateTypes type, final Query<T> query, final String field, final Object value, final boolean upsert, final boolean multiple,
                                             AsyncOperationCallback<T> callback) {
         // marshalled on the calling thread, see set()
-        final Object marshalledValue = type == MorphiumStorageListener.UpdateTypes.PULL ? marshallPullOperand(value) : marshallElement(value);
+        final java.lang.reflect.Field target = morphium.getARHelper().getFieldOrNull(query.getType(), field);
+        final Object marshalledValue = type == MorphiumStorageListener.UpdateTypes.PULL ? morphium.getMapper().marshallUpdatePullOperand(value, target) : morphium.getMapper().marshallUpdateElement(value, target);
         WriterTask r = new WriterTask() {
             private AsyncOperationCallback<T> callback;
             private Map<String, Object> ret = new HashMap<>();
@@ -3000,8 +3001,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         // marshalled on the calling thread, see set()
         final List<Object> marshalledValues = new ArrayList<>(v.size());
 
+        final java.lang.reflect.Field target = morphium.getARHelper().getFieldOrNull(query.getType(), f);
+
         for (Object o : v) {
-            marshalledValues.add(marshallElement(o));
+            marshalledValues.add(morphium.getMapper().marshallUpdateElement(o, target));
         }
 
         WriterTask r = new WriterTask() {
