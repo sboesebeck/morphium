@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 29, done 43
+Status: open 28, done 44
 
 ## Overview
 
@@ -15,7 +15,6 @@ Status: open 29, done 43
 | MOR-019 | open | 2 | defect | Jakarta Data: reject unsupported @Find/@Delete parameter styles at build time | S |  |  |
 | MOR-021 | open | 2 | implementation | Morphium extension: atomic update and find-and-modify repository annotations | L |  | MOR-008, MOR-010 |
 | MOR-024 | open | 2 | defect | Jakarta Data: support ordinal parameters (?1) in @Query | S |  |  |
-| MOR-025 | open | 2 | defect | Jakarta Data: @Update is not atomic and throws IllegalStateException | M |  |  |
 | MOR-026 | open | 2 | infrastructure | Run the Jakarta Data TCK against morphium-jakarta-data | M |  |  |
 | MOR-063 | open | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
 | MOR-069 | open | 2 | defect | PoppyDB: the update fast path reports every error as 11000 and ignores the ordered flag | S |  |  |
@@ -54,6 +53,7 @@ Status: open 29, done 43
 | MOR-009 | done | 2 | implementation | Lifecycle handling in the builder: @LastChange, @CreationTime, @Version | M |  | MOR-006 |
 | MOR-010 | done | 2 | implementation | Typed duplicate-key exception and typed result for a lost conditional upsert | M |  | MOR-006 |
 | MOR-014 | done | 2 | implementation | Option E: startup guard for @Embedded under @Entity(translateCamelCase=false) | S |  | MOR-001 |
+| MOR-025 | done | 2 | defect | Jakarta Data: @Update is not atomic and throws IllegalStateException | M |  |  |
 | MOR-029 | done | 2 | defect | InMemoryDriver: reject values BsonEncoder cannot encode | M |  |  |
 | MOR-031 | done | 2 | implementation | Quarkus: Micrometer / OpenTelemetry metrics for pool and update paths | M |  |  |
 | MOR-034 | done | 2 | implementation | Quarkus testing module: real MongoDB test resource, data reset and fixtures | M |  |  |
@@ -501,9 +501,11 @@ Source: docs/research/jakarta-data-1.1.md section 4
 
 ### MOR-025 Jakarta Data: @Update is not atomic and throws IllegalStateException
 
-Status **open**, priority 2, type defect, effort M
+Status **done**, priority 2, type defect, effort M
 
 @Update does findById then store(): an extra round trip, not atomic, and a missing entity or version mismatch raises IllegalStateException instead of jakarta.data.exceptions.OptimisticLockingFailureException (AbstractMorphiumRepository ~line 324). Align the exception type with the spec and use a versioned filter update if the entity has @Version.
+
+Evidence: AbstractMorphiumRepositoryOptimisticLockingTest (5 tests, 10 invocations) on the InMemoryDriver and on mongo:8 with the pooled driver (MORPHIUM_TEST_MONGO): a versioned entity is updated and its version grows, a stale version is an OptimisticLockingFailureException that changes nothing, a versioned entity that was deleted is one too and is not created again, an unversioned missing entity is one and is not created, updateAll rejects a batch with a missing unversioned entity before it stores any and raises the same exception for a stale version. Against the old code 8 of the 10 fail. AbstractMorphiumRepositoryUpdateTest now expects the new exception; the whole jakarta-data module (92) passes with the mongo:8 variant, and the Quarkus runtime (82), deployment (31) and integration suites (264) pass (one run had two timing failures in MorphiumMigrationTest, which passed alone and in the repeated full run). Fix in AbstractMorphiumRepository: a versioned entity goes to the versioned store() alone and its VersionMismatchException becomes the Jakarta exception, so the extra findById is gone for it; an unversioned entity is still looked up first, which stays non-atomic (documented in docs/jakarta-data.md and the Javadoc). Not covered: updateAll with a stale version leaves the entities stored before it updated, a replica set, the async repository variants.
 
 Acceptance:
 
@@ -512,6 +514,8 @@ Acceptance:
 - Verified against a real MongoDB (not only the InMemoryDriver).
 
 Source: docs/research/jakarta-data-1.1.md sections 3, 4
+
+Commits: 998dda853
 
 ### MOR-026 Run the Jakarta Data TCK against morphium-jakarta-data
 

@@ -5,6 +5,7 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
+import jakarta.data.exceptions.OptimisticLockingFailureException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * Verifies that {@link AbstractMorphiumRepository#doUpdate(Object)} and
  * {@link AbstractMorphiumRepository#doUpdateAll(java.util.List)} implement genuine
  * {@code CrudRepository.update()} semantics — updating an entity whose id does not yet exist
- * must fail with {@link IllegalStateException} rather than silently upserting it (which is what a
+ * must fail with {@link OptimisticLockingFailureException} rather than silently upserting it (which is what a
  * bare {@code Morphium.store()} call, used by {@link AbstractMorphiumRepository#doSave(Object)},
  * would do). Uses a real {@link Morphium} instance backed by {@link InMemoryDriver}, following the
  * same setup pattern as {@link QueryExecutorAliasTest}, since a fake/mocked Morphium would not
@@ -96,12 +97,12 @@ class AbstractMorphiumRepositoryUpdateTest {
     }
 
     @Test
-    @DisplayName("doUpdate() on a non-existent id throws IllegalStateException instead of upserting")
+    @DisplayName("doUpdate() on a non-existent id throws OptimisticLockingFailureException instead of upserting")
     void doUpdateOnNonExistentEntityThrows() {
         Product ghost = new Product("does-not-exist", "Ghost");
 
         assertThatThrownBy(() -> repo.doUpdate(ghost))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(OptimisticLockingFailureException.class)
                 .hasMessageContaining("does-not-exist");
 
         // Crucially: no document must have been created as a side effect of the failed update.
@@ -135,7 +136,7 @@ class AbstractMorphiumRepositoryUpdateTest {
         Product ghost = new Product("missing", "Ghost");
 
         assertThatThrownBy(() -> repo.doUpdateAll(List.of(existing, ghost)))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(OptimisticLockingFailureException.class)
                 .hasMessageContaining("missing");
 
         // The existing entity must remain unchanged since the batch was rejected before storing.
