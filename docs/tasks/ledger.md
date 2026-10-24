@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 23, done 68
+Status: open 22, done 69
 
 ## Overview
 
@@ -32,7 +32,6 @@ Status: open 23, done 68
 | MOR-070 | open | 3 | defect | PoppyDB: the delete fast path swallows errors | S |  |  |
 | MOR-071 | open | 3 | defect | Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange | S |  |  |
 | MOR-075 | open | 3 | defect | JdqlParser accepts an operand that is neither a parameter nor a literal | S |  |  |
-| MOR-092 | open | 3 | defect | Jakarta Data: IgnoreCase before Between, NotIn and the comparison operators | M |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -101,6 +100,7 @@ Status: open 23, done 68
 | MOR-072 | done | 3 | defect | The update builder, findOneAndUpdate(Map), updateOne and updateMany fire no storage-listener update events | M |  |  |
 | MOR-073 | done | 3 | defect | Query.push, pull and addToSet fire the update events twice, and the post event is always PUSH | S |  |  |
 | MOR-074 | done | 3 | verification | MorphiumMigrationTest (2) and MultithreaddedMessagingTests (1) fail on this machine, with and without the latest changes | S |  |  |
+| MOR-092 | done | 3 | defect | Jakarta Data: IgnoreCase before Between, NotIn and the comparison operators | M |  |  |
 
 ## Details
 
@@ -575,7 +575,7 @@ Status **done**, priority 2, type infrastructure, effort M
 
 No jakarta.data-tck dependency exists in any pom. Micronaut Data has a jakarta-data-tck/mongodb module as a model. Add the TCK matching the implemented API version and run it against a real MongoDB and PoppyDB/InMemoryDriver.
 
-Evidence: JakartaDataTckTest (Spring module, replaces the spike) runs the 73 standalone assertions of jakarta.data-tck 1.0.0 without Arquillian and fails when a test that is not excluded fails or an excluded test passes. 68 of 73 pass on the InMemoryDriver and on a real mongo:8 (PooledDriver, port 27099); the 5 exclusions have a reason each in the test: 4 sort an enum by ordinal (Morphium stores an enum by its name), 1 is IgnoreCase before Between/NotIn (MOR-092). The test is part of the normal test run of the Spring module, so CI runs it wherever that module is built. Documented in docs/jakarta-data.md (Conformance). Fixed on the way, one task per cause: MOR-076, 078 to 091.
+Evidence: JakartaDataTckTest (Spring module, replaces the spike) runs the 73 standalone assertions of jakarta.data-tck 1.0.0 without Arquillian and fails when a test that is not excluded fails or an excluded test passes. 69 of 73 pass on the InMemoryDriver and on a real mongo:8 (PooledDriver, port 27099); the 4 exclusions have a reason each in the test: they sort an enum by its ordinal (Morphium stores an enum by its name). The test is part of the normal test run of the Spring module, so CI runs it wherever that module is built. Documented in docs/jakarta-data.md (Conformance). Fixed on the way, one task per cause: MOR-076, 078 to 091.
 
 Acceptance:
 
@@ -1613,9 +1613,11 @@ Commits: 9a94434d3
 
 ### MOR-092 Jakarta Data: IgnoreCase before Between, NotIn and the comparison operators
 
-Status **open**, priority 3, type defect, effort M
+Status **done**, priority 3, type defect, effort M
 
 Found by the TCK of MOR-026 (testIgnoreCase): findByHexadecimalIgnoreCaseBetweenAndHexadecimalNotIn(min, max, set, sorts) answers nothing. IgnoreCase is parsed as an operator of its own (equals ignoring case); in the specification it is a modifier that applies to the operator after it (Between, NotIn, Like, Contains and so on). A case-insensitive range needs a collation of strength 2 on the query or a comparison of the lower-cased values; check what the InMemoryDriver supports before choosing.
+
+Evidence: IgnoreCaseModifierTest (parser, ranges, sets, text operators, a NotIn next to it stays exact) on the InMemoryDriver; the Quarkus integration test ignoreCaseModifier on the in-memory driver and on a real mongo:8; JakartaDataTckTest 69 of 73, testIgnoreCase leaves the exclusion list. Condition has the flag ignoreCase; QueryExecutor builds a regex with the option i for equality, text operators, In and NotIn, and $expr with $toLower for the ranges.
 
 Acceptance:
 
@@ -1623,4 +1625,6 @@ Acceptance:
 - testIgnoreCase of the TCK passes and leaves the exclusion list of JakartaDataTckTest
 
 Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/MethodNameParser.java
+
+Commits: e02ec8a43, 4d532da30
 

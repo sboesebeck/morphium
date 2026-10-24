@@ -168,6 +168,10 @@ Return type overrides — a single-entity return type (`T`), `Optional<T>`, or
 bridge (`QueryMethodBridge.executeQuery`), which adjusts the effective `ReturnType`
 accordingly (`QueryMethodBridge.java:84-108`).
 
+`IgnoreCase` in front of an operator compares without case: `findByCodeIgnoreCaseBetween`, `findByStatusIgnoreCaseNotIn`, `findByNameIgnoreCaseContains`, `...IgnoreCaseGreaterThan`. It applies to its own
+condition only. Equality, `Not`, `In`, `NotIn`, `Like`, `Contains`, `StartsWith`, `EndsWith` and `Matches` use a regular expression with the option `i`; the ranges compare the lower-cased values
+(`$expr` with `$toLower`, so only ASCII letters are folded). `findByNameIgnoreCase` alone still means "equals, ignoring case".
+
 ## JDQL via `@Query`
 
 For queries that don't fit the method-name convention, annotate a method with
@@ -605,13 +609,12 @@ generating bytecode.
 ## Conformance (Jakarta Data TCK)
 
 The standalone entity tests of the Jakarta Data TCK 1.0.0 (`jakarta.data:jakarta.data-tck`) run against the repositories of the Spring module, without Arquillian, as
-`JakartaDataTckTest` in `spring-boot-morphium`. 68 of the 73 assertions pass, on the InMemoryDriver and on a real MongoDB 8. The test fails when a test that is not excluded fails and when an
+`JakartaDataTckTest` in `spring-boot-morphium`. 69 of the 73 assertions pass, on the InMemoryDriver and on a real MongoDB 8. The test fails when a test that is not excluded fails and when an
 excluded test passes, so its list of exclusions (each with its reason) is always the truth:
 
 | Excluded | Reason |
 |---|---|
 | `testOrderByHasPrecedenceOverSorts`, `testOrderByHasPrecedenceOverPageRequestSorts`, `testBasicRepository`, `testLimitedRange` | they sort an enum by its ordinal; Morphium stores an enum by its name, so it sorts alphabetically |
-| `testIgnoreCase` | `IgnoreCase` before `Between`/`NotIn` (MOR-092) |
 
 ```bash
 cd spring-boot-morphium && mvn -nsu test -Dtest=JakartaDataTckTest
