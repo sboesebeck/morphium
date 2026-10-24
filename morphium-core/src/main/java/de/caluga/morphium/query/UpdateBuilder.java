@@ -266,8 +266,8 @@ public final class UpdateBuilder<T> {
      * <tr><td>yes</td><td>any</td><td>no, but the {@code _id} exists</td><td>{@code MorphiumDriverException}, {@code isDuplicateKey()}</td></tr>
      * </table>
      * Nothing is sent if the builder is invalid: it throws {@link IllegalStateException} for an empty builder (it would replace the document),
-     * for {@code setOnInsert} operations without {@link #upsert()} (they could never do anything), for an entity with write buffering and for an
-     * {@code @Version(fieldName=...)}; {@link UnsupportedOperationException} for skip, limit above 1, hint and projection.
+     * for {@code setOnInsert} operations without {@link #upsert()} (they could never do anything), and for an entity with write buffering;
+     * {@link UnsupportedOperationException} for skip, limit above 1, hint and projection.
      *
      * @param which the state to return; there is deliberately no default
      * @return the document, see the table
@@ -567,15 +567,8 @@ public final class UpdateBuilder<T> {
             return;
         }
 
-        String javaName = versionFields.get(0);
-        Field f = morphium.getARHelper().getField(type, javaName);
-
-        if (f != null && f.isAnnotationPresent(Version.class) && !".".equals(f.getAnnotation(Version.class).fieldName())) {
-            throw new IllegalStateException("@Version(fieldName=...) on " + type.getName() + "." + f.getName() + " is not supported by the update builder: the name the version is stored under "
-                                            + "and the name the filter uses differ (MOR-044). Remove the fieldName");
-        }
-
-        String stored = morphium.getARHelper().resolveStoredFieldName(type, javaName);
+        // MOR-044: getFields returns the name the version is stored under, also for @Version(fieldName=...)
+        String stored = morphium.getARHelper().resolveStoredFieldName(type, versionFields.get(0));
 
         if (operations.touches(stored)) {
             return; // an explicit touch of the version wins

@@ -74,7 +74,7 @@ to the stored names, independent of `translateUpdateFieldNames`; values are mars
 an entity for a `@Reference` field and a write to an `@Encrypted` field are rejected at the call. The same field twice is merged if the values are equal and rejected otherwise, a path and its child
 or one path in two operators are rejected (MongoDB answers such a document with error 40), `inc` of a field twice is rejected. An `@Version` field is incremented (an insert starts at 1; a `setOnInsert`-only update
 sets it to 1 on insert and leaves an existing document alone) unless the update touches it, so a `store()` of an entity loaded before a builder write is rejected with a `VersionMismatchException`
-and a `store()` after a builder upsert does not hit a duplicate key; `Query.disableAutoValues()` turns that off; an `@Version(fieldName=...)` is rejected (MOR-044).
+and a `store()` after a builder upsert does not hit a duplicate key; `Query.disableAutoValues()` turns that off; an `@Version(fieldName=...)` works since MOR-044.
 An empty builder (it would replace the document), `setOnInsert` without `upsert()`, skip, a limit above 1, a hint, a projection and entities with `@WriteBuffer` are rejected.
 `@LastChange` is set by every update that modifies a document (and by an insert), `@CreationTime` only when the update inserts (`$setOnInsert`), with the types `store()` writes (long/Long milliseconds, `Date`, `LocalDateTime`, `String` with the `dateFormat` of the annotation) and `Instant`; a setOnInsert-only update sets the last change on insert and leaves an existing document alone, a field that the update touches itself is not overwritten, `Query.disableAutoValues()` and the thread switch turn it off, and any other field type is rejected (`store()` would write null). The storage-listener update events are fired (MOR-072); an upsert that inserts returns `null` for `ReturnDocument.BEFORE`.
 `MorphiumDriverException.isDuplicateKey()` tells a lost conditional upsert (a held lease) from other errors on both drivers.
@@ -186,6 +186,10 @@ context keep their own key handling.
 The switch that restored the silent behaviour of rejected writes was introduced with MOR-059 as a temporary migration aid and was announced for removal in 7.0. It is removed before it was ever released: a rejected write raises a `MorphiumDriverException` (or `WriteConcernNotSatisfiedException`, `BulkWriteException`), always. `Query.setRaiseOnWriteErrors(false)` stays as the per-query override for a best-effort write. The property `writerSettings.raiseOnWriteErrors` of a configuration is not read any more.
 
 ### Fixed
+
+#### `@Version(fieldName = ...)`: store, filter and update builder use the same stored name (MOR-044)
+`getFields` honoured only the field names of `@Reference` and `@Property`, so `store()` wrote a `@Version(fieldName = "rev")` field under its Java name (`revision`) while `getMongoFieldName` and the filters used `rev`. `getFields` and `getField` honour `@Version(fieldName)` now: the version is stored under `rev`, read back from it and found by a filter on the Java name. The update builder, which rejected such an entity because of this, increments the field under its stored name (an insert starts at 1). Documents of an entity with `@Version(fieldName)` that were stored under the Java name before keep that name: they read back with a version of 0 and are not found by a filter on the stored name; migrate them (rename the field) or remove the `fieldName`.
+
 
 #### `Morphium.setEnum` stores the value of each entry (MOR-048)
 `setEnum(query, Map<Enum, Object>, upsert, multiple)` built the update map with `values.get(est.getValue())`: the value of an entry was looked up in the map as if it were a key, so every field was set to `null`. Each value is stored under the name of its constant now.

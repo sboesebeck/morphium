@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 16, done 85
+Status: open 15, done 86
 
 ## Overview
 
@@ -22,7 +22,6 @@ Status: open 16, done 85
 | MOR-035 | open | 3 | implementation | Records and value objects in the mapper | L |  |  |
 | MOR-038 | open | 3 | defect | Replacement documents, findOneAndUpdateEnums and Expr values still fail with POJOs in update maps | M |  | MOR-002 |
 | MOR-039 | open | 3 | documentation | Document pitfalls of update maps: $pull condition keys and mixed element shapes | S |  | MOR-027 |
-| MOR-044 | open | 3 | defect | Version annotation with fieldName: store and filter disagree on the stored name | S |  |  |
 | MOR-045 | open | 3 | defect | Update documents: a String value for _id of a MorphiumId entity is not coerced | S |  | MOR-041 |
 | MOR-049 | open | 3 | implementation | Writer path has no guard for @Reference and @Encrypted fields | M |  | MOR-042 |
 | MOR-071 | open | 3 | defect | Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange | S |  |  |
@@ -93,6 +92,7 @@ Status: open 16, done 85
 | MOR-102 | done | 2 | implementation | Release 7.0: remove the global raiseOnWriteErrors switch and bring the version statements of our changes in line | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
+| MOR-044 | done | 3 | defect | Version annotation with fieldName: store and filter disagree on the stored name | S |  |  |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
 | MOR-048 | done | 3 | defect | MorphiumBase.setEnum looks the value up by the map value instead of the key | S |  |  |
 | MOR-051 | done | 3 | defect | InMemoryDriver: reject path conflicts in update documents like MongoDB | S |  |  |
@@ -916,15 +916,19 @@ Commits: f966c6c76
 
 ### MOR-044 Version annotation with fieldName: store and filter disagree on the stored name
 
-Status **open**, priority 3, type defect, effort S
+Status **done**, priority 3, type defect, effort S
 
 getFields honours only @Reference and @Property field names, so serialize writes a @Version(fieldName=...) field under its Java name, while getMongoFieldName honours the annotation. This was read in the code but not reproduced.
+
+Evidence: VersionFieldNameTest (1 test, InMemoryDriver and mongo:8 with the PooledDriver): store writes rev and not revision, the entity reads back with revision 1, a filter on the Java name finds it, a second store gives 2 and a builder update gives 3 without a second field; it failed before the change (stored under revision). ModifyValidationTest: the former rejection test now shows the builder working with the field name (insert at 1, update at 2). The version, optimistic locking and object mapper test classes pass on the InMemoryDriver (29 plus the mapper classes).
 
 Acceptance:
 
 - A test shows the stored name and the filter name of an @Version(fieldName=...) field, and one of the two is changed so that they agree
 
 Source: docs/research/plan-mor-041.md
+
+Commits: cf5cb79a7
 
 ### MOR-045 Update documents: a String value for _id of a MorphiumId entity is not coerced
 

@@ -205,11 +205,14 @@ public class ModifyValidationTest extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
-    public void aVersionFieldWithAFieldNameIsRejectedUntilItIsFixed(Morphium m) throws Exception {
+    public void aVersionFieldWithAFieldNameWorksInTheBuilder(Morphium m) throws Exception {
         try (m) {
-            IllegalStateException e = assertThrows(IllegalStateException.class,
-                                                    () -> m.createQueryFor(Named.class).f("id").eq("n").modify().set("x", "y").upsert().findOneAndUpdate(ReturnDocument.AFTER));
-            assertTrue(e.getMessage().contains("fieldName"), e.getMessage());
+            // MOR-044: it was rejected, because store() and the filter used different names for it
+            Named inserted = m.createQueryFor(Named.class).f("id").eq("n").modify().set("x", "y").upsert().findOneAndUpdate(ReturnDocument.AFTER);
+            assertEquals(1L, inserted.version, "an insert starts at 1");
+            Named updated = m.createQueryFor(Named.class).f("id").eq("n").modify().set("x", "z").findOneAndUpdate(ReturnDocument.AFTER);
+            assertEquals(2L, updated.version, "an update increments it");
+            assertTrue(raw(m, Named.class, "n").containsKey("ver"), "stored under the name of the annotation");
         }
     }
 
