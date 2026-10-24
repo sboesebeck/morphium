@@ -371,6 +371,29 @@ find-and-modify form, an `@OrderBy` on the count form, a `Sort`, `Order`, `PageR
 
 The same operand check now applies to the conditions of `DELETE` and `UPDATE` statements in `@Query`.
 
+### Derived updates: `updateBy...` (Morphium extension, not portable)
+
+The specification has no derived update either (its `UPDATE` is a statement of `@Query`). For the common case "set a few fields of the documents that match", the method name
+and the parameters are enough, as in Micronaut Data (MOR-022):
+
+```java
+@Repository
+public interface JobRepository extends BasicRepository<Job, String> {
+    long updateByStatus(String status, int priority, Instant seenAt);                 // WHERE status = :status, then $set priority and seenAt
+    boolean updateByStatusAndOwner(String status, String owner, boolean archived);
+    Optional<Job> updateByIdAndState(String id, String state, String owner);          // find-and-modify: the document after the update
+}
+```
+
+The part after `updateBy` is parsed like the one of a `deleteBy` method, and its conditions take the first parameters in order. **Every parameter after them is a value to set, and its
+name is the field that it sets** (the name of the parameter with `-parameters`, or `@Param("priority")`). One update command with one `$set` is issued, through the same path as
+`@AtomicUpdate`: field names are translated, values are marshalled, `@Version` is incremented and `@LastChange` is set. The return type chooses the form as for `@AtomicUpdate`: `void`,
+`boolean`, `int` and `long` update every matching document and give the count; the entity or an `Optional` of it changes one document and returns it as it is after the update.
+The conditions may be equality, comparisons, `Between`, `In`, `NotIn`, `Like`, `Null`, `NotNull`, `True`, `False`, combined with `And` or `Or`. The build fails (Quarkus), or the repository
+cannot be created (Spring), for a method without a value to set, a value parameter without a usable name, a field that the entity does not have, an `OrderBy` in the name, and for
+conditions that a JDQL `WHERE` cannot say (`StartsWith`, `IgnoreCase`, ...); use `@AtomicUpdate` or `@Query("UPDATE ...")` for those. The plain `update` is the lifecycle method of
+Jakarta Data and no derived update.
+
 ## Pagination
 
 Three types cover pagination: `jakarta.data.page.Page<T>`,

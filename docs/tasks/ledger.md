@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 7, done 94
+Status: open 6, done 95
 
 ## Overview
 
@@ -13,7 +13,6 @@ Status: open 7, done 94
 | MOR-015 | open | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
 | MOR-016 | open | 3 | implementation | Migration tooling for changed key names | M |  | MOR-015 |
 | MOR-020 | open | 3 | implementation | Jakarta Data 1.1: @Is, constraints, @First and attribute-only Restriction | L |  | MOR-019, MOR-023 |
-| MOR-022 | open | 3 | implementation | Jakarta Data: derived update methods (updateByX) | M |  | MOR-006 |
 | MOR-032 | open | 3 | implementation | Quarkus: named Morphium instances | M |  |  |
 | MOR-033 | open | 3 | implementation | Quarkus: CDI integration for Morphium messaging | M |  |  |
 | MOR-035 | open | 3 | implementation | Records and value objects in the mapper | L |  |  |
@@ -85,6 +84,7 @@ Status: open 7, done 94
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-012 | done | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | done | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
+| MOR-022 | done | 3 | implementation | Jakarta Data: derived update methods (updateByX) | M |  | MOR-006 |
 | MOR-023 | done | 3 | verification | Verify which Jakarta Data providers implement the 1.1 features | S |  |  |
 | MOR-038 | done | 3 | defect | Replacement documents, findOneAndUpdateEnums and Expr values still fail with POJOs in update maps | M |  | MOR-002 |
 | MOR-039 | done | 3 | documentation | Document pitfalls of update maps: $pull condition keys and mixed element shapes | S |  | MOR-027 |
@@ -531,9 +531,11 @@ Commits: 766e4d161
 
 ### MOR-022 Jakarta Data: derived update methods (updateByX)
 
-Status **open**, priority 3, type implementation, effort M
+Status **done**, priority 3, type implementation, effort M
 
 Micronaut turns update(@Id id, int pages) and updateByTitle(...) into $set at compile time. Fit this into MethodNameParser, returning a long, built on the builder.
+
+Evidence: DerivedUpdateTest (4 cases, spec derivation, count and find-and-modify form, refusals) green on the InMemoryDriver and MongoDB 8 (PooledDriver); MorphiumRepositoryProxyTest (Spring, incl. the new derived update case) green; Quarkus integration test derivedUpdate in AbstractMorphiumAtomicUpdateTest green on the InMemoryDriver and on MongoDB 8 (MORPHIUM_TEST_HOSTS), MorphiumDataProcessorAtomicUpdateTest green. NOT covered: a Quarkus deployment unit test for the refusals of a derived update (the spec check is covered by DerivedUpdateTest).
 
 Acceptance:
 
@@ -543,6 +545,8 @@ Acceptance:
 Depends on: MOR-006
 
 Source: docs/research/other-clients.md pattern 11
+
+Commits: b11942cd8
 
 ### MOR-023 Verify which Jakarta Data providers implement the 1.1 features
 

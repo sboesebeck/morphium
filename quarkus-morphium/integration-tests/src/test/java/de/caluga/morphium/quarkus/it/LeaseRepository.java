@@ -57,4 +57,10 @@ public interface LeaseRepository extends BasicRepository<LeaseEntity, String> {
                   inc = @Assign(field = "fencing", value = "1"),
                   upsert = true)
     Optional<LeaseEntity> acquireByParameterNames(String id, String owner, Date now, Date until);
+
+    /** MOR-022: a derived update, the condition is in the name, every parameter after it is the field that it sets */
+    long updateByOwner(String owner, Date expiresAt);
+
+    /** the find-and-modify form of a derived update: the document after the update, empty if nothing matched */
+    Optional<LeaseEntity> updateByIdAndOwner(String id, String owner, Date expiresAt, String createdBy);
 }
