@@ -89,6 +89,10 @@ An empty builder (it would replace the document), `setOnInsert` without `upsert(
 
 ### Changed
 
+#### The writer methods set a `@LastChange` that is declared on the field only; `@Version` stays the business of `store()` and the builder (MOR-071)
+`Query.set`, `inc`, `unset`, `push`, `pull`, `pop` and their `Morphium` variants (synchronous writer) set the `@LastChange` fields of the type only when the class carried `@LastChange` as well; a field-only annotation, which `store()` and the update builder accept, was ignored. The annotation on the field is enough now, and a value that the call sets for the field itself is kept. `@Version` is not touched by the writer methods: that is the documented contract of the writer path (`docs/howtos/update-pitfalls.md`, section 7), as is the fact that `findOneAndUpdate(Map)` maintains neither annotation. Use `modify()` where the version has to move. Tests: `UpdateEntryPointsLifecycleTest` (six cases, InMemoryDriver and MongoDB 8).
+
+
 #### Breaking: `Query.set`, `push`, `pushAll` and `pull` refuse an entity for a `@Reference` field and a plaintext value for an `@Encrypted` field (MOR-049)
 `findOneAndUpdate(Map)` and the update builder already refused both; the writer path (`Query.set`, `push`, `pushAll`, `pull`, `addToSet` and their entity and `Morphium` variants, synchronous and buffered) accepted them: an entity was embedded as a full document into a `@Reference` field, and a plaintext value was written into an `@Encrypted` field, where the encryption provider cannot read it back. Both are an `IllegalArgumentException` that names the field and the operator now, thrown on the calling thread before anything is written. The ids of referenced entities, `MorphiumReference`s and every other field are written as before. The rules sit in one place, `UpdateFieldGuards`, which the update document mapper uses as well. Code that relied on the embedding must write the id of the referenced entity; an encrypted field is written by `store()`. Tests: `WriterPathGuardTest` (InMemoryDriver and MongoDB 8).
 

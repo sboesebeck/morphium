@@ -111,10 +111,13 @@ The annotations that describe the document differ by entry point:
 
 - The builder (`query.modify()`) increments `@Version` and sets `@LastChange` and `@CreationTime` (on an insert), also when the
   annotation sits on the field only.
-- `Query.set` and `findOneAndUpdate(Map)` do not touch `@Version`, and they set `@LastChange` only when the class carries
-  `@LastChange` on the type as well as on the field (MOR-071). A field-only `@LastChange` is enough for `store()` and the builder.
+- The writer methods (`Query.set`, `inc`, `unset`, `push`, `pull`, ... and their `Morphium` variants) set `@LastChange` too, also when the
+  annotation sits on the field only (7.0, MOR-071); a value that the call sets for that field itself is kept. They do **not** touch
+  `@Version`: that is the contract of the writer path. A `store()` of an entity that was read before such an update is not refused as stale,
+  because the version did not move.
+- `findOneAndUpdate(Map)` maintains neither: the map is the document that the caller wrote.
 
-Use the builder where `@Version` or `@LastChange` matter.
+Use the builder where `@Version` matters, and for `findOneAndUpdate`-style updates where `@LastChange` does.
 
 Test: `UpdateEntryPointsLifecycleTest`.
 

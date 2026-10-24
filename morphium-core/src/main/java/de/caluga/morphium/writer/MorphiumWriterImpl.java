@@ -2210,6 +2210,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     }
 
     /**
+     * Sets the {@code @LastChange} fields of the type with the update, as {@code store()} and the update builder do: the annotation on the field is enough, the one on the
+     * type is not required (MOR-071). A value that the caller sets for the field itself is kept. {@code @Version} is not maintained by the writer methods.
+     *
      * @param cls
      * @param update: Content will be changed!!!!!
      * @param <T>
@@ -2219,26 +2222,22 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             return;
         }
 
-        LastChange lc = morphium.getARHelper().getAnnotationFromHierarchy(cls, LastChange.class);
+        List<String> latChangeFlds = morphium.getARHelper().getFields(cls, LastChange.class);
 
-        if (lc != null) {
-            List<String> latChangeFlds = morphium.getARHelper().getFields(cls, LastChange.class);
+        if (latChangeFlds != null && !latChangeFlds.isEmpty()) {
+            for (String fL : latChangeFlds) {
+                Field fld = morphium.getARHelper().getField(cls, fL);
+                Class<?> type = fld.getType();
+                update.putIfAbsent("$set", new HashMap<>());
 
-            if (latChangeFlds != null && !latChangeFlds.isEmpty()) {
-                for (String fL : latChangeFlds) {
-                    Field fld = morphium.getARHelper().getField(cls, fL);
-                    Class<?> type = fld.getType();
-                    update.putIfAbsent("$set", new HashMap<>());
-
-                    if (type.equals(Long.class) || type.equals(long.class)) {
-                        ((Map) update.get("$set")).put(morphium.getARHelper().getMongoFieldName(cls, fld.getName()), System.currentTimeMillis());
-                    } else if (type.equals(Date.class)) {
-                        ((Map) update.get("$set")).put(morphium.getARHelper().getMongoFieldName(cls, fld.getName()), new Date());
-                    } else if (type.equals(String.class)) {
-                        ((Map) update.get("$set")).put(morphium.getARHelper().getMongoFieldName(cls, fld.getName()), new Date().toString());
-                    } else {
-                        ((Map) update.get("$set")).put(morphium.getARHelper().getMongoFieldName(cls, fld.getName()), System.currentTimeMillis());
-                    }
+                if (type.equals(Long.class) || type.equals(long.class)) {
+                    ((Map) update.get("$set")).putIfAbsent(morphium.getARHelper().getMongoFieldName(cls, fld.getName()), System.currentTimeMillis());
+                } else if (type.equals(Date.class)) {
+                    ((Map) update.get("$set")).putIfAbsent(morphium.getARHelper().getMongoFieldName(cls, fld.getName()), new Date());
+                } else if (type.equals(String.class)) {
+                    ((Map) update.get("$set")).putIfAbsent(morphium.getARHelper().getMongoFieldName(cls, fld.getName()), new Date().toString());
+                } else {
+                    ((Map) update.get("$set")).putIfAbsent(morphium.getARHelper().getMongoFieldName(cls, fld.getName()), System.currentTimeMillis());
                 }
             }
         }

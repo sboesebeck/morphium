@@ -22,8 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * MOR-027: what each entry point of an update does with the lifecycle of an entity. The page {@code docs/howtos/update-pitfalls.md} states this table; the test pins it.
  * {@code store()} calls {@code @PreStore} and {@code @PostStore}; the update through a query has no entity instance and calls neither. The annotations that describe the document
- * ({@code @Version}, {@code @LastChange}) are maintained by the builder and by {@code store()}; {@code Query.set} and {@code findOneAndUpdate(Map)} set {@code @LastChange} only for a class that
- * carries the annotation on the type as well, and do not touch the version (MOR-071).
+ * ({@code @Version}, {@code @LastChange}) are maintained by the builder and by {@code store()}; {@code Query.set} and the other writer methods set {@code @LastChange} but do not touch the
+ * version, {@code findOneAndUpdate(Map)} maintains neither (MOR-071).
  */
 @Tag("core")
 public class UpdateEntryPointsLifecycleTest extends MultiDriverTestBase {
@@ -108,7 +108,7 @@ public class UpdateEntryPointsLifecycleTest extends MultiDriverTestBase {
             m.createQueryFor(Doc.class).f("id").eq("d1").findOneAndUpdate(Map.of("$set", Map.of("name", "b")), false, true);
             assertEquals(0, PRE.get());
             assertEquals(0, POST.get());
-            // PINNED DEVIATION MOR-071: the raw map path maintains neither the version nor a last change that is only declared on the field
+            // MOR-071: the raw map path is the document that the caller wrote: it maintains neither the version nor a last change
             assertEquals(before.version, load(m).version);
             assertEquals(before.changedAt, load(m).changedAt);
         }
@@ -124,9 +124,9 @@ public class UpdateEntryPointsLifecycleTest extends MultiDriverTestBase {
             m.createQueryFor(Doc.class).f("id").eq("d1").set("name", "b");
             assertEquals(0, PRE.get());
             assertEquals(0, POST.get());
-            // PINNED DEVIATION MOR-071, as above
-            assertEquals(before.version, load(m).version);
-            assertEquals(before.changedAt, load(m).changedAt);
+            // MOR-071: the writer path sets a last change that is only declared on the field, like store() and the builder; the version is not its business
+            assertEquals(before.version, load(m).version, "Query.set does not touch @Version");
+            assertTrue(load(m).changedAt > before.changedAt, "Query.set sets a field-only @LastChange");
         }
     }
 
@@ -142,7 +142,7 @@ public class UpdateEntryPointsLifecycleTest extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
-    public void querySetSetsTheLastChangeWhenTheClassCarriesTheAnnotationToo(Morphium m) throws Exception {
+    public void querySetSetsTheLastChangeAlsoWhenTheClassCarriesTheAnnotation(Morphium m) throws Exception {
         try (m) {
             m.dropCollection(TypeLevel.class);
             TypeLevel t = new TypeLevel();
@@ -153,6 +153,16 @@ public class UpdateEntryPointsLifecycleTest extends MultiDriverTestBase {
             Thread.sleep(5);
             m.createQueryFor(TypeLevel.class).f("id").eq("t1").set("name", "b");
             assertTrue(m.createQueryFor(TypeLevel.class).f("id").eq("t1").get().changedAt > before, "@LastChange on the class and on the field: Query.set sets it");
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void querySetKeepsAValueThatTheCallerSetsForTheLastChangeField(Morphium m) throws Exception {
+        try (m) {
+            fresh(m);
+            m.createQueryFor(Doc.class).f("id").eq("d1").set(Map.of("name", "b", "changedAt", 42L));
+            assertEquals(42L, load(m).changedAt, "the caller's own value for the field wins, like in the builder");
         }
     }
 }
