@@ -179,6 +179,9 @@ context keep their own key handling.
 
 ### Fixed
 
+#### InMemoryDriver: a unique index on an array field is unique per element (MOR-098)
+The index store filed an array as ONE key, so a unique index on an array field only rejected a second document with the very same array. Like on mongod, an element that another document holds (in its array or as a scalar) is a duplicate key (11000) now for an insert, a store, an index build over existing documents and an update (`$push`, `$addToSet`, `$each`), and the update changes nothing. The same value twice in one document is allowed. This covers an array of sub documents on the way of a dotted path (`items.sku`), sparse and partial unique indexes, and compound unique indexes (the product of the elements). It affects unique indexes only; lookups, ordered scans and the planner are unchanged (an index that holds an array is still left out of query planning).
+
 #### InMemoryDriver: `$inc`, `$mul` and `$currentDate` below a scalar value are rejected (MOR-097)
 `{$inc: {"a.sub": 1}}` on a document whose `a` is the number 7 turned `a` into a sub document; `$set` was rejected already. mongod answers PathNotViable (28, "Cannot create field 'sub' in element {a: 7}") and changes nothing, and so does the InMemoryDriver (and PoppyDB) now. A missing field on the path is still created; a field that is stored as an explicit null is a value, too: `{$inc: {"a.sub": 1}}` on `{a: null}` is rejected like on mongod (an application that relied on the silent overwrite on the InMemoryDriver sees the error that a real MongoDB gives).
 

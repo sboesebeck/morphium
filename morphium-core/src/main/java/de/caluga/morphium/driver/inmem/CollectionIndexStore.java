@@ -60,7 +60,7 @@ public class CollectionIndexStore {
         idIndexMap.put("_id", 1);
         idIndexMap.put("$options", Map.of("name", ID_INDEX_NAME, "unique", true));
         IndexDefinition idDefinition = IndexDefinition.fromIndexMap(idIndexMap);
-        indexesByName.put(ID_INDEX_NAME, new IndexEntry(idDefinition));
+        indexesByName.put(ID_INDEX_NAME, new IndexEntry(idDefinition, false));
     }
 
     /**
@@ -73,7 +73,7 @@ public class CollectionIndexStore {
      */
     public void addIndex(IndexDefinition def, Iterable<Map<String, Object>> existingDocs) {
         String name = indexNameOf(def);
-        IndexEntry entry = new IndexEntry(def);
+        IndexEntry entry = new IndexEntry(def, def.unique());
 
         for (Map<String, Object> doc : existingDocs) {
             IndexKey key = IndexKey.extract(doc, def);
@@ -211,10 +211,23 @@ public class CollectionIndexStore {
      * </ul>
      */
     private boolean collidesOnUnique(IndexEntry entry, IndexKey key, Map<String, Object> doc) {
+        return collidesOnUnique(entry, key, doc, null);
+    }
+
+    /**
+     * @param before the state of {@code doc} as the index has it filed, when {@code doc} was already changed in place (an update); null otherwise
+     */
+    private boolean collidesOnUnique(IndexEntry entry, IndexKey key, Map<String, Object> doc, Map<String, Object> before) {
         IndexDefinition def = entry.definition;
 
         if (!def.unique() || (def.sparse() && key.allMissing())) {
             return false;
+        }
+
+        // an array in the key makes the index unique per element, like on mongod (MOR-098); once the index holds one, a scalar collides with an element, too
+        if (entry.elementCapable && (key.hasListValue() || entry.elements != null)) {
+            entry.ensureElements(doc, before);
+            return collidesOnElements(entry, doc);
         }
 
         if (def.partialFilterExpression() == null) {
@@ -235,6 +248,39 @@ public class CollectionIndexStore {
                 return true;
             }
         }
+        return false;
+    }
+
+    /**
+     * The unique check of an index that holds arrays: does an element of {@code doc} (see {@link IndexKey#elementKeys}) sit in a different document, too? The
+     * rules for sparse and partial indexes are those of {@link #collidesOnUnique}, applied per element.
+     */
+    private boolean collidesOnElements(IndexEntry entry, Map<String, Object> doc) {
+        IndexDefinition def = entry.definition;
+        boolean partial = def.partialFilterExpression() != null;
+
+        if (partial && !coveredByPartialFilter(def, doc)) {
+            return false;
+        }
+
+        for (IndexKey elementKey : IndexKey.elementKeys(doc, def)) {
+            if (def.sparse() && elementKey.allMissing()) {
+                continue;
+            }
+
+            List<Map<String, Object>> bucket = entry.elements.get(elementKey);
+
+            if (bucket == null) {
+                continue;
+            }
+
+            for (Map<String, Object> other : bucket) {
+                if (other != doc && (!partial || coveredByPartialFilter(def, other))) {
+                    return true;
+                }
+            }
+        }
+
         return false;
     }
 
@@ -261,6 +307,7 @@ public class CollectionIndexStore {
         for (IndexEntry entry : indexesByName.values()) {
             IndexKey key = IndexKey.extract(doc, entry.definition);
             entry.remove(key, doc);
+            entry.removeElements(doc, doc);
         }
     }
 
@@ -291,6 +338,7 @@ public class CollectionIndexStore {
         List<IndexEntry> changedEntries = new ArrayList<>();
         List<IndexKey> oldKeys = new ArrayList<>();
         List<IndexKey> newKeys = new ArrayList<>();
+        List<IndexEntry> elementsChangedEntries = new ArrayList<>();
 
         for (IndexEntry entry : indexesByName.values()) {
             IndexKey oldKey = IndexKey.extract(before, entry.definition);
@@ -300,6 +348,15 @@ public class CollectionIndexStore {
                 changedEntries.add(entry);
                 oldKeys.add(oldKey);
                 newKeys.add(newKey);
+            }
+
+            // A unique index that holds arrays is unique per element: the elements can change while the key does not (an array of sub documents is no part of the
+            // key, MISSING before and after), and the element buckets have to follow either way.
+            boolean elementsChanged = entry.elementCapable
+                    && (oldKey.hasListValue() || newKey.hasListValue() || entry.elements != null)
+                    && !IndexKey.elementKeys(before, entry.definition).equals(IndexKey.elementKeys(after, entry.definition));
+            if (elementsChanged) {
+                elementsChangedEntries.add(entry);
             }
 
             if (!entry.definition.unique()) {
@@ -312,12 +369,12 @@ public class CollectionIndexStore {
             // (see the caller-obligation javadoc). collidesOnUnique excludes {@code after} itself
             // by reference, so the unchanged-key case (where it already sits in the bucket) is
             // safe; the coverage-transition test keeps the check off the plain-update fast path.
-            boolean check = keyChanged;
+            boolean check = keyChanged || elementsChanged;
             if (!check && entry.definition.partialFilterExpression() != null) {
                 check = !coveredByPartialFilter(entry.definition, before)
                         && coveredByPartialFilter(entry.definition, after);
             }
-            if (check && collidesOnUnique(entry, newKey, after)) {
+            if (check && collidesOnUnique(entry, newKey, after, before)) {
                 throw duplicateKeyException(indexNameOf(entry.definition), newKey);
             }
         }
@@ -326,6 +383,14 @@ public class CollectionIndexStore {
             IndexEntry entry = changedEntries.get(i);
             entry.remove(oldKeys.get(i), after);
             entry.add(newKeys.get(i), after);
+        }
+
+        for (IndexEntry entry : elementsChangedEntries) {
+            // the element buckets exist by now: the check above builds them for an index that holds an array
+            if (entry.elements != null) {
+                entry.removeElements(before, after);
+                entry.addElements(after);
+            }
         }
     }
 
@@ -496,10 +561,81 @@ public class CollectionIndexStore {
          * stays suspect for its lifetime, exactly as in mongod.
          */
         boolean multikey;
+        /** whether this index can need the element buckets: a unique index other than {@code _id_}, which cannot hold an array */
+        final boolean elementCapable;
+        /**
+         * The unique check of an index that holds arrays (MOR-098): every document under each of its elements ({@link IndexKey#elementKeys}). Built when the
+         * first array turns up (an index of scalars needs nothing but {@link #byKey}), kept up to date from then on.
+         */
+        Map<IndexKey, ArrayList<Map<String, Object>>> elements;
 
-        IndexEntry(IndexDefinition definition) {
+        IndexEntry(IndexDefinition definition, boolean elementCapable) {
             this.definition = definition;
+            this.elementCapable = elementCapable;
             this.ordered = new TreeMap<>(IndexKey.comparator(definition));
+        }
+
+        /**
+         * Builds the element buckets from the documents as they are filed. {@code changed} is a document that was already changed in place by an update that
+         * is not accepted yet; it is filed under the elements of {@code before}, so that a rejected update (the caller restores the document) leaves nothing
+         * behind. Null for both when no update is in flight.
+         */
+        void ensureElements(Map<String, Object> changed, Map<String, Object> before) {
+            if (elements != null) {
+                return;
+            }
+
+            elements = new HashMap<>();
+
+            for (List<Map<String, Object>> bucket : byKey.values()) {
+                for (Map<String, Object> doc : bucket) {
+                    addElements(doc, doc == changed && before != null ? before : doc);
+                }
+            }
+        }
+
+        void addElements(Map<String, Object> doc) {
+            addElements(doc, doc);
+        }
+
+        /** files {@code doc} (by identity) under the elements that {@code docForKeys} has */
+        void addElements(Map<String, Object> doc, Map<String, Object> docForKeys) {
+            if (elements == null) {
+                return;
+            }
+
+            for (IndexKey elementKey : IndexKey.elementKeys(docForKeys, definition)) {
+                ArrayList<Map<String, Object>> bucket = elements.computeIfAbsent(elementKey, k -> new ArrayList<>());
+
+                for (Map<String, Object> present : bucket) {
+                    if (present == doc) {
+                        return;
+                    }
+                }
+
+                bucket.add(doc);
+            }
+        }
+
+        /** removes {@code doc} (by identity) from the buckets of the elements that {@code docForKeys} has: the state of the document as it was filed */
+        void removeElements(Map<String, Object> docForKeys, Map<String, Object> doc) {
+            if (elements == null) {
+                return;
+            }
+
+            for (IndexKey elementKey : IndexKey.elementKeys(docForKeys, definition)) {
+                ArrayList<Map<String, Object>> bucket = elements.get(elementKey);
+
+                if (bucket == null) {
+                    continue;
+                }
+
+                bucket.removeIf(present -> present == doc);
+
+                if (bucket.isEmpty()) {
+                    elements.remove(elementKey);
+                }
+            }
         }
 
         boolean hasBucket(IndexKey key) {
@@ -525,6 +661,7 @@ public class CollectionIndexStore {
                 ordered.put(key, bucket);
             }
             bucket.add(doc);
+            addElements(doc);
         }
 
         void remove(IndexKey key, Map<String, Object> doc) {
