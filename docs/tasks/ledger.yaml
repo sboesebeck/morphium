@@ -1771,3 +1771,18 @@ tasks:
   evidence: 'JdqlLiteralsExecutionTest.countWithLiterals and orderAndHavingWithUpperCaseThis, JdqlParserLiteralsTest.thisInAnyCase. Reviewed in one pass: the ORDER BY lookup was still case-sensitive (fixed).'
   commits:
   - c87b162ae
+- id: MOR-089
+  title: 'Jakarta Data: a one-character string literal compares with a char field as the character'
+  type: defect
+  status: done
+  priority: 2
+  effort: S
+  description: 'Found by the TCK of MOR-026: letter NOT IN (E, G) in JDQL (written with quotes) excluded nothing, because the text was compared with the number that a character is stored as. resolveValue reads a literal by the type of the field now: char and Character get the character, every other field keeps the text, an enum field gets the constant (MOR-082).'
+  acceptance:
+  - 'Equality, IN, NOT IN and BETWEEN with one-character literals work on char and Character fields'
+  - 'A string field keeps comparing strings'
+  source:
+  - morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlMethodBridge.java
+  evidence: 'JdqlCharLiteralTest (2, red before the change). Reviewed in one pass without finding.'
+  commits:
+  - b1249bf11
