@@ -122,7 +122,7 @@ public class MorphiumRepositoryFactoryBean<T> implements FactoryBean<T> {
         for (Type iface : repoInterface.getGenericInterfaces()) {
             if (iface instanceof ParameterizedType pt) {
                 Type raw = pt.getRawType();
-                if (raw instanceof Class<?> rawClass && CrudRepository.class.isAssignableFrom(rawClass)) {
+                if (raw instanceof Class<?> rawClass && jakarta.data.repository.DataRepository.class.isAssignableFrom(rawClass)) {
                     Type[] args = pt.getActualTypeArguments();
                     if (args.length >= 2 && args[0] instanceof Class<?> entity && args[1] instanceof Class<?> id) {
                         return new Class<?>[]{ entity, id };
