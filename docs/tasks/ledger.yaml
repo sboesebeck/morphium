@@ -1862,3 +1862,34 @@ tasks:
   commits:
   - 8dc2017ee
   - 72aec1d28
+- id: MOR-094
+  title: 'README: the Jakarta Data TCK result and our modules added to the entry page, release history of 6.2 and older moved out'
+  type: documentation
+  status: done
+  priority: 2
+  effort: S
+  description: 'The README is the project page of Morphium, whose focus is the message queue and PoppyDB, so those keep the front: tagline, feature list, the comparison table, the full PoppyDB section and the quick start are unchanged. Added: the Jakarta Data TCK result in the feature list, as a badge and as one compact section (a repository example, what is covered, the TCK result with scope and command, Quarkus and Spring Boot, enums by ordinal), and links in the documentation list. The release highlights of 6.2, 6.1 and 6.0 moved to docs/releases/whats-new-v6.md (6.3 stays). The TCK result is stated as available with the release after 6.3.14. It is also on the Jakarta Data, Quarkus, Spring Boot and hub pages and in the two module READMEs.'
+  acceptance:
+  - 'The README states the TCK result with its scope and the command'
+  - 'Examples for the ODM, a Jakarta Data repository, Quarkus, Spring Boot, enums, messaging and testing'
+  - 'Release history is kept in docs/releases/whats-new-v6.md'
+  - 'Relative links of the README resolve'
+  source:
+  - README.md
+  - docs/releases/whats-new-v6.md
+  evidence: 'Links checked with a script (all resolve except LICENSE, which does not exist in the repository: see MOR-095). The examples were checked against the code (sort("-field"), derived IgnoreCase, CursoredPage, JDQL UPDATE with arithmetic, record results of GROUP BY). README.de.md is NOT updated and still has the old structure.'
+  commits:
+  - eb722ce92
+  - d492947fe
+- id: MOR-095
+  title: 'Verification: the showcase against this version, and two findings (scram-client pinned by the Quarkus BOM, no LICENSE file)'
+  type: verification
+  status: open
+  priority: 2
+  effort: S
+  description: 'The Quarkus Morphium Showcase (92 tests) was run against 6.3.15-SNAPSHOT of all modules: all pass. Two findings. (1) The Quarkus platform BOM (3.32.3) manages com.ongres.scram:scram-client to 3.2 and wins over the 3.4 that Morphium manages (security: ongres scram 2.1 -> 3.4, CVE-2025-59432 and CVE-2026-53712), so an application on the Quarkus BOM gets 3.2 unless it pins 3.4 itself; the showcase had to pin it to resolve. Check that 3.2 is safe for SaslAuthCommand and whether it carries the CVEs, then document the pin in the Quarkus guide (and in the showcase pom). (2) The repository has no LICENSE file at the root, though README, README.de and the pom point to it.'
+  acceptance:
+  - 'Decision whether scram-client 3.2 works and is safe; the pin is documented where the extension is described'
+  - 'A LICENSE file with the Apache License 2.0 text at the root of the repository'
+  source:
+  - quarkus-morphium/README.md

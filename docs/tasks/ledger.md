@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 22, done 70
+Status: open 23, done 71
 
 ## Overview
 
@@ -12,6 +12,7 @@ Status: open 22, done 70
 |---|---|---|---|---|---|---|---|
 | MOR-063 | open | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
 | MOR-069 | open | 2 | defect | PoppyDB: the update fast path reports every error as 11000 and ignores the ordered flag | S |  |  |
+| MOR-095 | open | 2 | verification | Verification: the showcase against this version, and two findings (scram-client pinned by the Quarkus BOM, no LICENSE file) | S |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
 | MOR-015 | open | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
@@ -90,6 +91,7 @@ Status: open 22, done 70
 | MOR-090 | done | 2 | defect | Jakarta Data: an enum in Not, In, NotIn and range operators of a derived query is its name | S |  |  |
 | MOR-091 | done | 2 | defect | Jakarta Data: several ORs in one query narrow each other | S |  |  |
 | MOR-093 | done | 2 | implementation | Enums can be stored by their ordinal: @Enumerated and an opt-in setting | M |  |  |
+| MOR-094 | done | 2 | documentation | README: the Jakarta Data TCK result and our modules added to the entry page, release history of 6.2 and older moved out | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
@@ -1647,4 +1649,36 @@ Acceptance:
 Source: morphium-core/src/main/java/de/caluga/morphium/annotations/Enumerated.java, morphium-core/src/main/java/de/caluga/morphium/ObjectMapperImpl.java
 
 Commits: 8dc2017ee, 72aec1d28
+
+### MOR-094 README: the Jakarta Data TCK result and our modules added to the entry page, release history of 6.2 and older moved out
+
+Status **done**, priority 2, type documentation, effort S
+
+The README is the project page of Morphium, whose focus is the message queue and PoppyDB, so those keep the front: tagline, feature list, the comparison table, the full PoppyDB section and the quick start are unchanged. Added: the Jakarta Data TCK result in the feature list, as a badge and as one compact section (a repository example, what is covered, the TCK result with scope and command, Quarkus and Spring Boot, enums by ordinal), and links in the documentation list. The release highlights of 6.2, 6.1 and 6.0 moved to docs/releases/whats-new-v6.md (6.3 stays). The TCK result is stated as available with the release after 6.3.14. It is also on the Jakarta Data, Quarkus, Spring Boot and hub pages and in the two module READMEs.
+
+Evidence: Links checked with a script (all resolve except LICENSE, which does not exist in the repository: see MOR-095). The examples were checked against the code (sort("-field"), derived IgnoreCase, CursoredPage, JDQL UPDATE with arithmetic, record results of GROUP BY). README.de.md is NOT updated and still has the old structure.
+
+Acceptance:
+
+- The README states the TCK result with its scope and the command
+- Examples for the ODM, a Jakarta Data repository, Quarkus, Spring Boot, enums, messaging and testing
+- Release history is kept in docs/releases/whats-new-v6.md
+- Relative links of the README resolve
+
+Source: README.md, docs/releases/whats-new-v6.md
+
+Commits: eb722ce92, d492947fe
+
+### MOR-095 Verification: the showcase against this version, and two findings (scram-client pinned by the Quarkus BOM, no LICENSE file)
+
+Status **open**, priority 2, type verification, effort S
+
+The Quarkus Morphium Showcase (92 tests) was run against 6.3.15-SNAPSHOT of all modules: all pass. Two findings. (1) The Quarkus platform BOM (3.32.3) manages com.ongres.scram:scram-client to 3.2 and wins over the 3.4 that Morphium manages (security: ongres scram 2.1 -> 3.4, CVE-2025-59432 and CVE-2026-53712), so an application on the Quarkus BOM gets 3.2 unless it pins 3.4 itself; the showcase had to pin it to resolve. Check that 3.2 is safe for SaslAuthCommand and whether it carries the CVEs, then document the pin in the Quarkus guide (and in the showcase pom). (2) The repository has no LICENSE file at the root, though README, README.de and the pom point to it.
+
+Acceptance:
+
+- Decision whether scram-client 3.2 works and is safe; the pin is documented where the extension is described
+- A LICENSE file with the Apache License 2.0 text at the root of the repository
+
+Source: quarkus-morphium/README.md
 
