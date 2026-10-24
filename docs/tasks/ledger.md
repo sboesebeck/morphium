@@ -4,14 +4,13 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 31, done 35
+Status: open 30, done 36
 
 ## Overview
 
 | ID | Status | Prio | Type | Title | Effort | Ticket | Depends on |
 |---|---|---|---|---|---|---|---|
 | MOR-027 | open | 1 | documentation | Documentation page: raw commands, embedded objects and lifecycle contract | S |  |  |
-| MOR-007 | open | 2 | implementation | Option A extension: min, max, mul, rename, currentDate, addToSet/push with each | M |  | MOR-006 |
 | MOR-014 | open | 2 | implementation | Option E: startup guard for @Embedded under @Entity(translateCamelCase=false) | S |  | MOR-001 |
 | MOR-017 | open | 2 | implementation | Jakarta Data: JDQL DELETE FROM | M |  |  |
 | MOR-018 | open | 2 | implementation | Jakarta Data: JDQL UPDATE ... SET ... WHERE as one atomic update | L |  | MOR-006, MOR-007 |
@@ -50,6 +49,7 @@ Status: open 31, done 35
 | MOR-030 | done | 1 | defect | InMemoryDriver: honour the filter in conditional upsert and raise E11000 | M |  |  |
 | MOR-059 | done | 1 | defect | Query, entity and bulk write paths swallow the writeErrors of the update reply | M |  |  |
 | MOR-005 | done | 2 | verification | Audit Query.set/inc/push write paths for swallowed writeErrors and missing name translation | S |  |  |
+| MOR-007 | done | 2 | implementation | Option A extension: min, max, mul, rename, currentDate, addToSet/push with each | M |  | MOR-006 |
 | MOR-008 | done | 2 | implementation | Options object for findAndModify and a defined result for upsert without returnNew | S |  | MOR-006 |
 | MOR-009 | done | 2 | implementation | Lifecycle handling in the builder: @LastChange, @CreationTime, @Version | M |  | MOR-006 |
 | MOR-010 | done | 2 | implementation | Typed duplicate-key exception and typed result for a lost conditional upsert | M |  | MOR-006 |
@@ -198,9 +198,11 @@ Commits: c84172c12, 3549acf79, 4e889b715, 792cc3924
 
 ### MOR-007 Option A extension: min, max, mul, rename, currentDate, addToSet/push with each
 
-Status **open**, priority 2, type implementation, effort M
+Status **done**, priority 2, type implementation, effort M
 
 Close the update-operator gaps (no setOnInsert, no each, no min/max/mul/rename on Query) in the builder: typed min/max/mul/rename, a correct currentDate, addToSet(...).each(...) and push(...).each(...) (with PushOptions-like slice/sort/position). Today $each needs a hand-built Map and min/max/mul/rename only exist in the bulk context (MorphiumBulkContext).
+
+Evidence: ModifyOperatorsTest (19 tests, 38 invocations) on mongo:8 and the InMemoryDriver, all reading the raw document: min, max and mul write the stored names and leave no stray field, min and max keep a value that is not beyond, max seeds a missing field and mul makes it 0, rename moves the stored field with both names translated, currentDate sets a BSON date (also in an upsert, also with the enum overload), push and pushEach store the same raw element as Query.push, pushEach with slice, position and sort (whole array and by a field of the elements) gives the arrays mongod gives, addToSetEach stores each element once and marshalled and recognises an element that store() wrote, the update document shows the operators, conflicts (push and addToSet on one field, min and set, a rename onto a set field or onto itself) are rejected at the call, and a max-only update bumps the version and the last change. Mutation check: with the old definition of a modifying operator the version test fails. The builder tests of earlier tasks (262 invocations) stay green. Regression: 1527 test methods (core and messaging) on the InMemoryDriver, all passed. Not covered: pull, pullAll and pop, $bit, array filters inside the builder, and the translation of the field names inside the sort of PushOptions (used as given, documented).
 
 Acceptance:
 
@@ -211,6 +213,8 @@ Acceptance:
 Depends on: MOR-006
 
 Source: docs/research/reproduction-results.md (update API gaps), docs/research/other-clients.md pattern 5
+
+Commits: 4617f9763
 
 ### MOR-008 Options object for findAndModify and a defined result for upsert without returnNew
 

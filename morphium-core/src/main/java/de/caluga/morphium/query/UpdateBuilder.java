@@ -11,6 +11,8 @@ import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -32,6 +34,10 @@ import java.util.Set;
  * }</pre>
  * <b>Nothing is written until {@link #findOneAndUpdate(ReturnDocument)} is called</b>; unlike the eager {@code Query.set(...)}/{@code delete()},
  * the calls on this builder only collect. The builder is mutable, not thread safe (one builder per thread) and can be executed more than once.
+ * <h3>Operators</h3>
+ * {@code set}, {@code setOnInsert}, {@code inc}, {@code unset}, {@code min}, {@code max}, {@code mul}, {@code rename}, {@code currentDate}, {@code push} / {@code pushEach} (with
+ * {@link PushOptions}) and {@code addToSet} / {@code addToSetEach}. Every operator except {@code setOnInsert} modifies an existing document, so it bumps the {@code @Version} and
+ * sets the {@code @LastChange} fields.
  * <h3>What the builder does</h3>
  * <ul>
  * <li><b>Field names</b> are Java names, stored names or dotted paths ({@code child.fileName}); they are always translated to the names the fields are
@@ -132,6 +138,107 @@ public final class UpdateBuilder<T> {
         }
 
         return this;
+    }
+
+    /** {@code $min}: sets the field to the value if the value is smaller (BSON order, numbers by value) than the stored one, or if the field is missing */
+    public UpdateBuilder<T> min(String field, Object value) {
+        return add("$min", field, value);
+    }
+
+    public UpdateBuilder<T> min(Enum<?> field, Object value) {
+        return add("$min", nameOf(field), value);
+    }
+
+    /** {@code $max}: sets the field to the value if the value is greater than the stored one, or if the field is missing */
+    public UpdateBuilder<T> max(String field, Object value) {
+        return add("$max", field, value);
+    }
+
+    public UpdateBuilder<T> max(Enum<?> field, Object value) {
+        return add("$max", nameOf(field), value);
+    }
+
+    /** {@code $mul}: multiplies the field with the factor (a missing field becomes 0); the types of {@link #inc(String, Number)} */
+    public UpdateBuilder<T> mul(String field, Number factor) {
+        return add("$mul", field, normalise(factor, "mul"));
+    }
+
+    public UpdateBuilder<T> mul(Enum<?> field, Number factor) {
+        return add("$mul", nameOf(field), normalise(factor, "mul"));
+    }
+
+    /**
+     * {@code $rename}: moves the value of a field to a new name. Both names are Java names, stored names or dotted paths and are translated to the stored names. The new
+     * name must not be, contain or be contained in another path of the update.
+     */
+    public UpdateBuilder<T> rename(String from, String to) {
+        if (to == null || to.isEmpty()) {
+            throw new IllegalArgumentException("The new name of rename must not be null or empty");
+        }
+
+        return add("$rename", from, to);
+    }
+
+    /** {@code $currentDate}: sets the fields to the date of the server (a BSON date) when the update is applied */
+    public UpdateBuilder<T> currentDate(String... fields) {
+        if (fields == null || fields.length == 0) {
+            throw new IllegalArgumentException("currentDate needs at least one field name");
+        }
+
+        for (String f : fields) {
+            add("$currentDate", f, true);
+        }
+
+        return this;
+    }
+
+    public UpdateBuilder<T> currentDate(Enum<?>... fields) {
+        if (fields == null || fields.length == 0) {
+            throw new IllegalArgumentException("currentDate needs at least one field name");
+        }
+
+        for (Enum<?> f : fields) {
+            add("$currentDate", nameOf(f), true);
+        }
+
+        return this;
+    }
+
+    /** {@code $push}: appends one element to the array (the element is marshalled like the elements {@code store()} writes) */
+    public UpdateBuilder<T> push(String field, Object element) {
+        return add("$push", field, element);
+    }
+
+    public UpdateBuilder<T> push(Enum<?> field, Object element) {
+        return add("$push", nameOf(field), element);
+    }
+
+    /** {@code $push} with {@code $each}: appends every element in the order given */
+    public UpdateBuilder<T> pushEach(String field, Collection<?> elements) {
+        return add("$push", field, each(elements, null));
+    }
+
+    /** {@code $push} with {@code $each} and the modifiers {@code $position}, {@code $sort} and {@code $slice} of the {@link PushOptions} */
+    public UpdateBuilder<T> pushEach(String field, Collection<?> elements, PushOptions options) {
+        if (options == null) {
+            throw new IllegalArgumentException("The PushOptions of pushEach must not be null; use pushEach(field, elements) for none");
+        }
+
+        return add("$push", field, each(elements, options));
+    }
+
+    /** {@code $addToSet}: appends the element if the array does not contain it yet (numbers compare by value, documents with their field order) */
+    public UpdateBuilder<T> addToSet(String field, Object element) {
+        return add("$addToSet", field, element);
+    }
+
+    public UpdateBuilder<T> addToSet(Enum<?> field, Object element) {
+        return add("$addToSet", nameOf(field), element);
+    }
+
+    /** {@code $addToSet} with {@code $each}: appends every element that the array does not contain yet; an element given twice is added once */
+    public UpdateBuilder<T> addToSetEach(String field, Collection<?> elements) {
+        return add("$addToSet", field, each(elements, null));
     }
 
     /** insert a document if none matches the filter (the fields of equality predicates of the filter, including an {@code _id}, seed the new document) */
@@ -278,6 +385,21 @@ public final class UpdateBuilder<T> {
         return this;
     }
 
+    private static Map<String, Object> each(Collection<?> elements, PushOptions options) {
+        if (elements == null) {
+            throw new IllegalArgumentException("The elements of an $each must not be null (an empty collection is a no-op)");
+        }
+
+        Map<String, Object> each = new LinkedHashMap<>();
+        each.put("$each", new ArrayList<>(elements));
+
+        if (options != null) {
+            options.addTo(each);
+        }
+
+        return each;
+    }
+
     private static String nameOf(Enum<?> field) {
         if (field == null) {
             throw new IllegalArgumentException("The field must not be null");
@@ -287,8 +409,12 @@ public final class UpdateBuilder<T> {
     }
 
     private static Number normalise(Number amount) {
+        return normalise(amount, "inc");
+    }
+
+    private static Number normalise(Number amount, String operator) {
         if (amount == null) {
-            throw new IllegalArgumentException("The amount of inc must not be null");
+            throw new IllegalArgumentException("The amount of " + operator + " must not be null");
         }
 
         if (amount instanceof Integer || amount instanceof Long || amount instanceof Double) {
@@ -303,7 +429,7 @@ public final class UpdateBuilder<T> {
             return amount.doubleValue();
         }
 
-        throw new IllegalArgumentException("inc supports Integer, Long, Double (and Short, Byte, Float, which are widened), not " + amount.getClass().getName());
+        throw new IllegalArgumentException(operator + " supports Integer, Long, Double (and Short, Byte, Float, which are widened), not " + amount.getClass().getName());
     }
 
     private void validate(boolean countTerminal, boolean many) {
@@ -312,7 +438,7 @@ public final class UpdateBuilder<T> {
 
     private void validate(boolean countTerminal, boolean many, boolean upsertRequested) {
         if (operations.isEmpty()) {
-            throw new IllegalStateException("The update is empty: add at least one set, setOnInsert, inc or unset (an empty update document would REPLACE the document)");
+            throw new IllegalStateException("The update is empty: add at least one operation, such as set, setOnInsert, inc or unset (an empty update document would REPLACE the document)");
         }
 
         if (operations.hasOnlySetOnInsert() && !upsertRequested) {
