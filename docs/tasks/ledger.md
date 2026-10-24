@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 33, done 32
+Status: open 33, done 33
 
 ## Overview
 
@@ -24,8 +24,8 @@ Status: open 33, done 32
 | MOR-031 | open | 2 | implementation | Quarkus: Micrometer / OpenTelemetry metrics for pool and update paths | M |  |  |
 | MOR-034 | open | 2 | implementation | Quarkus testing module: real MongoDB test resource, data reset and fixtures | M |  |  |
 | MOR-036 | open | 2 | verification | Re-run the reproduction on other topologies and server versions | S |  |  |
-| MOR-037 | open | 2 | defect | Morphium.simplifyQueryObject loses predicates for repeated operator keys | S |  |  |
 | MOR-063 | open | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
+| MOR-067 | open | 2 | defect | Query.toQueryObject puts the or queries into the $nor list when both are used | S |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
 | MOR-015 | open | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
@@ -55,6 +55,7 @@ Status: open 33, done 32
 | MOR-008 | done | 2 | implementation | Options object for findAndModify and a defined result for upsert without returnNew | S |  | MOR-006 |
 | MOR-009 | done | 2 | implementation | Lifecycle handling in the builder: @LastChange, @CreationTime, @Version | M |  | MOR-006 |
 | MOR-010 | done | 2 | implementation | Typed duplicate-key exception and typed result for a lost conditional upsert | M |  | MOR-006 |
+| MOR-037 | done | 2 | defect | Morphium.simplifyQueryObject loses predicates for repeated operator keys | S |  |  |
 | MOR-040 | done | 2 | defect | fieldNameCache: inner HashMap is not thread safe | S |  |  |
 | MOR-041 | done | 2 | implementation | Key translation for operator maps in findOneAndUpdate | M |  | MOR-002 |
 | MOR-043 | done | 2 | defect | Query.f should resolve field paths with resolveFieldPath | M |  | MOR-041 |
@@ -651,15 +652,19 @@ Source: docs/research/reproduction-results.md 'could not verify'
 
 ### MOR-037 Morphium.simplifyQueryObject loses predicates for repeated operator keys
 
-Status **open**, priority 2, type defect, effort S
+Status **done**, priority 2, type defect, effort S
 
 Morphium.java simplifyQueryObject merges the operator maps of a query with putAll, so a repeated key such as $or or $and overwrites an earlier predicate and the query silently matches too much. The merge has to combine repeated keys instead of replacing them.
+
+Evidence: SimplifyQueryObjectTest (5 tests, 10 invocations) on mongo:8 and the InMemoryDriver: two $or conditions and two conditions on one field keep the $and, branches with different keys and equal predicates are still flattened, and an upsert-flag inc with two $or conditions updates only the documents that match both and inserts nothing. Without the change 6 of the 10 invocations fail, with it all pass. Regression: 1492 test methods (core and messaging) on the InMemoryDriver; 5 test classes failed (ChangeStreamMonitorHistoryLostBackoffTest, ReadCommandStepDownStubServerTest, SingleMongoConnectionTimeoutTest, WatchResumeTokenTest, DnsSrvResolverTest) and every one of them with Operation not permitted when it opens a server socket or resolves DNS, which the sandbox of that run did not allow; none touches the query object. They are expected to pass without the sandbox restriction and were not rerun. The acceptance names a real MongoDB; the integration case runs on it. Found on the way and filed as MOR-067: Query.toQueryObject puts the or queries into the $nor list when both are used. Not covered: the other writer methods that do not simplify the query (set).
 
 Acceptance:
 
 - A query that adds two $or conditions returns only documents matching both, shown by a test on a real MongoDB
 
 Source: docs/research/plan-mor-001-002-003.md
+
+Commits: 96ac49921
 
 ### MOR-038 Replacement documents, findOneAndUpdateEnums and Expr values still fail with POJOs in update maps
 
@@ -1122,4 +1127,16 @@ Acceptance:
 Source: docs/research/plan-mor-059.md
 
 Commits: 0026ad543
+
+### MOR-067 Query.toQueryObject puts the or queries into the $nor list when both are used
+
+Status **open**, priority 2, type defect, effort S
+
+Found while testing MOR-037. Query.toQueryObject builds the $or list and then the $nor list from the same list variable without resetting it when the query has no $and expression: a query with one or() and one nor() becomes {$or: [A, B], $nor: [A, B]}, which matches nothing, instead of {$or: [A], $nor: [B]}. With an $and expression the or branch is fine and the nor branch has the same problem. Reproduced on the InMemoryDriver; the query object is built on the client, so every driver is affected.
+
+Acceptance:
+
+- A query with or() and nor() produces an $or with its own queries and a $nor with its own queries, shown by a test on a real MongoDB
+
+Source: morphium-core/src/main/java/de/caluga/morphium/query/Query.java
 
