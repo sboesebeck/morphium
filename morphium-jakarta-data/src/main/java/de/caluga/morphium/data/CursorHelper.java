@@ -148,7 +148,8 @@ public final class CursorHelper {
             orQueries.add(sub);
         }
 
-        query.or(orQueries);
+        // a filter of its own, ANDed with the conditions of the method (MOR-091)
+        OrFilter.add(query, orQueries);
     }
 
     /**

@@ -110,7 +110,7 @@ public final class QueryExecutor {
                 applyCondition(sub, cond, args, morphium, entityClass);
                 orQueries.add(sub);
             }
-            query.or(orQueries);
+            OrFilter.add(query, orQueries);
         } else {
             for (Condition cond : descriptor.conditions()) {
                 applyCondition(query, cond, args, morphium, entityClass);

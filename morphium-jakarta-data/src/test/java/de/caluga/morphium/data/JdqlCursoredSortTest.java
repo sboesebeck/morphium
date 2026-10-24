@@ -100,4 +100,23 @@ class JdqlCursoredSortTest {
         CursoredPage<Item> second = page("WHERE amount > 0 ORDER BY amount", "", new Object[] {Sort.desc("id"), first.nextPageRequest()}, 0, -1, 1);
         assertThat(ids(second)).containsExactly("i3", "i4", "i5");
     }
+
+    @Test
+    @DisplayName("a query with an OR keeps its OR next to the cursor condition")
+    void orInTheQueryAndTheCursor() {
+        String jdql = "WHERE amount = 10 OR amount > 30 ORDER BY amount";
+
+        CursoredPage<Item> first = page(jdql, "", new Object[] {PageRequest.ofSize(1)}, -1, -1, 0);
+        assertThat(ids(first)).containsExactly("i1");
+
+        CursoredPage<Item> second = page(jdql, "", new Object[] {first.nextPageRequest()}, -1, -1, 0);
+        assertThat(ids(second)).containsExactly("i4");
+
+        CursoredPage<Item> third = page(jdql, "", new Object[] {second.nextPageRequest()}, -1, -1, 0);
+        assertThat(ids(third)).containsExactly("i5");
+        assertThat(third.hasNext()).isFalse();
+
+        CursoredPage<Item> back = page(jdql, "", new Object[] {third.previousPageRequest()}, -1, -1, 0);
+        assertThat(ids(back)).containsExactly("i4");
+    }
 }

@@ -158,6 +158,11 @@ context keep their own key handling.
 
 ### Fixed
 
+#### Jakarta Data: several ORs in one query narrow each other (MOR-091)
+`Query.or(...)` adds its branches to the one list of or-queries of the query. So `(a OR b) AND (c OR d)`, an OR group next to `NOT BETWEEN`, and the condition that continues after a cursor on
+a query with an OR (`WHERE a = 1 OR b = 2` as `a OR b OR (cursor branches)`) all became ONE OR of every branch: the result was wider than the query and a next page showed rows of earlier pages
+again. Every OR is a filter of its own now (`OrFilter`), ANDed with the rest.
+
 #### Jakarta Data: an enum in `Not`, `In`, `NotIn` and range operators of a derived query (MOR-090)
 `findByKindNot(Kind.PRIME)` returned every document and `findByKindIn(Set.of(...))` none: only a plain equality encoded the enum by its name, a value inside `{$ne: ...}`, `{$in: [...]}` or
 `{$gt: ...}` was not converted. The derived-query conditions convert an enum to its name in every operator.
