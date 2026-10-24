@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Jakarta Data: `@AtomicUpdate`, one atomic update or find-and-modify with structured assignments (MOR-021, Morphium extension)
+A repository method can be one atomic conditional update or upsert, without the driver API: `@AtomicUpdate(where = "...", set = ..., setOnInsert = ..., inc = ...,
+upsert = true)` with `@Assign(field, param | value)`. The return type chooses the form: `void`/`boolean`/`int`/`long` is an `update` command and returns the number of
+documents matched or inserted, the entity or an `Optional` of it is a `findAndModify` that returns the document (`returns = AFTER | BEFORE`, `@OrderBy` picks one). A lost
+conditional upsert (a lease held by somebody else) is 0 / `false` / empty, not an exception. Values go through the update builder. Wrong fields, parameters, conditions and
+return types fail the build in Quarkus and the creation of the repository in Spring. This is not portable Jakarta Data; it is documented as such in `docs/jakarta-data.md`.
+
+The conditions of `DELETE` and `UPDATE` statements in `@Query` get a check that `JdqlParser` does not make: an operand must be a parameter or a literal. `WHERE id == :id`
+is refused instead of becoming the condition `id = "= :id"`, which matches nothing without a word.
+
 #### Jakarta Data: `@Query("UPDATE Entity SET ... [WHERE ...]")` as one update command (MOR-018)
 A JDQL `UPDATE` statement works in `@Query` methods of the Quarkus and the Spring Boot module. It is one `update` command, built with the update builder, and the
 result (`void`, `int`, `long`) is the number of matched documents. The SET items that map to a classic operator are supported: `f = value` (`$set`), `f = NULL`

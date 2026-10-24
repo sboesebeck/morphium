@@ -539,7 +539,7 @@ tasks:
 - id: MOR-021
   title: 'Morphium extension: atomic update and find-and-modify repository annotations'
   type: implementation
-  status: open
+  status: done
   priority: 2
   effort: L
   description: 'The Jakarta Data spec has no upsert or find-and-modify annotation, so this is a vendor extension.
@@ -559,6 +559,22 @@ tasks:
   source:
   - docs/research/jakarta-data-1.1.md section 3
   - docs/research/other-clients.md patterns 10, 13
+  evidence: 'AtomicUpdateTest (11 invocations on the InMemoryDriver and on mongo:8 with the pooled driver): the lease of the task is ONE conditional upsert that acquires (fencing token 1, createdBy set on insert only), loses against the holder (empty, nothing changed), renews (token 2) and takes over after the expiry (token 3, createdBy stays); BEFORE returns the old state and null for an upsert that inserts; without upsert nothing is created; an order picks the document; the count form returns matched or inserted, 0 for a lost upsert, and many updates all matches; a missing argument and a non-number for inc are refused and change nothing. Quarkus: the build generates both forms with void, boolean, int, long, the entity and Optional, and refuses Collection, Long, Stream, an unknown field, a parameter that does not exist (assignment and condition), a condition that is not valid JDQL, ordinals in the condition, no assignment, param and value together, a text for inc, setOnInsert without upsert, many on the document form, an order on the count form and a Sort parameter, each naming the method (MorphiumDataProcessorAtomicUpdateTest, 5 tests). AbstractMorphiumAtomicUpdateTest (lease lifecycle through Optional, the boolean and int count forms, the entity with BEFORE) runs on the InMemoryDriver and on a real mongo:8 from Dev Services. Spring: two proxy tests and a test that a wrong @AtomicUpdate refuses the repository when it is created. Documented as non-portable in docs/jakarta-data.md, the Quarkus README and the CHANGELOG. Found on the way: JdqlParser takes whatever stands after the operator as the operand, so WHERE id == :id is the condition id = "= :id" and matches nothing silently; JdqlOperands now refuses that for @AtomicUpdate and for DELETE and UPDATE statements (JdqlOperandsTest), the parser itself is MOR-075. Whole suites: jakarta-data 149 (with the MongoDB variants), Quarkus runtime 83, deployment 43, integration 290, Spring 38. Later checks: the declared lease answers like the LeaseManager step by step (AtomicUpdateTest), atomic updates on a user object work (counter, guarded state change, create if absent), parameters are bound by name without @Param (Quarkus integration test, the build keeps the names), and on a replica set (mongo:8, AtomicUpdateTransactionTest, needs MORPHIUM_TEST_MONGO_RS) a conditional update without upsert runs INSIDE a Morphium transaction: an abort takes it back, a commit keeps it, a stale token is false and leaves the transaction usable, and a takeover from another instance waits for the commit. Not covered: sort for the count form (refused by design), @AtomicUpdate on a derived-query name, ordinals in the condition (refused), the Spring tests run on the InMemoryDriver only.'
+  commits:
+  - cdb6f5153
+- id: MOR-075
+  title: 'JdqlParser accepts an operand that is neither a parameter nor a literal'
+  type: defect
+  status: open
+  priority: 3
+  effort: S
+  description: 'Found by MOR-021. JdqlParser takes whatever stands after the operator as the operand: WHERE id == :id is the condition id = "= :id", WHERE price >> 5 is price > "> 5", WHERE id = :id garbage is an operand "id garbage" that fails at the call. Such a condition matches nothing and nobody tells; in a SELECT it returns an empty list. JdqlOperands (MOR-021) refuses it for @AtomicUpdate, DELETE and UPDATE at build time; a plain @Query SELECT and the parser itself still accept it. Make the parser throw a JDQL parse error with the position, like it does for a condition it cannot split.'
+  acceptance:
+  - JdqlParser.parse throws a parse error with the position for the three examples above
+  - The existing JdqlParserTest cases still pass
+  source:
+  - morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlOperands.java
+  - morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlParser.java
 - id: MOR-022
   title: 'Jakarta Data: derived update methods (updateByX)'
   type: implementation

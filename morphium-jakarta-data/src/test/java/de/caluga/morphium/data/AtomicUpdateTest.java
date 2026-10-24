@@ -1,0 +1,348 @@
+package de.caluga.morphium.data;
+
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.annotations.Version;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
+import de.caluga.morphium.query.ReturnDocument;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Date;
+import java.util.List;
+import java.util.stream.Stream;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+/**
+ * MOR-021: {@link AtomicUpdate} through {@link JdqlMethodBridge#executeAtomicCount} and {@link JdqlMethodBridge#executeAtomicDocument}. The lease is the example of the
+ * task: one conditional upsert that acquires, renews and takes over, and loses against a holder. Runs on the InMemoryDriver and, with
+ * {@code MORPHIUM_TEST_MONGO=host:port}, on a standalone MongoDB.
+ */
+class AtomicUpdateTest {
+
+    @Entity
+    static class Lease {
+        @Id
+        private String id;
+        private String owner;
+        private Date expiresAt;
+        private long fencing;
+        private String createdBy;
+        private int priority;
+
+        Lease() {}
+
+        Lease(String id, String owner, int priority) {
+            this.id = id;
+            this.owner = owner;
+            this.priority = priority;
+            this.expiresAt = new Date(0);
+        }
+    }
+
+    @Entity
+    static class VersionedLease {
+        @Id
+        private String id;
+        private String ownerName;
+        private Instant expiresAt;
+        @Version
+        private Long version;
+    }
+
+    static class VersionedLeaseRepo extends AbstractMorphiumRepository<VersionedLease, String> {
+        VersionedLeaseRepo(Morphium morphium) {
+            super(new RepositoryMetadata(VersionedLease.class, String.class, "id"));
+            setMorphium(morphium);
+        }
+    }
+
+    @Entity
+    static class Account {
+        @Id
+        private String id;
+        private String email;
+        private String status;
+        private int loginCount;
+        private int failedLogins;
+        private Date lastLogin;
+        @Version
+        private Long version;
+    }
+
+    static class AccountRepo extends AbstractMorphiumRepository<Account, String> {
+        AccountRepo(Morphium morphium) {
+            super(new RepositoryMetadata(Account.class, String.class, "id"));
+            setMorphium(morphium);
+        }
+    }
+
+    static class LeaseRepo extends AbstractMorphiumRepository<Lease, String> {
+        LeaseRepo(Morphium morphium) {
+            super(new RepositoryMetadata(Lease.class, String.class, "id"));
+            setMorphium(morphium);
+        }
+    }
+
+    // the method tryAcquire(id, owner, now, until): parameters 0 to 3
+    private static final String PARAMS = "id:0,owner:1,now:2,until:3";
+
+    private static AtomicUpdateSpec acquire(ReturnDocument returns) {
+        return new AtomicUpdateSpec("id = :id AND (expiresAt < :now OR owner = :owner)", List.of("owner=:owner", "expiresAt=:until"), List.of("createdBy=:owner"),
+                List.of("fencing=1"), true, false, returns, "", PARAMS);
+    }
+
+    static Stream<String> drivers() {
+        return System.getenv("MORPHIUM_TEST_MONGO") == null ? Stream.of("inmem") : Stream.of("inmem", "mongo");
+    }
+
+    private static Morphium morphium(String driver) {
+        MorphiumConfig cfg = new MorphiumConfig();
+        cfg.setDatabase("mor021_" + System.nanoTime());
+
+        if (driver.equals("mongo")) {
+            String[] hp = System.getenv("MORPHIUM_TEST_MONGO").split(":");
+            cfg.addHostToSeed(hp[0], Integer.parseInt(hp[1]));
+            cfg.setDriverName("PooledDriver");
+        } else {
+            cfg.addHostToSeed("localhost");
+            cfg.setDriverName(InMemoryDriver.driverName);
+        }
+
+        return new Morphium(cfg);
+    }
+
+    private static Lease tryAcquire(LeaseRepo repo, String id, String owner, long now, long until) {
+        return (Lease) JdqlMethodBridge.executeAtomicDocument(repo, acquire(ReturnDocument.AFTER).encode(), new Object[] {id, owner, new Date(now), new Date(until)});
+    }
+
+    // ------------------------------------------------------------------ the spec
+
+    @Test
+    @DisplayName("the encoded spec survives the trip, an assignment needs exactly one of param and value")
+    void spec() {
+        AtomicUpdateSpec spec = acquire(ReturnDocument.BEFORE);
+
+        assertThat(AtomicUpdateSpec.decode(spec.encode())).isEqualTo(spec);
+        assertThat(AtomicUpdateSpec.assignment("a", "p", "")).isEqualTo("a=:p");
+        assertThat(AtomicUpdateSpec.assignment("a", "", "'x'")).isEqualTo("a='x'");
+        assertThatThrownBy(() -> AtomicUpdateSpec.assignment("a", "p", "1")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> AtomicUpdateSpec.assignment("a", "", "")).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    // ------------------------------------------------------------------ the lease: find-and-modify form
+
+    @ParameterizedTest
+    @MethodSource("drivers")
+    @DisplayName("one conditional upsert acquires, loses against the holder, renews and takes over")
+    void leaseLifecycle(String driver) throws Exception {
+        try (Morphium m = morphium(driver)) {
+            LeaseRepo repo = new LeaseRepo(m);
+
+            Lease first = tryAcquire(repo, "job", "A", 1000, 5000);
+            assertThat(first).isNotNull();
+            assertThat(first.owner).isEqualTo("A");
+            assertThat(first.fencing).isEqualTo(1);
+            assertThat(first.createdBy).isEqualTo("A");
+            assertThat(first.expiresAt).isEqualTo(new Date(5000));
+
+            // B tries while A holds: the filter excludes the document, the insert collides with it, the result is empty and nothing changed
+            assertThat(tryAcquire(repo, "job", "B", 2000, 6000)).isNull();
+            assertThat(m.findById(Lease.class, "job", null).owner).isEqualTo("A");
+
+            // A renews, the fencing token grows, createdBy stays (it is only set on insert)
+            Lease renewed = tryAcquire(repo, "job", "A", 3000, 8000);
+            assertThat(renewed.fencing).isEqualTo(2);
+            assertThat(renewed.expiresAt).isEqualTo(new Date(8000));
+
+            // B takes over after the expiry
+            Lease takenOver = tryAcquire(repo, "job", "B", 9000, 12000);
+            assertThat(takenOver.owner).isEqualTo("B");
+            assertThat(takenOver.fencing).isEqualTo(3);
+            assertThat(takenOver.createdBy).isEqualTo("A");
+            assertThat(m.createQueryFor(Lease.class).countAll()).isEqualTo(1);
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("drivers")
+    @DisplayName("BEFORE returns the old state, and null for an upsert that inserts")
+    void before(String driver) throws Exception {
+        try (Morphium m = morphium(driver)) {
+            LeaseRepo repo = new LeaseRepo(m);
+            String spec = acquire(ReturnDocument.BEFORE).encode();
+
+            assertThat(JdqlMethodBridge.executeAtomicDocument(repo, spec, new Object[] {"job", "A", new Date(1000), new Date(5000)})).isNull();
+            assertThat(m.findById(Lease.class, "job", null).owner).isEqualTo("A");
+
+            Lease before = (Lease) JdqlMethodBridge.executeAtomicDocument(repo, spec, new Object[] {"job", "A", new Date(2000), new Date(6000)});
+            assertThat(before.fencing).isEqualTo(1);
+            assertThat(before.expiresAt).isEqualTo(new Date(5000));
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("drivers")
+    @DisplayName("without upsert nothing is created; an order picks the document")
+    void noUpsertAndOrder(String driver) throws Exception {
+        try (Morphium m = morphium(driver)) {
+            LeaseRepo repo = new LeaseRepo(m);
+            m.store(new Lease("a", "X", 1));
+            m.store(new Lease("b", "X", 5));
+            m.store(new Lease("c", "X", 3));
+
+            AtomicUpdateSpec none = new AtomicUpdateSpec("id = :id", List.of("owner='new'"), List.of(), List.of(), false, false, ReturnDocument.AFTER, "", "id:0");
+            assertThat(JdqlMethodBridge.executeAtomicDocument(repo, none.encode(), new Object[] {"missing"})).isNull();
+            assertThat(m.findById(Lease.class, "missing", null)).isNull();
+
+            AtomicUpdateSpec highest = new AtomicUpdateSpec("owner = 'X'", List.of("owner='taken'"), List.of(), List.of(), false, false, ReturnDocument.AFTER, "priority:DESC", "");
+            Lease picked = (Lease) JdqlMethodBridge.executeAtomicDocument(repo, highest.encode(), new Object[0]);
+            assertThat(picked.id).isEqualTo("b");
+            assertThat(m.findById(Lease.class, "a", null).owner).isEqualTo("X");
+        }
+    }
+
+    // ------------------------------------------------------------------ the count form
+
+    @ParameterizedTest
+    @MethodSource("drivers")
+    @DisplayName("the count is matched or inserted, a lost upsert is 0, many updates all matches")
+    void countForm(String driver) throws Exception {
+        try (Morphium m = morphium(driver)) {
+            LeaseRepo repo = new LeaseRepo(m);
+            String spec = new AtomicUpdateSpec("id = :id AND (expiresAt < :now OR owner = :owner)", List.of("owner=:owner", "expiresAt=:until"), List.of(), List.of("fencing=1"), true,
+                    false, ReturnDocument.AFTER, "", PARAMS).encode();
+
+            assertThat(JdqlMethodBridge.executeAtomicCount(repo, spec, new Object[] {"job", "A", new Date(1000), new Date(5000)})).isEqualTo(1);    // inserted
+            assertThat(JdqlMethodBridge.executeAtomicCount(repo, spec, new Object[] {"job", "B", new Date(2000), new Date(6000)})).isZero();       // lost
+            assertThat(JdqlMethodBridge.executeAtomicCount(repo, spec, new Object[] {"job", "A", new Date(3000), new Date(8000)})).isEqualTo(1);    // renewed
+            assertThat(m.findById(Lease.class, "job", null).fencing).isEqualTo(2);
+
+            m.store(new Lease("a", "X", 1));
+            m.store(new Lease("b", "X", 2));
+            AtomicUpdateSpec all = new AtomicUpdateSpec("owner = 'X'", List.of(), List.of(), List.of("priority=10"), false, true, ReturnDocument.AFTER, "", "");
+            assertThat(JdqlMethodBridge.executeAtomicCount(repo, all.encode(), new Object[0])).isEqualTo(2);
+            assertThat(m.findById(Lease.class, "a", null).priority).isEqualTo(11);
+
+            AtomicUpdateSpec one = new AtomicUpdateSpec("owner = 'X'", List.of(), List.of(), List.of("priority=1"), false, false, ReturnDocument.AFTER, "", "");
+            assertThat(JdqlMethodBridge.executeAtomicCount(repo, one.encode(), new Object[0])).isEqualTo(1);
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("drivers")
+    @DisplayName("a missing argument and a non-number for inc are refused and change nothing")
+    void rejected(String driver) throws Exception {
+        try (Morphium m = morphium(driver)) {
+            LeaseRepo repo = new LeaseRepo(m);
+            m.store(new Lease("a", "X", 1));
+
+            AtomicUpdateSpec missing = new AtomicUpdateSpec("id = :id", List.of("owner=:nobody"), List.of(), List.of(), false, false, ReturnDocument.AFTER, "", "id:0");
+            assertThatThrownBy(() -> JdqlMethodBridge.executeAtomicCount(repo, missing.encode(), new Object[] {"a"})).isInstanceOf(IllegalArgumentException.class).hasMessageContaining(":nobody");
+
+            AtomicUpdateSpec text = new AtomicUpdateSpec("id = :id", List.of(), List.of(), List.of("priority=:id"), false, false, ReturnDocument.AFTER, "", "id:0");
+            assertThatThrownBy(() -> JdqlMethodBridge.executeAtomicCount(repo, text.encode(), new Object[] {"a"})).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("needs a number");
+            assertThat(m.findById(Lease.class, "a", null).priority).isEqualTo(1);
+        }
+    }
+
+    // ------------------------------------------------------------------ the same as LeaseManager
+
+    @ParameterizedTest
+    @MethodSource("drivers")
+    @DisplayName("declared like the LeaseManager, with the @Version as fencing token, it answers the same as the LeaseManager")
+    void sameAsTheLeaseManager(String driver) throws Exception {
+        try (Morphium m = morphium(driver)) {
+            VersionedLeaseRepo repo = new VersionedLeaseRepo(m);
+            de.caluga.morphium.query.LeaseManager<VersionedLease> manager = de.caluga.morphium.query.LeaseManager.of(m, VersionedLease.class, "ownerName", "expiresAt");
+            String acquire = new AtomicUpdateSpec("id = :id AND (expiresAt < :now OR ownerName = :owner)", List.of("ownerName=:owner", "expiresAt=:until"), List.of(), List.of(), true, false,
+                    ReturnDocument.AFTER, "", "id:0,owner:1,now:2,until:3").encode();
+            String release = new AtomicUpdateSpec("id = :id AND ownerName = :owner", List.of("expiresAt=:expired"), List.of(), List.of(), false, false, ReturnDocument.AFTER, "",
+                    "id:0,owner:1,expired:2").encode();
+
+            Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+            Duration ttl = Duration.ofSeconds(30);
+
+            // the annotation on "job-a", the manager on "job-b": the same steps, the same answers
+            for (String id : new String[] {"job-a", "job-b"}) {
+                boolean viaAnnotation = id.equals("job-a");
+
+                java.util.function.BiFunction<String, Instant, Object> acquireAt = (owner, now) -> viaAnnotation
+                    ? JdqlMethodBridge.executeAtomicDocument(repo, acquire, new Object[] {id, owner, now, now.plus(ttl)})
+                    : manager.tryAcquire(id, owner, ttl, now).isAcquired() ? m.findById(VersionedLease.class, id, null) : null;
+
+                VersionedLease first = (VersionedLease) acquireAt.apply("A", t0);
+                assertThat(first.version).as(id + " first grant").isEqualTo(1L);
+                assertThat(acquireAt.apply("B", t0.plusSeconds(10))).as(id + " held by A").isNull();
+                VersionedLease renewed = (VersionedLease) acquireAt.apply("A", t0.plusSeconds(20));
+                assertThat(renewed.version).as(id + " renewed").isEqualTo(2L);
+                VersionedLease takenOver = (VersionedLease) acquireAt.apply("B", t0.plusSeconds(60));
+                assertThat(takenOver.ownerName).as(id + " taken over").isEqualTo("B");
+                assertThat(takenOver.version).isEqualTo(3L);
+
+                boolean released = viaAnnotation
+                    ? (long) JdqlMethodBridge.executeAtomicCount(repo, release, new Object[] {id, "B", Instant.EPOCH}) > 0
+                    : manager.release(id, "B");
+                assertThat(released).as(id + " released by the holder").isTrue();
+                assertThat(viaAnnotation ? JdqlMethodBridge.executeAtomicCount(repo, release, new Object[] {id, "A", Instant.EPOCH}) > 0 : manager.release(id, "A"))
+                    .as(id + " released by somebody else").isFalse();
+                assertThat(acquireAt.apply("A", t0.plusSeconds(61))).as(id + " free again").isNotNull();
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ a user object: counters, a guarded state change, create if absent
+
+    @ParameterizedTest
+    @MethodSource("drivers")
+    @DisplayName("atomic updates on a user: login counter, failed logins with a lock, and create-if-absent")
+    void accountExample(String driver) throws Exception {
+        try (Morphium m = morphium(driver)) {
+            AccountRepo repo = new AccountRepo(m);
+
+            // registerIfAbsent(id, email): BEFORE is empty when the document was created, present when it already existed
+            String register = new AtomicUpdateSpec("id = :id", List.of(), List.of("email=:email", "status='ACTIVE'"), List.of(), true, false, ReturnDocument.BEFORE, "", "id:0,email:1").encode();
+            assertThat(JdqlMethodBridge.executeAtomicDocument(repo, register, new Object[] {"u1", "a@example.org"})).isNull();
+            Account created = m.findById(Account.class, "u1", null);
+            assertThat(created.status).isEqualTo("ACTIVE");
+            assertThat(created.email).isEqualTo("a@example.org");
+            Account existing = (Account) JdqlMethodBridge.executeAtomicDocument(repo, register, new Object[] {"u1", "other@example.org"});
+            assertThat(existing).isNotNull();
+            assertThat(m.findById(Account.class, "u1", null).email).isEqualTo("a@example.org");
+            assertThat(m.findById(Account.class, "u1", null).version).isEqualTo(created.version);
+
+            // recordLogin(id, at): only for an active account, counts and stamps in one command
+            String login = new AtomicUpdateSpec("id = :id AND status = 'ACTIVE'", List.of("lastLogin=:at"), List.of(), List.of("loginCount=1"), false, false, ReturnDocument.AFTER, "", "id:0,at:1").encode();
+            Account afterLogin = (Account) JdqlMethodBridge.executeAtomicDocument(repo, login, new Object[] {"u1", new Date(5000)});
+            assertThat(afterLogin.loginCount).isEqualTo(1);
+            assertThat(afterLogin.lastLogin).isEqualTo(new Date(5000));
+
+            // recordFailedLogin(id) returns the new state; lockAfter(id, limit) changes the status only if the limit is reached
+            String failed = new AtomicUpdateSpec("id = :id", List.of(), List.of(), List.of("failedLogins=1"), false, false, ReturnDocument.AFTER, "", "id:0").encode();
+            String lock = new AtomicUpdateSpec("id = :id AND status = 'ACTIVE' AND failedLogins >= :limit", List.of("status='LOCKED'"), List.of(), List.of(), false, false, ReturnDocument.AFTER, "", "id:0,limit:1").encode();
+
+            for (int i = 1; i <= 3; i++) {
+                assertThat(((Account) JdqlMethodBridge.executeAtomicDocument(repo, failed, new Object[] {"u1"})).failedLogins).isEqualTo(i);
+            }
+
+            assertThat(JdqlMethodBridge.executeAtomicDocument(repo, lock, new Object[] {"u1", 5})).isNull();
+            assertThat(m.findById(Account.class, "u1", null).status).isEqualTo("ACTIVE");
+            JdqlMethodBridge.executeAtomicDocument(repo, failed, new Object[] {"u1"});
+            JdqlMethodBridge.executeAtomicDocument(repo, failed, new Object[] {"u1"});
+            Account locked = (Account) JdqlMethodBridge.executeAtomicDocument(repo, lock, new Object[] {"u1", 5});
+            assertThat(locked.status).isEqualTo("LOCKED");
+
+            // a locked account does not log in any more: the condition does not match, nothing changes
+            assertThat(JdqlMethodBridge.executeAtomicDocument(repo, login, new Object[] {"u1", new Date(9000)})).isNull();
+            assertThat(m.findById(Account.class, "u1", null).loginCount).isEqualTo(1);
+        }
+    }
+}
