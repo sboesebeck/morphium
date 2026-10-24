@@ -36,6 +36,10 @@ reflection, no dynamic proxies.
 - **Health checks** — MicroProfile liveness (`/q/health/live`), readiness
   (`/q/health/ready`, with connection-pool metadata), and startup (`/q/health/started`)
   probes registered automatically via SmallRye Health.
+- **Micrometer metrics** — connection pool, cache and write-buffer gauges and counters
+  (`morphium.driver.*`, `morphium.cache.*`, `morphium.write_buffer.*`) and a timer for the
+  update operations (`morphium.operations.duration`). Active when Micrometer is on the
+  application's classpath; see [Metrics](#metrics).
 - **Dev Services** — a MongoDB container (optionally as a single-node replica set, so
   transactions and change streams work out of the box) starts automatically in dev and
   test mode when no explicit `quarkus.morphium.hosts` is configured — no Docker Compose,
@@ -104,10 +108,32 @@ property — but covers the most commonly used ones, each verified directly agai
 | `quarkus.morphium.devservices.database-name` | `morphium-dev` | Database name injected by Dev Services | `MorphiumDevServicesBuildTimeConfig.java:59` |
 | `quarkus.morphium.devservices.replica-set` | `true` | Start MongoDB as a single-node replica set (enables transactions) | `MorphiumDevServicesBuildTimeConfig.java:72` |
 | `quarkus.morphium.health.enabled` | `true` | Enable liveness/readiness/startup health checks | `MorphiumHealthBuildTimeConfig.java:41` |
+| `quarkus.morphium.observability.enabled` | `true` | Register the Micrometer meters (only effective when Micrometer is on the classpath) | `MorphiumObservabilityConfig.java` |
+| `quarkus.morphium.observability.include-storage-listener-metrics` | `true` | Time the update operations (`morphium.operations.duration`); adds a storage listener to the Morphium instance | `MorphiumObservabilityConfig.java` |
 | `quarkus.morphium.migration.migrate-at-start` | `false` | Run pending migrations automatically on startup | `MorphiumMigrationConfig.java:40` |
 | `quarkus.morphium.migration.change-log-collection` | `morphiumChangeLog` | Collection tracking executed migrations | `MorphiumMigrationConfig.java:44` |
 | `quarkus.morphium.migration.lock-collection` | `morphiumMigrationLock` | Collection used for the distributed migration lock | `MorphiumMigrationConfig.java:48` |
 | `quarkus.morphium.migration.lock-ttl-seconds` | `60` | Migration-lock TTL in seconds | `MorphiumMigrationConfig.java:56` |
+
+## Metrics
+
+With Micrometer on the classpath (for example `quarkus-micrometer-registry-prometheus`) the extension
+registers these meters, all tagged with `database`:
+
+| Meter | Type | Meaning |
+|---|---|---|
+| `morphium.driver.connections.pool`, `.in_use` | gauge | connections in the pool / borrowed |
+| `morphium.driver.connections.borrowed`, `.released` | counter | cumulative |
+| `morphium.driver.threads.waiting` | gauge | threads waiting for a connection |
+| `morphium.driver.errors`, `.failovers` | counter | cumulative |
+| `morphium.cache.hit_ratio`, `.entries`, `morphium.write_buffer.entries` | gauge | cache and write buffer |
+| `morphium.operations.duration` | timer | update operations; tags `operation=update`, `update_type` (`set`, `inc`, `push`, ...) and `entity` |
+
+The timer covers the writer path (`Query.set`, `inc`, `push`, `pull`, ..., the bulk context). The update builder
+(`Query.modify()`), `findOneAndUpdate(Map)` and `updateOne`/`updateMany` fire no storage-listener events in
+morphium-core and are not timed yet (MOR-072); `push`, `pull` and `addToSet` fire them twice, so their count is too high
+(MOR-073). A write that fails is not timed, because no event follows it. A write that a buffered writer flushes on another
+thread is not timed either.
 
 ## Quick Example
 

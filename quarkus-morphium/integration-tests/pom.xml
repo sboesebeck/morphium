@@ -29,6 +29,13 @@
       <artifactId>quarkus-smallrye-health</artifactId>
     </dependency>
 
+    <!-- Micrometer with the Prometheus registry: the extension registers its meters when Micrometer
+         is present, and /q/metrics is where they are read (MorphiumMetricsEndpointTest). -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-micrometer-registry-prometheus</artifactId>
+    </dependency>
+
     <!-- REST layer (for endpoint smoke tests) -->
     <dependency>
       <groupId>io.quarkus</groupId>

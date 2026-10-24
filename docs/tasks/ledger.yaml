@@ -719,7 +719,7 @@ tasks:
 - id: MOR-031
   title: 'Quarkus: Micrometer / OpenTelemetry metrics for pool and update paths'
   type: implementation
-  status: open
+  status: done
   priority: 2
   effort: M
   description: Applications currently write their own connection pool metrics. Provide connection pool metrics and
@@ -729,6 +729,10 @@ tasks:
   - Verified against a real MongoDB (not only the InMemoryDriver).
   source:
   - review of quarkus-morphium
+  evidence: 'The pool, cache and write-buffer meters existed (MorphiumMetricsBinder). New: the timer morphium.operations.duration (MorphiumOperationMetrics, tags database, operation, update_type, entity) for the update operations of the writer path, the switch quarkus.morphium.observability.include-storage-listener-metrics, the section Metrics in docs/quarkus-extension.md and the extension CHANGELOG. MorphiumOperationMetricsTest (7 unit tests: pairing, a failed write does not distort the next one, bounded pending starts, close removes the timers, the binder adds and removes the listener) and MorphiumOperationMetricsWithMorphiumTest (a real Morphium; Query.inc, set and push appear as timers) run on the InMemoryDriver and on mongo:8 (PooledDriver; the server counted the updates). MorphiumMetricsEndpointTest in the integration tests starts a mongo:8 through Dev Services, writes through Query.inc and Query.set and reads /q/metrics: the pool gauges are there and the timer counts exactly 3 inc and 1 set (the dependency quarkus-micrometer-registry-prometheus was added to the integration tests). The whole runtime (82), deployment (31) and integration-tests (256) suites pass. Not covered, filed: the builder, findOneAndUpdate(Map), updateOne and updateMany fire no storage-listener events (MOR-072), push, pull and addToSet fire them twice (MOR-073, the push count in the real-Morphium test is therefore asserted as at least 1). Not done: OpenTelemetry metrics (Micrometer only), the per-host connection tags and the transaction counters of the plan.'
+  commits:
+  - cf98386fd
+  - ba295b3e7
 - id: MOR-032
   title: 'Quarkus: named Morphium instances'
   type: implementation
@@ -1486,3 +1490,26 @@ tasks:
   source:
   - morphium-core/src/main/java/de/caluga/morphium/writer/MorphiumWriterImpl.java handleLastChange
   - morphium-core/src/test/java/de/caluga/test/mongo/suite/base/UpdateEntryPointsLifecycleTest.java
+- id: MOR-072
+  title: 'The update builder, findOneAndUpdate(Map), updateOne and updateMany fire no storage-listener update events'
+  type: defect
+  status: open
+  priority: 3
+  effort: M
+  description: 'Found by MOR-031. MorphiumStorageListener.preUpdate/postUpdate (Morphium.firePreUpdateEvent) are fired by the writer path (Query.set, inc, push, ...), the bulk context and the buffered writer, but not by Query.modify() (UpdateBuilder), Query.findOneAndUpdate(Map, ...), updateOne and updateMany. Listeners and metrics (morphium.operations.duration in quarkus-morphium) do not see the newest update path. Decide whether they fire the events (a veto from preUpdate then blocks them) or the contract says why not.'
+  acceptance:
+  - A listener sees preUpdate and postUpdate for the builder terminals, findOneAndUpdate(Map) and the count terminals, or the contract page says they are not fired
+  source:
+  - morphium-core/src/main/java/de/caluga/morphium/query/UpdateBuilder.java
+  - quarkus-morphium/runtime/src/main/java/de/caluga/morphium/quarkus/observability/MorphiumOperationMetrics.java
+- id: MOR-073
+  title: 'Query.push, pull and addToSet fire the update events twice, and the post event is always PUSH'
+  type: defect
+  status: open
+  priority: 3
+  effort: S
+  description: 'Found by MOR-031 (a timer count of 2 for one push). MorphiumWriterImpl.pushPull fires firePreUpdateEvent(type) and pushIt fires it again, pushIt fires the post event and pushPull fires it a second time, with UpdateTypes.PUSH hard-coded, so a pull or an addToSet is followed by a post event of type PUSH. A listener counts every push, pull and addToSet twice and cannot pair a pull. Fire each event once, with the real type.'
+  acceptance:
+  - A listener sees one preUpdate and one postUpdate per Query.push, pull and addToSet, with the type of the call
+  source:
+  - morphium-core/src/main/java/de/caluga/morphium/writer/MorphiumWriterImpl.java pushPull and pushIt
