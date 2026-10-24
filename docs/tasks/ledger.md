@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 6, done 95
+Status: open 5, done 96
 
 ## Overview
 
@@ -13,7 +13,6 @@ Status: open 6, done 95
 | MOR-015 | open | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
 | MOR-016 | open | 3 | implementation | Migration tooling for changed key names | M |  | MOR-015 |
 | MOR-020 | open | 3 | implementation | Jakarta Data 1.1: @Is, constraints, @First and attribute-only Restriction | L |  | MOR-019, MOR-023 |
-| MOR-032 | open | 3 | implementation | Quarkus: named Morphium instances | M |  |  |
 | MOR-033 | open | 3 | implementation | Quarkus: CDI integration for Morphium messaging | M |  |  |
 | MOR-035 | open | 3 | implementation | Records and value objects in the mapper | L |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
@@ -86,6 +85,7 @@ Status: open 6, done 95
 | MOR-013 | done | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
 | MOR-022 | done | 3 | implementation | Jakarta Data: derived update methods (updateByX) | M |  | MOR-006 |
 | MOR-023 | done | 3 | verification | Verify which Jakarta Data providers implement the 1.1 features | S |  |  |
+| MOR-032 | done | 3 | implementation | Quarkus: named Morphium instances | M |  |  |
 | MOR-038 | done | 3 | defect | Replacement documents, findOneAndUpdateEnums and Expr values still fail with POJOs in update maps | M |  | MOR-002 |
 | MOR-039 | done | 3 | documentation | Document pitfalls of update maps: $pull condition keys and mixed element shapes | S |  | MOR-027 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
@@ -738,15 +738,19 @@ Commits: cf98386fd, ba295b3e7
 
 ### MOR-032 Quarkus: named Morphium instances
 
-Status **open**, priority 3, type implementation, effort M
+Status **done**, priority 3, type implementation, effort M
 
 quarkus-morphium supports a single Morphium instance. Add named instances with qualifier injection, config under quarkus.morphium."name".*, health checks per instance.
+
+Evidence: MorphiumNamedInstancesTest (3 cases) green in a @QuarkusTest on the InMemDriver (default it-db and named it-second-db side by side); NamedInstanceNamesTest (2 cases); all 321 tests of the Quarkus modules run, 319 pass, the 2 failures (MorphiumMigrationTest heartbeat tests inFlightHeartbeatAdvancesExpiryDuringSingleUnit and renewLockBetweenChangeUnitsAdvancesExpiry) fail identically on the unchanged base. NOT verified: two named instances against a real MongoDB (the test uses the InMemDriver for the named one), native image, dev-mode hot reload with a named instance.
 
 Acceptance:
 
 - Two instances with different databases can be injected and used in an integration test
 
 Source: review of quarkus-morphium
+
+Commits: a9fa079b5
 
 ### MOR-033 Quarkus: CDI integration for Morphium messaging
 
