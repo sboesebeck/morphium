@@ -141,6 +141,19 @@ class JakartaDataTckSpikeTest {
                 passed++;
             } catch (InvocationTargetException e) {
                 results.put(test.getName(), "FAIL " + e.getCause());
+
+                // -Dtck.trace=<part of a test name> prints the stack of that failure and of its causes
+                String trace = System.getProperty("tck.trace");
+
+                if (trace != null && test.getName().contains(trace)) {
+                    for (Throwable t = e.getCause(); t != null; t = t.getCause()) {
+                        System.out.println("TCK-TRACE " + test.getName() + " " + t);
+
+                        for (StackTraceElement frame : java.util.Arrays.stream(t.getStackTrace()).limit(14).toList()) {
+                            System.out.println("TCK-TRACE     at " + frame);
+                        }
+                    }
+                }
             } catch (Throwable e) {
                 results.put(test.getName(), "ERROR " + e);
             }

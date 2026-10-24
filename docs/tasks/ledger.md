@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 23, in_progress 1, done 58
+Status: open 23, in_progress 1, done 59
 
 ## Overview
 
@@ -81,6 +81,7 @@ Status: open 23, in_progress 1, done 58
 | MOR-081 | done | 2 | defect | Jakarta Data: the static order comes first, and every dynamic Sort, Sort... and Order counts | S |  |  |
 | MOR-082 | done | 2 | defect | Jakarta Data: JDQL — AND binds stronger than OR, literals are text, NOT before BETWEEN/IN/LIKE, IN lists of literals | S |  |  |
 | MOR-083 | done | 2 | defect | Jakarta Data: SELECT field answers the values of the field when the method returns them | S |  |  |
+| MOR-084 | done | 2 | defect | A short or Short field is stored as a number, not as a Java-serialization blob | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
@@ -1457,4 +1458,22 @@ Acceptance:
 Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlMethodBridge.java
 
 Commits: f3f4330ae, 10db59964
+
+### MOR-084 A short or Short field is stored as a number, not as a Java-serialization blob
+
+Status **done**, priority 2, type defect, effort S
+
+Found by the TCK of MOR-026 (sorting by a Short field failed inside the InMemoryDriver). ShortMapper existed but was never registered, so a short or Short field was written as a Base64 Java-serialization blob ({_b64data: ...}) that the database cannot compare, sort or increment. It is registered now and writes a number; documents written as a blob are still read (filtered to Short), a number that does not fit is refused instead of wrapping around.
+
+Evidence: ShortFieldTest (6) on the InMemoryDriver and on a real mongo:8, ShortCollectionsTest (list, map, set, arrays). Reviewed in two passes: the first found a silent wrap-around and untested collections (both fixed), the second had no finding.
+
+Acceptance:
+
+- A Short field is stored as a number and read back as a Short
+- It can be compared, sorted and updated in the database
+- A blob that was written before is still read, a blob of another class and a number that is no short are refused
+
+Source: morphium-core/src/main/java/de/caluga/morphium/objectmapping/ShortMapper.java
+
+Commits: a826fd7f3, d8b4a609b
 
