@@ -276,6 +276,11 @@ rejected at the call, an empty update is rejected (it would replace the document
 update touches it. `ReturnDocument` has no default: an upsert that inserts returns `null` for `BEFORE`. `@LastChange` is set by every update that modifies a document and `@CreationTime` by an insert (MOR-009),
 the storage-listener update events (`preUpdate`, `postUpdate`) are fired once per call, skip, limit above 1, hint and projection are rejected. See the Javadoc of `UpdateBuilder` for the complete contract.
 
+**Field references.** Every operator takes the field as a `String` and as an enum constant (`set(F.label, ..)`, `rename(F.oldName, F.newName)`, `pushEach(F.tags, ..)`; `unset` and `currentDate` take several), and all spellings
+resolve to the same stored name. That covers the constants of Lombok's `@FieldNameConstants` in both forms (the `Fields` class of Strings and `asEnum = true`) and the `name()` of a static metamodel attribute
+(`_Lease.expiresAt.name()`, the Java name of the field), so no overload for a metamodel type is needed and the core stays free of `jakarta.data`. Renames through `@Property` and camel case translation are applied
+by the builder, not by the caller (MOR-012).
+
 The array and number operators, with the shape of the element that `store()` writes:
 ```java
 query.modify()
