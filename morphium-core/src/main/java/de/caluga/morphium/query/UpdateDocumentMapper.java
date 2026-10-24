@@ -1,6 +1,8 @@
 package de.caluga.morphium.query;
 
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.Reference;
 import de.caluga.morphium.annotations.encryption.Encrypted;
 
@@ -81,6 +83,7 @@ final class UpdateDocumentMapper {
 
                 String key = translateKeys ? morphium.getARHelper().resolveFieldPath(type, given) : given;
                 Object value = operator.equals("$rename") ? renameTarget(f.getValue()) : mapValue(operator, given, f.getValue());
+                value = coerceId(operator, given, value);
 
                 if (mapped.containsKey(key)) {
                     if (!Objects.deepEquals(mapped.get(key), value)) {
@@ -151,6 +154,31 @@ final class UpdateDocumentMapper {
         }
 
         return !last.isEmpty() && dot >= 0 && last.chars().allMatch(Character::isDigit);
+    }
+
+    /**
+     * MOR-045: the key {@code id} of an update becomes {@code _id}. A String value for an entity whose {@code @Id} is a {@code MorphiumId} (or an {@code ObjectId}) would be
+     * written as a String {@code _id} that the mapper cannot read back: a String that is a valid id becomes the id, any other String is refused.
+     */
+    private Object coerceId(String operator, String key, Object value) {
+        if (!(value instanceof String) || !(operator.equals("$set") || operator.equals("$setOnInsert"))) {
+            return value;
+        }
+
+        Field field = fieldOf(key);
+
+        if (field == null || !field.isAnnotationPresent(Id.class)
+            || !(field.getType().equals(MorphiumId.class) || field.getType().equals(org.bson.types.ObjectId.class))) {
+            return value;
+        }
+
+        String hex = (String) value;
+
+        if (hex.length() != 24 || !hex.chars().allMatch(c -> Character.digit(c, 16) >= 0)) {
+            throw new IllegalArgumentException("The value '" + hex + "' for the id of " + type.getName() + " is not an id (24 hexadecimal digits)");
+        }
+
+        return new MorphiumId(hex);
     }
 
     private Field fieldOf(String key) {

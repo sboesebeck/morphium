@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 15, done 86
+Status: open 14, done 87
 
 ## Overview
 
@@ -22,7 +22,6 @@ Status: open 15, done 86
 | MOR-035 | open | 3 | implementation | Records and value objects in the mapper | L |  |  |
 | MOR-038 | open | 3 | defect | Replacement documents, findOneAndUpdateEnums and Expr values still fail with POJOs in update maps | M |  | MOR-002 |
 | MOR-039 | open | 3 | documentation | Document pitfalls of update maps: $pull condition keys and mixed element shapes | S |  | MOR-027 |
-| MOR-045 | open | 3 | defect | Update documents: a String value for _id of a MorphiumId entity is not coerced | S |  | MOR-041 |
 | MOR-049 | open | 3 | implementation | Writer path has no guard for @Reference and @Encrypted fields | M |  | MOR-042 |
 | MOR-071 | open | 3 | defect | Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange | S |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
@@ -93,6 +92,7 @@ Status: open 15, done 86
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-044 | done | 3 | defect | Version annotation with fieldName: store and filter disagree on the stored name | S |  |  |
+| MOR-045 | done | 3 | defect | Update documents: a String value for _id of a MorphiumId entity is not coerced | S |  | MOR-041 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
 | MOR-048 | done | 3 | defect | MorphiumBase.setEnum looks the value up by the map value instead of the key | S |  |  |
 | MOR-051 | done | 3 | defect | InMemoryDriver: reject path conflicts in update documents like MongoDB | S |  |  |
@@ -932,9 +932,11 @@ Commits: cf5cb79a7
 
 ### MOR-045 Update documents: a String value for _id of a MorphiumId entity is not coerced
 
-Status **open**, priority 3, type defect, effort S
+Status **done**, priority 3, type defect, effort S
 
 With key translation an id key of the update becomes _id and pins the id; a String value for an entity whose @Id is a MorphiumId is written as a String _id that the mapper cannot read back. Coerce the value or reject it.
+
+Evidence: IdValueCoercionTest (3 tests, InMemoryDriver and mongo:8 with the PooledDriver): an upsert with $setOnInsert id as a 24 digit String stores an id that reads back through the mapper, a String that is no id is refused and nothing is written, a MorphiumId is stored as it is; two failed before the change (a String _id, no refusal). UpdateValueMarshallingTest, ModifyValuesAndKeysTest, FindOneAndUpdateUpsertTest and UpdateContractLedgerTest pass.
 
 Acceptance:
 
@@ -943,6 +945,8 @@ Acceptance:
 Depends on: MOR-041
 
 Source: docs/research/plan-mor-041.md
+
+Commits: 4a3e489a5
 
 ### MOR-046 BufferedMorphiumWriterImpl does not marshal update values and emits push for a pull of a list
 
