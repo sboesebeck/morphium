@@ -4,6 +4,7 @@ import de.caluga.morphium.data.AbstractMorphiumRepository;
 import de.caluga.morphium.data.FindMethodBridge;
 import de.caluga.morphium.data.JdqlDelete;
 import de.caluga.morphium.data.JdqlMethodBridge;
+import de.caluga.morphium.data.JdqlUpdate;
 import de.caluga.morphium.data.JdqlOrdinalParameters;
 import de.caluga.morphium.data.MethodNameParser;
 import de.caluga.morphium.data.QueryDescriptor;
@@ -1682,9 +1683,13 @@ public class MorphiumDataProcessor {
         // Build-time validation: reject MongoDB JSON syntax and positional parameters
         validateJdqlSyntax(jdql, method);
 
-        // DELETE FROM Entity [WHERE ...] (MOR-017) is a statement of its own: it returns a count, not entities
+        // DELETE FROM (MOR-017) and UPDATE ... SET (MOR-018) are statements of their own: they return a count, not entities
         if (JdqlDelete.is(jdql)) {
-            generateJdqlDeleteMethod(cc, method, entityClassName, jdql);
+            generateJdqlWriteMethod(cc, method, entityClassName, jdql, false);
+            return;
+        }
+        if (JdqlUpdate.is(jdql)) {
+            generateJdqlWriteMethod(cc, method, entityClassName, jdql, true);
             return;
         }
 
@@ -1862,12 +1867,14 @@ public class MorphiumDataProcessor {
     }
 
     /**
-     * Generates a {@code @Query("DELETE FROM Entity [WHERE ...]")} method (MOR-017): one server-side delete through
-     * {@link JdqlMethodBridge#executeJdqlDelete}. The return type is {@code void}, {@code int} or {@code long} (the number of deleted
-     * documents, as Jakarta Data prescribes for {@code @Query} update and delete statements); anything else, a special parameter
-     * (Sort, Order, PageRequest, Limit) and an entity name that is not the one of the repository fail the build.
+     * Generates a {@code @Query("DELETE FROM Entity [WHERE ...]")} (MOR-017) or {@code @Query("UPDATE Entity SET ... [WHERE ...]")} (MOR-018) method:
+     * one server-side command through {@link JdqlMethodBridge#executeJdqlDelete} or {@link JdqlMethodBridge#executeJdqlUpdate}. The return type is
+     * {@code void}, {@code int} or {@code long} (the number of deleted or matched documents, as Jakarta Data prescribes for {@code @Query} update and delete
+     * statements); anything else, a special parameter (Sort, Order, PageRequest, Limit), an entity name that is not the one of the repository and, for an
+     * UPDATE, a SET item that cannot be one update command fail the build.
      */
-    private void generateJdqlDeleteMethod(ClassCreator cc, MethodInfo method, String entityClassName, String jdql) {
+    private void generateJdqlWriteMethod(ClassCreator cc, MethodInfo method, String entityClassName, String jdql, boolean update) {
+        String statementKind = update ? "UPDATE" : "DELETE";
         String where = method.declaringClass().name() + "." + method.name();
         Type returnType = method.returnType();
         boolean returnsVoid = returnType.kind() == Type.Kind.VOID;
@@ -1875,19 +1882,37 @@ public class MorphiumDataProcessor {
         boolean returnsLong = returnType.kind() == Type.Kind.PRIMITIVE && returnType.asPrimitiveType().primitive() == PrimitiveType.Primitive.LONG;
 
         if (!returnsVoid && !returnsInt && !returnsLong) {
-            throw new IllegalStateException("@Query on " + where + ": a DELETE statement returns void, int or long (the number of deleted documents), not " + returnType
-                    + ": \"" + jdql + "\"");
+            throw new IllegalStateException("@Query on " + where + ": a " + statementKind + " statement returns void, int or long (the number of "
+                    + (update ? "matched" : "deleted") + " documents), not " + returnType + ": \"" + jdql + "\"");
         }
 
-        String entityName = JdqlDelete.entityName(jdql);
+        String entityName;
+        String whereClause;
+
+        if (update) {
+            JdqlUpdate.Statement statement;
+
+            try {
+                statement = JdqlUpdate.parse(jdql);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalStateException("@Query on " + where + ": " + e.getMessage(), e);
+            }
+
+            entityName = statement.entityName();
+            whereClause = statement.where();
+        } else {
+            entityName = JdqlDelete.entityName(jdql);
+            whereClause = JdqlDelete.whereClause(jdql);
+        }
+
         String simpleName = entityClassName.substring(Math.max(entityClassName.lastIndexOf('.'), entityClassName.lastIndexOf('$')) + 1);
 
         if (entityName != null && !entityName.equals(simpleName)) {
-            throw new IllegalStateException("@Query on " + where + " deletes from " + entityName + ", but the repository is for " + simpleName + ": \"" + jdql + "\"");
+            throw new IllegalStateException("@Query on " + where + (update ? " updates " : " deletes from ") + entityName + ", but the repository is for " + simpleName + ": \"" + jdql + "\"");
         }
 
-        if (JdqlDelete.whereClause(jdql).toUpperCase(java.util.Locale.ROOT).matches(".*\\b(ORDER BY|GROUP BY|HAVING)\\b.*")) {
-            throw new IllegalStateException("@Query on " + where + ": a DELETE statement has no ORDER BY, GROUP BY or HAVING: \"" + jdql + "\"");
+        if (whereClause.toUpperCase(java.util.Locale.ROOT).matches(".*\\b(ORDER BY|GROUP BY|HAVING)\\b.*")) {
+            throw new IllegalStateException("@Query on " + where + ": a " + statementKind + " statement has no ORDER BY, GROUP BY or HAVING: \"" + jdql + "\"");
         }
 
         StringBuilder paramMapSpec = new StringBuilder();
@@ -1897,7 +1922,7 @@ public class MorphiumDataProcessor {
             DotName paramTypeName = method.parameterType(i).name();
 
             if (paramTypeName.equals(SORT_TYPE) || paramTypeName.equals(ORDER_TYPE) || paramTypeName.equals(PAGE_REQUEST_TYPE) || paramTypeName.equals(LIMIT_TYPE)) {
-                throw new IllegalStateException("@Query on " + where + ": a DELETE statement takes no Sort, Order, PageRequest or Limit parameter");
+                throw new IllegalStateException("@Query on " + where + ": a " + statementKind + " statement takes no Sort, Order, PageRequest or Limit parameter");
             }
 
             AnnotationInstance paramAnn = params.get(i).annotation(PARAM_ANNOTATION);
@@ -1934,7 +1959,7 @@ public class MorphiumDataProcessor {
             }
 
             ResultHandle count = mc.invokeStaticMethod(
-                    MethodDescriptor.ofMethod(JdqlMethodBridge.class, "executeJdqlDelete", long.class,
+                    MethodDescriptor.ofMethod(JdqlMethodBridge.class, update ? "executeJdqlUpdate" : "executeJdqlDelete", long.class,
                             AbstractMorphiumRepository.class, String.class, String.class, Object[].class),
                     mc.getThis(), mc.load(jdql), mc.load(paramMapSpec.toString()), argsArray);
 
@@ -1947,7 +1972,7 @@ public class MorphiumDataProcessor {
             }
         }
 
-        log.infof("Generated @Query DELETE method: %s → JDQL: %s", where, jdql);
+        log.infof("Generated @Query %s method: %s → JDQL: %s", statementKind, where, jdql);
     }
 
     /**

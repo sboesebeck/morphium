@@ -208,17 +208,29 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
         String jdql = queryAnno.value();
         String paramMapSpec = buildParamMapSpec(method);
 
-        // DELETE FROM Entity [WHERE ...] (MOR-017): one server-side delete, returns the number of deleted documents
-        if (JdqlDelete.is(jdql)) {
+        // DELETE FROM Entity [WHERE ...] (MOR-017) and UPDATE Entity SET ... [WHERE ...] (MOR-018): one server-side command, returns the number of
+        // deleted or matched documents
+        boolean isUpdate = JdqlUpdate.is(jdql);
+
+        if (isUpdate || JdqlDelete.is(jdql)) {
             Class<?> returnType = method.getReturnType();
 
             if (returnType != void.class && returnType != int.class && returnType != long.class) {
-                throw new IllegalStateException("@Query on " + method + ": a DELETE statement returns void, int or long (the number of deleted documents), not "
+                throw new IllegalStateException("@Query on " + method + ": a " + (isUpdate ? "UPDATE" : "DELETE") + " statement returns void, int or long, not "
                         + returnType.getName() + ": \"" + jdql + "\"");
             }
 
+            if (isUpdate) {
+                try {
+                    JdqlUpdate.parse(jdql);
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalStateException("@Query on " + method + ": " + e.getMessage(), e);
+                }
+            }
+
             return args -> {
-                long count = JdqlMethodBridge.executeJdqlDelete(delegate, jdql, paramMapSpec, args != null ? args : new Object[0]);
+                Object[] a = args != null ? args : new Object[0];
+                long count = isUpdate ? JdqlMethodBridge.executeJdqlUpdate(delegate, jdql, paramMapSpec, a) : JdqlMethodBridge.executeJdqlDelete(delegate, jdql, paramMapSpec, a);
                 return returnType == void.class ? null : returnType == int.class ? (Object) Math.toIntExact(count) : (Object) count;
             };
         }

@@ -4,13 +4,12 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 25, done 48
+Status: open 24, done 49
 
 ## Overview
 
 | ID | Status | Prio | Type | Title | Effort | Ticket | Depends on |
 |---|---|---|---|---|---|---|---|
-| MOR-018 | open | 2 | implementation | Jakarta Data: JDQL UPDATE ... SET ... WHERE as one atomic update | L |  | MOR-006, MOR-007 |
 | MOR-019 | open | 2 | defect | Jakarta Data: reject unsupported @Find/@Delete parameter styles at build time | S |  |  |
 | MOR-021 | open | 2 | implementation | Morphium extension: atomic update and find-and-modify repository annotations | L |  | MOR-008, MOR-010 |
 | MOR-026 | open | 2 | infrastructure | Run the Jakarta Data TCK against morphium-jakarta-data | M |  |  |
@@ -51,6 +50,7 @@ Status: open 25, done 48
 | MOR-010 | done | 2 | implementation | Typed duplicate-key exception and typed result for a lost conditional upsert | M |  | MOR-006 |
 | MOR-014 | done | 2 | implementation | Option E: startup guard for @Embedded under @Entity(translateCamelCase=false) | S |  | MOR-001 |
 | MOR-017 | done | 2 | implementation | Jakarta Data: JDQL DELETE FROM | M |  |  |
+| MOR-018 | done | 2 | implementation | Jakarta Data: JDQL UPDATE ... SET ... WHERE as one atomic update | L |  | MOR-006, MOR-007 |
 | MOR-024 | done | 2 | defect | Jakarta Data: support ordinal parameters (?1) in @Query | S |  |  |
 | MOR-025 | done | 2 | defect | Jakarta Data: @Update is not atomic and throws IllegalStateException | M |  |  |
 | MOR-029 | done | 2 | defect | InMemoryDriver: reject values BsonEncoder cannot encode | M |  |  |
@@ -402,9 +402,11 @@ Commits: 8b3b80eda
 
 ### MOR-018 Jakarta Data: JDQL UPDATE ... SET ... WHERE as one atomic update
 
-Status **open**, priority 2, type implementation, effort L
+Status **done**, priority 2, type implementation, effort L
 
 UPDATE is part of 1.0. SET items are field = expression or NULL; no increment operator, an increment is x = x + ?1. Map to one atomic command: assignment to $set, NULL to $unset, x = x + :n to $inc, x = x * :n to $mul, built through the builder so names and values are mapped. Return the matched count (n, not nModified). Arithmetic on other fields, '||' and string functions need pipeline updates (FindAndModifyMongoCommand has a pipeline field that Query does not expose): reject them at build time with a clear message, or handle in a follow-up. JNoSQL rejects arithmetic entirely, so this goes beyond it.
+
+Evidence: JdqlUpdateTest (16 tests with the driver variants, 21 invocations): the parser recognises UPDATE, splits entity, items and WHERE (also ordinals, no WHERE, no entity name, a comma and a keyword inside a string literal) and refuses another field on the right side, division, ||, functions, a non-number operand, a field set twice and an empty SET, naming the item; then on the InMemoryDriver and on mongo:8 with the pooled driver: SET a = :x, n = n + 1 WHERE ... changes exactly the matching documents, returns the matched count (also for a document that already has the value), minus, times, a literal and NULL work, no WHERE updates all, zero matches is zero, a wrong entity name, a non-number for + and a missing argument are refused and change nothing, and @Version grows by one. On the real MongoDB a statement with four operators (SET, $inc, $mul, $unset) raises opcounters.update by exactly 1: one update command. Quarkus: the build generates void, int and long and refuses an item that is not one update command, boolean, another entity (MorphiumDataProcessorJdqlDeleteTest, 3 more tests); AbstractMorphiumDataJdqlUpdateTest (set and increment with the matched count, multiply with ordinals and int, literal and NULL with void) runs on the InMemoryDriver and on a real mongo:8 from Dev Services. Spring: three proxy tests (long, int with ordinals, void). Found on the way: the build and the proxy check the statement as written, so the parser has to accept ?n operands. Whole suites: jakarta-data 134, Quarkus runtime 83, deployment 37, integration 284, Spring 31. Not covered: the Spring tests run on the InMemoryDriver only, a replica set, UPDATE with a pipeline (refused by design), a SET on an embedded path was not tried, the unset of a primitive field reads back as its default.
 
 Acceptance:
 
@@ -416,6 +418,8 @@ Acceptance:
 Depends on: MOR-006, MOR-007
 
 Source: docs/research/jakarta-data-1.1.md sections 1, 4, docs/research/other-clients.md pattern 12
+
+Commits: a7920d6a2
 
 ### MOR-019 Jakarta Data: reject unsupported @Find/@Delete parameter styles at build time
 

@@ -184,7 +184,22 @@ deleted documents; `int` is checked, a count above `Integer.MAX_VALUE` fails); o
 parameter, `ORDER BY`, `GROUP BY` and `HAVING` are refused (at build time in Quarkus, when the proxy is created in Spring). The entity name must be
 the simple name of the entity of the repository, or be left out (`DELETE FROM WHERE ...`). Like the derived `deleteBy`, the delete runs no entity
 lifecycle callbacks (`@PreRemove`, `@PostRemove`: there is no instance to call them on); the storage listeners get `preRemove(Query)` and
-`postRemove(Query)`. `UPDATE` statements are not supported yet.
+`postRemove(Query)`.
+
+An `UPDATE Entity SET item, ... [WHERE ...]` statement is ONE `update` command, built with the update builder (so field names are translated, values are
+marshalled and a `@Version` field is incremented). The method returns `void`, `int` or `long`, and the number is the number of MATCHED documents, not of
+modified ones. A SET item maps to a classic update operator:
+
+| item | operator |
+|---|---|
+| `f = :x`, `f = 5`, `f = 'text'`, `f = TRUE` | `$set` |
+| `f = NULL` | `$unset` (a query for `f IS NULL` finds the document, the field is not stored) |
+| `f = f + :n`, `f = f - :n` | `$inc` (with the negated operand for minus) |
+| `f = f * :n` | `$mul` |
+
+Everything else, among it division, a field on the right side that is not the field itself (`a = b + 1`), `||` and functions like `UPPER`, would need an
+aggregation pipeline update and is refused, at build time in Quarkus and when the proxy is created in Spring, with a message that names the item. The same rules
+for return types, special parameters, `ORDER BY` and the entity name as for `DELETE` apply.
 
 The supported grammar for queries, verified against `JdqlParser.java`:
 

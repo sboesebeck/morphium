@@ -473,7 +473,7 @@ tasks:
 - id: MOR-018
   title: 'Jakarta Data: JDQL UPDATE ... SET ... WHERE as one atomic update'
   type: implementation
-  status: open
+  status: done
   priority: 2
   effort: L
   description: 'UPDATE is part of 1.0. SET items are field = expression or NULL; no increment operator, an increment
@@ -493,6 +493,9 @@ tasks:
   source:
   - docs/research/jakarta-data-1.1.md sections 1, 4
   - docs/research/other-clients.md pattern 12
+  evidence: 'JdqlUpdateTest (16 tests with the driver variants, 21 invocations): the parser recognises UPDATE, splits entity, items and WHERE (also ordinals, no WHERE, no entity name, a comma and a keyword inside a string literal) and refuses another field on the right side, division, ||, functions, a non-number operand, a field set twice and an empty SET, naming the item; then on the InMemoryDriver and on mongo:8 with the pooled driver: SET a = :x, n = n + 1 WHERE ... changes exactly the matching documents, returns the matched count (also for a document that already has the value), minus, times, a literal and NULL work, no WHERE updates all, zero matches is zero, a wrong entity name, a non-number for + and a missing argument are refused and change nothing, and @Version grows by one. On the real MongoDB a statement with four operators (SET, $inc, $mul, $unset) raises opcounters.update by exactly 1: one update command. Quarkus: the build generates void, int and long and refuses an item that is not one update command, boolean, another entity (MorphiumDataProcessorJdqlDeleteTest, 3 more tests); AbstractMorphiumDataJdqlUpdateTest (set and increment with the matched count, multiply with ordinals and int, literal and NULL with void) runs on the InMemoryDriver and on a real mongo:8 from Dev Services. Spring: three proxy tests (long, int with ordinals, void). Found on the way: the build and the proxy check the statement as written, so the parser has to accept ?n operands. Whole suites: jakarta-data 134, Quarkus runtime 83, deployment 37, integration 284, Spring 31. Not covered: the Spring tests run on the InMemoryDriver only, a replica set, UPDATE with a pipeline (refused by design), a SET on an embedded path was not tried, the unset of a primitive field reads back as its default.'
+  commits:
+  - a7920d6a2
 - id: MOR-019
   title: 'Jakarta Data: reject unsupported @Find/@Delete parameter styles at build time'
   type: defect
