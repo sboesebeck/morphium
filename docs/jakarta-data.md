@@ -215,16 +215,18 @@ Condition grammar (`JdqlParser.java:14-33`):
 - `field = :param`, `field <> :param`, `field != :param`
 - `field > :param` / `>=` / `<` / `<=`
 - `field BETWEEN :min AND :max`
-- `field IN :param`
-- `field NOT IN :param`
-- `field LIKE :param`
+- `field IN :param`, `field IN (1, 'a', :param)` (a list of literals and parameters)
+- `field NOT IN :param` / `field NOT IN (...)`
+- `field LIKE :param`, `field NOT LIKE :param`; `field NOT BETWEEN :min AND :max`
 - `field IS NULL` / `field IS NOT NULL`
 - Boolean literals: `field = true` / `field = false`
 - Numeric literals: `field > 100`
-- String literals: `field = 'value'`
+- String literals: `field = 'value'`, with `''` for a quote inside (`'it''s'`); a keyword, an operator or a parenthesis inside a literal is text
+- The constant of an enum: `kind = com.example.Kind.PRIME` (the enum is stored by its name, so the part after the last dot is compared)
 - `NOT` prefix on any condition or parenthesized group: `NOT field = :param`,
   `NOT (cond1 OR cond2)`
-- Parenthesized groups with `AND`/`OR` nesting: `field1 = :a AND (field2 IS NULL OR field2 = '')`
+- Parenthesized groups with `AND`/`OR` nesting: `field1 = :a AND (field2 IS NULL OR field2 = '')`; `AND` binds stronger than `OR`
+  (`a OR b AND c` is `a OR (b AND c)`); keywords are case-insensitive
 
 Not supported: JOINs, subqueries (documented explicitly in `JdqlParser.java:33`).
 

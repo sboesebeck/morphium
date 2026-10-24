@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 23, in_progress 1, done 56
+Status: open 23, in_progress 1, done 57
 
 ## Overview
 
@@ -79,6 +79,7 @@ Status: open 23, in_progress 1, done 56
 | MOR-079 | done | 2 | defect | Jakarta Data: findFirstBy and findFirstNBy are unsupported | S |  |  |
 | MOR-080 | done | 2 | defect | Jakarta Data: a repository method that returns an array of the entity is unsupported | S |  |  |
 | MOR-081 | done | 2 | defect | Jakarta Data: the static order comes first, and every dynamic Sort, Sort... and Order counts | S |  |  |
+| MOR-082 | done | 2 | defect | Jakarta Data: JDQL — AND binds stronger than OR, literals are text, NOT before BETWEEN/IN/LIKE, IN lists of literals | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
@@ -1418,4 +1419,23 @@ Acceptance:
 Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/SortPlan.java
 
 Commits: 4ba59d0da, ca6cdab43
+
+### MOR-082 Jakarta Data: JDQL — AND binds stronger than OR, literals are text, NOT before BETWEEN/IN/LIKE, IN lists of literals
+
+Status **done**, priority 2, type defect, effort S
+
+Found by the TCK of MOR-026: a mixed AND/OR condition was split at the OR and the AND part failed, a keyword or operator inside a string literal (ORDER BY, IN, a quote written as two quotes) broke the query, NOT BETWEEN and NOT LIKE put the NOT into the field name, and IN took no list of literals. The parser now searches keywords, operators and parentheses in a text whose string literals are masked, AND binds stronger than OR, NOT may stand before BETWEEN/LIKE, IN takes a list of literals and parameters, and a qualified enum constant compares by its name for an enum field. Also fixes the operand typos for the common case of MOR-075 only where the literal handling touches it; MOR-075 stays open.
+
+Evidence: JdqlParserLiteralsTest (7), JdqlLiteralsExecutionTest (6, on the InMemoryDriver; red before the change), JdqlOperandsTest.listsAndConstants, all existing Jdql tests green. Reviewed in two passes: the first found a dotted-name-as-enum by shape, an untested collection parameter in a list and a changelog overstatement (all fixed), the second had no finding.
+
+Acceptance:
+
+- a OR b AND c is a OR (b AND c), also inside parentheses
+- a keyword, operator, comma or parenthesis inside a string literal is text, and two quotes are one quote
+- NOT BETWEEN, NOT LIKE and NOT IN (...) work, IN takes a list of literals and parameters
+- a qualified constant compares by the name of the constant for an enum field only
+
+Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlParser.java, morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlLiterals.java
+
+Commits: 6b339657b, f95bdae97
 

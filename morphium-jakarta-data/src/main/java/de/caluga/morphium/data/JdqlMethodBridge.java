@@ -556,7 +556,8 @@ public final class JdqlMethodBridge {
         String mongoField = resolveMongoField(morphium, entityClass, cond.fieldName());
         var field = mQuery.f(mongoField);
 
-        Object value = resolveValue(cond.valueRef(), paramValues);
+        boolean enumField = isEnumField(morphium, entityClass, cond.fieldName());
+        Object value = resolveValue(cond.valueRef(), paramValues, enumField);
 
         // Resolve the effective operator (invert if negated)
         JdqlQuery.Operator op = cond.negated() ? invertOperator(cond.operator()) : cond.operator();
@@ -581,7 +582,7 @@ public final class JdqlMethodBridge {
             case LT -> field.lt(value);
             case LTE -> field.lte(value);
             case BETWEEN -> {
-                Object value2 = resolveValue(cond.valueRef2(), paramValues);
+                Object value2 = resolveValue(cond.valueRef2(), paramValues, enumField);
                 if (cond.negated()) {
                     // NOT BETWEEN a AND b → field < a OR field > b
                     List<Query> orQueries = new ArrayList<>();
@@ -658,6 +659,14 @@ public final class JdqlMethodBridge {
     }
 
     private static Object resolveValue(String valueRef, Map<String, Object> paramValues) {
+        return resolveValue(valueRef, paramValues, false);
+    }
+
+    /**
+     * @param enumField whether the field of the condition is an enum: only then is a qualified name ({@code com.example.Kind.PRIME}) the constant of that enum,
+     *                  otherwise it stays the text that it is
+     */
+    private static Object resolveValue(String valueRef, Map<String, Object> paramValues, boolean enumField) {
         if (valueRef == null) return null;
         if (valueRef.startsWith(":")) {
             String paramName = valueRef.substring(1);
@@ -667,6 +676,23 @@ public final class JdqlMethodBridge {
             }
             return paramValues.get(paramName);
         }
+        // a list of operands, as after IN: ('a', 'b', :p)
+        if (JdqlLiterals.isList(valueRef)) {
+            List<Object> items = new ArrayList<>();
+            for (String item : JdqlLiterals.splitList(valueRef)) {
+                Object value = resolveValue(item, paramValues, enumField);
+                // a parameter inside the list that holds a collection contributes its elements
+                if (item.startsWith(":") && value instanceof Collection<?> c) {
+                    items.addAll(c);
+                } else {
+                    items.add(value);
+                }
+            }
+            return items;
+        }
+        if (JdqlLiterals.isStringLiteral(valueRef)) {
+            return JdqlLiterals.unquote(valueRef);
+        }
         // Try numeric literal
         try {
             if (valueRef.contains(".")) {
@@ -674,10 +700,12 @@ public final class JdqlMethodBridge {
             }
             return Long.parseLong(valueRef);
         } catch (NumberFormatException e) {
-            // Return as string literal (strip quotes if present)
-            if ((valueRef.startsWith("'") && valueRef.endsWith("'"))
-                    || (valueRef.startsWith("\"") && valueRef.endsWith("\""))) {
+            if (valueRef.startsWith("\"") && valueRef.endsWith("\"") && valueRef.length() >= 2) {
                 return valueRef.substring(1, valueRef.length() - 1);
+            }
+            // the constant of an enum is stored by its name
+            if (enumField && JdqlLiterals.isQualifiedName(valueRef)) {
+                return JdqlLiterals.constantName(valueRef);
             }
             return valueRef;
         }
@@ -1093,6 +1121,15 @@ public final class JdqlMethodBridge {
     }
 
     @SuppressWarnings("unchecked")
+    private static boolean isEnumField(Morphium morphium, Class entityClass, String javaFieldName) {
+        try {
+            var field = morphium.getARHelper().getField(entityClass, javaFieldName);
+            return field != null && field.getType().isEnum();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     private static String resolveMongoField(Morphium morphium, Class entityClass, String javaFieldName) {
         try {
             return morphium.getARHelper().getMongoFieldName(entityClass, javaFieldName);

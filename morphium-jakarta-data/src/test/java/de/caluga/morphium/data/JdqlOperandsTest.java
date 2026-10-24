@@ -19,6 +19,13 @@ class JdqlOperandsTest {
     }
 
     @Test
+    @DisplayName("MOR-082: a list of operands after IN and the qualified constant of an enum are operands, a list with a typo is not")
+    void listsAndConstants() {
+        assertThat(JdqlOperands.check("WHERE id IN (1, 2, :x) AND hex IN ('4a', ?1) AND kind = com.example.Kind.PRIME")).isNull();
+        assertThat(JdqlOperands.check("WHERE id IN (1, two words, 3)")).contains("two words");
+    }
+
+    @Test
     @DisplayName("what the parser takes as an operand without being one is reported with the operand")
     void typos() {
         assertThat(JdqlOperands.check("WHERE id == :id")).contains("= :id").contains("id");
