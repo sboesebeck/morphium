@@ -2,6 +2,7 @@ package de.caluga.morphium.quarkus.deployment;
 
 import de.caluga.morphium.data.AbstractMorphiumRepository;
 import de.caluga.morphium.data.AtomicUpdateSpec;
+import de.caluga.morphium.data.DerivedUpdate;
 import de.caluga.morphium.data.FindMethodBridge;
 import de.caluga.morphium.data.JdqlDelete;
 import de.caluga.morphium.data.JdqlMethodBridge;
@@ -829,7 +830,7 @@ public class MorphiumDataProcessor {
             }
 
             boolean needsEntity = method.hasAnnotation(ATOMIC_UPDATE_ANNOTATION) || method.hasAnnotation(QUERY_ANNOTATION) || method.hasAnnotation(FIND_ANNOTATION)
-                    || method.hasAnnotation(DELETE_ANNOTATION) || MethodNameParser.isDerivedQueryName(name);
+                    || method.hasAnnotation(DELETE_ANNOTATION) || MethodNameParser.isDerivedQueryName(name) || DerivedUpdate.isDerivedUpdateName(name);
 
             if (methodEntity == null && needsEntity) {
                 throw new IllegalStateException("Unsupported repository method " + method.declaringClass().name() + "." + name + "() -- it does not say which entity it works on and the repository "
@@ -855,6 +856,12 @@ public class MorphiumDataProcessor {
             }
             if (method.hasAnnotation(DELETE_ANNOTATION)) {
                 generateDeleteAnnotatedMethod(cc, method, methodEntity);
+                continue;
+            }
+
+            // Morphium extension (MOR-022): updateBy... is an atomic update that the name and the parameters describe
+            if (DerivedUpdate.isDerivedUpdateName(name)) {
+                generateAtomicUpdateMethod(cc, method, methodEntity, methodFields);
                 continue;
             }
 
@@ -1844,11 +1851,12 @@ public class MorphiumDataProcessor {
      */
     private void generateAtomicUpdateMethod(ClassCreator cc, MethodInfo method, String entityClassName, Set<String> entityFields) {
         String where = method.declaringClass().name() + "." + method.name();
+        // null for a derived update (MOR-022): the name and the parameters are the spec
         AnnotationInstance ann = method.annotation(ATOMIC_UPDATE_ANNOTATION);
-        String condition = ann.value("where") != null ? ann.value("where").asString() : "";
-        boolean upsert = ann.value("upsert") != null && ann.value("upsert").asBoolean();
-        boolean many = ann.value("many") != null && ann.value("many").asBoolean();
-        String returns = ann.value("returns") != null ? ann.value("returns").asEnum() : "AFTER";
+        String condition = ann != null && ann.value("where") != null ? ann.value("where").asString() : "";
+        boolean upsert = ann != null && ann.value("upsert") != null && ann.value("upsert").asBoolean();
+        boolean many = ann != null && ann.value("many") != null && ann.value("many").asBoolean();
+        String returns = ann != null && ann.value("returns") != null ? ann.value("returns").asEnum() : "AFTER";
 
         // the parameters: names (for the condition and the assignments), no special parameters
         StringBuilder paramMapSpec = new StringBuilder();
@@ -1876,9 +1884,9 @@ public class MorphiumDataProcessor {
             }
         }
 
-        List<String> set = atomicAssignments(ann, "set", where);
-        List<String> setOnInsert = atomicAssignments(ann, "setOnInsert", where);
-        List<String> inc = atomicAssignments(ann, "inc", where);
+        List<String> set = ann != null ? atomicAssignments(ann, "set", where) : List.of();
+        List<String> setOnInsert = ann != null ? atomicAssignments(ann, "setOnInsert", where) : List.of();
+        List<String> inc = ann != null ? atomicAssignments(ann, "inc", where) : List.of();
 
         // the return type chooses the form
         Type returnType = method.returnType();
@@ -1899,7 +1907,9 @@ public class MorphiumDataProcessor {
 
         String orderBySpec = buildOrderBySpec(method);
 
-        AtomicUpdateSpec spec = new AtomicUpdateSpec(condition, set, setOnInsert, inc, upsert, many, de.caluga.morphium.query.ReturnDocument.valueOf(returns), orderBySpec, paramMapSpec.toString());
+        AtomicUpdateSpec spec = ann != null
+                ? new AtomicUpdateSpec(condition, set, setOnInsert, inc, upsert, many, de.caluga.morphium.query.ReturnDocument.valueOf(returns), orderBySpec, paramMapSpec.toString())
+                : DerivedUpdate.derive(method.name(), paramMapSpec.toString(), countForm, entityFields);
         spec.validate(where, countForm ? AtomicUpdateSpec.Form.COUNT : AtomicUpdateSpec.Form.DOCUMENT, paramNames, entityFields);
         String encoded = spec.encode();
 
