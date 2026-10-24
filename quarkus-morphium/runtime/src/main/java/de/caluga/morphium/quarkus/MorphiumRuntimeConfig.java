@@ -19,6 +19,7 @@ import io.quarkus.runtime.annotations.ConfigPhase;
 import io.quarkus.runtime.annotations.ConfigRoot;
 import io.smallrye.config.ConfigMapping;
 
+import de.caluga.morphium.quarkus.messaging.MorphiumMessagingConfig;
 import de.caluga.morphium.quarkus.migration.MorphiumMigrationConfig;
 import de.caluga.morphium.quarkus.observability.MorphiumObservabilityConfig;
 
@@ -50,6 +51,9 @@ public interface MorphiumRuntimeConfig extends MorphiumConnectionConfig {
 
     /** Nested Micrometer observability configuration. Effective only when Micrometer is present. */
     MorphiumObservabilityConfig observability();
+
+    /** The injected {@code MorphiumMessaging} of the default instance (MOR-033). */
+    MorphiumMessagingConfig messaging();
 
     /**
      * Named Morphium instances (MOR-032). Each name is a CDI qualifier: {@code @MorphiumInstance("analytics") Morphium analytics;} is the instance that is configured by

@@ -23,6 +23,8 @@ import de.caluga.morphium.annotations.Messaging;
 import de.caluga.morphium.quarkus.MorphiumInstance;
 import de.caluga.morphium.quarkus.MorphiumRecorder;
 import de.caluga.morphium.quarkus.NamedMorphiumRegistry;
+import de.caluga.morphium.quarkus.messaging.MorphiumMessageListener;
+import de.caluga.morphium.quarkus.messaging.MorphiumMessagingProducer;
 import de.caluga.morphium.quarkus.migration.MorphiumMigrationEntry;
 import de.caluga.morphium.quarkus.migration.MorphiumMigrationLock;
 import de.caluga.morphium.DefaultNameProvider;
@@ -127,6 +129,7 @@ public class MorphiumProcessor {
                 MorphiumProducer.class,
                 NamedMorphiumRegistry.class,
                 MorphiumInstance.class,
+                MorphiumMessagingProducer.class,
                 MorphiumTransactionalInterceptor.class)
             .setUnremovable()
             .build();
@@ -172,6 +175,12 @@ public class MorphiumProcessor {
         }
 
         return new ArrayList<>(names);
+    }
+
+    /** a bean that listens to a topic (MOR-033) is looked up at run time by its annotation, so nothing else refers to it */
+    @BuildStep
+    io.quarkus.arc.deployment.UnremovableBeanBuildItem keepMessageListeners() {
+        return io.quarkus.arc.deployment.UnremovableBeanBuildItem.beanClassAnnotation(DotName.createSimple(MorphiumMessageListener.class.getName()));
     }
 
     /** one application scoped Morphium bean per configured name, qualified with {@link MorphiumInstance} */

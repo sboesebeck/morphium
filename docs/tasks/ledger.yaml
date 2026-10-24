@@ -837,7 +837,7 @@ tasks:
 - id: MOR-033
   title: 'Quarkus: CDI integration for Morphium messaging'
   type: implementation
-  status: open
+  status: done
   priority: 3
   effort: M
   description: No CDI integration exists for MorphiumMessaging in quarkus-morphium (producer, lifecycle, listener
@@ -846,6 +846,9 @@ tasks:
   - A @QuarkusTest sends and receives a message through an injected messaging bean
   source:
   - review of quarkus-morphium
+  evidence: 'A @QuarkusTest sends a message through the injected MorphiumMessaging (sendMessageToSelf) and an annotated CDI bean receives it, on the InMemDriver and on MongoDB 8 (MORPHIUM_TEST_HOSTS); no other test of the Quarkus modules was rerun after the last change of the producer (321 tests before MOR-033 passed except the 2 known migration heartbeat tests). NOT verified: native image, dev-mode hot reload, answers (return value of onMessage), several listeners on one topic.'
+  commits:
+  - FIXME
 - id: MOR-034
   title: 'Quarkus testing module: real MongoDB test resource, data reset and fixtures'
   type: implementation
