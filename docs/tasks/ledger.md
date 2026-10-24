@@ -804,7 +804,7 @@ Acceptance:
 
 Source: update-path research, 2026-10-15, docs/research/other-clients.md pattern 16, GitHub #116, #334
 
-Commits: FIXME
+Commits: e59b44b8e
 
 ### MOR-036 Re-run the reproduction on other topologies and server versions
 
