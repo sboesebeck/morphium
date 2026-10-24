@@ -355,7 +355,8 @@ public final class JdqlMethodBridge {
         for (JdqlQuery.OrderSpec spec : query.orderBy()) {
             jdqlOrder.add(new SortPlan.Entry(spec.field(), spec.ascending()));
         }
-        SortPlan.apply(mQuery, SortPlan.merge(jdqlOrder, SortPlan.dynamic(args)), morphium, entityClass);
+        List<SortPlan.Entry> dynamicOrder = SortPlan.dynamic(args);
+        SortPlan.apply(mQuery, SortPlan.merge(jdqlOrder, dynamicOrder), morphium, entityClass);
 
         // Apply Limit
         if (limitParamIndex >= 0 && args[limitParamIndex] != null) {
@@ -383,7 +384,7 @@ public final class JdqlMethodBridge {
                         + entityClass.getSimpleName() + "> or a Page of values instead: \"" + jdql + "\"");
                 }
 
-                return executeCursoredJdql(mQuery, pageRequest, orderBySpec, query, paramValues,
+                return executeCursoredJdql(mQuery, pageRequest, orderBySpec, dynamicOrder, query, paramValues,
                         morphium, entityClass);
             }
 
@@ -487,29 +488,23 @@ public final class JdqlMethodBridge {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static Object executeCursoredJdql(Query mQuery, PageRequest pageRequest,
-                                               String orderBySpec, JdqlQuery jdqlQuery,
+                                               String orderBySpec, List<SortPlan.Entry> dynamicOrder, JdqlQuery jdqlQuery,
                                                Map<String, Object> paramValues,
                                                Morphium morphium, Class entityClass) {
-        // The keyset for cursor pagination can come from two independent sources: the JDQL string's
-        // own ORDER BY clause (jdqlQuery.orderBy(), already applied to mQuery further up in
-        // executeJdql() for the non-cursor path) and the separate @OrderBy annotation
-        // (orderBySpec). Using only orderBySpec here (as before) silently dropped the JDQL ORDER BY
-        // whenever it was the only one present, leaving the cursor without a sort key at all.
-        // Decision: if the JDQL query itself specifies an ORDER BY, it wins — it is part of the
-        // explicit query text and takes precedence over the declarative @OrderBy annotation, which
-        // is only a fallback for methods that don't spell out their own ordering. We do not attempt
-        // to merge the two field lists (e.g. JDQL primary keys + @OrderBy tiebreakers) because that
-        // ordering combination is ambiguous and not defined by JDQL semantics; callers wanting both
-        // should express both fields in their ORDER BY clause directly.
-        List<CursorHelper.SortSpec> sortSpecs;
+        // The keyset: the ORDER BY of the query, or @OrderBy if the query has none (not merged: that combination is not defined), then every dynamic Sort, Sort... and
+        // Order in the order of the parameters (MOR-087).
+        List<SortPlan.Entry> staticOrder = new ArrayList<>();
         if (!jdqlQuery.orderBy().isEmpty()) {
-            sortSpecs = new ArrayList<>(jdqlQuery.orderBy().size());
             for (JdqlQuery.OrderSpec spec : jdqlQuery.orderBy()) {
-                sortSpecs.add(new CursorHelper.SortSpec(spec.field(), spec.ascending()));
+                staticOrder.add(new SortPlan.Entry(spec.field(), spec.ascending()));
             }
         } else {
-            sortSpecs = CursorHelper.parseSortSpecs(orderBySpec);
+            for (CursorHelper.SortSpec spec : CursorHelper.parseSortSpecs(orderBySpec)) {
+                staticOrder.add(new SortPlan.Entry(spec.javaField(), spec.ascending()));
+            }
         }
+        List<CursorHelper.SortSpec> sortSpecs = SortPlan.merge(staticOrder, dynamicOrder).stream()
+            .map(e -> new CursorHelper.SortSpec(e.property(), e.ascending())).toList();
         return CursorHelper.page(mQuery, pageRequest, sortSpecs, () -> {
             Query countQuery = morphium.createQueryFor(entityClass);
             applyConditions(countQuery, jdqlQuery, paramValues, morphium, entityClass);
