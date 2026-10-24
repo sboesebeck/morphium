@@ -420,7 +420,7 @@ Depends on: MOR-015
 
 Source: update-path research, 2026-10-15
 
-Commits: FIXME
+Commits: 9e7262350
 
 ### MOR-017 Jakarta Data: JDQL DELETE FROM
 
