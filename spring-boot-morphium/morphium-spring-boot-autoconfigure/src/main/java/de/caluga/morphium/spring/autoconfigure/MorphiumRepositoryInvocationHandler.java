@@ -36,6 +36,9 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
 
     private final SpringMorphiumRepository delegate;
     private final Class<?> repositoryInterface;
+    /** the entity of the type arguments or of the lifecycle methods, null for a repository with several entities (MOR-077) */
+    private final Class<?> primaryEntity;
+    private final java.util.Map<String, Class<?>> knownEntities;
     private final ConcurrentHashMap<Method, MethodHandler> handlers = new ConcurrentHashMap<>();
 
     MorphiumRepositoryInvocationHandler(Morphium morphium, RepositoryMetadata metadata,
@@ -43,11 +46,23 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
         this.repositoryInterface = repositoryInterface;
         this.delegate = new SpringMorphiumRepository(metadata);
         this.delegate.setMorphium(morphium);
+        this.primaryEntity = RepositoryEntities.primary(repositoryInterface);
+        this.knownEntities = RepositoryEntities.known(repositoryInterface);
 
         // A Jakarta Data 1.1 feature that the query methods do not implement (MOR-019) fails when the repository is created, not at the first call
         for (Method method : repositoryInterface.getMethods()) {
             if (!method.isDefault() && (method.isAnnotationPresent(Find.class) || method.isAnnotationPresent(Delete.class) || method.isAnnotationPresent(Query.class))) {
                 rejectUnsupportedParameterStyles(method);
+            }
+
+            // so does an @Query that names an entity that is none of the repository (MOR-077)
+            if (!method.isDefault() && method.isAnnotationPresent(Query.class)) {
+                RepositoryEntities.forMethod(method, primaryEntity, knownEntities);
+            }
+
+            // so does a lifecycle method with a result that it cannot give (MOR-077)
+            if (!method.isDefault() && RepositoryEntities.isLifecycle(method)) {
+                handlers.put(method, buildLifecycleHandler(method));
             }
 
             // so does a wrong @AtomicUpdate (MOR-021)
@@ -93,6 +108,11 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
         // Morphium extension (MOR-021): one atomic update with structured assignments
         if (method.isAnnotationPresent(AtomicUpdate.class)) {
             return buildAtomicUpdateHandler(method, method.getAnnotation(AtomicUpdate.class));
+        }
+
+        // --- @Insert, @Save, @Update, @Delete with entities, under any name (MOR-077) ---
+        if (RepositoryEntities.isLifecycle(method)) {
+            return buildLifecycleHandler(method);
         }
 
         // --- CrudRepository standard methods ---
@@ -175,6 +195,7 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
     }
 
     private MethodHandler buildDerivedQueryHandler(Method method) {
+        var delegate = delegateFor(method);
         boolean returnsAsync = CompletionStage.class.isAssignableFrom(method.getReturnType());
         boolean returnsSingle = !List.class.isAssignableFrom(method.getReturnType())
                 && !method.getReturnType().isArray()
@@ -270,6 +291,7 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
      * repository is created.
      */
     private MethodHandler buildAtomicUpdateHandler(Method method, AtomicUpdate au) {
+        var delegate = delegateFor(method);
         String where = method.getDeclaringClass().getName() + "." + method.getName();
         Class<?> returnType = method.getReturnType();
         List<String> parameterNames = new ArrayList<>();
@@ -343,7 +365,37 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
         return result;
     }
 
+    /** the repository for the entity that the method works on: its statement, its parameter, its result, or the primary entity (MOR-077) */
+    private AbstractMorphiumRepository<Object, Object> delegateFor(Method method) {
+        Class<?> entity = RepositoryEntities.forMethod(method, primaryEntity, knownEntities);
+
+        if (entity == null) {
+            throw new IllegalStateException("The method " + repositoryInterface.getSimpleName() + "." + method.getName() + " does not say which entity it works on, and the repository has no primary entity "
+                + "(it has " + knownEntities.size() + " entities, or none): name the entity in the statement (DELETE FROM Box), or take or return it");
+        }
+
+        return delegate.forEntity(entity);
+    }
+
+    private MethodHandler buildLifecycleHandler(Method method) {
+        String kind = method.isAnnotationPresent(jakarta.data.repository.Insert.class) ? "INSERT"
+            : method.isAnnotationPresent(jakarta.data.repository.Save.class) ? "SAVE"
+            : method.isAnnotationPresent(jakarta.data.repository.Update.class) ? "UPDATE" : "DELETE";
+        String shape = LifecycleBridge.returnShape(method.getReturnType());
+        Class<?> entity = RepositoryEntities.lifecycleEntity(method);
+        boolean many = method.getParameterTypes()[0].isArray() || java.util.Collection.class.isAssignableFrom(method.getParameterTypes()[0]);
+
+        if (shape.equals(LifecycleBridge.ENTITY) && (many || !method.getReturnType().isAssignableFrom(entity))) {
+            throw new IllegalStateException(repositoryInterface.getSimpleName() + "." + method.getName() + ": a lifecycle method returns nothing, the entity (for one entity), a list or array of entities, or a boolean, int or long; not "
+                + method.getReturnType().getSimpleName() + (many ? " for several entities" : ""));
+        }
+
+        var repo = delegateFor(method);
+        return args -> LifecycleBridge.execute(repo, kind, args[0], shape);
+    }
+
     private MethodHandler buildJdqlHandler(Method method, Query queryAnno) {
+        var delegate = delegateFor(method);
         rejectUnsupportedParameterStyles(method);
         String jdql = queryAnno.value();
         String paramMapSpec = buildParamMapSpec(method);
@@ -355,8 +407,8 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
         if (isUpdate || JdqlDelete.is(jdql)) {
             Class<?> returnType = method.getReturnType();
 
-            if (returnType != void.class && returnType != int.class && returnType != long.class) {
-                throw new IllegalStateException("@Query on " + method + ": a " + (isUpdate ? "UPDATE" : "DELETE") + " statement returns void, int or long, not "
+            if (returnType != void.class && returnType != int.class && returnType != long.class && returnType != boolean.class) {
+                throw new IllegalStateException("@Query on " + method + ": a " + (isUpdate ? "UPDATE" : "DELETE") + " statement returns void, int, long or boolean, not "
                         + returnType.getName() + ": \"" + jdql + "\"");
             }
 
@@ -374,7 +426,7 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
             return args -> {
                 Object[] a = args != null ? args : new Object[0];
                 long count = isUpdate ? JdqlMethodBridge.executeJdqlUpdate(delegate, jdql, paramMapSpec, a) : JdqlMethodBridge.executeJdqlDelete(delegate, jdql, paramMapSpec, a);
-                return returnType == void.class ? null : returnType == int.class ? (Object) Math.toIntExact(count) : (Object) count;
+                return returnType == void.class ? null : returnType == int.class ? (Object) Math.toIntExact(count) : returnType == boolean.class ? (Object) JdqlMethodBridge.atLeastOne(count) : (Object) count;
             };
         }
         int sortIdx = findParamIndex(method, Sort.class);
@@ -446,6 +498,7 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
     }
 
     private MethodHandler buildFindHandler(Method method) {
+        var delegate = delegateFor(method);
         rejectUnsupportedParameterStyles(method);
         String conditionsSpec = buildConditionsSpec(method);
         String orderBySpec = getOrderBySpec(method);
@@ -480,6 +533,7 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
     }
 
     private MethodHandler buildDeleteHandler(Method method) {
+        var delegate = delegateFor(method);
         rejectUnsupportedParameterStyles(method);
         String conditionsSpec = buildConditionsSpec(method);
         Class<?> returnType = method.getReturnType();

@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 24, done 67
+Status: open 23, done 68
 
 ## Overview
 
@@ -32,7 +32,6 @@ Status: open 24, done 67
 | MOR-070 | open | 3 | defect | PoppyDB: the delete fast path swallows errors | S |  |  |
 | MOR-071 | open | 3 | defect | Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange | S |  |  |
 | MOR-075 | open | 3 | defect | JdqlParser accepts an operand that is neither a parameter nor a literal | S |  |  |
-| MOR-077 | open | 3 | verification | Jakarta Data: repositories without a single primary entity are unsupported | M |  |  |
 | MOR-092 | open | 3 | defect | Jakarta Data: IgnoreCase before Between, NotIn and the comparison operators | M |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
@@ -76,6 +75,7 @@ Status: open 24, done 67
 | MOR-067 | done | 2 | defect | Query.toQueryObject puts the or queries into the $nor list when both are used | S |  |  |
 | MOR-068 | done | 2 | defect | SingleMongoConnectDriver: cannot connect to a standalone server, and a rejected bulk request keeps its only connection | S |  |  |
 | MOR-076 | done | 2 | defect | Jakarta Data: derived queries without By (countAll and similar) are unsupported | S |  |  |
+| MOR-077 | done | 2 | verification | Jakarta Data: repositories without a single primary entity are unsupported | M |  |  |
 | MOR-078 | done | 2 | defect | A char or Character field cannot be read back | S |  |  |
 | MOR-079 | done | 2 | defect | Jakarta Data: findFirstBy and findFirstNBy are unsupported | S |  |  |
 | MOR-080 | done | 2 | defect | Jakarta Data: a repository method that returns an array of the entity is unsupported | S |  |  |
@@ -575,7 +575,7 @@ Status **done**, priority 2, type infrastructure, effort M
 
 No jakarta.data-tck dependency exists in any pom. Micronaut Data has a jakarta-data-tck/mongodb module as a model. Add the TCK matching the implemented API version and run it against a real MongoDB and PoppyDB/InMemoryDriver.
 
-Evidence: JakartaDataTckTest (Spring module, replaces the spike) runs the 73 standalone assertions of jakarta.data-tck 1.0.0 without Arquillian and fails when a test that is not excluded fails or an excluded test passes. 65 of 73 pass on the InMemoryDriver and on a real mongo:8 (PooledDriver, port 27099); the 8 exclusions have a reason each in the test: 4 sort an enum by ordinal (Morphium stores an enum by its name), 3 need repositories without a primary entity (MOR-077), 1 is IgnoreCase before Between/NotIn (MOR-092). The test is part of the normal test run of the Spring module, so CI runs it wherever that module is built. Documented in docs/jakarta-data.md (Conformance). Fixed on the way, one task per cause: MOR-076, 078 to 091.
+Evidence: JakartaDataTckTest (Spring module, replaces the spike) runs the 73 standalone assertions of jakarta.data-tck 1.0.0 without Arquillian and fails when a test that is not excluded fails or an excluded test passes. 68 of 73 pass on the InMemoryDriver and on a real mongo:8 (PooledDriver, port 27099); the 5 exclusions have a reason each in the test: 4 sort an enum by ordinal (Morphium stores an enum by its name), 1 is IgnoreCase before Between/NotIn (MOR-092). The test is part of the normal test run of the Spring module, so CI runs it wherever that module is built. Documented in docs/jakarta-data.md (Conformance). Fixed on the way, one task per cause: MOR-076, 078 to 091.
 
 Acceptance:
 
@@ -605,15 +605,19 @@ Commits: c39dbab99
 
 ### MOR-077 Jakarta Data: repositories without a single primary entity are unsupported
 
-Status **open**, priority 3, type verification, effort M
+Status **done**, priority 2, type verification, effort M
 
 Found by the TCK spike of MOR-026. RepositoryMetadata holds one entity class per repository. The TCK repositories MultipleEntityRepo (lifecycle methods for Box and Coordinate, no BasicRepository) and CustomRepository (no generic parameters) have no primary entity, and the Spring factory refuses them. The specification allows such repositories (the primary entity is determined from the lifecycle methods). Decide: support them, or list them as excluded in MOR-026 with this reason.
+
+Evidence: Decision: supported. Three gaps were behind it: the Spring module knew @Insert/@Save/@Update/@Delete(entities) only by the names insert, save and so on, and its registrar skipped BasicRepository and repositories that extend nothing; a repository without type arguments had no entity; a repository with several entities had one entity for all methods. Now LifecycleBridge runs the lifecycle methods in every shape (one entity, collection, array or varargs; nothing, entity, list, array, boolean, int, long), the primary entity of a repository that extends nothing is the one of its lifecycle methods, and RepositoryEntities / JandexEntities give every method its entity (statement, parameter, result) with AbstractMorphiumRepository.forEntity. The TCK tests needed also: UPDATE ... SET f = f / n (as $mul by the inverse), boolean as the result of DELETE and UPDATE statements, numeric literals with the suffix 0.0d, 7L. Tests: RepositoryEntitiesTest, LifecycleBridgeTest, JdqlUpdateDivisionTest, JandexEntitiesTest, NoPrimaryEntityRepositoryTest (Spring), MorphiumNoPrimaryEntityInMemTest and MorphiumNoPrimaryEntityRealMongoTest (Quarkus, mongo:8). JakartaDataTckTest: 68 of 73, the three exclusions of this task are gone.
 
 Acceptance:
 
 - A decision, and either support or an entry in the TCK exclusion list
 
 Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/RepositoryMetadata.java
+
+Commits: 501128543, 2d5f46f47, 0b620126a, c878f62d7, 9aec21b91, 8d3be2673, 869760159
 
 ### MOR-027 Documentation page: raw commands, embedded objects and lifecycle contract
 

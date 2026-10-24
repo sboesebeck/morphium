@@ -196,6 +196,45 @@ class MorphiumDataProcessorAtomicUpdateTest {
         jakarta.data.page.CursoredPage<Lease> findByOwnerOrderByFencingAsc(String owner, jakarta.data.page.PageRequest pageRequest);
     }
 
+    @Repository
+    public interface LifecycleShapes {
+        @jakarta.data.repository.Insert
+        Lease add(Lease lease);
+
+        @jakarta.data.repository.Insert
+        Lease[] addAll(Lease... leases);
+
+        @jakarta.data.repository.Insert
+        List<Lease> addList(List<Lease> leases);
+
+        @jakarta.data.repository.Update
+        boolean change(List<Lease> leases);
+
+        @jakarta.data.repository.Delete
+        long remove(Lease lease);
+
+        @jakarta.data.repository.Save
+        void save(Lease lease);
+
+        @jakarta.data.repository.Update
+        Boolean changeBoxed(Lease lease);
+
+        @jakarta.data.repository.Delete
+        Long removeBoxed(List<Lease> leases);
+    }
+
+    @Repository
+    public interface LifecycleWrongResult {
+        @jakarta.data.repository.Insert
+        String add(Lease lease);
+    }
+
+    @Repository
+    public interface LifecycleOneForMany {
+        @jakarta.data.repository.Insert
+        Lease addAll(List<Lease> leases);
+    }
+
     private static class Collecting implements BuildProducer<ReflectiveClassBuildItem> {
         @Override
         public void produce(ReflectiveClassBuildItem item) {
@@ -299,5 +338,13 @@ class MorphiumDataProcessorAtomicUpdateTest {
         assertThatThrownBy(() -> generate(CursoredWithoutPageRequest.class)).isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("findByOwnerOrderByFencingAsc").hasMessageContaining("PageRequest");
         assertThatCode(() -> generate(CursoredFine.class)).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("MOR-077: lifecycle methods in every shape are generated; a result they cannot give fails the build")
+    void lifecycleShapes() {
+        assertThatCode(() -> generate(LifecycleShapes.class)).doesNotThrowAnyException();
+        assertThatThrownBy(() -> generate(LifecycleWrongResult.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("LifecycleWrongResult.add").hasMessageContaining("returns nothing");
+        assertThatThrownBy(() -> generate(LifecycleOneForMany.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("several entities");
     }
 }

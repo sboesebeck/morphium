@@ -46,9 +46,6 @@ class JakartaDataTckTest {
         "testOrderByHasPrecedenceOverPageRequestSorts", "sorts an enum by ordinal; Morphium stores an enum by its name and sorts it alphabetically",
         "testBasicRepository", "sorts an enum by ordinal; Morphium stores an enum by its name and sorts it alphabetically",
         "testLimitedRange", "sorts an enum by ordinal; Morphium stores an enum by its name and sorts it alphabetically",
-        "testPrimaryEntityClassDeterminedByLifeCycleMethods", "MOR-077: a repository without a primary entity (CustomRepository) is not supported",
-        "testUpdateQueryWithWhereClause", "MOR-077: a repository without a primary entity (MultipleEntityRepo) is not supported",
-        "testUpdateQueryWithoutWhereClause", "MOR-077: a repository without a primary entity (MultipleEntityRepo) is not supported",
         "testIgnoreCase", "MOR-092: IgnoreCase before Between, NotIn and the comparison operators is not supported");
 
     /** loads the classes of the TCK itself and gives its entities the annotations of Morphium */

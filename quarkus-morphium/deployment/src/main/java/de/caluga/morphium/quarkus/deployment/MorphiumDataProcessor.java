@@ -5,6 +5,7 @@ import de.caluga.morphium.data.AtomicUpdateSpec;
 import de.caluga.morphium.data.FindMethodBridge;
 import de.caluga.morphium.data.JdqlDelete;
 import de.caluga.morphium.data.JdqlMethodBridge;
+import de.caluga.morphium.data.LifecycleBridge;
 import de.caluga.morphium.data.JdqlOperands;
 import de.caluga.morphium.data.JdqlOrdinalParameters;
 import de.caluga.morphium.data.JdqlParser;
@@ -162,7 +163,11 @@ public class MorphiumDataProcessor {
             // Find the DataRepository/BasicRepository/CrudRepository superinterface and extract T, K
             TypeParameters tp = resolveEntityAndIdTypes(repoClass, index);
             if (tp == null) {
-                log.warnf("@Repository %s does not extend DataRepository/BasicRepository/CrudRepository — skipping",
+                // a repository that extends nothing (MOR-077): the entity of its lifecycle methods, or the first entity that it works on
+                tp = resolveFromMethods(repoClass, index);
+            }
+            if (tp == null) {
+                log.warnf("@Repository %s does not extend DataRepository/BasicRepository/CrudRepository and has no method that names an entity — skipping",
                         repoClass.name());
                 continue;
             }
@@ -775,15 +780,13 @@ public class MorphiumDataProcessor {
         // their methods are the well-known CRUD methods already delegated to
         // AbstractMorphiumRepository (see CRUD_METHODS) -- walking into them would otherwise
         // flag e.g. BasicRepository's own abstract methods as "unsupported".
-        Map<String, MethodInfo> methodsBySignature = new LinkedHashMap<>();
-        for (MethodInfo m : repoInterface.methods()) {
-            methodsBySignature.put(methodSignatureKey(m), m);
-        }
-        Set<String> visitedInterfaces = new HashSet<>();
-        visitedInterfaces.add(repoInterface.name().toString());
-        collectInheritedCustomInterfaceMethods(repoInterface, index, visitedInterfaces, methodsBySignature);
+        Collection<MethodInfo> repositoryMethods = allMethods(repoInterface, index);
 
-        for (MethodInfo method : methodsBySignature.values()) {
+        // MOR-077: one method can work on another entity than the primary one of the repository
+        String primaryEntity = entityClassName;
+        Map<String, String> knownEntities = JandexEntities.known(repositoryMethods, primaryEntity, index);
+
+        for (MethodInfo method : repositoryMethods) {
             String name = method.name();
 
             // Skip standard CRUD methods and static methods
@@ -809,43 +812,55 @@ public class MorphiumDataProcessor {
             // has any notion of how to implement them.
             if (isObjectMethodRedeclaration(method)) continue;
 
+            // @Insert, @Save, @Update and a @Delete that takes entities, under any name and in every shape (MOR-077)
+            if (JandexEntities.lifecycleEntity(method, index) != null || method.hasAnnotation(INSERT_ANNOTATION) || method.hasAnnotation(SAVE_ANNOTATION)
+                    || method.hasAnnotation(UPDATE_ANNOTATION)) {
+                generateLifecycleMethod(cc, method);
+                continue;
+            }
+
+            // the entity of this method: its statement, its result, or the primary entity of the repository
+            String methodEntity = JandexEntities.forMethod(method, primaryEntity, knownEntities, index);
+            Set<String> methodFields = entityFields;
+
+            if (methodEntity != null && !methodEntity.equals(primaryEntity)) {
+                ClassInfo methodEntityInfo = index.getClassByName(DotName.createSimple(methodEntity));
+                methodFields = collectEntityFields(methodEntityInfo, index);
+            }
+
+            boolean needsEntity = method.hasAnnotation(ATOMIC_UPDATE_ANNOTATION) || method.hasAnnotation(QUERY_ANNOTATION) || method.hasAnnotation(FIND_ANNOTATION)
+                    || method.hasAnnotation(DELETE_ANNOTATION) || MethodNameParser.isDerivedQueryName(name);
+
+            if (methodEntity == null && needsEntity) {
+                throw new IllegalStateException("Unsupported repository method " + method.declaringClass().name() + "." + name + "() -- it does not say which entity it works on and the repository "
+                        + "has no primary entity: name the entity in the statement (DELETE FROM Box), or take or return it");
+            }
+
             // Morphium extension (MOR-021): one atomic update with structured assignments
             if (method.hasAnnotation(ATOMIC_UPDATE_ANNOTATION)) {
-                generateAtomicUpdateMethod(cc, method, entityClassName, entityFields);
+                generateAtomicUpdateMethod(cc, method, methodEntity, methodFields);
                 continue;
             }
 
             // Phase 5: @Query with JDQL
             if (method.hasAnnotation(QUERY_ANNOTATION)) {
-                generateQueryAnnotatedMethod(cc, method, entityClassName, index, reflectiveClasses);
+                generateQueryAnnotatedMethod(cc, method, methodEntity, index, reflectiveClasses);
                 continue;
             }
 
             // Phase 4: Check for annotation-based methods first
             if (method.hasAnnotation(FIND_ANNOTATION)) {
-                generateFindAnnotatedMethod(cc, method, entityClassName, entityFields);
+                generateFindAnnotatedMethod(cc, method, methodEntity, methodFields);
                 continue;
             }
             if (method.hasAnnotation(DELETE_ANNOTATION)) {
-                generateDeleteAnnotatedMethod(cc, method, entityClassName);
-                continue;
-            }
-            if (method.hasAnnotation(INSERT_ANNOTATION)) {
-                generateInsertAnnotatedMethod(cc, method);
-                continue;
-            }
-            if (method.hasAnnotation(SAVE_ANNOTATION)) {
-                generateSaveAnnotatedMethod(cc, method);
-                continue;
-            }
-            if (method.hasAnnotation(UPDATE_ANNOTATION)) {
-                generateUpdateAnnotatedMethod(cc, method);
+                generateDeleteAnnotatedMethod(cc, method, methodEntity);
                 continue;
             }
 
             // Phase 2: Try to parse as query derivation method
             if (MethodNameParser.isDerivedQueryName(name)) {
-                generateQueryMethod(cc, method, entityClassName, entityFields);
+                generateQueryMethod(cc, method, methodEntity, methodFields);
                 continue;
             }
 
@@ -1062,7 +1077,7 @@ public class MorphiumDataProcessor {
             ResultHandle returnsBooleanHandle = mc.load(returnsBoolean);
             ResultHandle returnsStreamHandle = mc.load(returnsStream);
             ResultHandle orderBySpecHandle = mc.load(orderBySpec);
-            ResultHandle thisHandle = mc.getThis();
+            ResultHandle thisHandle = repository(mc, entityClassName);
 
             String bridgeMethod = isAsync ? "executeQueryAsync" : "executeQuery";
             Class<?> bridgeReturnType = isAsync ? CompletionStage.class : Object.class;
@@ -1400,7 +1415,7 @@ public class MorphiumDataProcessor {
                             String.class, String.class,
                             int.class, int.class, int.class, int.class,
                             Object[].class, boolean.class, boolean.class, boolean.class, boolean.class),
-                    mc.getThis(),
+                    repository(mc, entityClassName),
                     mc.load(conditionsSpec.toString()),
                     mc.load(orderBySpec),
                     mc.load(sortParamIndex),
@@ -1560,7 +1575,7 @@ public class MorphiumDataProcessor {
                                     long.class,
                                     AbstractMorphiumRepository.class,
                                     String.class, Object[].class),
-                            mc.getThis(),
+                            repository(mc, entityClassName),
                             mc.load(conditionsSpec.toString()),
                             argsArray);
                     if (returnType.asPrimitiveType().primitive() == PrimitiveType.Primitive.INT) {
@@ -1580,7 +1595,7 @@ public class MorphiumDataProcessor {
                                     void.class,
                                     AbstractMorphiumRepository.class,
                                     String.class, Object[].class),
-                            mc.getThis(),
+                            repository(mc, entityClassName),
                             mc.load(conditionsSpec.toString()),
                             argsArray);
                     mc.returnVoid();
@@ -1595,117 +1610,12 @@ public class MorphiumDataProcessor {
                 mc.invokeVirtualMethod(
                         MethodDescriptor.ofMethod(AbstractMorphiumRepository.class,
                                 "doDelete", void.class, Object.class),
-                        mc.getThis(), mc.getMethodParam(0));
+                        repository(mc, entityClassName), mc.getMethodParam(0));
                 mc.returnVoid();
             }
         }
 
         log.infof("Generated @Delete method: %s.%s", method.declaringClass().name(), method.name());
-    }
-
-    /**
-     * Generates implementation for an {@code @Insert} annotated method.
-     * Delegates to doInsert() / doInsertAll().
-     */
-    private void generateInsertAnnotatedMethod(ClassCreator cc, MethodInfo method) {
-        String[] paramTypeNames = new String[method.parametersCount()];
-        for (int i = 0; i < method.parametersCount(); i++) {
-            paramTypeNames[i] = toDescriptorName(method.parameterType(i));
-        }
-        String returnTypeName = toDescriptorName(method.returnType());
-        boolean isList = isList(method.parameterType(0));
-
-        try (MethodCreator mc = cc.getMethodCreator(
-                MethodDescriptor.ofMethod(cc.getClassName(), method.name(),
-                        returnTypeName, paramTypeNames))) {
-            mc.setModifiers(Modifier.PUBLIC);
-
-            if (isList) {
-                ResultHandle result = mc.invokeVirtualMethod(
-                        MethodDescriptor.ofMethod(AbstractMorphiumRepository.class,
-                                "doInsertAll", List.class, List.class),
-                        mc.getThis(), mc.getMethodParam(0));
-                mc.returnValue(result);
-            } else {
-                ResultHandle result = mc.invokeVirtualMethod(
-                        MethodDescriptor.ofMethod(AbstractMorphiumRepository.class,
-                                "doInsert", Object.class, Object.class),
-                        mc.getThis(), mc.getMethodParam(0));
-                mc.returnValue(result);
-            }
-        }
-
-        log.infof("Generated @Insert method: %s.%s", method.declaringClass().name(), method.name());
-    }
-
-    /**
-     * Generates implementation for a {@code @Save} annotated method.
-     * Delegates to doSave() / doSaveAll().
-     */
-    private void generateSaveAnnotatedMethod(ClassCreator cc, MethodInfo method) {
-        String[] paramTypeNames = new String[method.parametersCount()];
-        for (int i = 0; i < method.parametersCount(); i++) {
-            paramTypeNames[i] = toDescriptorName(method.parameterType(i));
-        }
-        String returnTypeName = toDescriptorName(method.returnType());
-        boolean isList = isList(method.parameterType(0));
-
-        try (MethodCreator mc = cc.getMethodCreator(
-                MethodDescriptor.ofMethod(cc.getClassName(), method.name(),
-                        returnTypeName, paramTypeNames))) {
-            mc.setModifiers(Modifier.PUBLIC);
-
-            if (isList) {
-                ResultHandle result = mc.invokeVirtualMethod(
-                        MethodDescriptor.ofMethod(AbstractMorphiumRepository.class,
-                                "doSaveAll", List.class, List.class),
-                        mc.getThis(), mc.getMethodParam(0));
-                mc.returnValue(result);
-            } else {
-                ResultHandle result = mc.invokeVirtualMethod(
-                        MethodDescriptor.ofMethod(AbstractMorphiumRepository.class,
-                                "doSave", Object.class, Object.class),
-                        mc.getThis(), mc.getMethodParam(0));
-                mc.returnValue(result);
-            }
-        }
-
-        log.infof("Generated @Save method: %s.%s", method.declaringClass().name(), method.name());
-    }
-
-    /**
-     * Generates implementation for an {@code @Update} annotated method.
-     * Delegates to doUpdate() / doUpdateAll().
-     */
-    private void generateUpdateAnnotatedMethod(ClassCreator cc, MethodInfo method) {
-        String[] paramTypeNames = new String[method.parametersCount()];
-        for (int i = 0; i < method.parametersCount(); i++) {
-            paramTypeNames[i] = toDescriptorName(method.parameterType(i));
-        }
-        String returnTypeName = toDescriptorName(method.returnType());
-        boolean isList = isList(method.parameterType(0));
-
-        try (MethodCreator mc = cc.getMethodCreator(
-                MethodDescriptor.ofMethod(cc.getClassName(), method.name(),
-                        returnTypeName, paramTypeNames))) {
-            mc.setModifiers(Modifier.PUBLIC);
-
-            if (isList) {
-                ResultHandle result = mc.invokeVirtualMethod(
-                        MethodDescriptor.ofMethod(AbstractMorphiumRepository.class,
-                                "doUpdateAll", List.class, List.class),
-                        mc.getThis(), mc.getMethodParam(0));
-                mc.returnValue(result);
-            } else {
-                ResultHandle result = mc.invokeVirtualMethod(
-                        MethodDescriptor.ofMethod(AbstractMorphiumRepository.class,
-                                "doUpdate", Object.class, Object.class),
-                        mc.getThis(), mc.getMethodParam(0));
-                mc.returnValue(result);
-            }
-        }
-
-        log.infof("Generated @Update method: %s.%s", method.declaringClass().name(), method.name());
     }
 
     /**
@@ -1892,7 +1802,7 @@ public class MorphiumDataProcessor {
                             boolean.class, boolean.class, boolean.class, boolean.class,
                             boolean.class, String.class, boolean.class,
                             String.class),
-                    mc.getThis(),
+                    repository(mc, entityClassName),
                     mc.load(jdql),
                     mc.load(paramMapSpec.toString()),
                     mc.load(sortParamIndex),
@@ -2018,7 +1928,7 @@ public class MorphiumDataProcessor {
             Class<?> bridgeReturn = returnsBoolean ? boolean.class : returnsInt ? int.class : countForm ? long.class : returnsOptional ? java.util.Optional.class : Object.class;
             ResultHandle result = mc.invokeStaticMethod(
                     MethodDescriptor.ofMethod(JdqlMethodBridge.class, bridge, bridgeReturn, AbstractMorphiumRepository.class, String.class, Object[].class),
-                    mc.getThis(), mc.load(encoded), argsArray);
+                    repository(mc, entityClassName), mc.load(encoded), argsArray);
 
             if (returnsVoid) {
                 mc.returnVoid();
@@ -2066,10 +1976,11 @@ public class MorphiumDataProcessor {
         boolean returnsVoid = returnType.kind() == Type.Kind.VOID;
         boolean returnsInt = returnType.kind() == Type.Kind.PRIMITIVE && returnType.asPrimitiveType().primitive() == PrimitiveType.Primitive.INT;
         boolean returnsLong = returnType.kind() == Type.Kind.PRIMITIVE && returnType.asPrimitiveType().primitive() == PrimitiveType.Primitive.LONG;
+        boolean returnsBoolean = returnType.kind() == Type.Kind.PRIMITIVE && returnType.asPrimitiveType().primitive() == PrimitiveType.Primitive.BOOLEAN;
 
-        if (!returnsVoid && !returnsInt && !returnsLong) {
-            throw new IllegalStateException("@Query on " + where + ": a " + statementKind + " statement returns void, int or long (the number of "
-                    + (update ? "matched" : "deleted") + " documents), not " + returnType + ": \"" + jdql + "\"");
+        if (!returnsVoid && !returnsInt && !returnsLong && !returnsBoolean) {
+            throw new IllegalStateException("@Query on " + where + ": a " + statementKind + " statement returns void, int, long (the number of "
+                    + (update ? "matched" : "deleted") + " documents) or boolean (at least one), not " + returnType + ": \"" + jdql + "\"");
         }
 
         String entityName;
@@ -2157,12 +2068,14 @@ public class MorphiumDataProcessor {
             ResultHandle count = mc.invokeStaticMethod(
                     MethodDescriptor.ofMethod(JdqlMethodBridge.class, update ? "executeJdqlUpdate" : "executeJdqlDelete", long.class,
                             AbstractMorphiumRepository.class, String.class, String.class, Object[].class),
-                    mc.getThis(), mc.load(jdql), mc.load(paramMapSpec.toString()), argsArray);
+                    repository(mc, entityClassName), mc.load(jdql), mc.load(paramMapSpec.toString()), argsArray);
 
             if (returnsVoid) {
                 mc.returnVoid();
             } else if (returnsInt) {
                 mc.returnValue(mc.invokeStaticMethod(MethodDescriptor.ofMethod(Math.class, "toIntExact", int.class, long.class), count));
+            } else if (returnsBoolean) {
+                mc.returnValue(mc.invokeStaticMethod(MethodDescriptor.ofMethod(JdqlMethodBridge.class, "atLeastOne", boolean.class, long.class), count));
             } else {
                 mc.returnValue(count);
             }
@@ -2219,6 +2132,49 @@ public class MorphiumDataProcessor {
     // -----------------------------------------------------------------
 
     private record TypeParameters(DotName entityType, DotName idType) {}
+
+    /** the methods of the interface and of its custom super-interfaces */
+    private Collection<MethodInfo> allMethods(ClassInfo repoInterface, IndexView index) {
+        Map<String, MethodInfo> methodsBySignature = new LinkedHashMap<>();
+
+        for (MethodInfo m : repoInterface.methods()) {
+            methodsBySignature.put(methodSignatureKey(m), m);
+        }
+
+        Set<String> visitedInterfaces = new HashSet<>();
+        visitedInterfaces.add(repoInterface.name().toString());
+        collectInheritedCustomInterfaceMethods(repoInterface, index, visitedInterfaces, methodsBySignature);
+        return methodsBySignature.values();
+    }
+
+    /** MOR-077: entity and id type of a repository without type arguments, from its methods; null if no method names an entity */
+    private TypeParameters resolveFromMethods(ClassInfo repoClass, IndexView index) {
+        Collection<MethodInfo> methods = allMethods(repoClass, index);
+        DotName entity = JandexEntities.primaryFromLifecycle(methods, index);
+
+        if (entity == null) {
+            entity = JandexEntities.known(methods, null, index).values().stream().findFirst().map(DotName::createSimple).orElse(null);
+        }
+
+        if (entity == null) {
+            return null;
+        }
+
+        ClassInfo entityInfo = index.getClassByName(entity);
+        String idField = entityInfo == null ? null : findIdField(entityInfo, index);
+        DotName idType = DotName.createSimple("java.lang.Object");
+
+        for (ClassInfo c = entityInfo; c != null && idField != null; c = c.superName() == null ? null : index.getClassByName(c.superName())) {
+            FieldInfo f = c.field(idField);
+
+            if (f != null) {
+                idType = f.type().name();
+                break;
+            }
+        }
+
+        return new TypeParameters(entity, idType);
+    }
 
     private TypeParameters resolveEntityAndIdTypes(ClassInfo repoClass, IndexView index) {
         for (Type superInterface : repoClass.interfaceTypes()) {
@@ -2391,6 +2347,71 @@ public class MorphiumDataProcessor {
     private boolean isList(Type type) {
         // an array of the entity is answered like a List and converted at the end (MOR-080)
         return type.name().toString().equals("java.util.List") || type.kind() == Type.Kind.ARRAY;
+    }
+
+    /** the repository for the entity that a method works on: this one if it is the entity of the repository, otherwise a repository for the other entity (MOR-077) */
+    private ResultHandle repository(MethodCreator mc, String entityClassName) {
+        return mc.invokeVirtualMethod(MethodDescriptor.ofMethod(AbstractMorphiumRepository.class, "forEntity", AbstractMorphiumRepository.class, Class.class), mc.getThis(),
+                mc.loadClass(entityClassName));
+    }
+
+    /**
+     * Generates a lifecycle method: {@code @Insert}, {@code @Save}, {@code @Update}, or a {@code @Delete} that takes entities, under any name. The parameter is one entity, a list or collection,
+     * or an array or varargs; the result is nothing, the entity, a list or an array, or a boolean, int or long. {@link LifecycleBridge} does the work.
+     */
+    private void generateLifecycleMethod(ClassCreator cc, MethodInfo method) {
+        String where = method.declaringClass().name() + "." + method.name();
+
+        if (method.parametersCount() != 1) {
+            throw new IllegalStateException("Unsupported repository method " + where + "() -- a lifecycle method takes one parameter: an entity, entities or an array");
+        }
+
+        String kind = JandexEntities.lifecycleKind(method);
+        Type returnType = method.returnType();
+        Type parameter = method.parameterType(0);
+        boolean many = parameter.kind() == Type.Kind.ARRAY || isList(parameter) || parameter.name().toString().equals("java.util.Collection") || parameter.name().toString().equals("java.util.Set");
+        String shape = switch (returnType.kind()) {
+            case VOID -> "VOID";
+            case ARRAY -> "ARRAY";
+            case PRIMITIVE -> switch (returnType.asPrimitiveType().primitive()) {
+                case BOOLEAN -> "BOOLEAN";
+                case INT -> "INT";
+                case LONG -> "LONG";
+                default -> throw new IllegalStateException("Unsupported repository method " + where + "() -- a lifecycle method cannot return " + returnType);
+            };
+            default -> isList(returnType) || returnType.name().toString().equals("java.util.Collection") ? "LIST"
+                    : returnType.name().toString().equals("java.lang.Boolean") ? "BOOLEAN"
+                    : returnType.name().toString().equals("java.lang.Integer") ? "INT"
+                    : returnType.name().toString().equals("java.lang.Long") ? "LONG" : "ENTITY";
+        };
+
+        DotName parameterElement = JandexEntities.element(parameter);
+
+        if (shape.equals("ENTITY") && (many || returnType.kind() != Type.Kind.CLASS || !returnType.name().equals(parameterElement))) {
+            throw new IllegalStateException("Unsupported repository method " + where + "() -- a lifecycle method returns nothing, the entity (for one entity), a list or array of entities, or a boolean, "
+                    + "int or long; not " + returnType + (many ? " for several entities" : ""));
+        }
+
+        String[] paramTypeNames = new String[] {toDescriptorName(parameter)};
+
+        try (MethodCreator mc = cc.getMethodCreator(MethodDescriptor.ofMethod(cc.getClassName(), method.name(), toDescriptorName(returnType), paramTypeNames))) {
+            mc.setModifiers(Modifier.PUBLIC);
+            ResultHandle result = mc.invokeStaticMethod(
+                    MethodDescriptor.ofMethod(LifecycleBridge.class, "execute", Object.class, AbstractMorphiumRepository.class, String.class, Object.class, String.class),
+                    mc.getThis(), mc.load(kind), mc.getMethodParam(0), mc.load(shape));
+
+            if (returnType.kind() == Type.Kind.VOID) {
+                mc.returnVoid();
+            } else {
+                if (returnType.kind() == Type.Kind.PRIMITIVE) {
+                    result = unboxPrimitive(mc, result, returnType.asPrimitiveType());
+                }
+
+                mc.returnValue(adaptArrayResult(mc, result, returnType));
+            }
+        }
+
+        log.infof("Generated @%s method: %s", kind.charAt(0) + kind.substring(1).toLowerCase(Locale.ROOT), where);
     }
 
     /** {@code ResultShapes.toArray} for a method that returns an array; the result unchanged for every other return type */

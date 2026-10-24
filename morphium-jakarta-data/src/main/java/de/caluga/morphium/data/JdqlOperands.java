@@ -9,7 +9,7 @@ import java.util.regex.Pattern;
  */
 public final class JdqlOperands {
 
-    private static final Pattern OPERAND = Pattern.compile(":[A-Za-z_][A-Za-z0-9_]*|\\?\\d+|[+-]?\\d+(\\.\\d+)?|'([^']|'')*'|\"[^\"]*\"|(?i:true|false|null)");
+    private static final Pattern OPERAND = Pattern.compile(":[A-Za-z_][A-Za-z0-9_]*|\\?\\d+|'([^']|'')*'|\"[^\"]*\"|(?i:true|false|null)");
 
     private JdqlOperands() {
     }
@@ -20,7 +20,7 @@ public final class JdqlOperands {
             return JdqlLiterals.splitList(ref).stream().allMatch(JdqlOperands::isOperand);
         }
 
-        return OPERAND.matcher(ref).matches() || JdqlLiterals.isQualifiedName(ref);
+        return OPERAND.matcher(ref).matches() || JdqlLiterals.isNumber(ref) || JdqlLiterals.isQualifiedName(ref);
     }
 
     /**

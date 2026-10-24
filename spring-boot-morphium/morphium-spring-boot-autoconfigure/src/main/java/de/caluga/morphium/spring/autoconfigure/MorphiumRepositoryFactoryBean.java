@@ -70,10 +70,27 @@ public class MorphiumRepositoryFactoryBean<T> implements FactoryBean<T> {
     @Override
     @SuppressWarnings("unchecked")
     public T getObject() {
-        var typeArgs = resolveTypeArguments(repositoryInterface);
-        Class<?> entityClass = typeArgs[0];
-        Class<?> idClass = typeArgs[1];
-        String idFieldName = findIdFieldName(entityClass);
+        Class<?> entityClass;
+        Class<?> idClass;
+        String idFieldName;
+
+        try {
+            var typeArgs = resolveTypeArguments(repositoryInterface);
+            entityClass = typeArgs[0];
+            idClass = typeArgs[1];
+            idFieldName = findIdFieldName(entityClass);
+        } catch (IllegalArgumentException noTypeArguments) {
+            // a repository that extends nothing (MOR-077): the entity of its lifecycle methods, or the first entity that it works on; every method gets its own entity from the handler
+            Class<?> entity = de.caluga.morphium.data.RepositoryEntities.primary(repositoryInterface);
+
+            if (entity == null) {
+                entity = de.caluga.morphium.data.RepositoryEntities.known(repositoryInterface).values().stream().findFirst().orElseThrow(() -> noTypeArguments);
+            }
+
+            entityClass = entity;
+            idFieldName = findIdFieldName(entity);
+            idClass = idTypeOf(entity, idFieldName);
+        }
 
         var metadata = new RepositoryMetadata(entityClass, idClass, idFieldName);
         var handler = new MorphiumRepositoryInvocationHandler(morphium, metadata, repositoryInterface);
@@ -139,6 +156,17 @@ public class MorphiumRepositoryFactoryBean<T> implements FactoryBean<T> {
         }
         throw new IllegalArgumentException(
                 "Cannot resolve entity/id types from " + repoInterface.getName());
+    }
+
+    private static Class<?> idTypeOf(Class<?> entityClass, String idFieldName) {
+        for (Class<?> cls = entityClass; cls != null && cls != Object.class; cls = cls.getSuperclass()) {
+            try {
+                return cls.getDeclaredField(idFieldName).getType();
+            } catch (NoSuchFieldException ignored) {
+            }
+        }
+
+        return Object.class;
     }
 
     /**

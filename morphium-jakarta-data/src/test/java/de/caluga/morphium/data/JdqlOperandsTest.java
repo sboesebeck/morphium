@@ -26,6 +26,13 @@ class JdqlOperandsTest {
     }
 
     @Test
+    @DisplayName("MOR-077: numeric literals with the suffix of Java and with an exponent are operands")
+    void numericSuffixes() {
+        assertThat(JdqlOperands.check("WHERE x > 0.0d AND y > 0.0f AND z = 5L AND w < 1e3 AND v = -2.5E-3")).isNull();
+        assertThat(JdqlOperands.check("WHERE x > 0.0dd")).contains("0.0dd");
+    }
+
+    @Test
     @DisplayName("what the parser takes as an operand without being one is reported with the operand")
     void typos() {
         assertThat(JdqlOperands.check("WHERE id == :id")).contains("= :id").contains("id");
