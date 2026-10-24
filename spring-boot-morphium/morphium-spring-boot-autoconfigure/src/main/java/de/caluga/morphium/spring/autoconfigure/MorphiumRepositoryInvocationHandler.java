@@ -207,6 +207,21 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
     private MethodHandler buildJdqlHandler(Method method, Query queryAnno) {
         String jdql = queryAnno.value();
         String paramMapSpec = buildParamMapSpec(method);
+
+        // DELETE FROM Entity [WHERE ...] (MOR-017): one server-side delete, returns the number of deleted documents
+        if (JdqlDelete.is(jdql)) {
+            Class<?> returnType = method.getReturnType();
+
+            if (returnType != void.class && returnType != int.class && returnType != long.class) {
+                throw new IllegalStateException("@Query on " + method + ": a DELETE statement returns void, int or long (the number of deleted documents), not "
+                        + returnType.getName() + ": \"" + jdql + "\"");
+            }
+
+            return args -> {
+                long count = JdqlMethodBridge.executeJdqlDelete(delegate, jdql, paramMapSpec, args != null ? args : new Object[0]);
+                return returnType == void.class ? null : returnType == int.class ? (Object) Math.toIntExact(count) : (Object) count;
+            };
+        }
         int sortIdx = findParamIndex(method, Sort.class);
         int orderIdx = findParamIndex(method, Order.class);
         int pageRequestIdx = findParamIndex(method, PageRequest.class);

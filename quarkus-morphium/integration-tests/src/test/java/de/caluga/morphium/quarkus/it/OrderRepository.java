@@ -100,6 +100,17 @@ public interface OrderRepository extends BasicRepository<OrderEntity, String> {
     @Query("WHERE status = ?2 AND amount >= ?1")
     long countOrdinalReversed(double minAmount, String status);
 
+    // -- DELETE FROM, MOR-017 --
+
+    @Query("DELETE FROM OrderEntity WHERE status = :status")
+    long deleteJdqlByStatus(@Param("status") String status);
+
+    @Query("DELETE FROM OrderEntity WHERE status = ?1 AND amount < ?2")
+    int deleteJdqlOrdinal(String status, double maxAmount);
+
+    @Query("DELETE FROM OrderEntity WHERE customerId = :cid")
+    void deleteJdqlByCustomer(@Param("cid") String customerId);
+
     @Query("WHERE status = :s1 OR status = :s2")
     List<OrderEntity> queryByEitherStatus(@Param("s1") String status1,
                                            @Param("s2") String status2);

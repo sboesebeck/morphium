@@ -2,6 +2,7 @@ package de.caluga.morphium.quarkus.deployment;
 
 import de.caluga.morphium.data.AbstractMorphiumRepository;
 import de.caluga.morphium.data.FindMethodBridge;
+import de.caluga.morphium.data.JdqlDelete;
 import de.caluga.morphium.data.JdqlMethodBridge;
 import de.caluga.morphium.data.JdqlOrdinalParameters;
 import de.caluga.morphium.data.MethodNameParser;
@@ -1681,6 +1682,12 @@ public class MorphiumDataProcessor {
         // Build-time validation: reject MongoDB JSON syntax and positional parameters
         validateJdqlSyntax(jdql, method);
 
+        // DELETE FROM Entity [WHERE ...] (MOR-017) is a statement of its own: it returns a count, not entities
+        if (JdqlDelete.is(jdql)) {
+            generateJdqlDeleteMethod(cc, method, entityClassName, jdql);
+            return;
+        }
+
         // Build @Param name-to-index mapping and detect special params
         StringBuilder paramMapSpec = new StringBuilder();
         int sortParamIndex = -1;
@@ -1852,6 +1859,95 @@ public class MorphiumDataProcessor {
 
         log.infof("Generated @Query method: %s.%s%s → JDQL: %s", method.declaringClass().name(), method.name(),
                 isAsync ? " (async)" : "", jdql == null || jdql.isBlank() ? "(no filter / find all)" : jdql);
+    }
+
+    /**
+     * Generates a {@code @Query("DELETE FROM Entity [WHERE ...]")} method (MOR-017): one server-side delete through
+     * {@link JdqlMethodBridge#executeJdqlDelete}. The return type is {@code void}, {@code int} or {@code long} (the number of deleted
+     * documents, as Jakarta Data prescribes for {@code @Query} update and delete statements); anything else, a special parameter
+     * (Sort, Order, PageRequest, Limit) and an entity name that is not the one of the repository fail the build.
+     */
+    private void generateJdqlDeleteMethod(ClassCreator cc, MethodInfo method, String entityClassName, String jdql) {
+        String where = method.declaringClass().name() + "." + method.name();
+        Type returnType = method.returnType();
+        boolean returnsVoid = returnType.kind() == Type.Kind.VOID;
+        boolean returnsInt = returnType.kind() == Type.Kind.PRIMITIVE && returnType.asPrimitiveType().primitive() == PrimitiveType.Primitive.INT;
+        boolean returnsLong = returnType.kind() == Type.Kind.PRIMITIVE && returnType.asPrimitiveType().primitive() == PrimitiveType.Primitive.LONG;
+
+        if (!returnsVoid && !returnsInt && !returnsLong) {
+            throw new IllegalStateException("@Query on " + where + ": a DELETE statement returns void, int or long (the number of deleted documents), not " + returnType
+                    + ": \"" + jdql + "\"");
+        }
+
+        String entityName = JdqlDelete.entityName(jdql);
+        String simpleName = entityClassName.substring(Math.max(entityClassName.lastIndexOf('.'), entityClassName.lastIndexOf('$')) + 1);
+
+        if (entityName != null && !entityName.equals(simpleName)) {
+            throw new IllegalStateException("@Query on " + where + " deletes from " + entityName + ", but the repository is for " + simpleName + ": \"" + jdql + "\"");
+        }
+
+        if (JdqlDelete.whereClause(jdql).toUpperCase(java.util.Locale.ROOT).matches(".*\\b(ORDER BY|GROUP BY|HAVING)\\b.*")) {
+            throw new IllegalStateException("@Query on " + where + ": a DELETE statement has no ORDER BY, GROUP BY or HAVING: \"" + jdql + "\"");
+        }
+
+        StringBuilder paramMapSpec = new StringBuilder();
+        List<MethodParameterInfo> params = method.parameters();
+
+        for (int i = 0; i < method.parametersCount(); i++) {
+            DotName paramTypeName = method.parameterType(i).name();
+
+            if (paramTypeName.equals(SORT_TYPE) || paramTypeName.equals(ORDER_TYPE) || paramTypeName.equals(PAGE_REQUEST_TYPE) || paramTypeName.equals(LIMIT_TYPE)) {
+                throw new IllegalStateException("@Query on " + where + ": a DELETE statement takes no Sort, Order, PageRequest or Limit parameter");
+            }
+
+            AnnotationInstance paramAnn = params.get(i).annotation(PARAM_ANNOTATION);
+            String paramName = paramAnn != null ? paramAnn.value().asString() : params.get(i).name();
+
+            if (paramName != null) {
+                if (paramMapSpec.length() > 0) {
+                    paramMapSpec.append(",");
+                }
+
+                paramMapSpec.append(paramName).append(":").append(i);
+            }
+        }
+
+        String[] paramTypeNames = new String[method.parametersCount()];
+
+        for (int i = 0; i < method.parametersCount(); i++) {
+            paramTypeNames[i] = toDescriptorName(method.parameterType(i));
+        }
+
+        try (MethodCreator mc = cc.getMethodCreator(MethodDescriptor.ofMethod(cc.getClassName(), method.name(), toDescriptorName(returnType), paramTypeNames))) {
+            mc.setModifiers(Modifier.PUBLIC);
+            ResultHandle argsArray = mc.newArray(Object.class, mc.load(method.parametersCount()));
+
+            for (int i = 0; i < method.parametersCount(); i++) {
+                ResultHandle param = mc.getMethodParam(i);
+                Type paramType = method.parameterType(i);
+
+                if (paramType.kind() == Type.Kind.PRIMITIVE) {
+                    param = boxPrimitive(mc, param, paramType.asPrimitiveType());
+                }
+
+                mc.writeArrayValue(argsArray, i, param);
+            }
+
+            ResultHandle count = mc.invokeStaticMethod(
+                    MethodDescriptor.ofMethod(JdqlMethodBridge.class, "executeJdqlDelete", long.class,
+                            AbstractMorphiumRepository.class, String.class, String.class, Object[].class),
+                    mc.getThis(), mc.load(jdql), mc.load(paramMapSpec.toString()), argsArray);
+
+            if (returnsVoid) {
+                mc.returnVoid();
+            } else if (returnsInt) {
+                mc.returnValue(mc.invokeStaticMethod(MethodDescriptor.ofMethod(Math.class, "toIntExact", int.class, long.class), count));
+            } else {
+                mc.returnValue(count);
+            }
+        }
+
+        log.infof("Generated @Query DELETE method: %s → JDQL: %s", where, jdql);
     }
 
     /**

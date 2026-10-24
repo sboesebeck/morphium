@@ -4,13 +4,12 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 27, done 46
+Status: open 25, done 48
 
 ## Overview
 
 | ID | Status | Prio | Type | Title | Effort | Ticket | Depends on |
 |---|---|---|---|---|---|---|---|
-| MOR-017 | open | 2 | implementation | Jakarta Data: JDQL DELETE FROM | M |  |  |
 | MOR-018 | open | 2 | implementation | Jakarta Data: JDQL UPDATE ... SET ... WHERE as one atomic update | L |  | MOR-006, MOR-007 |
 | MOR-019 | open | 2 | defect | Jakarta Data: reject unsupported @Find/@Delete parameter styles at build time | S |  |  |
 | MOR-021 | open | 2 | implementation | Morphium extension: atomic update and find-and-modify repository annotations | L |  | MOR-008, MOR-010 |
@@ -36,7 +35,6 @@ Status: open 27, done 46
 | MOR-052 | open | 3 | defect | updateLastAccess writes the untranslated Java field name | S |  |  |
 | MOR-070 | open | 3 | defect | PoppyDB: the delete fast path swallows errors | S |  |  |
 | MOR-071 | open | 3 | defect | Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange | S |  |  |
-| MOR-074 | open | 3 | verification | MorphiumMigrationTest (2) and MultithreaddedMessagingTests (1) fail on this machine, with and without the latest changes | S |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -52,6 +50,7 @@ Status: open 27, done 46
 | MOR-009 | done | 2 | implementation | Lifecycle handling in the builder: @LastChange, @CreationTime, @Version | M |  | MOR-006 |
 | MOR-010 | done | 2 | implementation | Typed duplicate-key exception and typed result for a lost conditional upsert | M |  | MOR-006 |
 | MOR-014 | done | 2 | implementation | Option E: startup guard for @Embedded under @Entity(translateCamelCase=false) | S |  | MOR-001 |
+| MOR-017 | done | 2 | implementation | Jakarta Data: JDQL DELETE FROM | M |  |  |
 | MOR-024 | done | 2 | defect | Jakarta Data: support ordinal parameters (?1) in @Query | S |  |  |
 | MOR-025 | done | 2 | defect | Jakarta Data: @Update is not atomic and throws IllegalStateException | M |  |  |
 | MOR-029 | done | 2 | defect | InMemoryDriver: reject values BsonEncoder cannot encode | M |  |  |
@@ -83,6 +82,7 @@ Status: open 27, done 46
 | MOR-065 | done | 3 | defect | Delete paths ignore the writeErrors of the delete reply | S |  |  |
 | MOR-072 | done | 3 | defect | The update builder, findOneAndUpdate(Map), updateOne and updateMany fire no storage-listener update events | M |  |  |
 | MOR-073 | done | 3 | defect | Query.push, pull and addToSet fire the update events twice, and the post event is always PUSH | S |  |  |
+| MOR-074 | done | 3 | verification | MorphiumMigrationTest (2) and MultithreaddedMessagingTests (1) fail on this machine, with and without the latest changes | S |  |  |
 
 ## Details
 
@@ -384,9 +384,11 @@ Source: update-path research, 2026-10-15
 
 ### MOR-017 Jakarta Data: JDQL DELETE FROM
 
-Status **open**, priority 2, type implementation, effort M
+Status **done**, priority 2, type implementation, effort M
 
 DELETE FROM is part of Jakarta Data 1.0 (not 1.1). JdqlParser only accepts SELECT/WHERE/GROUP BY/HAVING/ORDER BY. Add DELETE FROM [WHERE] returning void/int/long (matched count) in JdqlParser, the Spring proxy path and MorphiumDataProcessor. Query.delete() already returns n. State whether lifecycle callbacks run (derived deleteBy skips them).
+
+Evidence: JdqlDeleteTest (11 invocations: statement recognition, entity name and WHERE clause split, malformed statements, then on the InMemoryDriver and on mongo:8 with the pooled driver: delete by named parameters returns the count and removes only the matches, no WHERE removes all, ordinal parameters work, zero matches, another entity name and ORDER BY are refused and delete nothing). Quarkus: the build generates the method for void, int and long and refuses boolean, Long, another entity name, a Sort parameter, ORDER BY and an ordinal without a parameter (MorphiumDataProcessorJdqlDeleteTest, 3 tests); AbstractMorphiumDataJdqlDeleteTest (long, int with ordinals, void) runs on the InMemoryDriver and on a real mongo:8 from Dev Services. Spring: three proxy tests (long, int with ordinals, void) in MorphiumRepositoryProxyTest, a wrong return type fails when the proxy is created. Whole suites: jakarta-data 118, Quarkus runtime 83, deployment 34, integration 278, Spring 28. Lifecycle: the delete runs no @PreRemove/@PostRemove callbacks of the entities (there is no instance), the storage listeners get preRemove(Query) and postRemove(Query); documented in docs/jakarta-data.md and the Javadoc. Not covered: the Spring tests run on the InMemoryDriver only (the bridge runs on mongo:8 in the jakarta-data module), async (CompletionStage) DELETE methods are refused by the return type rule, UPDATE statements (MOR-018), the listener events were not asserted by a test.
 
 Acceptance:
 
@@ -395,6 +397,8 @@ Acceptance:
 - Verified against a real MongoDB (not only the InMemoryDriver).
 
 Source: docs/research/jakarta-data-1.1.md section 1
+
+Commits: 8b3b80eda
 
 ### MOR-018 Jakarta Data: JDQL UPDATE ... SET ... WHERE as one atomic update
 
@@ -1260,9 +1264,11 @@ Commits: d1654434b
 
 ### MOR-074 MorphiumMigrationTest (2) and MultithreaddedMessagingTests (1) fail on this machine, with and without the latest changes
 
-Status **open**, priority 3, type verification, effort S
+Status **done**, priority 3, type verification, effort S
 
 Seen on 2026-10-20 while verifying MOR-072. The Quarkus integration tests MorphiumMigrationTest.inFlightHeartbeatAdvancesExpiryDuringSingleUnit and renewLockBetweenChangeUnitsAdvancesExpiry (timing based, 300 to 900 ms windows; the log says the collection still exists 10 s after dropCollection, so the test runs slowly) and the core test MultithreaddedMessagingTests (NullPointerException: Morphium.getDriver() is null in worker threads after close) failed, also on a checkout without the MOR-072 change (stashed). All three passed in earlier runs of the same stack (MOR-073, MOR-034). One earlier run of MorphiumMigrationTest failed in the full suite and passed alone. Find out whether the machine (about 25 leftover testcontainers, OrbStack just restarted) or a real race is the cause, and make the timing tests robust.
+
+Evidence: Not reproducible after the machine was rebooted (it had been up for days, with about 25 leftover testcontainers and OrbStack just restarted; load averages up to 18 on 12 cores while the three tests failed, free memory was about 90 MB). On the rebooted machine MorphiumMigrationTest passes 9 of 9 in 7.5 s in four runs (the failing runs took 40 s and logged "Collection ... still exists 10s after drop" from dropCollection) and MultithreaddedMessagingTests passes 3 of 3 in 27.7 s in four runs (the failing runs took 46 s). Artificial CPU load is not the cause: MorphiumMigrationTest also passes with 16 busy loops running (load average above 40). The cause is therefore a state of the host, probably memory pressure or the container runtime, not a race in the code; this was not proven. If it comes back, the sign is the dropCollection warning and a test time several times the usual one. Not done: no change to the tests.
 
 Acceptance:
 

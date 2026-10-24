@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Jakarta Data: `@Query("DELETE FROM Entity [WHERE ...]")` (MOR-017)
+A JDQL `DELETE` statement works in `@Query` methods of the Quarkus and the Spring Boot module. It runs as one server-side delete and returns the number of
+deleted documents as `void`, `int` or `long`; the `WHERE` clause is the one of a query, with named or ordinal parameters. Another return type, a
+`Sort`, `Order`, `PageRequest` or `Limit` parameter, `ORDER BY`, `GROUP BY`, `HAVING` and another entity name are refused. No entity lifecycle callbacks run
+(there is no instance), the storage listeners get `preRemove(Query)` and `postRemove(Query)`. `UPDATE` is still not supported (MOR-018).
+
 #### Jakarta Data: ordinal parameters (`?1`) in `@Query` (MOR-024)
 A JDQL `@Query` can use ordinal parameters instead of named ones, as the specification allows. `?n` is the *n*-th method parameter that is not a
 `Sort`, `Order`, `PageRequest` or `Limit`. `JdqlMethodBridge` rewrites the query to named parameters, so the Quarkus and the Spring Boot module both

@@ -179,7 +179,14 @@ Parameters are named (`:min`, bound by `@Param` or the method parameter name) or
 more than once. A query that uses an ordinal without a matching parameter, or mixes the two styles, fails when the application is built
 (Quarkus) or on the first call (Spring).
 
-The supported grammar, verified against `JdqlParser.java`:
+A `DELETE FROM Entity [WHERE ...]` statement deletes in one server-side command. The method returns `void`, `int` or `long` (the number of
+deleted documents; `int` is checked, a count above `Integer.MAX_VALUE` fails); other return types, a `Sort`, `Order`, `PageRequest` or `Limit`
+parameter, `ORDER BY`, `GROUP BY` and `HAVING` are refused (at build time in Quarkus, when the proxy is created in Spring). The entity name must be
+the simple name of the entity of the repository, or be left out (`DELETE FROM WHERE ...`). Like the derived `deleteBy`, the delete runs no entity
+lifecycle callbacks (`@PreRemove`, `@PostRemove`: there is no instance to call them on); the storage listeners get `preRemove(Query)` and
+`postRemove(Query)`. `UPDATE` statements are not supported yet.
+
+The supported grammar for queries, verified against `JdqlParser.java`:
 
 ```
 [SELECT field1, field2 [FROM EntityName]]
