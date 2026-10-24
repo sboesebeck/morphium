@@ -3,14 +3,9 @@ package de.caluga.morphium.query;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.Reference;
-import de.caluga.morphium.annotations.encryption.Encrypted;
 
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -202,64 +197,14 @@ final class UpdateDocumentMapper {
     }
 
     private void rejectEncrypted(String operator, String fieldName) {
-        if (!ENCRYPTION_CHECKED_OPERATORS.contains(operator)) {
-            return;
-        }
-
-        Field fld = fieldOf(fieldName);
-
-        if (fld != null && fld.isAnnotationPresent(Encrypted.class)) {
-            throw new IllegalArgumentException("Field '" + fieldName + "' of " + type.getName() + " is @Encrypted: " + operator
-                                               + " would write a plaintext value that bypasses the encryption and cannot be read back. Store the entity instead.");
+        if (ENCRYPTION_CHECKED_OPERATORS.contains(operator)) {
+            UpdateFieldGuards.rejectEncrypted(type, fieldOf(fieldName), fieldName, operator);
         }
     }
 
     private void rejectEntityForReference(String operator, String fieldName, Object value) {
-        if (fieldName == null || !containsEntity(value)) {
-            return;
+        if (fieldName != null) {
+            UpdateFieldGuards.rejectEntityForReference(morphium.getARHelper(), type, fieldOf(fieldName), fieldName, operator, value);
         }
-
-        Field fld = fieldOf(fieldName);
-
-        if (fld != null && fld.isAnnotationPresent(Reference.class)) {
-            throw new IllegalArgumentException("Field '" + fieldName + "' of " + type.getName() + " is a @Reference: " + operator
-                                               + " would embed the entity as a document. Pass the id of the referenced entity (or a MorphiumReference) instead.");
-        }
-    }
-
-    private boolean containsEntity(Object value) {
-        if (value == null) {
-            return false;
-        }
-
-        if (value instanceof Map) {
-            for (Object v : ((Map<?, ?>) value).values()) {
-                if (containsEntity(v)) {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        if (value instanceof Collection) {
-            for (Object v : (Collection<?>) value) {
-                if (containsEntity(v)) {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        if (value.getClass().isArray() && !value.getClass().getComponentType().isPrimitive()) {
-            List<Object> l = new ArrayList<>();
-            for (int i = 0; i < java.lang.reflect.Array.getLength(value); i++) {
-                l.add(java.lang.reflect.Array.get(value, i));
-            }
-            return containsEntity(l);
-        }
-
-        return morphium.getARHelper().isEntity(value);
     }
 }

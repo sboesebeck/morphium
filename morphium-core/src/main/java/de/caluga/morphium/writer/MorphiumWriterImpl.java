@@ -67,6 +67,7 @@ import de.caluga.morphium.driver.commands.UpdateMongoCommand;
 import de.caluga.morphium.driver.commands.WriteReplyErrors;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.query.Query;
+import de.caluga.morphium.query.UpdateFieldGuards;
 
 /**
  * User: Stephan Bösebeck Date: 30.08.12 Time: 14:38
@@ -2473,7 +2474,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         final Map<String, Object> marshalled = new LinkedHashMap<>();
 
         for (Map.Entry<String, Object> ef : values.entrySet()) {
-            marshalled.put(ef.getKey(), morphium.getMapper().marshallUpdateValue(ef.getValue(), morphium.getARHelper().getFieldOrNull(query.getType(), ef.getKey())));
+            final java.lang.reflect.Field target = morphium.getARHelper().getFieldOrNull(query.getType(), ef.getKey());
+            UpdateFieldGuards.guardWriterUpdate(morphium.getARHelper(), query.getType(), target, ef.getKey(), MorphiumStorageListener.UpdateTypes.SET, ef.getValue());
+            marshalled.put(ef.getKey(), morphium.getMapper().marshallUpdateValue(ef.getValue(), target));
         }
 
         return submitAndBlockIfNecessary(callback, new WriterTask() {
@@ -2826,6 +2829,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                             AsyncOperationCallback<T> callback) {
         // marshalled on the calling thread, see set()
         final java.lang.reflect.Field target = morphium.getARHelper().getFieldOrNull(query.getType(), field);
+        UpdateFieldGuards.guardWriterUpdate(morphium.getARHelper(), query.getType(), target, field, type, value);
         final Object marshalledValue = type == MorphiumStorageListener.UpdateTypes.PULL ? morphium.getMapper().marshallUpdatePullOperand(value, target) : morphium.getMapper().marshallUpdateElement(value, target);
         WriterTask r = new WriterTask() {
             private AsyncOperationCallback<T> callback;
@@ -3001,6 +3005,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         final List<Object> marshalledValues = new ArrayList<>(v.size());
 
         final java.lang.reflect.Field target = morphium.getARHelper().getFieldOrNull(query.getType(), f);
+        UpdateFieldGuards.guardWriterUpdate(morphium.getARHelper(), query.getType(), target, f, type, v);
 
         for (Object o : v) {
             marshalledValues.add(morphium.getMapper().marshallUpdateElement(o, target));

@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 12, done 89
+Status: open 11, done 90
 
 ## Overview
 
@@ -20,7 +20,6 @@ Status: open 12, done 89
 | MOR-033 | open | 3 | implementation | Quarkus: CDI integration for Morphium messaging | M |  |  |
 | MOR-035 | open | 3 | implementation | Records and value objects in the mapper | L |  |  |
 | MOR-039 | open | 3 | documentation | Document pitfalls of update maps: $pull condition keys and mixed element shapes | S |  | MOR-027 |
-| MOR-049 | open | 3 | implementation | Writer path has no guard for @Reference and @Encrypted fields | M |  | MOR-042 |
 | MOR-071 | open | 3 | defect | Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange | S |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
@@ -95,6 +94,7 @@ Status: open 12, done 89
 | MOR-045 | done | 3 | defect | Update documents: a String value for _id of a MorphiumId entity is not coerced | S |  | MOR-041 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
 | MOR-048 | done | 3 | defect | MorphiumBase.setEnum looks the value up by the map value instead of the key | S |  |  |
+| MOR-049 | done | 3 | implementation | Writer path has no guard for @Reference and @Encrypted fields | M |  | MOR-042 |
 | MOR-051 | done | 3 | defect | InMemoryDriver: reject path conflicts in update documents like MongoDB | S |  |  |
 | MOR-052 | done | 3 | defect | updateLastAccess writes the untranslated Java field name | S |  |  |
 | MOR-056 | done | 3 | defect | InMemoryDriver: upsert seeds the equalities of a single-branch $or | S |  |  |
@@ -1011,9 +1011,11 @@ Commits: d79de7ed2
 
 ### MOR-049 Writer path has no guard for @Reference and @Encrypted fields
 
-Status **open**, priority 3, type implementation, effort M
+Status **done**, priority 3, type implementation, effort M
 
 UpdateDocumentMapper rejects an entity for a @Reference field and any write to an @Encrypted field in findOneAndUpdate; Query.set, push and pull accept both and embed the entity or store a plaintext value. Adding the guard would be a breaking change for callers who rely on it, so it needs a decision and a CHANGELOG entry.
+
+Evidence: WriterPathGuardTest (set and push/pushAll of an entity into @Reference fields, set of plaintext into @Encrypted, ids and other fields still written) green on the InMemoryDriver and MongoDB 8 (PooledDriver); mapper key test and 29 related update and marshalling tests unchanged.
 
 Acceptance:
 
@@ -1022,6 +1024,8 @@ Acceptance:
 Depends on: MOR-042
 
 Source: docs/research/plan-mor-042.md
+
+Commits: 86dc10302
 
 ### MOR-050 Update builder: updateOne, updateMany and UpdateResult
 
