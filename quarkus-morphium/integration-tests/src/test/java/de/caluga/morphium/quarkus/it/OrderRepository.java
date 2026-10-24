@@ -86,6 +86,11 @@ public interface OrderRepository extends BasicRepository<OrderEntity, String> {
     @Query("WHERE customerId IS NOT NULL ORDER BY customerId ASC")
     List<OrderEntity> queryAllWithCustomerId();
 
+    /** findFirstBy and findFirstNBy (MOR-079) */
+    Optional<OrderEntity> findFirstByStatusOrderByAmountDesc(String status);
+
+    List<OrderEntity> findFirst2ByStatusOrderByAmountAsc(String status);
+
     /** a derived query without By (MOR-076) */
     long countAll();
 

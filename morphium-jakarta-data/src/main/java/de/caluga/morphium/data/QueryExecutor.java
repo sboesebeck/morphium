@@ -55,11 +55,17 @@ public final class QueryExecutor {
             applySorting(query, descriptor.orderBy(), morphium, entityClass);
         }
 
+        // findFirstBy... / findFirst3By...
+        if (descriptor.limit() > 0) {
+            query.limit(descriptor.limit());
+        }
+
         // Execute based on prefix
         return switch (descriptor.prefix()) {
             case FIND -> switch (descriptor.returnType()) {
-                case SINGLE -> QueryResultHelper.requireSingle(query);
-                case OPTIONAL -> QueryResultHelper.optionalSingle(query);
+                // findFirstBy...: the first match, more matches are no error
+                case SINGLE -> descriptor.limit() > 0 ? QueryResultHelper.requireFirst(query) : QueryResultHelper.requireSingle(query);
+                case OPTIONAL -> descriptor.limit() > 0 ? QueryResultHelper.optionalFirst(query) : QueryResultHelper.optionalSingle(query);
                 case STREAM -> query.stream();
                 default -> query.asList();
             };

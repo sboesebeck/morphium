@@ -109,8 +109,7 @@ public final class QueryMethodBridge {
             if (!orderBySpec.isEmpty()) {
                 var mergedOrderBy = new ArrayList<>(parsed.orderBy());
                 mergedOrderBy.addAll(parseOrderBySpec(orderBySpec));
-                return new QueryDescriptor(parsed.prefix(), parsed.conditions(),
-                        parsed.combinator(), mergedOrderBy, parsed.returnType());
+                return parsed.withOrderBy(mergedOrderBy);
             }
             return parsed;
         });
@@ -178,6 +177,15 @@ public final class QueryMethodBridge {
                 query.sort(sortMap);
             }
         }
+        // findFirstBy... / findFirst3By... has its own limit: the specification does not combine it with a Limit or PageRequest parameter
+        if (descriptor.limit() > 0) {
+            if (limitParamIndex >= 0 || pageRequestParamIndex >= 0) {
+                throw new IllegalArgumentException(methodName + ": findFirst... cannot be combined with a Limit or PageRequest parameter");
+            }
+
+            query.limit(descriptor.limit());
+        }
+
         if (limitParamIndex >= 0 && args[limitParamIndex] != null) {
             Limit limit = (Limit) args[limitParamIndex];
             query.skip((int) (limit.startAt() - 1));
@@ -201,10 +209,10 @@ public final class QueryMethodBridge {
         }
 
         if (returnsOptional) {
-            return QueryResultHelper.optionalSingle(query);
+            return descriptor.limit() > 0 ? QueryResultHelper.optionalFirst(query) : QueryResultHelper.optionalSingle(query);
         }
         if (returnsSingle) {
-            return QueryResultHelper.requireSingle(query);
+            return descriptor.limit() > 0 ? QueryResultHelper.requireFirst(query) : QueryResultHelper.requireSingle(query);
         }
         if (returnsStream) {
             return query.stream();
@@ -249,12 +257,7 @@ public final class QueryMethodBridge {
             if (!orderBySpec.isEmpty()) {
                 var mergedOrderBy = new ArrayList<>(parsed.orderBy());
                 mergedOrderBy.addAll(parseOrderBySpec(orderBySpec));
-                return new QueryDescriptor(
-                        parsed.prefix(),
-                        parsed.conditions(),
-                        parsed.combinator(),
-                        mergedOrderBy,
-                        parsed.returnType());
+                return parsed.withOrderBy(mergedOrderBy);
             }
             return parsed;
         });
@@ -262,26 +265,11 @@ public final class QueryMethodBridge {
         // Override return type if caller expects single, optional, or stream result
         if (descriptor.prefix() == QueryDescriptor.Prefix.FIND) {
             if (returnsOptional) {
-                descriptor = new QueryDescriptor(
-                        descriptor.prefix(),
-                        descriptor.conditions(),
-                        descriptor.combinator(),
-                        descriptor.orderBy(),
-                        QueryDescriptor.ReturnType.OPTIONAL);
+                descriptor = descriptor.withReturnType(QueryDescriptor.ReturnType.OPTIONAL);
             } else if (returnsSingle) {
-                descriptor = new QueryDescriptor(
-                        descriptor.prefix(),
-                        descriptor.conditions(),
-                        descriptor.combinator(),
-                        descriptor.orderBy(),
-                        QueryDescriptor.ReturnType.SINGLE);
+                descriptor = descriptor.withReturnType(QueryDescriptor.ReturnType.SINGLE);
             } else if (returnsStream) {
-                descriptor = new QueryDescriptor(
-                        descriptor.prefix(),
-                        descriptor.conditions(),
-                        descriptor.combinator(),
-                        descriptor.orderBy(),
-                        QueryDescriptor.ReturnType.STREAM);
+                descriptor = descriptor.withReturnType(QueryDescriptor.ReturnType.STREAM);
             }
         }
 

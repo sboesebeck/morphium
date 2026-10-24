@@ -149,7 +149,7 @@ class JakartaDataTckSpikeTest {
         unsupported.forEach((k, v) -> System.out.println("TCK-SPIKE no repository for " + k + ": " + v));
         System.out.println("TCK-SPIKE " + passed + " of " + methods.size() + " passed");
         java.util.Map<String, List<String>> byReason = new TreeMap<>();
-        results.forEach((k, v) -> byReason.computeIfAbsent(v.length() > 160 ? v.substring(0, 160) : v, x -> new ArrayList<>()).add(k));
+        results.forEach((k, v) -> byReason.computeIfAbsent(v.length() > Integer.getInteger("tck.reason.length", 160) ? v.substring(0, Integer.getInteger("tck.reason.length", 160)) : v, x -> new ArrayList<>()).add(k));
         byReason.forEach((reason, names) -> System.out.println("TCK-SPIKE [" + names.size() + "] " + reason + " :: " + (names.size() > 6 ? names.subList(0, 6) + "..." : names)));
     }
 }

@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 23, in_progress 1, done 53
+Status: open 23, in_progress 1, done 54
 
 ## Overview
 
@@ -76,6 +76,7 @@ Status: open 23, in_progress 1, done 53
 | MOR-068 | done | 2 | defect | SingleMongoConnectDriver: cannot connect to a standalone server, and a rejected bulk request keeps its only connection | S |  |  |
 | MOR-076 | done | 2 | defect | Jakarta Data: derived queries without By (countAll and similar) are unsupported | S |  |  |
 | MOR-078 | done | 2 | defect | A char or Character field cannot be read back | S |  |  |
+| MOR-079 | done | 2 | defect | Jakarta Data: findFirstBy and findFirstNBy are unsupported | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
@@ -1364,4 +1365,21 @@ Acceptance:
 Source: docs/research/jakarta-data-1.1.md, morphium-core/src/main/java/de/caluga/morphium/AnnotationAndReflectionHelper.java convertType
 
 Commits: 32d0ceca7
+
+### MOR-079 Jakarta Data: findFirstBy and findFirstNBy are unsupported
+
+Status **done**, priority 2, type defect, effort S
+
+Found by the TCK of MOR-026: AsciiCharacters declares findFirst3ByNumericValueGreaterThanEqualAndHexadecimalEndsWith and findFirstByHexadecimalStartsWithAndIsControlOrderByIdAsc; the name was not routed to the derived-query code (4 TCK tests). The first n results are returned in the order of the name; more matches are no error for a single entity or an Optional; First belongs to find only; First with a Limit or PageRequest parameter is refused, at build time in Quarkus.
+
+Evidence: MethodNameParserTest (findFirst, derived names; red before), Quarkus integration test findFirst on the InMemoryDriver and on a real mongo:8 (AbstractMorphiumDataOrdinalQueryTest), Spring proxy tests (findFirstLimitsTheResult, findFirstCannotBeCombinedWithALimitParameter), Quarkus deployment test for First with Limit. Reviewed in three passes until no finding was left (a lost limit with a PageRequest, a duplicated name regex, the refusal only at the first call in Quarkus).
+
+Acceptance:
+
+- findFirstBy and findFirst3By work in the Quarkus and the Spring module
+- One derived-name check serves both modules
+
+Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/MethodNameParser.java
+
+Commits: 3c2cd7e13
 

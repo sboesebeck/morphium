@@ -176,6 +176,16 @@ class MorphiumDataProcessorAtomicUpdateTest {
         void bad(@Param("id") String id);
     }
 
+    @Repository
+    public interface FindFirstWithLimit extends MorphiumRepository<Lease, String> {
+        List<Lease> findFirst2ByOwner(String owner, jakarta.data.Limit limit);
+    }
+
+    @Repository
+    public interface FindFirstFine extends MorphiumRepository<Lease, String> {
+        List<Lease> findFirst2ByOwner(String owner);
+    }
+
     private static class Collecting implements BuildProducer<ReflectiveClassBuildItem> {
         @Override
         public void produce(ReflectiveClassBuildItem item) {
@@ -264,5 +274,12 @@ class MorphiumDataProcessorAtomicUpdateTest {
         refused(ManyOnDocumentForm.class, "ManyOnDocumentForm.bad", "many");
         refused(OrderOnCountForm.class, "OrderOnCountForm.bad", "@OrderBy");
         refused(SortParameter.class, "SortParameter.bad", "Sort");
+    }
+
+    @Test
+    @DisplayName("MOR-079: findFirstN with a Limit parameter fails the build, without one it is generated")
+    void findFirstWithLimit() {
+        assertThatThrownBy(() -> generate(FindFirstWithLimit.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("findFirst2ByOwner").hasMessageContaining("Limit");
+        assertThatCode(() -> generate(FindFirstFine.class)).doesNotThrowAnyException();
     }
 }

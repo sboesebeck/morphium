@@ -843,8 +843,7 @@ public class MorphiumDataProcessor {
             }
 
             // Phase 2: Try to parse as query derivation method
-            if (name.startsWith("findBy") || name.startsWith("countBy")
-                    || name.startsWith("existsBy") || name.startsWith("deleteBy") || name.equals("countAll")) {
+            if (MethodNameParser.isDerivedQueryName(name)) {
                 generateQueryMethod(cc, method, entityClassName, entityFields);
                 continue;
             }
@@ -1002,6 +1001,14 @@ public class MorphiumDataProcessor {
                             + "bulk delete is not sensibly definable. Remove the parameter, or restructure the "
                             + "method as a findBy* query and apply count()/isEmpty()/delete() logic in application "
                             + "code instead.");
+        }
+
+        // findFirstBy... / findFirst3By... has its own limit (MOR-079); the specification does not combine it with a Limit or PageRequest parameter
+        if (descriptor.limit() > 0 && (pageRequestParamIndex >= 0 || limitParamIndex >= 0)) {
+            throw new IllegalStateException(
+                    "Unsupported repository method " + method.declaringClass().name() + "." + methodName
+                            + "() -- findFirst... cannot be combined with a " + (pageRequestParamIndex >= 0 ? "PageRequest" : "Limit")
+                            + " parameter. Use findBy... with the parameter, or drop it.");
         }
 
         // Determine return type for the descriptor (based on effective/inner type)
