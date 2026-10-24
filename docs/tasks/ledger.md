@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 27, done 45
+Status: open 27, done 46
 
 ## Overview
 
@@ -36,7 +36,7 @@ Status: open 27, done 45
 | MOR-052 | open | 3 | defect | updateLastAccess writes the untranslated Java field name | S |  |  |
 | MOR-070 | open | 3 | defect | PoppyDB: the delete fast path swallows errors | S |  |  |
 | MOR-071 | open | 3 | defect | Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange | S |  |  |
-| MOR-072 | open | 3 | defect | The update builder, findOneAndUpdate(Map), updateOne and updateMany fire no storage-listener update events | M |  |  |
+| MOR-074 | open | 3 | verification | MorphiumMigrationTest (2) and MultithreaddedMessagingTests (1) fail on this machine, with and without the latest changes | S |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -81,6 +81,7 @@ Status: open 27, done 45
 | MOR-057 | done | 3 | defect | InMemoryDriver: an inserted document is stored by reference | S |  |  |
 | MOR-061 | done | 3 | defect | Query.dec(field, Integer) turns an int counter into a double | S |  |  |
 | MOR-065 | done | 3 | defect | Delete paths ignore the writeErrors of the delete reply | S |  |  |
+| MOR-072 | done | 3 | defect | The update builder, findOneAndUpdate(Map), updateOne and updateMany fire no storage-listener update events | M |  |  |
 | MOR-073 | done | 3 | defect | Query.push, pull and addToSet fire the update events twice, and the post event is always PUSH | S |  |  |
 
 ## Details
@@ -1243,15 +1244,31 @@ Source: morphium-core/src/main/java/de/caluga/morphium/writer/MorphiumWriterImpl
 
 ### MOR-072 The update builder, findOneAndUpdate(Map), updateOne and updateMany fire no storage-listener update events
 
-Status **open**, priority 3, type defect, effort M
+Status **done**, priority 3, type defect, effort M
 
 Found by MOR-031. MorphiumStorageListener.preUpdate/postUpdate (Morphium.firePreUpdateEvent) are fired by the writer path (Query.set, inc, push, ...), the bulk context and the buffered writer, but not by Query.modify() (UpdateBuilder), Query.findOneAndUpdate(Map, ...), updateOne and updateMany. Listeners and metrics (morphium.operations.duration in quarkus-morphium) do not see the newest update path. Decide whether they fire the events (a veto from preUpdate then blocks them) or the contract says why not.
+
+Evidence: UpdateEventsTest now has 12 tests (6 more): the builder fires one preUpdate/postUpdate pair with the type of its operator (inc, push, set, also through tryFindOneAndUpdate) and CUSTOM for several operators, updateOne and updateMany fire one pair, findOneAndUpdate(Map) in all three overloads fires one pair (SET, CUSTOM), an invalid builder fires nothing, and a MorphiumAccessVetoException from preUpdate stops the builder, updateOne and the map update with nothing written. Red before (5 failures), green after on the InMemoryDriver and on mongo:8. Fix in Query: findAndModifyReply, the legacy findOneAndUpdate(Map) and updateMapped fire preUpdate before anything is sent and postUpdate after the cache was cleared (before the reply of an update command is turned into an exception, like the writer path); the type is the single operator of the update document or CUSTOM. Consequences, in the CHANGELOG: a vetoing listener blocks these updates now, and MessagingCacheSynchronizer sends its clear message for them. The Quarkus timer includes them (test with builder, updateMany, findOneAndUpdate(Map) and a CUSTOM update, on the InMemoryDriver and mongo:8; docs and changelog adjusted). Regression core and messaging on the InMemoryDriver: 1561 of 1562 passed, the one failure (MultithreaddedMessagingTests) also fails without this change on the same machine, see MOR-074. The Quarkus integration run has two failures in MorphiumMigrationTest that also fail without the change, MOR-074. Not covered: findOneAndDelete (not an update), a buffered writer.
 
 Acceptance:
 
 - A listener sees preUpdate and postUpdate for the builder terminals, findOneAndUpdate(Map) and the count terminals, or the contract page says they are not fired
 
 Source: morphium-core/src/main/java/de/caluga/morphium/query/UpdateBuilder.java, quarkus-morphium/runtime/src/main/java/de/caluga/morphium/quarkus/observability/MorphiumOperationMetrics.java
+
+Commits: d1654434b
+
+### MOR-074 MorphiumMigrationTest (2) and MultithreaddedMessagingTests (1) fail on this machine, with and without the latest changes
+
+Status **open**, priority 3, type verification, effort S
+
+Seen on 2026-10-20 while verifying MOR-072. The Quarkus integration tests MorphiumMigrationTest.inFlightHeartbeatAdvancesExpiryDuringSingleUnit and renewLockBetweenChangeUnitsAdvancesExpiry (timing based, 300 to 900 ms windows; the log says the collection still exists 10 s after dropCollection, so the test runs slowly) and the core test MultithreaddedMessagingTests (NullPointerException: Morphium.getDriver() is null in worker threads after close) failed, also on a checkout without the MOR-072 change (stashed). All three passed in earlier runs of the same stack (MOR-073, MOR-034). One earlier run of MorphiumMigrationTest failed in the full suite and passed alone. Find out whether the machine (about 25 leftover testcontainers, OrbStack just restarted) or a real race is the cause, and make the timing tests robust.
+
+Acceptance:
+
+- The three tests pass reliably on a quiet machine, or the cause is documented and the tests no longer depend on it
+
+Source: quarkus-morphium/integration-tests/src/test/java/de/caluga/morphium/quarkus/it/MorphiumMigrationTest.java, morphium-core/src/test/java/de/caluga/test/morphium/messaging/MultithreaddedMessagingTests.java
 
 ### MOR-073 Query.push, pull and addToSet fire the update events twice, and the post event is always PUSH
 

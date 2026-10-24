@@ -30,8 +30,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Times the update operations of the writer path ({@code Query.set}, {@code inc}, {@code push},
- * {@code pull}, ..., the bulk context) as the Micrometer timer {@code morphium.operations.duration}
+ * Times the update operations ({@code Query.set}, {@code inc}, {@code push},
+ * {@code pull}, ..., the builder, the bulk context) as the Micrometer timer {@code morphium.operations.duration}
  * with the tags {@code database}, {@code operation=update}, {@code update_type} and {@code entity}.
  *
  * <p>The source is the pair {@code preUpdate}/{@code postUpdate} of {@link MorphiumStorageAdapter}; the
@@ -41,9 +41,8 @@ import java.util.concurrent.TimeUnit;
  * duration (the stack of a kind is capped, the oldest entry is dropped). A {@code postUpdate} without a
  * start on its thread (a buffered writer that flushes on another thread) is not timed.
  *
- * <p>Not covered: the update builder ({@code Query.modify()}), {@code findOneAndUpdate(Map)} and the
- * counting {@code updateOne}/{@code updateMany} fire no storage-listener events in morphium-core
- * (MOR-072), so they do not appear here.
+ * <p>Covers every update that fires the events: the writer path, the bulk context, the update builder ({@code Query.modify()}), {@code findOneAndUpdate(Map)},
+ * {@code updateOne} and {@code updateMany}. An update with several operators has the {@code update_type} {@code custom}.
  */
 public class MorphiumOperationMetrics extends MorphiumStorageAdapter<Object> {
 

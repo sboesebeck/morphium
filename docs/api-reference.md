@@ -274,7 +274,7 @@ long hits = morphium.createQueryFor(Counter.class).f("id").eq(key).modify().inc(
 Field names are always translated to the stored names, values are marshalled at the call, a path and its child (or two operators on one path) are
 rejected at the call, an empty update is rejected (it would replace the document), and an `@Version` field is incremented (an insert starts at 1) unless the
 update touches it. `ReturnDocument` has no default: an upsert that inserts returns `null` for `BEFORE`. `@LastChange` is set by every update that modifies a document and `@CreationTime` by an insert (MOR-009),
-no update events are fired, skip, limit above 1, hint and projection are rejected. See the Javadoc of `UpdateBuilder` for the complete contract.
+the storage-listener update events (`preUpdate`, `postUpdate`) are fired once per call, skip, limit above 1, hint and projection are rejected. See the Javadoc of `UpdateBuilder` for the complete contract.
 
 The array and number operators, with the shape of the element that `store()` writes:
 ```java

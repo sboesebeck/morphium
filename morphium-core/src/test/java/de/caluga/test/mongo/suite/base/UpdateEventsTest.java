@@ -1,10 +1,12 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumAccessVetoException;
 import de.caluga.morphium.MorphiumStorageAdapter;
 import de.caluga.morphium.MorphiumStorageListener.UpdateTypes;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.query.ReturnDocument;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -12,7 +14,10 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.util.ArrayList;
 import java.util.List;
 
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * MOR-073: an update of the writer path fires one {@code preUpdate} and one {@code postUpdate}, both with the type of the call. {@code push}, {@code pull} and
@@ -119,6 +124,92 @@ public class UpdateEventsTest extends MultiDriverTestBase {
             r.events.clear();
             m.createQueryFor(Holder.class).f("id").eq("h1").inc("hits", 1);
             assertOnePair(r, UpdateTypes.INC);
+        }
+    }
+
+    // ------------------------------------------------------------------ MOR-072: the builder, findOneAndUpdate(Map), updateOne and updateMany
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void theBuilderFiresOnePairWithTheTypeOfItsOperator(Morphium m) throws Exception {
+        try (m) {
+            Recorder r = prepare(m);
+            m.createQueryFor(Holder.class).f("id").eq("h1").modify().inc("hits", 2).findOneAndUpdate(ReturnDocument.AFTER);
+            assertOnePair(r, UpdateTypes.INC);
+            r.events.clear();
+            m.createQueryFor(Holder.class).f("id").eq("h1").modify().push("tags", "x").findOneAndUpdate(ReturnDocument.AFTER);
+            assertOnePair(r, UpdateTypes.PUSH);
+            r.events.clear();
+            m.createQueryFor(Holder.class).f("id").eq("h1").modify().set("hits", 7).tryFindOneAndUpdate(ReturnDocument.AFTER);
+            assertOnePair(r, UpdateTypes.SET);
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void aBuilderWithSeveralOperatorsFiresCustom(Morphium m) throws Exception {
+        try (m) {
+            Recorder r = prepare(m);
+            m.createQueryFor(Holder.class).f("id").eq("h1").modify().set("hits", 1).push("tags", "x").findOneAndUpdate(ReturnDocument.AFTER);
+            assertOnePair(r, UpdateTypes.CUSTOM);
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void updateOneAndUpdateManyFireOnePair(Morphium m) throws Exception {
+        try (m) {
+            Recorder r = prepare(m);
+            m.createQueryFor(Holder.class).f("id").eq("h1").modify().inc("hits", 1).updateOne();
+            assertOnePair(r, UpdateTypes.INC);
+            r.events.clear();
+            m.createQueryFor(Holder.class).modify().set("hits", 3).updateMany();
+            assertOnePair(r, UpdateTypes.SET);
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void findOneAndUpdateOfAMapFiresOnePair(Morphium m) throws Exception {
+        try (m) {
+            Recorder r = prepare(m);
+            m.createQueryFor(Holder.class).f("id").eq("h1").findOneAndUpdate(Map.of("$set", Map.of("hits", 4)), false, true);
+            assertOnePair(r, UpdateTypes.SET);
+            r.events.clear();
+            m.createQueryFor(Holder.class).f("id").eq("h1").findOneAndUpdate(Map.of("$inc", Map.of("hits", 1), "$set", Map.of("tags", List.of("z"))), false, true);
+            assertOnePair(r, UpdateTypes.CUSTOM);
+            r.events.clear();
+            m.createQueryFor(Holder.class).f("id").eq("h1").findOneAndUpdate(Map.of("$set", Map.of("hits", 5)));
+            assertOnePair(r, UpdateTypes.SET);
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void anInvalidBuilderFiresNothing(Morphium m) throws Exception {
+        try (m) {
+            Recorder r = prepare(m);
+            assertThrows(IllegalStateException.class, () -> m.createQueryFor(Holder.class).f("id").eq("h1").modify().findOneAndUpdate(ReturnDocument.AFTER));
+            assertEquals(List.of(), r.events);
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void aVetoOfPreUpdateStopsTheBuilderAndTheMapUpdate(Morphium m) throws Exception {
+        try (m) {
+            prepare(m);
+            m.addListener(new MorphiumStorageAdapter<Object>() {
+                @Override
+                public void preUpdate(Morphium mm, Class<?> cls, Enum updateType) {
+                    throw new MorphiumAccessVetoException("no updates");
+                }
+            });
+
+            assertThrows(MorphiumAccessVetoException.class, () -> m.createQueryFor(Holder.class).f("id").eq("h1").modify().set("hits", 9).findOneAndUpdate(ReturnDocument.AFTER));
+            assertThrows(MorphiumAccessVetoException.class, () -> m.createQueryFor(Holder.class).f("id").eq("h1").modify().set("hits", 9).updateOne());
+            assertThrows(MorphiumAccessVetoException.class, () -> m.createQueryFor(Holder.class).f("id").eq("h1").findOneAndUpdate(Map.of("$set", Map.of("hits", 9)), false, true));
+            assertEquals(0, m.createQueryFor(Holder.class).f("id").eq("h1").get().hits, "nothing was written");
         }
     }
 }
