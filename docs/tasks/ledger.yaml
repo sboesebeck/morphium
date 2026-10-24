@@ -760,7 +760,7 @@ tasks:
 - id: MOR-034
   title: 'Quarkus testing module: real MongoDB test resource, data reset and fixtures'
   type: implementation
-  status: open
+  status: done
   priority: 2
   effort: M
   description: The testing module offers only InMemMorphiumTestProfile. Add a MongoDB test resource (container or
@@ -771,6 +771,9 @@ tasks:
   - Verified against a real MongoDB (not only the InMemoryDriver).
   source:
   - review of quarkus-morphium
+  evidence: 'quarkus-morphium-testing now has MongoDB test profile MongoMorphiumTestProfile (pooled driver; a mongo container from Dev Services, or the server named by MORPHIUM_TEST_HOSTS; own database, hooks database() and replicaSet()), MorphiumTestSupport.reset (deletes the documents of all collections, keeps the collections and their indexes, clears the cache) and load (fixtures through Morphium.store), and the JUnit extension ResetMorphiumExtension. AbstractMorphiumTestSupportTest in the integration tests is an application-style test: two tests that leave data behind both start with an empty database, fixtures get ids and are queryable, reset keeps the collections. It runs on the in-memory driver (MorphiumTestSupportInMemTest) and on a real mongo:8 started by Dev Services (MorphiumTestSupportRealMongoTest), 8 tests. Mutation check: with the delete of reset commented out four of the eight fail. The whole runtime (82), deployment (31) and integration-tests (264) suites pass. Docs: section Testing against a real MongoDB in docs/quarkus-extension.md and the extension CHANGELOG. Not verified: MORPHIUM_TEST_HOSTS against an existing server (only the container path ran), a replica set profile, and the reset against a database with unique indexes.'
+  commits:
+  - ce8c34616
 - id: MOR-035
   title: Records and value objects in the mapper
   type: implementation
