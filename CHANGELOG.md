@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### `KeyRename`: rename the keys inside embedded documents that are already stored (MOR-016)
+`KeyRename.in(morphium, Owner.class).at("children").snakeToCamel().apply()` renames the keys of an embedded document, or of every document of an embedded list, in the stored collection (also in the levels below; `rename(from, to)` names single keys; `_id` and `class_name` are kept) and returns the number of changed documents. It is the migration that goes with a change of the names an `@Embedded` class stores. A rename that would overwrite a key throws before anything is written. The howto `docs/howtos/embedded-key-migration.md` shows it as a `@MorphiumChangeUnit`. Tests: `KeyRenameTest` (InMemoryDriver and MongoDB 8).
+
+
 #### Quarkus: `MorphiumMessaging` as a CDI bean and `@MorphiumMessageListener` (MOR-033)
 `@Inject MorphiumMessaging messaging;` is the message queue of the default `Morphium` instance: created on first use, configured by the optional `quarkus.morphium.messaging.*` (`queue-name`, `window-size`, `poll-pause`, `multithreaded`, `use-change-stream`, `sender-id`, `auto-answer`; unset means Morphium's default), started, and terminated when the application stops. A CDI bean that implements `MessageListener` and carries `@MorphiumMessageListener(topic = "orders")` is registered as the listener of its topic(s) when the messaging is created, keeps its scope and is not removed as unused; such a bean makes the extension create the messaging at startup, so nobody has to inject it for the messages to be processed. Named instances (MOR-032) have no messaging bean: create it from the injected instance. Tests: `AbstractMorphiumMessagingCdiTest` with `MorphiumMessagingCdiInMemTest` and `MorphiumMessagingCdiRealMongoTest`.
 

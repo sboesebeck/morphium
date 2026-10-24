@@ -53,9 +53,10 @@ mismatch is invisible until a raw query or a second application reads the docume
 
 The mapper logs a warning once per entity class that names owner, field and embedded class. With
 `ObjectMappingSettings.strictEmbeddedNaming` it throws an `IllegalStateException` at the first use instead (MOR-014). The fix is
-`@Embedded(translateCamelCase = false)` on the embedded class. An opt-in inheritance mode is MOR-015.
+`@Embedded(translateCamelCase = false)` on the embedded class. An opt-in inheritance mode is MOR-015. Documents that were stored with the old names are migrated with `KeyRename` (MOR-016), see
+[Migrating the key names inside embedded documents](embedded-key-migration.md).
 
-Tests: `EmbeddedCamelCaseReproductionTest`, `EmbeddedNamingGuardTest`.
+Tests: `EmbeddedCamelCaseReproductionTest`, `EmbeddedNamingGuardTest`, `KeyRenameTest`.
 
 ## 4. `$setOnInsert` without the version: the later `store()` fails
 
