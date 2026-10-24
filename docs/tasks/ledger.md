@@ -1385,7 +1385,7 @@ Acceptance:
 
 Source: morphium-core/src/main/java/de/caluga/morphium/writer/MorphiumWriterImpl.java handleLastChange, morphium-core/src/test/java/de/caluga/test/mongo/suite/base/UpdateEntryPointsLifecycleTest.java
 
-Commits: FIXME
+Commits: e64af8242
 
 ### MOR-072 The update builder, findOneAndUpdate(Map), updateOne and updateMany fire no storage-listener update events
 
