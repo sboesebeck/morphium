@@ -4,13 +4,12 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 8, done 93
+Status: open 7, done 94
 
 ## Overview
 
 | ID | Status | Prio | Type | Title | Effort | Ticket | Depends on |
 |---|---|---|---|---|---|---|---|
-| MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-015 | open | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
 | MOR-016 | open | 3 | implementation | Migration tooling for changed key names | M |  | MOR-015 |
 | MOR-020 | open | 3 | implementation | Jakarta Data 1.1: @Is, constraints, @First and attribute-only Restriction | L |  | MOR-019, MOR-023 |
@@ -84,6 +83,7 @@ Status: open 8, done 93
 | MOR-099 | done | 2 | implementation | LeaseManager: a key other than the @Id, a fencing token, a generated _id, an acquisition time and renew | M |  |  |
 | MOR-102 | done | 2 | implementation | Release 7.0: remove the global raiseOnWriteErrors switch and bring the version statements of our changes in line | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
+| MOR-012 | done | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | done | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
 | MOR-023 | done | 3 | verification | Verify which Jakarta Data providers implement the 1.1 features | S |  |  |
 | MOR-038 | done | 3 | defect | Replacement documents, findOneAndUpdateEnums and Expr values still fail with POJOs in update maps | M |  | MOR-002 |
@@ -332,9 +332,11 @@ Commits: 8dfd9f71b
 
 ### MOR-012 Builder accepts type-safe field references
 
-Status **open**, priority 3, type implementation, effort M
+Status **done**, priority 3, type implementation, effort M
 
 Applications commonly use Lombok @FieldNameConstants. The builder should accept Java field names, enum constants and the generated static metamodel and resolve Mongo names (incl. rename annotations) itself.
+
+Evidence: FieldReferenceTest (4 cases: value operators with Lombok class constants, enum constants and an attribute name; rename; pushEach/addToSetEach; unset/currentDate) green on the InMemoryDriver and MongoDB 8 (PooledDriver); MetamodelAttributeFieldReferenceTest in morphium-jakarta-data green on the InMemoryDriver; ModifyOperatorsTest unchanged. Only the missing enum overloads are new code.
 
 Acceptance:
 
@@ -343,6 +345,8 @@ Acceptance:
 Depends on: MOR-006
 
 Source: update-path research, 2026-10-15
+
+Commits: FIXME
 
 ### MOR-013 findOneAndUpdate(Map) accepts a plain field map (auto $set)
 
