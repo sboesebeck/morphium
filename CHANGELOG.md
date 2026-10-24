@@ -32,6 +32,9 @@ An empty builder (it would replace the document), `setOnInsert` without `upsert(
 
 ### Changed
 
+#### `Query` with `or()` and `nor()` builds the right query object (MOR-067)
+`Query.toQueryObject` built the `$or` list and the `$nor` list in the same list variable. A query with `or(A)` and `nor(B)` became `{$or: [A, B], $nor: [A, B]}`, which matches nothing, instead of `{$or: [A], $nor: [B]}`; with an `$and` condition the two lists inside the `$and` were the same list as well. The `$nor` queries get their own list now. A query with only `or()` or only `nor()` was not affected.
+
 #### A repeated operator key no longer drops a predicate when an upsert flattens its `$and` (MOR-037)
 `Morphium.simplifyQueryObject` turns a query that consists of one `$and` into a single map, so that the equalities can seed the document of an upsert (used by `Query.inc`, `push`, `pull` and their variants with `upsert`). It merged the branches with `putAll`, so a key that two branches share, such as two `$or` or two conditions on one field (`{k: {$gt: 1}}` and `{k: {$lt: 5}}`), replaced the earlier predicate and the update matched more than the query asked for. Branches that share a key with different predicates keep the `$and` now; branches with different keys, or with the same predicate, are flattened as before.
 

@@ -1409,7 +1409,7 @@ tasks:
 - id: MOR-067
   title: 'Query.toQueryObject puts the or queries into the $nor list when both are used'
   type: defect
-  status: open
+  status: done
   priority: 2
   effort: S
   description: 'Found while testing MOR-037. Query.toQueryObject builds the $or list and then the $nor list from the same list variable without resetting it when the query has no $and expression: a query with one or() and one nor() becomes {$or: [A, B], $nor: [A, B]}, which matches nothing, instead of {$or: [A], $nor: [B]}. With an $and expression the or branch is fine and the nor branch has the same problem. Reproduced on the InMemoryDriver; the query object is built on the client, so every driver is affected.'
@@ -1417,3 +1417,6 @@ tasks:
   - A query with or() and nor() produces an $or with its own queries and a $nor with its own queries, shown by a test on a real MongoDB
   source:
   - morphium-core/src/main/java/de/caluga/morphium/query/Query.java
+  evidence: 'QueryOrNorTest (4 tests, 8 invocations) on mongo:8 and the InMemoryDriver: a query with or() and nor() builds {$or: [own queries], $nor: [own queries]}, with an $and condition both stay inside the $and, a query with only or() or only nor() is unchanged, and the documents that the query returns from mongo:8 and from the InMemoryDriver are the ones that match the or and not the nor. Without the change 5 of the 8 invocations fail (the query object contained the or and the nor queries in both lists). Regression: 1496 test methods (core and messaging) on the InMemoryDriver, all passed.'
+  commits:
+  - 92455e3fd
