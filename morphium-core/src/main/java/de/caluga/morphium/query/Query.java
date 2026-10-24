@@ -2041,21 +2041,26 @@ public class Query<T> implements Cloneable {
                     try {
                         con = getMorphium().getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(getType()));
                         long currentTime = System.currentTimeMillis();
+                        // MOR-052: what is written to the document is what is set on the entity: a Date, the formatted text or the milliseconds, not always the milliseconds
+                        Object stored;
 
                         if (f.getType().equals(Date.class)) {
-                            f.set(unmarshall, new Date());
+                            stored = new Date(currentTime);
+                            f.set(unmarshall, stored);
                         } else if (f.getType().equals(String.class)) {
                             LastAccess ctField = f.getAnnotation(LastAccess.class);
                             SimpleDateFormat df = new SimpleDateFormat(ctField.dateFormat());
-                            f.set(unmarshall, df.format(currentTime));
+                            stored = df.format(currentTime);
+                            f.set(unmarshall, stored);
                         } else {
+                            stored = currentTime;
                             f.set(unmarshall, currentTime);
                         }
 
                         Object id = getARHelper().getId(unmarshall);
                         // Cannot use store, as this would trigger an update of last changed...
                         settings = new UpdateMongoCommand(con).setDb(getDB()).setColl(getCollectionName()).setUpdates(Arrays.asList(Doc.of("q", Doc.of("_id", id), "u",
-                            Doc.of("$set", Doc.of(ctf, currentTime)), "multi", false).addIfNotNull("collation", collation != null ? Doc.of(collation.toQueryObject()) : null)));
+                            Doc.of("$set", Doc.of(ctf, stored)), "multi", false).addIfNotNull("collation", collation != null ? Doc.of(collation.toQueryObject()) : null)));
                         settings.execute();
                         settings.releaseConnection();
                         settings = null;

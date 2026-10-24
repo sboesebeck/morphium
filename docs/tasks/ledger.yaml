@@ -1209,7 +1209,7 @@ tasks:
 - id: MOR-052
   title: updateLastAccess writes the untranslated Java field name
   type: defect
-  status: open
+  status: done
   priority: 3
   effort: S
   description: Query.findOneAndUpdateMapped ends with updateLastAccess, a second non-atomic update command for @LastAccess
@@ -1219,6 +1219,9 @@ tasks:
   - After a findOneAndUpdate on an @LastAccess entity the stored last-access field is updated under its stored name,
     on a real MongoDB
   source: *id003
+  evidence: 'LastAccessStoredNameTest (1 test, InMemoryDriver and mongo:8 with the PooledDriver): an entity with @LastAccess fields of the types Date, long and String reads back and the raw document holds a Date under last_seen_at, a number under access_millis and the formatted text under access_text, and no field under the Java names; it failed before the change (the Date field held a number). LastAccessTest and AutoVariableTest pass. The assumption of the task, the Java field name, was wrong for these entities: getFields already returns the stored names; the defect was the type of the value.'
+  commits:
+  - ec1aeeec1
 - id: MOR-053
   title: 'InMemoryDriver: type checks of the update operators ($inc, $mul, $push, $addToSet, $pull, $pop)'
   type: defect

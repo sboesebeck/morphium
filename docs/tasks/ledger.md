@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 18, done 83
+Status: open 17, done 84
 
 ## Overview
 
@@ -26,7 +26,6 @@ Status: open 18, done 83
 | MOR-045 | open | 3 | defect | Update documents: a String value for _id of a MorphiumId entity is not coerced | S |  | MOR-041 |
 | MOR-048 | open | 3 | defect | MorphiumBase.setEnum looks the value up by the map value instead of the key | S |  |  |
 | MOR-049 | open | 3 | implementation | Writer path has no guard for @Reference and @Encrypted fields | M |  | MOR-042 |
-| MOR-052 | open | 3 | defect | updateLastAccess writes the untranslated Java field name | S |  |  |
 | MOR-071 | open | 3 | defect | Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange | S |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
@@ -97,6 +96,7 @@ Status: open 18, done 83
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
 | MOR-051 | done | 3 | defect | InMemoryDriver: reject path conflicts in update documents like MongoDB | S |  |  |
+| MOR-052 | done | 3 | defect | updateLastAccess writes the untranslated Java field name | S |  |  |
 | MOR-056 | done | 3 | defect | InMemoryDriver: upsert seeds the equalities of a single-branch $or | S |  |  |
 | MOR-057 | done | 3 | defect | InMemoryDriver: an inserted document is stored by reference | S |  |  |
 | MOR-061 | done | 3 | defect | Query.dec(field, Integer) turns an int counter into a double | S |  |  |
@@ -1043,15 +1043,19 @@ Commits: 247a3f1d1, 302718c42
 
 ### MOR-052 updateLastAccess writes the untranslated Java field name
 
-Status **open**, priority 3, type defect, effort S
+Status **done**, priority 3, type defect, effort S
 
 Query.findOneAndUpdateMapped ends with updateLastAccess, a second non-atomic update command for @LastAccess entities that sets the Java field name with a Long. With camel case translation the real field is not updated. Read in the code, not reproduced.
+
+Evidence: LastAccessStoredNameTest (1 test, InMemoryDriver and mongo:8 with the PooledDriver): an entity with @LastAccess fields of the types Date, long and String reads back and the raw document holds a Date under last_seen_at, a number under access_millis and the formatted text under access_text, and no field under the Java names; it failed before the change (the Date field held a number). LastAccessTest and AutoVariableTest pass. The assumption of the task, the Java field name, was wrong for these entities: getFields already returns the stored names; the defect was the type of the value.
 
 Acceptance:
 
 - After a findOneAndUpdate on an @LastAccess entity the stored last-access field is updated under its stored name, on a real MongoDB
 
 Source: docs/research/plan-mor-006.md
+
+Commits: ec1aeeec1
 
 ### MOR-053 InMemoryDriver: type checks of the update operators ($inc, $mul, $push, $addToSet, $pull, $pop)
 
