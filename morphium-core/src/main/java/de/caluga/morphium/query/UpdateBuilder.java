@@ -179,6 +179,12 @@ public final class UpdateBuilder<T> {
         return add("$rename", from, to);
     }
 
+    /** {@link #rename(String, String)} with enum constants (for example Lombok's {@code @FieldNameConstants(asEnum = true)}) */
+    public UpdateBuilder<T> rename(Enum<?> from, Enum<?> to) {
+        return rename(nameOf(from), nameOf(to));
+    }
+
+
     /** {@code $currentDate}: sets the fields to the date of the server (a BSON date) when the update is applied */
     public UpdateBuilder<T> currentDate(String... fields) {
         if (fields == null || fields.length == 0) {
@@ -227,6 +233,14 @@ public final class UpdateBuilder<T> {
         return add("$push", field, each(elements, options));
     }
 
+    public UpdateBuilder<T> pushEach(Enum<?> field, Collection<?> elements) {
+        return pushEach(nameOf(field), elements);
+    }
+
+    public UpdateBuilder<T> pushEach(Enum<?> field, Collection<?> elements, PushOptions options) {
+        return pushEach(nameOf(field), elements, options);
+    }
+
     /** {@code $addToSet}: appends the element if the array does not contain it yet (numbers compare by value, documents with their field order) */
     public UpdateBuilder<T> addToSet(String field, Object element) {
         return add("$addToSet", field, element);
@@ -239,6 +253,10 @@ public final class UpdateBuilder<T> {
     /** {@code $addToSet} with {@code $each}: appends every element that the array does not contain yet; an element given twice is added once */
     public UpdateBuilder<T> addToSetEach(String field, Collection<?> elements) {
         return add("$addToSet", field, each(elements, null));
+    }
+
+    public UpdateBuilder<T> addToSetEach(Enum<?> field, Collection<?> elements) {
+        return addToSetEach(nameOf(field), elements);
     }
 
     /** insert a document if none matches the filter (the fields of equality predicates of the filter, including an {@code _id}, seed the new document) */
