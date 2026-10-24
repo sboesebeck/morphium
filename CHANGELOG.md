@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Mapper: `@Embedded` records and `SingleValueMapper` for value objects (MOR-035)
+A `record` annotated with `@Embedded` is an embedded value in a field, a list or a map: written through its components, read back through the canonical constructor (the mapper collects the component values, because the final fields of a record cannot be set; a missing component is `null`, a primitive is zero), and set, pushed and queried like any other embedded document. The deserialization of every other class is unchanged. `SingleValueMapper.of(Email.class)` is a custom mapper for a record with one component that stores the scalar instead of `{value: ...}`, in the field, in queries and in updates. Not covered: records as entities (no identity to write the generated `_id` back to, GitHub #116 stays open for it) and lists of single-value objects (GitHub #334). Tests: `RecordMappingTest` (InMemoryDriver and MongoDB 8).
+
+
 #### `KeyRename`: rename the keys inside embedded documents that are already stored (MOR-016)
 `KeyRename.in(morphium, Owner.class).at("children").snakeToCamel().apply()` renames the keys of an embedded document, or of every document of an embedded list, in the stored collection (also in the levels below; `rename(from, to)` names single keys; `_id` and `class_name` are kept) and returns the number of changed documents. It is the migration that goes with a change of the names an `@Embedded` class stores. A rename that would overwrite a key throws before anything is written. The howto `docs/howtos/embedded-key-migration.md` shows it as a `@MorphiumChangeUnit`. Tests: `KeyRenameTest` (InMemoryDriver and MongoDB 8).
 
