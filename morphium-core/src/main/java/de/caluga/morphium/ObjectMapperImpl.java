@@ -301,6 +301,11 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             return null;
         }
 
+        if (o instanceof Expr) {
+            // MOR-038: an Expr is what it describes; the values inside it (an embedded object, an enum) are marshalled like any other value of the update
+            return marshallUpdateValue(((Expr) o).toQueryObject(), element, storage);
+        }
+
         if (o instanceof Enum) {
             return effective(storage) == EnumType.ORDINAL ? (Object) ((Enum) o).ordinal() : ((Enum) o).name();
         }

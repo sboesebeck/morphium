@@ -33,7 +33,8 @@ anything is written.
 
 The typed entry points marshal embedded objects, entities, enums, `Set` and `java.time` values (MOR-002, MOR-042). A map without
 operators passed to `findOneAndUpdate(Map)` or `findOneAndUpdateEnums(Map)` is a `$set` of the fields it names, not a replacement
-document (MOR-013, 7.0), so its values are marshalled like those of `$set`. Still open: POJOs in `Expr` values (MOR-038).
+document (MOR-013, 7.0), so its values are marshalled like those of `$set`. An `Expr` used as a value is replaced by what it
+describes and the values inside it are marshalled, too (MOR-038).
 
 Tests: `PojoInSetOperatorReproductionTest`, `UnencodableValuesTest`.
 
