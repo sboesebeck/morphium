@@ -379,6 +379,11 @@ public final class JdqlMethodBridge {
             PageRequest pageRequest = (PageRequest) args[pageRequestParamIndex];
 
             if (returnsCursoredPage) {
+                if (valueClass(query, resultRecordClass, entityClass) != null) {
+                    throw new IllegalArgumentException("A CursoredPage of values is not supported: the cursor is made of the sort fields of the entity. Return CursoredPage<"
+                        + entityClass.getSimpleName() + "> or a Page of values instead: \"" + jdql + "\"");
+                }
+
                 return executeCursoredJdql(mQuery, pageRequest, orderBySpec, query, paramValues,
                         morphium, entityClass);
             }
@@ -395,7 +400,7 @@ public final class JdqlMethodBridge {
                 applyConditions(countQuery, query, paramValues, morphium, entityClass);
                 totalElements = countQuery.countAll();
             }
-            return new MorphiumPage<>(content, totalElements, pageRequest);
+            return projected(new MorphiumPage<>(content, totalElements, pageRequest), query, resultRecordClass, morphium, entityClass);
         }
 
         // Execute
@@ -406,15 +411,79 @@ public final class JdqlMethodBridge {
             return mQuery.countAll() > 0;
         }
         if (returnsOptional) {
-            return QueryResultHelper.optionalSingle(mQuery);
+            return projected(QueryResultHelper.optionalSingle(mQuery), query, resultRecordClass, morphium, entityClass);
         }
         if (returnsSingle) {
-            return QueryResultHelper.requireSingle(mQuery);
+            return projected(QueryResultHelper.requireSingle(mQuery), query, resultRecordClass, morphium, entityClass);
         }
         if (returnsStream) {
-            return mQuery.stream();
+            return projected(mQuery.stream(), query, resultRecordClass, morphium, entityClass);
         }
-        return mQuery.asList();
+        return projected(mQuery.asList(), query, resultRecordClass, morphium, entityClass);
+    }
+
+    /**
+     * {@code SELECT field}: when the method returns the values of the field (the caller passes the class of the element, which is neither the entity nor a record), the entities
+     * that were read with only that field are replaced by the values (MOR-083). The element may be a list entry, the content of a page, the value of an Optional, a stream entry or
+     * the result itself.
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static Object projected(Object result, JdqlQuery query, String elementClassName, Morphium morphium, Class entityClass) {
+        Class<?> element = valueClass(query, elementClassName, entityClass);
+
+        if (element == null) {
+            return result;
+        }
+
+        String field = query.selectFields().get(0);
+        java.util.function.Function<Object, Object> value = entity -> convertValue(morphium.getARHelper().getValue(entity, field), element);
+
+        if (result instanceof MorphiumPage<?> page) {
+            List<Object> values = new ArrayList<>();
+            for (Object entity : page.content()) {
+                values.add(value.apply(entity));
+            }
+            return new MorphiumPage<>(values, page.hasTotals() ? page.totalElements() : -1, page.pageRequest());
+        }
+        if (result instanceof List<?> list) {
+            List<Object> values = new ArrayList<>(list.size());
+            for (Object entity : list) {
+                values.add(value.apply(entity));
+            }
+            return values;
+        }
+        if (result instanceof java.util.Optional<?> optional) {
+            return optional.map(value);
+        }
+        if (result instanceof java.util.stream.Stream<?> stream) {
+            return ((java.util.stream.Stream<Object>) stream).map(value);
+        }
+
+        return result == null ? null : value.apply(result);
+    }
+
+    /** the class of the values if the query selects ONE field and the method returns them, null if the method returns the entity, a record or the type is unknown */
+    private static Class<?> valueClass(JdqlQuery query, String elementClassName, Class<?> entityClass) {
+        if (elementClassName == null || elementClassName.isEmpty() || query.selectFields() == null || query.selectFields().size() != 1
+                || (query.aggregateFunctions() != null && !query.aggregateFunctions().isEmpty())) {
+            return null;
+        }
+
+        Class<?> element = loadClass(elementClassName);
+        return element.isAssignableFrom(entityClass) || element.isRecord() ? null : element;
+    }
+
+    private static Class<?> loadClass(String name) {
+        try {
+            return Thread.currentThread().getContextClassLoader().loadClass(name);
+        } catch (ClassNotFoundException | NullPointerException e) {
+            // the context classloader may not see the class (or may be null): fall back to the classloader of the bridge
+            try {
+                return JdqlMethodBridge.class.getClassLoader().loadClass(name);
+            } catch (ClassNotFoundException e2) {
+                throw new IllegalArgumentException("Result class not found: " + name, e2);
+            }
+        }
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -964,19 +1033,11 @@ public final class JdqlMethodBridge {
                     "Declare a Java record matching the SELECT clause.");
         }
 
-        Class<?> recordClass;
-        try {
-            recordClass = Thread.currentThread().getContextClassLoader().loadClass(resultRecordClass);
-        } catch (ClassNotFoundException | NullPointerException e) {
-            // The context classloader may not see the record class in modular/OSGi/framework
-            // environments where it differs from the classloader that loaded this bridge class
-            // (or may be null, e.g. in some embedded/native-image contexts). Fall back to the
-            // bridge's own classloader before giving up.
-            try {
-                recordClass = JdqlMethodBridge.class.getClassLoader().loadClass(resultRecordClass);
-            } catch (ClassNotFoundException e2) {
-                throw new IllegalArgumentException("Record class not found: " + resultRecordClass, e2);
-            }
+        Class<?> recordClass = loadClass(resultRecordClass);
+
+        if (!recordClass.isRecord()) {
+            throw new IllegalArgumentException(
+                    "GROUP BY queries must return List<RecordType>, not " + recordClass.getName() + ". Declare a Java record matching the SELECT clause.");
         }
 
         RecordComponent[] components = recordClass.getRecordComponents();

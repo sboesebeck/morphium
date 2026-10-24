@@ -118,6 +118,15 @@ abstract class AbstractMorphiumDataOrdinalQueryTest {
     }
 
     @Test
+    @DisplayName("SELECT field answers the values of the field when the method returns them (MOR-083)")
+    void selectedValues() {
+        assertThat(repository.customersByStatus("OPEN")).containsExactly("C1", "C2");
+        assertThat(repository.amountOf("C1")).contains(repository.findByStatusOrderByAmountAsc("OPEN")[0].getAmount());
+        assertThat(repository.amountOf("NOBODY")).isEmpty();
+        assertThat(repository.customerOf("C2")).isEqualTo("C2");
+    }
+
+    @Test
     @DisplayName("several Sort parameters, Sort... and a static order that comes first (MOR-081)")
     void sorts() {
         create("C5", 100.0, "OPEN");   // C1 and C5 have the same amount

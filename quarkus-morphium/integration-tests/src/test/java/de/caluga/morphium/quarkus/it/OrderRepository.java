@@ -390,6 +390,17 @@ public interface OrderRepository extends BasicRepository<OrderEntity, String> {
     // condition query. Method name deliberately does NOT start with deleteBy/findBy/countBy/
     // existsBy, since MethodNameParser would otherwise try to parse it as a derived query. ---
 
+    // --- SELECT field answers the values of the field when the method returns them (MOR-083) ---
+
+    @Query("SELECT customerId WHERE status = :status ORDER BY amount")
+    List<String> customersByStatus(@Param("status") String status);
+
+    @Query("SELECT amount WHERE customerId = ?1")
+    java.util.Optional<Double> amountOf(String customerId);
+
+    @Query("SELECT customerId WHERE customerId = ?1")
+    String customerOf(String customerId);
+
     @Delete
     void remove(OrderEntity order);
 }
