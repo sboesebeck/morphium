@@ -425,7 +425,8 @@ tasks:
 - id: MOR-015
   title: 'Option D: opt-in INHERIT mode for @Embedded translateCamelCase'
   type: implementation
-  status: open
+  status: blocked
+  blocked_by: 'Deferred for 7.0 (decision of 2026-10-24). The owner setting would have to reach serialize, deserialize, the path resolution of queries and updates (resolveFieldPath, getMongoFieldName) and the per-class caches (fieldNameCache, getFields), so more than six places of the mapper change for a case that the existing means cover: the warning and strictEmbeddedNaming (MOR-014) find it, @Embedded(translateCamelCase=false) fixes it for an embedded class that has one kind of owner, and KeyRename (MOR-016) migrates stored data. INHERIT only adds something when the same embedded class is held by owners of both kinds. Build it when somebody has that case; the default must stay as it is.'
   priority: 3
   effort: L
   description: 'Tri-state INHERIT/TRUE/FALSE on @Embedded with the current behaviour as default, owner setting threaded
@@ -527,7 +528,8 @@ tasks:
 - id: MOR-020
   title: 'Jakarta Data 1.1: @Is, constraints, @First and attribute-only Restriction'
   type: implementation
-  status: open
+  status: blocked
+  blocked_by: 'Waits for Jakarta Data 1.1 final (checked 2026-10-24: latest is 1.1.0-M4). Quarkus 3.x manages jakarta.data-api 1.0.1, so an extension built against a 1.1 milestone breaks for applications at run time (the BOM wins); only Hibernate ORM 8.0 betas, Eclipse JNoSQL 1.2.0-M2 and Micronaut Data 5.2 have the features, all on milestones (docs/research/jakarta-data-1.1.md, section 6). Until then MOR-019 refuses @Is, constraints, Restriction and @First at build time with a message that names the method, so nothing runs wrongly. Scope when 1.1 is final: unchanged.'
   priority: 3
   effort: L
   description: 'Adopt the 1.1 query features once 1.1 is final (latest is 1.1.0-M4, no final date known). @Is, jakarta.data.constraint.*,
