@@ -21,7 +21,7 @@ reflection, no dynamic proxies.
 
 - **CDI producer** — `@Inject Morphium morphium;` anywhere in a Quarkus bean, backed by
   a single, application-scoped `Morphium` instance configured from
-  `application.properties`.
+  `application.properties`; more databases are [named instances](#named-instances).
 - **Type-safe configuration** — every setting lives under `quarkus.morphium.*` as a
   `@ConfigMapping`, validated at build time instead of failing at runtime on a typo.
 - **Declarative transactions** — `@MorphiumTransactional` on a CDI bean method wraps
@@ -105,23 +105,23 @@ property — but covers the most commonly used ones, each verified directly agai
 
 | Property | Default | Description | Source |
 |---|---|---|---|
-| `quarkus.morphium.hosts` | `localhost:27017` | Comma-separated `host:port` list | `MorphiumRuntimeConfig.java:52` |
-| `quarkus.morphium.database` | *(required)* | MongoDB database name | `MorphiumRuntimeConfig.java:55` |
-| `quarkus.morphium.username` / `.password` | -- | Optional credentials | `MorphiumRuntimeConfig.java:58,61` |
-| `quarkus.morphium.auth-database` | `admin` | Authentication database | `MorphiumRuntimeConfig.java:65` |
-| `quarkus.morphium.read-preference` | `primary` | Read preference | `MorphiumRuntimeConfig.java:73` |
-| `quarkus.morphium.index-check` | `create-on-startup` | Index management strategy (`create-on-startup`, `warn-on-startup`, `create-on-write-new-col`, `no-check`) | `MorphiumRuntimeConfig.java:92` |
-| `quarkus.morphium.max-connections` | `250` | Connection pool size | `MorphiumRuntimeConfig.java:108` |
-| `quarkus.morphium.max-wait-time` | `2000` | Max wait time (ms) for a pooled connection | `MorphiumRuntimeConfig.java:118` |
-| `quarkus.morphium.default-query-timeout-ms` | `0` (disabled) | Server-side `maxTimeMS` applied to queries without an explicit per-query timeout | `MorphiumRuntimeConfig.java:133` |
-| `quarkus.morphium.atlas-url` | -- | MongoDB Atlas SRV connection string (overrides `hosts`) | `MorphiumRuntimeConfig.java:139` |
-| `quarkus.morphium.driver-name` | `PooledDriver` | `PooledDriver` (production) or `InMemDriver` (tests, no MongoDB needed) | `MorphiumRuntimeConfig.java:146` |
-| `quarkus.morphium.replica-set-name` | -- | MongoDB replica set name (required for transactions) | `MorphiumRuntimeConfig.java:153` |
-| `quarkus.morphium.connect-retries` | `5` | Connection attempts before giving up | `MorphiumRuntimeConfig.java:162` |
+| `quarkus.morphium.hosts` | `localhost:27017` | Comma-separated `host:port` list | `MorphiumConnectionConfig.java:35` |
+| `quarkus.morphium.database` | *(required)* | MongoDB database name | `MorphiumConnectionConfig.java:38` |
+| `quarkus.morphium.username` / `.password` | -- | Optional credentials | `MorphiumConnectionConfig.java:41,44` |
+| `quarkus.morphium.auth-database` | `admin` | Authentication database | `MorphiumConnectionConfig.java:48` |
+| `quarkus.morphium.read-preference` | `primary` | Read preference | `MorphiumConnectionConfig.java:56` |
+| `quarkus.morphium.index-check` | `create-on-startup` | Index management strategy (`create-on-startup`, `warn-on-startup`, `create-on-write-new-col`, `no-check`) | `MorphiumConnectionConfig.java:75` |
+| `quarkus.morphium.max-connections` | `250` | Connection pool size | `MorphiumConnectionConfig.java:91` |
+| `quarkus.morphium.max-wait-time` | `2000` | Max wait time (ms) for a pooled connection | `MorphiumConnectionConfig.java:101` |
+| `quarkus.morphium.default-query-timeout-ms` | `0` (disabled) | Server-side `maxTimeMS` applied to queries without an explicit per-query timeout | `MorphiumConnectionConfig.java:116` |
+| `quarkus.morphium.atlas-url` | -- | MongoDB Atlas SRV connection string (overrides `hosts`) | `MorphiumConnectionConfig.java:122` |
+| `quarkus.morphium.driver-name` | `PooledDriver` | `PooledDriver` (production) or `InMemDriver` (tests, no MongoDB needed) | `MorphiumConnectionConfig.java:129` |
+| `quarkus.morphium.replica-set-name` | -- | MongoDB replica set name (required for transactions) | `MorphiumConnectionConfig.java:136` |
+| `quarkus.morphium.connect-retries` | `5` | Connection attempts before giving up | `MorphiumConnectionConfig.java:145` |
 | `quarkus.morphium.cache.read-cache-enabled` | `true` | Enable query result cache | `CacheConfig.java:31` |
 | `quarkus.morphium.cache.global-valid-time` | `60000` | Cache TTL in milliseconds | `CacheConfig.java:27` |
-| `quarkus.morphium.use-bson-date-for-java-time` | -- | Store `Instant`, `LocalDate`, `LocalTime` and `LocalDateTime` as BSON `ISODate`. Unset leaves the previous per-type behaviour untouched. Mapper path only: maps you build yourself (raw driver commands, the update map of `findOneAndUpdate`) need `java.util.Date`, see [configuration reference](configuration-reference.md#usebsondateforjavatime-where-it-applies) | `MorphiumRuntimeConfig.java` |
-| `quarkus.morphium.enum-type` | `STRING` | How an enum is stored in a field without `@Enumerated`: `STRING` (name) or `ORDINAL` (position, sorts in the order of the constants). See [Enums](configuration-reference.md#enums) | `MorphiumRuntimeConfig.java` |
+| `quarkus.morphium.use-bson-date-for-java-time` | -- | Store `Instant`, `LocalDate`, `LocalTime` and `LocalDateTime` as BSON `ISODate`. Unset leaves the previous per-type behaviour untouched. Mapper path only: maps you build yourself (raw driver commands, the update map of `findOneAndUpdate`) need `java.util.Date`, see [configuration reference](configuration-reference.md#usebsondateforjavatime-where-it-applies) | `MorphiumConnectionConfig.java` |
+| `quarkus.morphium.enum-type` | `STRING` | How an enum is stored in a field without `@Enumerated`: `STRING` (name) or `ORDINAL` (position, sorts in the order of the constants). See [Enums](configuration-reference.md#enums) | `MorphiumConnectionConfig.java` |
 | `quarkus.morphium.local-date-time.use-bson-date` | `true` | *Deprecated* (removal: 7.0), use `use-bson-date-for-java-time`; reaches `LocalDateTime` only | `LocalDateTimeConfig.java` |
 | `quarkus.morphium.ssl.enabled` | `false` | Enable TLS | `SslConfig.java:48` |
 | `quarkus.morphium.ssl.auth-mechanism` | -- | `MONGODB-X509` for client-certificate auth | `SslConfig.java:59` |
@@ -140,6 +140,31 @@ property — but covers the most commonly used ones, each verified directly agai
 | `quarkus.morphium.migration.change-log-collection` | `morphiumChangeLog` | Collection tracking executed migrations | `MorphiumMigrationConfig.java:44` |
 | `quarkus.morphium.migration.lock-collection` | `morphiumMigrationLock` | Collection used for the distributed migration lock | `MorphiumMigrationConfig.java:48` |
 | `quarkus.morphium.migration.lock-ttl-seconds` | `60` | Migration-lock TTL in seconds | `MorphiumMigrationConfig.java:56` |
+
+## Named instances
+
+A second (third, ...) database needs no second application: configure it under `quarkus.morphium.named."name".*` and inject it with the `@MorphiumInstance("name")` qualifier (MOR-032).
+
+```properties
+quarkus.morphium.database=orders
+quarkus.morphium.hosts=mongo-a:27017
+
+quarkus.morphium.named."analytics".database=analytics
+quarkus.morphium.named."analytics".hosts=mongo-b:27017,mongo-c:27017
+quarkus.morphium.named."analytics".username=reader
+quarkus.morphium.named."analytics".password=...
+```
+
+```java
+@Inject Morphium orders;                                   // the default instance, as before
+@Inject @MorphiumInstance("analytics") Morphium analytics; // quarkus.morphium.named."analytics".*
+```
+
+A named instance takes the same settings as the default one (`hosts`, `database`, credentials, `driver-name`, `max-connections`, `cache.*`, `ssl.*`, `index-check`, ...), each with the
+same default. The names are read from the configuration keys at **build time**, because a qualifier needs a bean per name; the values can still change at run time, but a name cannot
+be added then. An instance is created on first use and closed on shutdown. The entities of the application are known to every instance (with `index-check=create-on-startup` the
+indexes of all entities are created in each database; set `no-check` for an instance that holds few of them). What belongs to the default instance only: migrations, Dev Services,
+Micrometer metrics, the Dev UI card and `@MorphiumTransactional`. The readiness check "Morphium named instances readiness check" covers every named instance.
 
 ## Metrics
 

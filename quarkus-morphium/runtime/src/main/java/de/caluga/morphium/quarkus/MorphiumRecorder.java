@@ -95,6 +95,11 @@ public class MorphiumRecorder {
      * Called at RUNTIME_INIT after the BeanContainer is available.
      * Triggers migration execution if configured.
      */
+    /** the creation function of the synthetic bean of a named instance (MOR-032) */
+    public java.util.function.Function<io.quarkus.arc.SyntheticCreationalContext<de.caluga.morphium.Morphium>, de.caluga.morphium.Morphium> namedMorphium(String name) {
+        return ctx -> ctx.getInjectedReference(NamedMorphiumRegistry.class).get(name);
+    }
+
     public void runMigrations() {
         // Resolve config first to check migrateAtStart before triggering Morphium initialization
         try (InstanceHandle<MorphiumRuntimeConfig> configHandle = Arc.container().instance(MorphiumRuntimeConfig.class)) {

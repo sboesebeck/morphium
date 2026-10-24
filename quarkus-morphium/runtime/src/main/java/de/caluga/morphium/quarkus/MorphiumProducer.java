@@ -74,6 +74,8 @@ public class MorphiumProducer {
     // Kept as a field so the shutdown observer can close it.
     private volatile Morphium instance;
 
+    private volatile boolean cachesPrepared;
+
     // Resolved lazily, once, and reused across buildMorphium()/onStop() (including across
     // multiple connect/disconnect cycles, e.g. dev-mode hot-reload) -- NOT released via
     // try-with-resources on every use. InstanceHandle.close() on a non-@Dependent-scoped bean
@@ -111,7 +113,7 @@ public class MorphiumProducer {
             if (instance != null) {
                 return instance;
             }
-            instance = buildMorphium();
+            instance = buildMorphium(config, true);
         }
         return instance;
     }
@@ -491,17 +493,26 @@ public class MorphiumProducer {
         return useBsonDateForJavaTime.isEmpty();
     }
 
-    private Morphium buildMorphium() {
+    /**
+     * Builds a Morphium instance from the settings {@code c}: the default instance ({@code isDefault}, the one {@code @Inject Morphium} gets) or a named one (MOR-032). Only the
+     * default instance is bound to the metrics, gets the deprecated LocalDateTime override and is seen by the blocking-call detector's "default" role; the named ones
+     * differ in nothing else.
+     */
+    public Morphium buildMorphium(MorphiumConnectionConfig c, boolean isDefault) {
         // Clear static caches and pre-register entities for the current ClassLoader.
         // This is essential for Quarkus dev-mode hot-reload where the QuarkusClassLoader
         // is replaced — without this, stale class references from the previous loader cause
         // ObjectMapperImpl/AnnotationAndReflectionHelper to silently skip all @Entity classes.
         // In production mode this is a harmless one-time init (clear of empty state + register).
-        ObjectMapperImpl.clearEntityCache();
-        AnnotationAndReflectionHelper.clearTypeIdCache();
-        var entityNames = MorphiumRecorder.getMappedClassNames();
-        if (!entityNames.isEmpty()) {
-            AnnotationAndReflectionHelper.registerTypeIds(buildTypeIdMap(entityNames));
+        // Once per producer: a named instance (MOR-032) that is built later must not clear what the instances before it have filled in.
+        if (!cachesPrepared) {
+            ObjectMapperImpl.clearEntityCache();
+            AnnotationAndReflectionHelper.clearTypeIdCache();
+            var entityNames = MorphiumRecorder.getMappedClassNames();
+            if (!entityNames.isEmpty()) {
+                AnnotationAndReflectionHelper.registerTypeIds(buildTypeIdMap(entityNames));
+            }
+            cachesPrepared = true;
         }
 
         // Pre-populate ClassGraphCache with build-time discovered @Driver, @Messaging, and
@@ -515,7 +526,7 @@ public class MorphiumProducer {
         if (driverNames.isEmpty()) {
             log.warn("Morphium: no @Driver classes were discovered at build time — "
                     + "the configured driver '{}' may not be found and Morphium may fall back "
-                    + "to SingleMongoConnectDriver", config.driverName());
+                    + "to SingleMongoConnectDriver", c.driverName());
         }
         ClassGraphCache.preRegisterClassesWithAnnotation(Driver.class.getName(), driverNames);
 
@@ -537,12 +548,12 @@ public class MorphiumProducer {
 
         MorphiumConfig cfg = new MorphiumConfig();
 
-        cfg.connectionSettings().setDatabase(config.database());
-        cfg.driverSettings().setDriverName(config.driverName());
-        cfg.connectionSettings().setMaxConnections(config.maxConnections());
-        cfg.connectionSettings().setMaxWaitTime(config.maxWaitTime());
-        cfg.connectionSettings().setDefaultQueryTimeoutMS(config.defaultQueryTimeoutMs());
-        cfg.driverSettings().setDefaultReadPreference(parseReadPreference(config.readPreference()));
+        cfg.connectionSettings().setDatabase(c.database());
+        cfg.driverSettings().setDriverName(c.driverName());
+        cfg.connectionSettings().setMaxConnections(c.maxConnections());
+        cfg.connectionSettings().setMaxWaitTime(c.maxWaitTime());
+        cfg.connectionSettings().setDefaultQueryTimeoutMS(c.defaultQueryTimeoutMs());
+        cfg.driverSettings().setDefaultReadPreference(parseReadPreference(c.readPreference()));
 
         // Morphium's internal checkIndices() uses ClassGraph at startup.
         // In Quarkus, we handle index creation explicitly via ensureIndices() using the
@@ -552,7 +563,7 @@ public class MorphiumProducer {
         // which bypasses the preRegister cache and triggers a live ClassGraph scan.
         // In native mode that scan crashes because there is no live classpath — so
         // WARN_ON_STARTUP must be downgraded to NO_CHECK in native images.
-        MorphiumRuntimeConfig.IndexCheckMode effectiveIndexCheck = config.indexCheck();
+        MorphiumRuntimeConfig.IndexCheckMode effectiveIndexCheck = c.indexCheck();
         if (effectiveIndexCheck == MorphiumRuntimeConfig.IndexCheckMode.WARN_ON_STARTUP
                 && ImageMode.current() == ImageMode.NATIVE_RUN) {
             log.warn("Morphium: indexCheck=WARN_ON_STARTUP is not supported in native images "
@@ -563,12 +574,12 @@ public class MorphiumProducer {
         applyIndexCheckMode(cfg, effectiveIndexCheck, ImageMode.current());
 
         // Host configuration
-        if (config.atlasUrl().isPresent()) {
+        if (c.atlasUrl().isPresent()) {
             // Use ClusterSettings.setAtlasUrl() for mongodb+srv:// connection strings.
             // Morphium resolves the SRV record automatically in initializeAndConnect().
-            cfg.clusterSettings().setAtlasUrl(config.atlasUrl().get());
+            cfg.clusterSettings().setAtlasUrl(c.atlasUrl().get());
         } else {
-            for (String host : config.hosts()) {
+            for (String host : c.hosts()) {
                 String trimmed = host.trim();
                 if (!trimmed.isEmpty()) {
                     cfg.clusterSettings().addHostToSeed(trimmed);
@@ -577,41 +588,41 @@ public class MorphiumProducer {
         }
 
         // Replica set name (required for transactions)
-        if (config.replicaSetName().isPresent()) {
-            cfg.clusterSettings().setRequiredReplicaSetName(config.replicaSetName().get());
+        if (c.replicaSetName().isPresent()) {
+            cfg.clusterSettings().setRequiredReplicaSetName(c.replicaSetName().get());
         }
 
         // Credentials
-        validateCredentialsPresence(config.username().isPresent(), config.password().isPresent());
-        if (config.username().isPresent() && config.password().isPresent()) {
-            cfg.authSettings().setMongoLogin(config.username().get());
-            cfg.authSettings().setMongoPassword(config.password().get());
-            cfg.authSettings().setMongoAuthDb(config.authDatabase());
+        validateCredentialsPresence(c.username().isPresent(), c.password().isPresent());
+        if (c.username().isPresent() && c.password().isPresent()) {
+            cfg.authSettings().setMongoLogin(c.username().get());
+            cfg.authSettings().setMongoPassword(c.password().get());
+            cfg.authSettings().setMongoAuthDb(c.authDatabase());
         }
 
         // Cache settings
-        cfg.cacheSettings().setGlobalCacheValidTime(toIntGlobalCacheValidTime(config.cache().globalValidTime()));
-        cfg.cacheSettings().setReadCacheEnabled(config.cache().readCacheEnabled());
+        cfg.cacheSettings().setGlobalCacheValidTime(toIntGlobalCacheValidTime(c.cache().globalValidTime()));
+        cfg.cacheSettings().setReadCacheEnabled(c.cache().readCacheEnabled());
 
         // java.time on-disk format for all four specially mapped types (Instant, LocalDate, LocalTime,
         // LocalDateTime). See applyJavaTimeFormat.
-        applyJavaTimeFormat(cfg, config.useBsonDateForJavaTime());
+        applyJavaTimeFormat(cfg, c.useBsonDateForJavaTime());
 
         // how an enum is stored in a field without @Enumerated (MOR-093)
-        cfg.objectMappingSettings().setEnumType(config.enumType());
+        cfg.objectMappingSettings().setEnumType(c.enumType());
 
         // TLS / X.509 settings
-        configureSsl(cfg, config.ssl());
+        configureSsl(cfg, c.ssl());
 
         log.info("Quarkus Morphium Extension v{} (Morphium {}, Jakarta Data {})",
             MorphiumVersion.extensionVersion(), MorphiumVersion.morphiumVersion(),
             MorphiumVersion.jakartaDataVersion());
         log.info("Creating Morphium connection to database '{}' (hosts: {}, driver: {}, replicaSetName: {}, ssl: {})",
-            config.database(), config.hosts(), config.driverName(),
-            config.replicaSetName().orElse("(none)"),
-            config.ssl().enabled());
+            c.database(), c.hosts(), c.driverName(),
+            c.replicaSetName().orElse("(none)"),
+            c.ssl().enabled());
 
-        Morphium m = connectWithRetry(cfg);
+        Morphium m = connectWithRetry(cfg, c.connectRetries());
 
         // Register the blocking-call detector's storage listener only now, after the
         // connection has actually been established. Doing this here (instead of e.g. a
@@ -648,18 +659,18 @@ public class MorphiumProducer {
         // runs unconditionally whenever the bean exists, even if observability is currently
         // disabled, so a hot-reload that flips enabled=false->true->false leaves no stale gauges
         // from a previous, now-superseded Morphium instance either way.
-        InstanceHandle<MorphiumMetricsBinder> binderHandle = metricsBinderHandle();
-        if (binderHandle.isAvailable()) {
+        InstanceHandle<MorphiumMetricsBinder> binderHandle = isDefault ? metricsBinderHandle() : null;
+        if (binderHandle != null && binderHandle.isAvailable()) {
             MorphiumMetricsBinder binder = binderHandle.get();
             binder.close();
             if (config.observability().enabled()) {
-                binder.bindTo(m, config.database(), config.observability().includeStorageListenerMetrics());
+                binder.bindTo(m, c.database(), config.observability().includeStorageListenerMetrics());
             }
         }
 
         // Defensive: ensure the driver knows it's a replica set when a RS name is configured.
         // PooledDriver < 6.2.1 only checked host-seed count, missing single-node replica sets.
-        if (config.replicaSetName().isPresent() && !m.getDriver().isReplicaSet()) {
+        if (c.replicaSetName().isPresent() && !m.getDriver().isReplicaSet()) {
             log.debug("Forcing replicaSet=true on driver (single-node replica set workaround)");
             m.getDriver().setReplicaSet(true);
         }
@@ -677,7 +688,7 @@ public class MorphiumProducer {
         // flag for that type. So when the new property is set, the override must NOT be registered:
         // registering it anyway would leave LocalDateTime pinned while Instant, LocalDate and LocalTime
         // follow the flag, i.e. exactly the per-type split the new property exists to remove.
-        if (registersDeprecatedLocalDateTimeOverride(config.useBsonDateForJavaTime())) {
+        if (isDefault && registersDeprecatedLocalDateTimeOverride(c.useBsonDateForJavaTime())) {
             // Legacy behaviour, kept byte-identical for applications that have not opted in.
             // useBsonDate=true  → ISODate (native MongoDB dates, compatible with Morphia data)
             // useBsonDate=false → Map{sec, n} (legacy Morphium format)
@@ -688,7 +699,7 @@ public class MorphiumProducer {
         // Morphium's built-in index creation uses ClassGraph which does not work
         // with Quarkus's classloader. Use the entity classes discovered at build time
         // and explicitly ensure their indexes — but only when configured to do so.
-        if (config.indexCheck() == MorphiumRuntimeConfig.IndexCheckMode.CREATE_ON_STARTUP) {
+        if (c.indexCheck() == MorphiumRuntimeConfig.IndexCheckMode.CREATE_ON_STARTUP) {
             ensureIndices(m);
         }
 
@@ -701,8 +712,8 @@ public class MorphiumProducer {
      * reachable after the container reports ready. This method retries the connection
      * with linear backoff (2s, 4s, 6s, ...) to handle transient startup delays.
      */
-    private Morphium connectWithRetry(MorphiumConfig cfg) {
-        int maxAttempts = Math.max(1, config.connectRetries());
+    private Morphium connectWithRetry(MorphiumConfig cfg, int connectRetries) {
+        int maxAttempts = Math.max(1, connectRetries);
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
                 return new Morphium(cfg);
