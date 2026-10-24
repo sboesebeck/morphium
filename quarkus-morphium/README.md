@@ -112,7 +112,7 @@ public class ProductService {
 | **CRUD** | `CrudRepository<T,K>`, `BasicRepository<T,K>`, `DataRepository<T,K>`, `MorphiumRepository<T,K>` — save, insert, update, delete, findById, findAll, existsById |
 | **Query derivation** | `findBy`, `countBy`, `existsBy`, `deleteBy` with operators: Equals, Not, GreaterThan, LessThan, Between, In, NotIn, Like, StartsWith, EndsWith, Null, NotNull, True, False — combined with And/Or |
 | **@Find + @By** | Explicit field binding via parameter annotations; each `@By`-bound parameter is applied as an equality condition |
-| **@Query (JDQL)** | Jakarta Data Query Language with WHERE, ORDER BY, named parameters (`:param`), comparison operators, BETWEEN, IN, LIKE, IS NULL, NOT, string literals, GROUP BY (single + multi-field), HAVING (AND/OR), aggregate functions (COUNT/SUM/AVG/MIN/MAX) |
+| **@Query (JDQL)** | Jakarta Data Query Language with WHERE, ORDER BY, named (`:param`) or ordinal (`?1`) parameters, comparison operators, BETWEEN, IN, LIKE, IS NULL, NOT, string literals, GROUP BY (single + multi-field), HAVING (AND/OR), aggregate functions (COUNT/SUM/AVG/MIN/MAX) |
 | **@OrderBy** | Static sort annotation on query methods |
 | **Pagination** | `Page<T>`, `PageRequest` with total counts, `Limit`, `CursoredPage<T>` (keyset pagination), `Page<Record>` for GROUP BY results |
 | **Sorting** | `Sort<T>`, `Order<T>` as method parameters |

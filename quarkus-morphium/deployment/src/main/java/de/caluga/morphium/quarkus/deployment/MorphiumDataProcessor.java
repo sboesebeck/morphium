@@ -3,6 +3,7 @@ package de.caluga.morphium.quarkus.deployment;
 import de.caluga.morphium.data.AbstractMorphiumRepository;
 import de.caluga.morphium.data.FindMethodBridge;
 import de.caluga.morphium.data.JdqlMethodBridge;
+import de.caluga.morphium.data.JdqlOrdinalParameters;
 import de.caluga.morphium.data.MethodNameParser;
 import de.caluga.morphium.data.QueryDescriptor;
 import de.caluga.morphium.data.QueryMethodBridge;
@@ -1855,7 +1856,7 @@ public class MorphiumDataProcessor {
 
     /**
      * Validates that a {@code @Query} annotation value uses JDQL syntax with named parameters
-     * ({@code :paramName}), not MongoDB JSON syntax or JPA-style positional parameters ({@code ?1}).
+     * ({@code :paramName}) or ordinal parameters ({@code ?1}), not MongoDB JSON syntax, and not both styles in one query.
      *
      * @throws IllegalStateException if the query uses unsupported syntax
      */
@@ -1872,13 +1873,27 @@ public class MorphiumDataProcessor {
                     + "Jakarta Data @Query requires JDQL syntax with named parameters (:paramName). "
                     + "Example: @Query(\"WHERE field = :param AND other >= :min\")");
         }
-        // Detect JPA-style positional parameters: ?1, ?2, etc.
-        if (trimmed.matches(".*\\?\\d+.*")) {
+        // Ordinal parameters (?1, ?2, ...) are supported (MOR-024), but not together with named ones
+        if (JdqlOrdinalParameters.mixesStyles(jdql)) {
             throw new IllegalStateException(
                     "@Query on " + method.declaringClass().name() + "." + method.name()
-                    + " uses positional parameters (?1, ?2, ...): \"" + jdql + "\". "
-                    + "Jakarta Data @Query requires named parameters (:paramName). "
-                    + "Example: @Query(\"WHERE field = :param\") with @Param(\"param\") on method parameters.");
+                    + " mixes named (:param) and ordinal (?1) parameters: \"" + jdql + "\". Use one style.");
+        }
+        int highest = JdqlOrdinalParameters.highest(jdql);
+        if (highest > 0) {
+            int queryParams = 0;
+            for (int i = 0; i < method.parametersCount(); i++) {
+                DotName type = method.parameterType(i).name();
+                if (!type.equals(SORT_TYPE) && !type.equals(ORDER_TYPE) && !type.equals(PAGE_REQUEST_TYPE) && !type.equals(LIMIT_TYPE)) {
+                    queryParams++;
+                }
+            }
+            if (highest > queryParams) {
+                throw new IllegalStateException(
+                        "@Query on " + method.declaringClass().name() + "." + method.name()
+                        + " uses ?" + highest + " but the method has only " + queryParams
+                        + " query parameter(s) (Sort, Order, PageRequest and Limit are not counted): \"" + jdql + "\"");
+            }
         }
     }
 

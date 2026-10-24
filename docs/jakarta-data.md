@@ -174,6 +174,11 @@ For queries that don't fit the method-name convention, annotate a method with
 `@jakarta.data.repository.Query("...")` using JDQL (Jakarta Data Query Language).
 `JdqlParser` parses the string into a `JdqlQuery`; `JdqlMethodBridge` executes it.
 
+Parameters are named (`:min`, bound by `@Param` or the method parameter name) or ordinal (`?1`, `?2`), never both in one query. Ordinal
+*n* is the *n*-th method parameter that is not a `Sort`, `Order`, `PageRequest` or `Limit`, counting from one; the same ordinal may appear
+more than once. A query that uses an ordinal without a matching parameter, or mixes the two styles, fails when the application is built
+(Quarkus) or on the first call (Spring).
+
 The supported grammar, verified against `JdqlParser.java`:
 
 ```

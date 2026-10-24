@@ -82,6 +82,16 @@ public final class JdqlMethodBridge {
         Morphium morphium = repo.getMorphium();
         Class entityClass = repo.getMetadata().entityClass();
 
+        // ordinal parameters (?1): rewrite to names and bind them to the arguments (MOR-024)
+        if (JdqlOrdinalParameters.has(jdql)) {
+            if (JdqlOrdinalParameters.mixesStyles(jdql)) {
+                throw new IllegalArgumentException("The query \"" + jdql + "\" mixes named and ordinal parameters; use one style");
+            }
+
+            paramMapSpec = JdqlOrdinalParameters.paramMapSpec(jdql, args.length, sortParamIndex, orderParamIndex, pageRequestParamIndex, limitParamIndex);
+            jdql = JdqlOrdinalParameters.rewrite(jdql);
+        }
+
         // Parse JDQL (cached)
         JdqlQuery query = CACHE.computeIfAbsent(jdql, JdqlParser::parse);
 
