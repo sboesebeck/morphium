@@ -4,14 +4,13 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 4, done 97
+Status: open 3, done 98
 
 ## Overview
 
 | ID | Status | Prio | Type | Title | Effort | Ticket | Depends on |
 |---|---|---|---|---|---|---|---|
 | MOR-015 | open | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
-| MOR-016 | open | 3 | implementation | Migration tooling for changed key names | M |  | MOR-015 |
 | MOR-020 | open | 3 | implementation | Jakarta Data 1.1: @Is, constraints, @First and attribute-only Restriction | L |  | MOR-019, MOR-023 |
 | MOR-035 | open | 3 | implementation | Records and value objects in the mapper | L |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
@@ -82,6 +81,7 @@ Status: open 4, done 97
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-012 | done | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | done | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
+| MOR-016 | done | 3 | implementation | Migration tooling for changed key names | M |  | MOR-015 |
 | MOR-022 | done | 3 | implementation | Jakarta Data: derived update methods (updateByX) | M |  | MOR-006 |
 | MOR-023 | done | 3 | verification | Verify which Jakarta Data providers implement the 1.1 features | S |  |  |
 | MOR-032 | done | 3 | implementation | Quarkus: named Morphium instances | M |  |  |
@@ -405,9 +405,11 @@ Source: docs/research/reproduction-results.md hypothesis 2, docs/research/other-
 
 ### MOR-016 Migration tooling for changed key names
 
-Status **open**, priority 3, type implementation, effort M
+Status **done**, priority 3, type implementation, effort M
 
 If option D or an application-side fix changes stored key names, provide a @MorphiumChangeUnit based helper that renames nested keys in existing documents.
+
+Evidence: KeyRenameTest (3 cases: snake_case to camelCase in an embedded list, a single embedded document and two levels, with the fixed entity reading the migrated data; explicit renames and a repeated run; the refused overwrite writes nothing) green on the InMemoryDriver and on MongoDB 8 (PooledDriver). The change unit in the howto was not run as a change unit, the helper it calls was. NOT verified: collections too big to read into memory at once (the documents of the path are read in one query).
 
 Acceptance:
 
@@ -417,6 +419,8 @@ Acceptance:
 Depends on: MOR-015
 
 Source: update-path research, 2026-10-15
+
+Commits: FIXME
 
 ### MOR-017 Jakarta Data: JDQL DELETE FROM
 
