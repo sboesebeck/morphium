@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 10, done 91
+Status: open 9, done 92
 
 ## Overview
 
@@ -19,7 +19,6 @@ Status: open 10, done 91
 | MOR-032 | open | 3 | implementation | Quarkus: named Morphium instances | M |  |  |
 | MOR-033 | open | 3 | implementation | Quarkus: CDI integration for Morphium messaging | M |  |  |
 | MOR-035 | open | 3 | implementation | Records and value objects in the mapper | L |  |  |
-| MOR-071 | open | 3 | defect | Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange | S |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -102,6 +101,7 @@ Status: open 10, done 91
 | MOR-061 | done | 3 | defect | Query.dec(field, Integer) turns an int counter into a double | S |  |  |
 | MOR-065 | done | 3 | defect | Delete paths ignore the writeErrors of the delete reply | S |  |  |
 | MOR-070 | done | 3 | defect | PoppyDB: the delete fast path swallows errors | S |  |  |
+| MOR-071 | done | 3 | defect | Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange | S |  |  |
 | MOR-072 | done | 3 | defect | The update builder, findOneAndUpdate(Map), updateOne and updateMany fire no storage-listener update events | M |  |  |
 | MOR-073 | done | 3 | defect | Query.push, pull and addToSet fire the update events twice, and the post event is always PUSH | S |  |  |
 | MOR-074 | done | 3 | verification | MorphiumMigrationTest (2) and MultithreaddedMessagingTests (1) fail on this machine, with and without the latest changes | S |  |  |
@@ -1372,9 +1372,11 @@ Commits: 5c96f6fe8
 
 ### MOR-071 Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange
 
-Status **open**, priority 3, type defect, effort S
+Status **done**, priority 3, type defect, effort S
 
 Found while writing docs/howtos/update-pitfalls.md (MOR-027). The builder (MOR-009) increments @Version and sets @LastChange also when the annotation sits on the field only. The writer path (Query.set, push, ... and findOneAndUpdate(Map)) does not touch the version, and handleLastChange in MorphiumWriterImpl looks for the annotation on the class, so a field-only @LastChange (which store() and the builder accept) is not set. UpdateEntryPointsLifecycleTest pins the current behaviour on mongo:8 and the InMemoryDriver. Decide: bring the writer path to the builder rule, or document the difference as the contract.
+
+Evidence: UpdateEntryPointsLifecycleTest (pins flipped: Query.set sets a field-only @LastChange and keeps the version; an explicit value for the field is kept; findOneAndUpdate(Map) unchanged) green on the InMemoryDriver and MongoDB 8 (PooledDriver); AutoVariableTest, LastAccessTest, ModifyAutoValuesTest, ModifyOperatorsTest, WriterPathMarshallingTest, QueryUpdateOperatorsTest unchanged on the InMemoryDriver. The buffered writer does not call handleLastChange and is not changed.
 
 Acceptance:
 
@@ -1382,6 +1384,8 @@ Acceptance:
 - The pins in UpdateEntryPointsLifecycleTest flip to the decision
 
 Source: morphium-core/src/main/java/de/caluga/morphium/writer/MorphiumWriterImpl.java handleLastChange, morphium-core/src/test/java/de/caluga/test/mongo/suite/base/UpdateEntryPointsLifecycleTest.java
+
+Commits: FIXME
 
 ### MOR-072 The update builder, findOneAndUpdate(Map), updateOne and updateMany fire no storage-listener update events
 
