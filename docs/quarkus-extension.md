@@ -133,6 +133,7 @@ property — but covers the most commonly used ones, each verified directly agai
 | `quarkus.morphium.devservices.image-name` | `mongo:8` | Docker image for Dev Services | `MorphiumDevServicesBuildTimeConfig.java:52` |
 | `quarkus.morphium.devservices.database-name` | `morphium-dev` | Database name injected by Dev Services | `MorphiumDevServicesBuildTimeConfig.java:59` |
 | `quarkus.morphium.devservices.replica-set` | `true` | Start MongoDB as a single-node replica set (enables transactions) | `MorphiumDevServicesBuildTimeConfig.java:72` |
+| `quarkus.morphium.messaging.queue-name` / `.window-size` / `.poll-pause` / `.multithreaded` / `.use-change-stream` / `.sender-id` / `.auto-answer` | Morphium's defaults | Settings of the injected `MorphiumMessaging`, see [Messaging](#messaging) | `MorphiumMessagingConfig.java` |
 | `quarkus.morphium.health.enabled` | `true` | Enable liveness/readiness/startup health checks | `MorphiumHealthBuildTimeConfig.java:41` |
 | `quarkus.morphium.observability.enabled` | `true` | Register the Micrometer meters (only effective when Micrometer is on the classpath) | `MorphiumObservabilityConfig.java` |
 | `quarkus.morphium.observability.include-storage-listener-metrics` | `true` | Time the update operations (`morphium.operations.duration`); adds a storage listener to the Morphium instance | `MorphiumObservabilityConfig.java` |
@@ -165,6 +166,32 @@ same default. The names are read from the configuration keys at **build time**, 
 be added then. An instance is created on first use and closed on shutdown. The entities of the application are known to every instance (with `index-check=create-on-startup` the
 indexes of all entities are created in each database; set `no-check` for an instance that holds few of them). What belongs to the default instance only: migrations, Dev Services,
 Micrometer metrics, the Dev UI card and `@MorphiumTransactional`. The readiness check "Morphium named instances readiness check" covers every named instance.
+
+## Messaging
+
+Morphium's MongoDB-backed message queue is a CDI bean as well (MOR-033): inject `MorphiumMessaging`, or let a bean listen to a topic.
+
+```java
+@Inject MorphiumMessaging messaging;                      // on the default Morphium instance, created on first use
+
+messaging.sendMessage(new Msg("orders", "created", "4711"));
+
+@ApplicationScoped
+@MorphiumMessageListener(topic = "orders")                // topic = {"a", "b"} for several
+public class OrderListener implements MessageListener<Msg> {
+    @Override
+    public Msg onMessage(MorphiumMessaging messaging, Msg m) {
+        ...;
+        return null;                                      // or an answer
+    }
+}
+```
+
+The messaging is created from the default `Morphium` instance, started, given the beans that carry `@MorphiumMessageListener` (they keep their scope and are not removed as unused) and terminated when
+the application stops. A bean with the annotation makes the extension create the messaging at startup, so its messages are processed without anybody injecting the messaging. Settings, all
+optional and left to Morphium's own defaults when not set: `quarkus.morphium.messaging.queue-name`, `.window-size`, `.poll-pause` (ms), `.multithreaded`, `.use-change-stream`, `.sender-id`, `.auto-answer`.
+A message that the sender sends to itself is not delivered to its own listeners; use `sendMessageToSelf` for that. Messaging of named instances is not wired; create it from the injected
+instance with `analytics.createMessaging()`.
 
 ## Metrics
 

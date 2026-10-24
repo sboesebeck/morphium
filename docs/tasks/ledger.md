@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 5, done 96
+Status: open 4, done 97
 
 ## Overview
 
@@ -13,7 +13,6 @@ Status: open 5, done 96
 | MOR-015 | open | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
 | MOR-016 | open | 3 | implementation | Migration tooling for changed key names | M |  | MOR-015 |
 | MOR-020 | open | 3 | implementation | Jakarta Data 1.1: @Is, constraints, @First and attribute-only Restriction | L |  | MOR-019, MOR-023 |
-| MOR-033 | open | 3 | implementation | Quarkus: CDI integration for Morphium messaging | M |  |  |
 | MOR-035 | open | 3 | implementation | Records and value objects in the mapper | L |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
@@ -86,6 +85,7 @@ Status: open 5, done 96
 | MOR-022 | done | 3 | implementation | Jakarta Data: derived update methods (updateByX) | M |  | MOR-006 |
 | MOR-023 | done | 3 | verification | Verify which Jakarta Data providers implement the 1.1 features | S |  |  |
 | MOR-032 | done | 3 | implementation | Quarkus: named Morphium instances | M |  |  |
+| MOR-033 | done | 3 | implementation | Quarkus: CDI integration for Morphium messaging | M |  |  |
 | MOR-038 | done | 3 | defect | Replacement documents, findOneAndUpdateEnums and Expr values still fail with POJOs in update maps | M |  | MOR-002 |
 | MOR-039 | done | 3 | documentation | Document pitfalls of update maps: $pull condition keys and mixed element shapes | S |  | MOR-027 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
@@ -754,15 +754,19 @@ Commits: a9fa079b5
 
 ### MOR-033 Quarkus: CDI integration for Morphium messaging
 
-Status **open**, priority 3, type implementation, effort M
+Status **done**, priority 3, type implementation, effort M
 
 No CDI integration exists for MorphiumMessaging in quarkus-morphium (producer, lifecycle, listener annotation).
+
+Evidence: A @QuarkusTest sends a message through the injected MorphiumMessaging (sendMessageToSelf) and an annotated CDI bean receives it, on the InMemDriver and on MongoDB 8 (MORPHIUM_TEST_HOSTS); no other test of the Quarkus modules was rerun after the last change of the producer (321 tests before MOR-033 passed except the 2 known migration heartbeat tests). NOT verified: native image, dev-mode hot reload, answers (return value of onMessage), several listeners on one topic.
 
 Acceptance:
 
 - A @QuarkusTest sends and receives a message through an injected messaging bean
 
 Source: review of quarkus-morphium
+
+Commits: FIXME
 
 ### MOR-034 Quarkus testing module: real MongoDB test resource, data reset and fixtures
 
