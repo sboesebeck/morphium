@@ -132,6 +132,10 @@ java.lang.RuntimeException: java.lang.ClassCastException: class ...$Item cannot 
 So InMemory tests with a POJO in a List/Map pass while MongoDB rejects them (the defect is invisible in InMem tests), and
 the two failing shapes leave a half-written document with a different exception type than MongoDB.
 
+**Fixed (MOR-029):** the InMemoryDriver now checks the parts of an `update`, `findAndModify`, `insert` and `store` command and of a bulk request with
+`BsonEncoder.requireEncodable` before it changes anything and fails like the wire driver: `MorphiumDriverException` "Error sending Request: " with the
+`RuntimeException` "Unhandled Data type: <class>" as cause, for all six shapes, with the document unchanged (`UnencodableValuesTest`).
+
 ## Hypothesis 2: `@Embedded` default under `@Entity(translateCamelCase=false)`
 
 Test: `EmbeddedCamelCaseReproductionTest`, raw document read with `createQueryFor(Owner.class).asMapList()`. Identical on

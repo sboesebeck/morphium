@@ -153,18 +153,16 @@ public class WireWriteSplittingTest {
     }
 
     @Test
-    public void payloadsWithArbitraryJavaObjectsSurviveTheSplitMeasurement() throws Exception {
-        // embedded in-memory connections accept any Java object as a value - the byte
-        // measurement for splitting must skip what BSON cannot encode, not blow up
+    public void payloadsWithArbitraryJavaObjectsAreRefusedLikeOnTheWire() throws Exception {
+        // the in-memory driver refuses what the wire encoder refuses (MOR-029), before anything is measured or written
         List<Map<String, Object>> docs = new ArrayList<>();
 
         for (int i = 0; i < 5; i++) {
             docs.add(Doc.of("_id", i, "obj", new Object()));
         }
 
-        new InsertMongoCommand(drv).setDb(db).setColl(coll).setDocuments(docs).execute();
-
-        assertEquals(5, drv.count(db, coll, Doc.of(), null, null));
+        assertThrows(MorphiumDriverException.class, () -> new InsertMongoCommand(drv).setDb(db).setColl(coll).setDocuments(docs).execute());
+        assertEquals(0, drv.count(db, coll, Doc.of(), null, null), "nothing was written");
     }
 
     @Test

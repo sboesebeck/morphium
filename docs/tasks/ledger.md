@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 32, done 34
+Status: open 31, done 35
 
 ## Overview
 
@@ -20,7 +20,6 @@ Status: open 32, done 34
 | MOR-024 | open | 2 | defect | Jakarta Data: support ordinal parameters (?1) in @Query | S |  |  |
 | MOR-025 | open | 2 | defect | Jakarta Data: @Update is not atomic and throws IllegalStateException | M |  |  |
 | MOR-026 | open | 2 | infrastructure | Run the Jakarta Data TCK against morphium-jakarta-data | M |  |  |
-| MOR-029 | open | 2 | defect | InMemoryDriver: reject values BsonEncoder cannot encode | M |  |  |
 | MOR-031 | open | 2 | implementation | Quarkus: Micrometer / OpenTelemetry metrics for pool and update paths | M |  |  |
 | MOR-034 | open | 2 | implementation | Quarkus testing module: real MongoDB test resource, data reset and fixtures | M |  |  |
 | MOR-036 | open | 2 | verification | Re-run the reproduction on other topologies and server versions | S |  |  |
@@ -54,6 +53,7 @@ Status: open 32, done 34
 | MOR-008 | done | 2 | implementation | Options object for findAndModify and a defined result for upsert without returnNew | S |  | MOR-006 |
 | MOR-009 | done | 2 | implementation | Lifecycle handling in the builder: @LastChange, @CreationTime, @Version | M |  | MOR-006 |
 | MOR-010 | done | 2 | implementation | Typed duplicate-key exception and typed result for a lost conditional upsert | M |  | MOR-006 |
+| MOR-029 | done | 2 | defect | InMemoryDriver: reject values BsonEncoder cannot encode | M |  |  |
 | MOR-037 | done | 2 | defect | Morphium.simplifyQueryObject loses predicates for repeated operator keys | S |  |  |
 | MOR-040 | done | 2 | defect | fieldNameCache: inner HashMap is not thread safe | S |  |  |
 | MOR-041 | done | 2 | implementation | Key translation for operator maps in findOneAndUpdate | M |  | MOR-002 |
@@ -547,9 +547,11 @@ Commits: 98a063ac9
 
 ### MOR-029 InMemoryDriver: reject values BsonEncoder cannot encode
 
-Status **open**, priority 2, type defect, effort M
+Status **done**, priority 2, type defect, effort M
 
 The InMemoryDriver stores POJOs in $set as live Java objects (List, array, Map, Map-in-Map) and, for a Set or a single POJO, stores them and then fails with a ClassCastException wrapped in RuntimeException, leaving a half-written document. A real MongoDB fails with 'Unhandled Data type' up front. Make the InMemoryDriver fail the same way before changing anything. Related to GitHub #336 (unmapped values stored verbatim); link it. After MOR-002 only hand-built commands reach the encoder or the InMemoryDriver with POJOs.
+
+Evidence: UnencodableValuesTest (6 tests, 12 invocations) on mongo:8 and the InMemoryDriver: an update command with a POJO in the six shapes (single value, List, Set, array, Map, Map in Map), a push, addToSet and setOnInsert operand, a findAndModify, an insert and a store fail with a MorphiumDriverException Error sending Request: caused by the RuntimeException Unhandled Data type: and the document is unchanged; the values the encoder takes (Set of strings, LocalDate, Date, UUID, Pattern, byte array, nested lists) are accepted on both drivers. Before the change the five refusal tests failed on the InMemoryDriver only. BsonEncoderRequireEncodableTest (6 tests) checks that requireEncodable agrees with encodeDocument, including the message. The reproduction note for hypothesis 4 is updated. Regression: 1508 test methods (core and messaging) on the InMemoryDriver, all passed. Not covered: Map keys that are not strings, and the update-with-pipeline form of u, which the check walks as a list of documents but no test covers.
 
 Acceptance:
 
@@ -557,6 +559,8 @@ Acceptance:
 - Reproduction assertions for hypothesis 4 are flipped
 
 Source: docs/research/reproduction-results.md hypothesis 4, GitHub #336
+
+Commits: b3d7d9340
 
 ### MOR-030 InMemoryDriver: honour the filter in conditional upsert and raise E11000
 
