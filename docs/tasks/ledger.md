@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 17, done 84
+Status: open 16, done 85
 
 ## Overview
 
@@ -24,7 +24,6 @@ Status: open 17, done 84
 | MOR-039 | open | 3 | documentation | Document pitfalls of update maps: $pull condition keys and mixed element shapes | S |  | MOR-027 |
 | MOR-044 | open | 3 | defect | Version annotation with fieldName: store and filter disagree on the stored name | S |  |  |
 | MOR-045 | open | 3 | defect | Update documents: a String value for _id of a MorphiumId entity is not coerced | S |  | MOR-041 |
-| MOR-048 | open | 3 | defect | MorphiumBase.setEnum looks the value up by the map value instead of the key | S |  |  |
 | MOR-049 | open | 3 | implementation | Writer path has no guard for @Reference and @Encrypted fields | M |  | MOR-042 |
 | MOR-071 | open | 3 | defect | Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange | S |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
@@ -95,6 +94,7 @@ Status: open 17, done 84
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
+| MOR-048 | done | 3 | defect | MorphiumBase.setEnum looks the value up by the map value instead of the key | S |  |  |
 | MOR-051 | done | 3 | defect | InMemoryDriver: reject path conflicts in update documents like MongoDB | S |  |  |
 | MOR-052 | done | 3 | defect | updateLastAccess writes the untranslated Java field name | S |  |  |
 | MOR-056 | done | 3 | defect | InMemoryDriver: upsert seeds the equalities of a single-branch $or | S |  |  |
@@ -979,15 +979,19 @@ Commits: 32215e4a2
 
 ### MOR-048 MorphiumBase.setEnum looks the value up by the map value instead of the key
 
-Status **open**, priority 3, type defect, effort S
+Status **done**, priority 3, type defect, effort S
 
 MorphiumBase.setEnum builds the field map with values.get(est.getValue()) around line 1215, which looks up the value as if it were a key, so the value written is null unless a value equals a key. Read in the code, not reproduced.
+
+Evidence: SetEnumTest (1 test, InMemoryDriver and mongo:8 with the PooledDriver): setEnum with an int and a String value stores 5 under counter_value and the text under label; it failed before the change (the field was not stored).
 
 Acceptance:
 
 - setEnum with a map of constants and values stores each value under the name of its constant, on a real MongoDB
 
 Source: docs/research/plan-mor-042.md
+
+Commits: d79de7ed2
 
 ### MOR-049 Writer path has no guard for @Reference and @Encrypted fields
 

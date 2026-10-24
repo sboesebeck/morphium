@@ -187,6 +187,10 @@ The switch that restored the silent behaviour of rejected writes was introduced 
 
 ### Fixed
 
+#### `Morphium.setEnum` stores the value of each entry (MOR-048)
+`setEnum(query, Map<Enum, Object>, upsert, multiple)` built the update map with `values.get(est.getValue())`: the value of an entry was looked up in the map as if it were a key, so every field was set to `null`. Each value is stored under the name of its constant now.
+
+
 #### The access time is stored in the type of the field (MOR-052)
 `@LastAccess` is written by a second update command after a read. It wrote the milliseconds into the document whatever the type of the field was: a `Date` field held a number in the document and a `String` field with a `dateFormat` too, while the entity that was read carried the date and the text. The document gets what the entity gets now: a date, the formatted text or the milliseconds. (The name was already the stored name; the ledger had assumed the Java name.)
 

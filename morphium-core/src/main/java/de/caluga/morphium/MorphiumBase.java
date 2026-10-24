@@ -1234,8 +1234,7 @@ public abstract class MorphiumBase {
         HashMap<String, Object> toSet = new HashMap<>();
 
         for (Map.Entry<Enum, Object> est : values.entrySet()) {
-            // noinspection SuspiciousMethodCalls
-            toSet.put(est.getKey().name(), values.get(est.getValue()));
+            toSet.put(est.getKey().name(), est.getValue());
         }
 
         return set(query, toSet, upsert, multiple);
