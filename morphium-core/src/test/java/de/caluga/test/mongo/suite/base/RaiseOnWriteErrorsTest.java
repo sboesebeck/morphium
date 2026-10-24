@@ -106,21 +106,14 @@ public class RaiseOnWriteErrorsTest extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
-    @SuppressWarnings("deprecation")
-    public void theConfigurationSwitchAndTheQueryOverrideCombine(Morphium m) throws Exception {
+    public void theQueryOverrideSwitchesRaisingOffForThatQuery(Morphium m) throws Exception {
         try (m) {
             assumeFalse(m.getDriver() instanceof InMemoryDriver, "the InMemoryDriver throws the unique violation itself");
             setup(m, "a", "b");
-            m.getConfig().writerSettings().disableRaiseOnWriteErrors();
 
-            try {
-                assertNotNull(byId(m, "k0").set("code", "b").get("writeErrors"), "switched off: the old behaviour");
-                assertThrows(MorphiumDriverException.class, () -> byId(m, "k0").setRaiseOnWriteErrors(true).set("code", "b"), "the query asks for raising");
-            } finally {
-                m.getConfig().writerSettings().enableRaiseOnWriteErrors();
-            }
-
-            assertThrows(MorphiumDriverException.class, () -> byId(m, "k0").set("code", "b"));
+            assertNotNull(byId(m, "k0").setRaiseOnWriteErrors(false).set("code", "b").get("writeErrors"), "best effort: the reply is returned");
+            assertThrows(MorphiumDriverException.class, () -> byId(m, "k0").set("code", "b"), "the default raises");
+            assertThrows(MorphiumDriverException.class, () -> byId(m, "k0").setRaiseOnWriteErrors(true).set("code", "b"));
         }
     }
 

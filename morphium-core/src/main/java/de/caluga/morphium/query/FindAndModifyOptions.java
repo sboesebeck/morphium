@@ -28,7 +28,7 @@ import java.util.Map;
  * An option that is not set leaves what the query carries (sort, collation, array filters) as it is. The query's own projection and hint are not used (the update
  * builder rejects them): give them here. The setters return this object; the getters return copies.
  *
- * @apiNote incubating until 6.3
+ * @apiNote incubating in 7.0, may change in a later 7.x release
  */
 public final class FindAndModifyOptions {
     private boolean upsert;

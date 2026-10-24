@@ -394,7 +394,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             Object flat = mapper.marshall(operand);
 
             if (!(flat instanceof Map)) {
-                // an element that a scalar mapper writes: arrays written by an older version (or by an update path before 6.4) hold it flat, arrays written
+                // an element that a scalar mapper writes: arrays written by an older version (or by an update path before 7.0) hold it flat, arrays written
                 // by store() or by the update paths of today hold it wrapped. Remove both.
                 Map<String, Object> either = new LinkedHashMap<>();
                 either.put("$in", new ArrayList<>(List.of(serialize(operand), flat)));

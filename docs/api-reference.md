@@ -249,7 +249,7 @@ morphium.createQueryFor(Measurement.class)
 each document defines one `$[<identifier>]` placeholder. Paths containing `$` bypass
 property-name translation, so write the MongoDB field names in the path.
 
-**Atomic update builder** (`Query.modify()`, incubating until 6.3):
+**Atomic update builder** (`Query.modify()`, incubating in 7.0):
 ```java
 // lease: conditional upsert, a second contender gets a MorphiumDriverException with isDuplicateKey() == true
 Query<Lease> q = morphium.createQueryFor(Lease.class).f(Lease.Fields.id).eq(leaseId);
@@ -318,7 +318,7 @@ entity is partial. The InMemoryDriver ignores `hint` and `maxTime` and does not 
 
 ### Rejected writes raise
 
-The `update` command reports a statement that the server rejects in its reply instead of failing. Morphium raises it (since 6.4, MOR-059): `Query.set/unset/inc/dec/push/pull/...`, the entity variants and the bulk context throw a
+The `update` command reports a statement that the server rejects in its reply instead of failing. Morphium raises it (since 7.0, MOR-059): `Query.set/unset/inc/dec/push/pull/...`, the entity variants and the bulk context throw a
 `MorphiumDriverException` (`getMongoCode()`, `isDuplicateKey()`, `getWriteErrors()`), `WriteConcernNotSatisfiedException` if the write was applied but missed its write concern, `BulkWriteException` for a bulk
 (`getPartialResult()`, `getFailures()`).
 ```java
@@ -330,7 +330,7 @@ try {
 jobs.f("id").eq(id).setRaiseOnWriteErrors(false).set("code", code);   // best effort: the reply is returned, nobody looks at it
 ```
 `Query.remove()` and `Morphium.remove(...)` raise the same way (MOR-065) for a delete the server rejects (an unknown query operator, an invalid collation) and with `WriteConcernNotSatisfiedException` for a delete that is applied but misses its write concern.
-Documents that an ordered multi update changed before the error are not rolled back. `WriterSettings.raiseOnWriteErrors` (deprecated, removed in 7.0) switches raising off for all writes.
+Documents that an ordered multi update changed before the error are not rolled back. There is no global switch: `Query.setRaiseOnWriteErrors(false)` is the override for one query.
 
 `LeaseManager<T>` packages the lease recipe (a job, a relay, a command that only one node may run):
 ```java

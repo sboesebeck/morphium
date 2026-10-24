@@ -130,18 +130,11 @@ public class DeleteRaisesOnRejectedDeleteTest extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
-    @SuppressWarnings("deprecation")
-    public void theConfigurationSwitchBringsTheOldBehaviourBack(Morphium m) throws Exception {
+    public void theQueryOverrideBringsTheOldBehaviourBack(Morphium m) throws Exception {
         try (m) {
             setup(m);
-            m.getConfig().writerSettings().disableRaiseOnWriteErrors();
-
-            try {
-                rejected(m).remove();
-                assertEquals(3, m.createQueryFor(Doc.class).countAll());
-            } finally {
-                m.getConfig().writerSettings().enableRaiseOnWriteErrors();
-            }
+            rejected(m).setRaiseOnWriteErrors(false).remove();
+            assertEquals(3, m.createQueryFor(Doc.class).countAll());
         }
     }
 

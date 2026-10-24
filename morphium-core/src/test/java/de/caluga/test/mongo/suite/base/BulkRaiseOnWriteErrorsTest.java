@@ -121,23 +121,6 @@ public class BulkRaiseOnWriteErrorsTest extends MultiDriverTestBase {
         }
     }
 
-    @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
-    @SuppressWarnings("deprecation")
-    public void withTheSwitchOffTheErrorsAreOnlyLoggedAsBefore(Morphium m) throws Exception {
-        try (m) {
-            setup(m);
-            m.getConfig().writerSettings().disableRaiseOnWriteErrors();
-
-            try {
-                Map<String, Object> result = run(m, true);
-                assertNotNull(result);
-                assertEquals("x", byId(m, "s0").get().code);
-            } finally {
-                m.getConfig().writerSettings().enableRaiseOnWriteErrors();
-            }
-        }
-    }
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")

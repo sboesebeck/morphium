@@ -1999,3 +1999,19 @@ tasks:
   source:
   - docs/howtos/conditional-writes.md
   evidence: 'Decision: no WorkClaim. The consuming application was searched for a claim of the shape state A to RUNNING with a visibility timeout and an attempts counter (claim, RUNNING, IN_PROGRESS, lockedUntil, $inc, attempt) over its ~36 raw find-and-modify sites and four representative ones were read: there is none. The sites are atomic upserts with a due clock (exclusivity comes from a job lease and its fencing token), conditional transitions (OPEN to CLOSED, a missing result means lost; a conditional upsert that joins an open case with $addToSet), a raw upsert whose attempts and state exist only as model fields, and a three step array update. The leases were the only counter-like claim and are covered by MOR-099. The two real shapes, the conditional transition and the conditional upsert that joins, are covered by the howto on conditional writes (MOR-100, with the OPEN to CLOSED and the create-or-join example). Reopen if a second consumer shows a claim with a visibility timeout.'
+- id: MOR-102
+  title: 'Release 7.0: remove the global raiseOnWriteErrors switch and bring the version statements of our changes in line'
+  type: implementation
+  status: done
+  priority: 2
+  effort: S
+  description: 'The stack of changes now lands on release/7.x (7.0.0-SNAPSHOT, based on v6.3.15). WriterSettings.raiseOnWriteErrors (with isRaiseOnWriteErrors, setRaiseOnWriteErrors, enableRaiseOnWriteErrors, disableRaiseOnWriteErrors) was a temporary migration switch of MOR-059, announced as deprecated and removed in 7.0, and it was never released: it is removed. A rejected write always raises; Query.setRaiseOnWriteErrors(false) stays as the per-query override; the entity paths and the bulk context always raise. The statements about 6.4, "incubating until 6.3" and "the release after 6.3.14/6.3.15" are replaced by 7.0 (the incubating APIs stay incubating in 7.0).'
+  acceptance:
+  - 'No reference to WriterSettings.raiseOnWriteErrors in main code, tests, API reference and configuration reference'
+  - 'The tests of the rejected-writes behaviour pass on the InMemoryDriver and on a real MongoDB'
+  source:
+  - morphium-core/src/main/java/de/caluga/morphium/config/WriterSettings.java
+  - morphium-core/src/main/java/de/caluga/morphium/query/Query.java
+  evidence: 'RaiseOnWriteErrorsTest, BulkRaiseOnWriteErrorsTest, DeleteRaisesOnRejectedDeleteTest, StoreRaisesOnRejectedUpdateTest, QueryRaiseOnWriteErrorsTest, MorphiumConfigTest and FindAndModifyWriteErrorTest pass on the InMemoryDriver and against mongo:8 with the PooledDriver; the tests of the switch (bulk, store, config) were removed, the delete and query tests use the per-query override; all modules build. Not changed: the research notes under docs/research (history).'
+  commits:
+  - 99a6a56db

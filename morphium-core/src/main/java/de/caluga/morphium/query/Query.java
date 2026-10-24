@@ -436,7 +436,7 @@ public class Query<T> implements Cloneable {
      * .findOneAndUpdate(ReturnDocument.AFTER)}. <b>Nothing is written until the terminal is called.</b> The query is captured now: changing it afterwards does not
      * change the update. See {@link UpdateBuilder} for what is translated, merged, versioned and rejected.
      *
-     * @apiNote incubating until 6.3
+     * @apiNote incubating in 7.0, may change in a later 7.x release
      */
     public UpdateBuilder<T> modify() {
         return new UpdateBuilder<>(morphium, clone());
@@ -450,9 +450,8 @@ public class Query<T> implements Cloneable {
     private Boolean raiseOnWriteErrors;
 
     /**
-     * Overrides {@code WriterSettings.raiseOnWriteErrors} for the writes of this query (set, unset, inc, dec, push, pull, ...): {@code false} returns the reply of a
-     * rejected write as before (the old behaviour, for example for a best-effort upsert that races on a unique index), {@code true} raises even if the
-     * configuration switched raising off, {@code null} follows the configuration.
+     * A rejected write of this query (set, unset, inc, dec, push, pull, ...) raises a {@code MorphiumDriverException} (MOR-059). {@code false} returns the reply of a
+     * rejected write instead and nobody looks at it, for example for a best-effort upsert that races on a unique index; {@code true} and {@code null} raise.
      */
     public Query<T> setRaiseOnWriteErrors(Boolean raise) {
         this.raiseOnWriteErrors = raise;
@@ -464,10 +463,9 @@ public class Query<T> implements Cloneable {
         return raiseOnWriteErrors;
     }
 
-    /** whether a rejected write of this query raises: the override, else the configuration */
-    @SuppressWarnings("deprecation")
+    /** whether a rejected write of this query raises: it does, unless {@link #setRaiseOnWriteErrors(Boolean)} was called with {@code false} */
     public boolean isRaiseOnWriteErrors() {
-        return raiseOnWriteErrors != null ? raiseOnWriteErrors : morphium.getConfig().writerSettings().isRaiseOnWriteErrors();
+        return raiseOnWriteErrors == null || raiseOnWriteErrors;
     }
 
     private Boolean translateUpdateFieldNames;

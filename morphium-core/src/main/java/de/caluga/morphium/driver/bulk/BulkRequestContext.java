@@ -30,21 +30,14 @@ public abstract class BulkRequestContext {
 
     /**
      * MOR-059: the end of an {@code execute()}. The failures of the requests were collected (an ordered context stops at the first one, an unordered one runs every
-     * request); with {@code WriterSettings.raiseOnWriteErrors} (default) one {@link BulkWriteException} carrying the counts of what was applied is thrown, with the switch off
-     * they are only logged, as before.
-     */
-    @SuppressWarnings("deprecation")
-    protected final void raiseOrLog(String db, String collection, boolean ordered, int requestCount, Map<String, Object> partialResult, List<MorphiumDriverException> failures) {
+     * request); one {@link BulkWriteException} carrying the counts of what was applied is thrown. */
+    protected final void raiseRejected(String db, String collection, boolean ordered, int requestCount, Map<String, Object> partialResult, List<MorphiumDriverException> failures) {
         if (failures.isEmpty()) {
             return;
         }
 
         Logger log = LoggerFactory.getLogger(BulkRequestContext.class);
         failures.forEach(f -> log.error("A request of the bulk write on {} was rejected", collection, f));
-
-        if (morphium == null || morphium.getConfig() == null || !morphium.getConfig().writerSettings().isRaiseOnWriteErrors()) {
-            return;
-        }
 
         throw new BulkWriteException("Bulk write on " + collection + " failed: " + failures.size() + " of " + requestCount + " requests rejected, first: " + failures.get(0).getMessage()
                                      + "; applied: " + partialResult + "; " + (ordered ? "ordered: the remaining requests were not executed" : "unordered: all other requests were executed")

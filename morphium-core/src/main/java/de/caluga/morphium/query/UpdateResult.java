@@ -12,7 +12,7 @@ import java.util.Objects;
  * </ul>
  * A final class instead of a record so that components can be added without breaking callers.
  *
- * @apiNote incubating until 6.3
+ * @apiNote incubating in 7.0, may change in a later 7.x release
  */
 public final class UpdateResult {
     private final long matchedCount;
