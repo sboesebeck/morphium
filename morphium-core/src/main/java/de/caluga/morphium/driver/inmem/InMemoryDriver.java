@@ -7531,6 +7531,38 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         cur.remove(parts[parts.length - 1]);
     }
 
+    /** a deep copy of a document that keeps the order of its fields (the stored copy of an insert, MOR-057) */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> copyOrdered(Map<String, Object> src) {
+        Map<String, Object> out = new LinkedHashMap<>((int) (src.size() / 0.75) + 1);
+
+        for (var e : src.entrySet()) {
+            out.put(e.getKey(), copyOrderedValue(e.getValue()));
+        }
+
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object copyOrderedValue(Object v) {
+        if (v instanceof Map) {
+            return copyOrdered((Map<String, Object>) v);
+        }
+
+        if (v instanceof List) {
+            List<Object> out = new ArrayList<>(((List<?>) v).size());
+
+            for (Object item : (List<?>) v) {
+                out.add(copyOrderedValue(item));
+            }
+
+            return out;
+        }
+
+        // numbers, strings, dates, ids and the like are immutable
+        return v;
+    }
+
     @SuppressWarnings("unchecked")
     private static Map<String, Object> deepCopyDoc(Map<String, Object> src) {
         // Pre-size HashMap to avoid rehashing
@@ -8552,7 +8584,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         try {
             markCollectionTouched(db, collection);
             int errors = 0;
-            objs = new ArrayList<>(objs);
+            // MOR-057: the collection keeps its own copy. A wire driver serialises the document, so a later update (or a change of the caller's map) cannot reach the other side;
+            // the stored map used to be the caller's. The field order is kept, $addToSet compares documents with it.
+            List<Map<String, Object>> ownCopies = new ArrayList<>(objs.size());
+
+            for (Map<String, Object> original : objs) {
+                ownCopies.add(copyOrdered(original));
+            }
+
+            objs = ownCopies;
             writeErrors = new ArrayList<>();
             // Original batch position of each working-list entry, kept aligned with objs across
             // every removal below. writeErrors.index must refer to the CLIENT's batch - indexing
@@ -9033,10 +9073,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * <p><strong>Known divergences from the real server</strong> (acceptable for an in-memory
      * test driver, documented so the parity claim above is not overstated):
      * <ul>
-     *   <li>{@code $or}/{@code $nor} are skipped unconditionally. The real server seeds a
-     *       single-branch {@code $or} (e.g. {@code {$or:[{f:9}]}} → {@code f:9}), because its
-     *       optimizer collapses it to the child; multi-branch {@code $or} and any {@code $nor}
-     *       are never seeded. We do not special-case the single-branch collapse.</li>
+     *   <li>A single-branch {@code $or} (e.g. {@code {$or:[{f:9}]}} → {@code f:9}) is seeded like
+     *       the server does, because its optimizer collapses it to the child (MOR-056);
+     *       multi-branch {@code $or} and any {@code $nor} are never seeded, here as there.</li>
      *   <li>Null equality ({@code {f:null}} / {@code {f:{$eq:null}}}) is dropped here, whereas
      *       the real server seeds a literal {@code null} — see {@link #seedField}.</li>
      * </ul>
@@ -9055,9 +9094,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
             if (isAndOperator(field)) {
                 collectFromAndBranches(predicate, target);
+            } else if ("$or".equals(field) && predicate instanceof List<?> orBranches && orBranches.size() == 1) {
+                // MOR-056: the server collapses a $or with ONE branch to that branch, so its equalities seed the document like those of an $and
+                collectFromAndBranches(predicate, target);
             } else if (isOperatorKey(field)) {
-                // Logical/operator keys ($or, $nor, $expr, ...) are not seeded. NB: the real
-                // server does seed a single-branch $or; we deliberately do not (see Javadoc).
+                // Other logical/operator keys ($or with several branches, $nor, $expr, ...) are not seeded
                 continue;
             } else {
                 seedField(field, predicate, target);

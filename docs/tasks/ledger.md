@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 35, done 30
+Status: open 33, done 32
 
 ## Overview
 
@@ -43,8 +43,6 @@ Status: open 35, done 30
 | MOR-048 | open | 3 | defect | MorphiumBase.setEnum looks the value up by the map value instead of the key | S |  |  |
 | MOR-049 | open | 3 | implementation | Writer path has no guard for @Reference and @Encrypted fields | M |  | MOR-042 |
 | MOR-052 | open | 3 | defect | updateLastAccess writes the untranslated Java field name | S |  |  |
-| MOR-056 | open | 3 | defect | InMemoryDriver: upsert seeds the equalities of a single-branch $or | S |  |  |
-| MOR-057 | open | 3 | defect | InMemoryDriver: an inserted document is stored by reference | S |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -73,6 +71,8 @@ Status: open 35, done 30
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
 | MOR-051 | done | 3 | defect | InMemoryDriver: reject path conflicts in update documents like MongoDB | S |  |  |
+| MOR-056 | done | 3 | defect | InMemoryDriver: upsert seeds the equalities of a single-branch $or | S |  |  |
+| MOR-057 | done | 3 | defect | InMemoryDriver: an inserted document is stored by reference | S |  |  |
 | MOR-061 | done | 3 | defect | Query.dec(field, Integer) turns an int counter into a double | S |  |  |
 | MOR-065 | done | 3 | defect | Delete paths ignore the writeErrors of the delete reply | S |  |  |
 
@@ -961,9 +961,11 @@ Commits: c60b7348a
 
 ### MOR-056 InMemoryDriver: upsert seeds the equalities of a single-branch $or
 
-Status **open**, priority 3, type defect, effort S
+Status **done**, priority 3, type defect, effort S
 
 Found by the update contract suite (MOR-028). A real MongoDB seeds the document of an upsert from the equality of a $or with a single branch, the InMemoryDriver ignores it, so the inserted document lacks the field.
+
+Evidence: The contract case upsert seeds a single-branch $or passes on mongo:8 and the InMemoryDriver (pin removed), and InMemInsertCopyAndOrSeedTest covers a single-branch $or inside an $and and that a multi-branch $or still seeds nothing. Without the driver change 3 of the 5 tests of that class fail. Regression: 1487 test methods (core and messaging) on the InMemoryDriver with only the known flaky MultithreaddedMessagingTests. Not covered: null equalities, which the InMemoryDriver still drops (documented divergence).
 
 Acceptance:
 
@@ -972,11 +974,15 @@ Acceptance:
 
 Source: docs/research/plan-mor-028.md
 
+Commits: de3ca1859
+
 ### MOR-057 InMemoryDriver: an inserted document is stored by reference
 
-Status **open**, priority 3, type defect, effort S
+Status **done**, priority 3, type defect, effort S
 
 Found by the update contract suite (MOR-028). InsertMongoCommand on the InMemoryDriver stores the map the caller passed, so a later update through the driver changes the caller's own map (and a change of the map changes the stored document). A wire driver serialises the document and cannot do either. Morphium.store() is not affected because the mapper creates a new map per call; raw command users and test fixtures are.
+
+Evidence: The contract case anInsertedDocumentIsNotKeptByReference now expects the unchanged document of the caller on every driver (pin removed), and InMemInsertCopyAndOrSeedTest covers a change of the caller map and of a nested document and list after the insert, that the generated _id is not written into the caller map, and that the field order of the stored document is kept. UpdateContractLedgerTest accepts a suite without pinned deviations and tests its pin pattern. Regression as for MOR-056. Not covered: the stored copy of documents inserted through the bulk context, which goes through the same insert method.
 
 Acceptance:
 
@@ -984,6 +990,8 @@ Acceptance:
 - The pinned deviation in StatementIsolationContractTest is replaced by the common expectation
 
 Source: docs/research/plan-mor-028.md
+
+Commits: de3ca1859
 
 ### MOR-058 InMemoryDriver: findAndModify does not reject what the update command rejects
 

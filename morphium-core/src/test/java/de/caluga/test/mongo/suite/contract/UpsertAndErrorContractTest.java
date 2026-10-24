@@ -29,8 +29,7 @@ public class UpsertAndErrorContractTest extends MultiDriverTestBase {
             c("upsert seeds the equalities of an $and").filter(d("$and", l(d("_id", 1), d("k", 2)))).update(d("$set", d("v", 1))).upsert().expect(docs(d("_id", 1, "k", 2, "v", 1))),
             c("upsert does not seed a range condition").filter(d("_id", 1, "n", d("$gt", 5))).update(d("$set", d("v", 1))).upsert().expect(docs(d("_id", 1, "v", 1))),
             c("upsert seeds an explicit $eq").filter(d("_id", 1, "k", d("$eq", 3))).update(d("$set", d("v", 1))).upsert().expect(docs(d("_id", 1, "k", 3, "v", 1))),
-            c("upsert seeds a single-branch $or").filter(d("_id", 1, "$or", l(d("k", 1)))).update(d("$set", d("v", 1))).upsert().expect(docs(d("_id", 1, "k", 1, "v", 1)))
-            .inMem("MOR-056", docs(d("_id", 1, "v", 1))),
+            c("upsert seeds a single-branch $or").filter(d("_id", 1, "$or", l(d("k", 1)))).update(d("$set", d("v", 1))).upsert().expect(docs(d("_id", 1, "k", 1, "v", 1))),
             c("upsert does not seed a multi-branch $or").filter(d("_id", 1, "$or", l(d("k", 1), d("k", 2)))).update(d("$set", d("v", 1))).upsert().expect(docs(d("_id", 1, "v", 1))),
             c("upsert does not seed an $in").filter(d("_id", 1, "k", d("$in", l(1, 2)))).update(d("$set", d("v", 1))).upsert().expect(docs(d("_id", 1, "v", 1))),
             c("upsert applies setOnInsert on insert").filter(d("_id", 1)).update(d("$set", d("v", 1), "$setOnInsert", d("created", "now"))).upsert().expect(docs(d("_id", 1, "v", 1, "created", "now"))),
