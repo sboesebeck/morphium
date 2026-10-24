@@ -20,7 +20,9 @@ import de.caluga.morphium.annotations.Driver;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Messaging;
+import de.caluga.morphium.quarkus.MorphiumInstance;
 import de.caluga.morphium.quarkus.MorphiumRecorder;
+import de.caluga.morphium.quarkus.NamedMorphiumRegistry;
 import de.caluga.morphium.quarkus.migration.MorphiumMigrationEntry;
 import de.caluga.morphium.quarkus.migration.MorphiumMigrationLock;
 import de.caluga.morphium.DefaultNameProvider;
@@ -28,6 +30,7 @@ import de.caluga.morphium.encryption.DefaultEncryptionKeyProvider;
 import de.caluga.morphium.encryption.AESEncryptionProvider;
 import de.caluga.morphium.IndexDescription;
 import io.quarkus.arc.deployment.AdditionalBeanBuildItem;
+import io.quarkus.arc.deployment.SyntheticBeanBuildItem;
 import io.quarkus.deployment.Capabilities;
 import io.quarkus.deployment.Capability;
 import io.quarkus.deployment.annotations.BuildProducer;
@@ -122,9 +125,70 @@ public class MorphiumProcessor {
         return AdditionalBeanBuildItem.builder()
             .addBeanClasses(
                 MorphiumProducer.class,
+                NamedMorphiumRegistry.class,
+                MorphiumInstance.class,
                 MorphiumTransactionalInterceptor.class)
             .setUnremovable()
             .build();
+    }
+
+    // ------------------------------------------------------------------
+    // Named instances (MOR-032)
+    // ------------------------------------------------------------------
+
+    private static final String NAMED_PREFIX = "quarkus.morphium.named.";
+
+    /**
+     * The names of the instances that are configured as {@code quarkus.morphium.named."name".*}, in the order of their first key. A name is quoted or, without a dot, bare.
+     * Read at build time because a qualifier needs a bean per name; a name cannot be added at run time.
+     */
+    static List<String> namedInstanceNames(Iterable<String> propertyNames) {
+        Set<String> names = new LinkedHashSet<>();
+
+        for (String key : propertyNames) {
+            if (!key.startsWith(NAMED_PREFIX) || key.length() == NAMED_PREFIX.length()) {
+                continue;
+            }
+
+            String rest = key.substring(NAMED_PREFIX.length());
+            String name;
+
+            if (rest.charAt(0) == '"') {
+                int end = rest.indexOf('"', 1);
+
+                if (end < 0) {
+                    continue;
+                }
+
+                name = rest.substring(1, end);
+            } else {
+                int dot = rest.indexOf('.');
+                name = dot < 0 ? rest : rest.substring(0, dot);
+            }
+
+            if (!name.isEmpty()) {
+                names.add(name);
+            }
+        }
+
+        return new ArrayList<>(names);
+    }
+
+    /** one application scoped Morphium bean per configured name, qualified with {@link MorphiumInstance} */
+    @BuildStep
+    @Record(ExecutionTime.RUNTIME_INIT)
+    void registerNamedInstances(MorphiumRecorder recorder, BuildProducer<SyntheticBeanBuildItem> beans) {
+        for (String name : namedInstanceNames(org.eclipse.microprofile.config.ConfigProvider.getConfig().getPropertyNames())) {
+            log.infof("Registering the named Morphium instance '%s'", name);
+            beans.produce(SyntheticBeanBuildItem.configure(de.caluga.morphium.Morphium.class)
+                    .scope(jakarta.enterprise.context.ApplicationScoped.class)
+                    .unremovable()
+                    .setRuntimeInit()
+                    .addQualifier().annotation(MorphiumInstance.class).addValue("value", name).done()
+                    .addInjectionPoint(org.jboss.jandex.ClassType.create(DotName.createSimple(NamedMorphiumRegistry.class.getName())))
+                    .createWith(recorder.namedMorphium(name))
+                    .done());
+        }
     }
 
     // ------------------------------------------------------------------
@@ -209,6 +273,13 @@ public class MorphiumProcessor {
     HealthBuildItem addReadinessCheck(MorphiumHealthBuildTimeConfig config) {
         return new HealthBuildItem(
                 "de.caluga.morphium.quarkus.health.MorphiumReadinessCheck",
+                config.enabled());
+    }
+
+    @BuildStep
+    HealthBuildItem addNamedReadinessCheck(MorphiumHealthBuildTimeConfig config) {
+        return new HealthBuildItem(
+                "de.caluga.morphium.quarkus.health.MorphiumNamedReadinessCheck",
                 config.enabled());
     }
 

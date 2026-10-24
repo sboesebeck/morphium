@@ -822,7 +822,7 @@ tasks:
 - id: MOR-032
   title: 'Quarkus: named Morphium instances'
   type: implementation
-  status: open
+  status: done
   priority: 3
   effort: M
   description: quarkus-morphium supports a single Morphium instance. Add named instances with qualifier injection,
@@ -831,6 +831,9 @@ tasks:
   - Two instances with different databases can be injected and used in an integration test
   source:
   - review of quarkus-morphium
+  evidence: 'MorphiumNamedInstancesTest (3 cases) green in a @QuarkusTest on the InMemDriver (default it-db and named it-second-db side by side); NamedInstanceNamesTest (2 cases); all 321 tests of the Quarkus modules run, 319 pass, the 2 failures (MorphiumMigrationTest heartbeat tests inFlightHeartbeatAdvancesExpiryDuringSingleUnit and renewLockBetweenChangeUnitsAdvancesExpiry) fail identically on the unchanged base. NOT verified: two named instances against a real MongoDB (the test uses the InMemDriver for the named one), native image, dev-mode hot reload with a named instance.'
+  commits:
+  - FIXME
 - id: MOR-033
   title: 'Quarkus: CDI integration for Morphium messaging'
   type: implementation

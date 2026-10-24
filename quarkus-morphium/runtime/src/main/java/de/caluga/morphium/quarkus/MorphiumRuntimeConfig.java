@@ -18,13 +18,11 @@ package de.caluga.morphium.quarkus;
 import io.quarkus.runtime.annotations.ConfigPhase;
 import io.quarkus.runtime.annotations.ConfigRoot;
 import io.smallrye.config.ConfigMapping;
-import io.smallrye.config.WithDefault;
 
 import de.caluga.morphium.quarkus.migration.MorphiumMigrationConfig;
 import de.caluga.morphium.quarkus.observability.MorphiumObservabilityConfig;
 
-import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 
 /**
  * Type-safe runtime configuration for the Morphium extension.
@@ -43,176 +41,21 @@ import java.util.Optional;
  */
 @ConfigMapping(prefix = "quarkus.morphium")
 @ConfigRoot(phase = ConfigPhase.RUN_TIME)
-public interface MorphiumRuntimeConfig {
-
-    /**
-     * MongoDB host list in {@code host:port} format.
-     * Multiple hosts are separated by commas in application.properties.
-     */
-    @WithDefault("localhost:27017")
-    List<String> hosts();
-
-    /** MongoDB database name. */
-    String database();
-
-    /** MongoDB username (optional). */
-    Optional<String> username();
-
-    /** MongoDB password (optional). */
-    Optional<String> password();
-
-    /** Authentication database, defaults to {@code admin}. */
-    @WithDefault("admin")
-    String authDatabase();
-
-    /**
-     * Read preference for MongoDB queries.
-     * Accepted values: {@code primary}, {@code primaryPreferred},
-     * {@code secondary}, {@code secondaryPreferred}, {@code nearest}.
-     */
-    @WithDefault("primary")
-    String readPreference();
-
-    /**
-     * Index creation strategy. Controls when and if Morphium ensures that
-     * {@code @Index} annotations are reflected as actual MongoDB indexes.
-     *
-     * <ul>
-     *   <li>{@code create-on-startup} – <b>(default)</b> create missing indexes
-     *       when the Morphium instance connects. Reliable even when the first
-     *       write happens inside a transaction.</li>
-     *   <li>{@code warn-on-startup} – log a warning for every missing index at
-     *       startup but do <em>not</em> create them.</li>
-     *   <li>{@code create-on-write-new-col} – create indexes lazily, only when
-     *       writing to a collection that does not yet exist (skipped inside
-     *       transactions).</li>
-     *   <li>{@code no-check} – disable all index management.</li>
-     * </ul>
-     */
-    @WithDefault("create-on-startup")
-    IndexCheckMode indexCheck();
-
-    /** Strategy for automatic index management. */
-    enum IndexCheckMode {
-        /** Do not check or create indexes. */
-        NO_CHECK,
-        /** Log warnings for missing indexes at startup. */
-        WARN_ON_STARTUP,
-        /** Create missing indexes at startup (recommended). */
-        CREATE_ON_STARTUP,
-        /** Create indexes only when writing to a new collection (not inside transactions). */
-        CREATE_ON_WRITE_NEW_COL
-    }
-
-    /** Maximum number of MongoDB connections in the pool. */
-    @WithDefault("250")
-    int maxConnections();
-
-    /**
-     * Maximum time (in milliseconds) for low-level operations such as waiting
-     * for a connection from the pool, driver-level timeouts, and change streams.
-     *
-     * <p>This does <em>not</em> affect query execution time limits — use
-     * {@link #defaultQueryTimeoutMs()} for that.
-     */
-    @WithDefault("2000")
-    int maxWaitTime();
-
-    /**
-     * Default server-side time limit (in milliseconds) for queries when no
-     * per-query {@code maxTimeMS} is set via {@code Query.setMaxTimeMS()}.
-     *
-     * <p>MongoDB enforces this as {@code maxTimeMS} across the entire cursor
-     * lifecycle (initial {@code find} + all subsequent {@code getMore} operations).
-     * If a query exceeds this limit, MongoDB returns error 50 ({@code ExceededTimeLimit}).
-     *
-     * <p>Set to {@code 0} (the default) to disable the server-side time limit
-     * entirely (Morphium will set {@code noCursorTimeout} instead). Set to a
-     * positive value (e.g. {@code 60000}) to enforce a global query timeout.
-     */
-    @WithDefault("0")
-    int defaultQueryTimeoutMs();
-
-    /**
-     * Optional MongoDB Atlas connection string ({@code mongodb+srv://...}).
-     * When present this overrides {@link #hosts()}.
-     */
-    Optional<String> atlasUrl();
-
-    /**
-     * Morphium driver name. Defaults to {@code PooledDriver}.
-     * Use {@code InMemDriver} for tests (no MongoDB required).
-     */
-    @WithDefault("PooledDriver")
-    String driverName();
-
-    /**
-     * MongoDB replica set name. When set, Morphium connects in replica set mode
-     * which is required for transactions. Dev Services sets this automatically
-     * when {@code quarkus.morphium.devservices.replica-set=true}.
-     */
-    Optional<String> replicaSetName();
-
-    /**
-     * Number of connection attempts before giving up (minimum {@code 1}).
-     * Useful in CI environments (Docker-in-Docker) where the MongoDB replica set
-     * primary may not be immediately reachable after the container starts.
-     * Set to {@code 1} to disable retries. Values below 1 are treated as 1.
-     */
-    @WithDefault("5")
-    int connectRetries();
-
-    /** Nested cache configuration. */
-    CacheConfig cache();
-
-    /** Nested TLS / X.509 configuration. */
-    SslConfig ssl();
-
+public interface MorphiumRuntimeConfig extends MorphiumConnectionConfig {
     /** Nested LocalDateTime serialization configuration. */
     LocalDateTimeConfig localDateTime();
-
-    /**
-     * Whether {@code java.time} values are stored as native BSON Date ({@code ISODate}) instead of
-     * Morphium's own per-type formats. Covers all four types the object mapper maps specially:
-     * {@link java.time.Instant}, {@link java.time.LocalDate}, {@link java.time.LocalTime} and
-     * {@link java.time.LocalDateTime}.
-     *
-     * <p>Sets {@code ObjectMappingSettings#setUseBsonDateForJavaTime(boolean)}, so the effect is the
-     * one documented there: a scalar field becomes a bare BSON Date, which is bit-compatible with the
-     * official MongoDB Java driver's {@code jsr310} codecs and therefore usable with native date range
-     * queries, sorts and TTL indexes. Sub-millisecond precision is lost, the same trade-off the driver
-     * makes for these types.
-     *
-     * <p><b>Deliberately without a default.</b> Left unset, the extension keeps its previous behaviour:
-     * only {@link java.time.LocalDateTime} follows {@code quarkus.morphium.local-date-time.use-bson-date}
-     * (which defaults to {@code true}) and the other three types keep the legacy format. That
-     * per-type split cannot be expressed through {@code ObjectMappingSettings}, which is all-or-nothing
-     * for the four types -- so silently adopting a default here would change the on-disk format of
-     * {@code Instant}, {@code LocalDate} and {@code LocalTime} fields for every existing application on
-     * upgrade. Setting this property is the explicit opt-in; it then wins over the deprecated per-type
-     * property.
-     *
-     * <p><b>Setting this to {@code false} is not "keep things as they are".</b> The deprecated
-     * {@code local-date-time.use-bson-date} defaults to {@code true}, so today {@code LocalDateTime} is
-     * already stored as {@code ISODate}. Explicitly setting this property to {@code false} flips
-     * {@code LocalDateTime} to the legacy Map format -- the opposite of what someone who sets it to
-     * {@code false} expecting "no change" would want -- and starts writing a second on-disk shape into
-     * an existing collection. Leave the property unset if {@code LocalDateTime} should keep its current
-     * format.
-     */
-    Optional<Boolean> useBsonDateForJavaTime();
-
-    /**
-     * How an enum is stored in a field without {@code @Enumerated}: {@code STRING} (the name of the constant, the default) or {@code ORDINAL} (its position, so a sort and a range query follow
-     * the order of the constants). Sets {@code ObjectMappingSettings#setEnumType}. Existing documents are not rewritten; reading takes both forms. The ordinal changes when a constant is
-     * inserted or moved: add new constants at the end. {@code @Enumerated} on a field wins over this setting.
-     */
-    @io.smallrye.config.WithDefault("STRING")
-    de.caluga.morphium.annotations.EnumType enumType();
 
     /** Nested database migration configuration. */
     MorphiumMigrationConfig migration();
 
     /** Nested Micrometer observability configuration. Effective only when Micrometer is present. */
     MorphiumObservabilityConfig observability();
+
+    /**
+     * Named Morphium instances (MOR-032). Each name is a CDI qualifier: {@code @MorphiumInstance("analytics") Morphium analytics;} is the instance that is configured by
+     * {@code quarkus.morphium.named."analytics".*}, with the same settings as the default instance ({@code hosts}, {@code database}, {@code username}, {@code driver-name},
+     * {@code cache.*}, {@code ssl.*}, ...). The names are read from the configuration at build time, so a name cannot be added at run time. Migrations, Dev Services, metrics
+     * and {@code @MorphiumTransactional} belong to the default instance only; the health checks cover every instance.
+     */
+    Map<String, NamedMorphiumConfig> named();
 }
