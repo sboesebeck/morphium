@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 23, done 71
+Status: open 22, done 72
 
 ## Overview
 
@@ -12,7 +12,6 @@ Status: open 23, done 71
 |---|---|---|---|---|---|---|---|
 | MOR-063 | open | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
 | MOR-069 | open | 2 | defect | PoppyDB: the update fast path reports every error as 11000 and ignores the ordered flag | S |  |  |
-| MOR-095 | open | 2 | verification | Verification: the showcase against this version, and two findings (scram-client pinned by the Quarkus BOM, no LICENSE file) | S |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
 | MOR-015 | open | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
@@ -92,6 +91,7 @@ Status: open 23, done 71
 | MOR-091 | done | 2 | defect | Jakarta Data: several ORs in one query narrow each other | S |  |  |
 | MOR-093 | done | 2 | implementation | Enums can be stored by their ordinal: @Enumerated and an opt-in setting | M |  |  |
 | MOR-094 | done | 2 | documentation | README: the Jakarta Data TCK result and our modules added to the entry page, release history of 6.2 and older moved out | S |  |  |
+| MOR-095 | done | 2 | verification | Verification: the showcase against this version, and two findings (scram-client pinned by the Quarkus BOM, no LICENSE file) | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
@@ -1671,9 +1671,11 @@ Commits: eb722ce92, d492947fe
 
 ### MOR-095 Verification: the showcase against this version, and two findings (scram-client pinned by the Quarkus BOM, no LICENSE file)
 
-Status **open**, priority 2, type verification, effort S
+Status **done**, priority 2, type verification, effort S
 
 The Quarkus Morphium Showcase (92 tests) was run against 6.3.15-SNAPSHOT of all modules: all pass. Two findings. (1) The Quarkus platform BOM (3.32.3) manages com.ongres.scram:scram-client to 3.2 and wins over the 3.4 that Morphium manages (security: ongres scram 2.1 -> 3.4, CVE-2025-59432 and CVE-2026-53712), so an application on the Quarkus BOM gets 3.2 unless it pins 3.4 itself; the showcase had to pin it to resolve. Check that 3.2 is safe for SaslAuthCommand and whether it carries the CVEs, then document the pin in the Quarkus guide (and in the showcase pom). (2) The repository has no LICENSE file at the root, though README, README.de and the pom point to it.
+
+Evidence: docs/quarkus-extension.md has a section that explains the pin and gives the dependencyManagement entry; the file LICENSE has the unmodified text of the Apache License 2.0 (11358 bytes, the size of the original), taken from a jar of Apache Commons Lang that was already in the local repository; the README links it. The showcase pom still has to get the pin (its own repository).
 
 Acceptance:
 
@@ -1681,4 +1683,6 @@ Acceptance:
 - A LICENSE file with the Apache License 2.0 text at the root of the repository
 
 Source: quarkus-morphium/README.md
+
+Commits: db4f125a9, 417dfbedb
 
