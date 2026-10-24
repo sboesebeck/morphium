@@ -146,6 +146,37 @@ class MorphiumDataProcessorJdqlDeleteTest {
         long del(String n);
     }
 
+    @Repository
+    public interface FindWithIs extends MorphiumRepository<Fixture, String> {
+        @jakarta.data.repository.Find
+        java.util.List<Fixture> cheap(@jakarta.data.repository.By("name") @jakarta.data.repository.Is(Object.class) String name);
+    }
+
+    @Repository
+    public interface FindWithRestriction extends MorphiumRepository<Fixture, String> {
+        @jakarta.data.repository.Find
+        java.util.List<Fixture> matching(jakarta.data.restrict.Restriction<Fixture> restriction);
+    }
+
+    @Repository
+    public interface DeleteWithIs extends MorphiumRepository<Fixture, String> {
+        @jakarta.data.repository.Delete
+        long drop(@jakarta.data.repository.By("name") @jakarta.data.repository.Is(Object.class) String name);
+    }
+
+    @Repository
+    public interface QueryWithFirst extends MorphiumRepository<Fixture, String> {
+        @jakarta.data.repository.First(2)
+        @Query("WHERE name = :n")
+        java.util.List<Fixture> top(@Param("n") String n);
+    }
+
+    @Repository
+    public interface FindFine extends MorphiumRepository<Fixture, String> {
+        @jakarta.data.repository.Find
+        java.util.List<Fixture> byName(@jakarta.data.repository.By("name") String name);
+    }
+
     private static class Collecting implements BuildProducer<ReflectiveClassBuildItem> {
         @Override
         public void produce(ReflectiveClassBuildItem item) {
@@ -229,5 +260,16 @@ class MorphiumDataProcessorJdqlDeleteTest {
     void updateOtherMistakes() {
         assertThatThrownBy(() -> generate(UpdateBooleanResult.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("void, int or long");
         assertThatThrownBy(() -> generate(UpdateOtherEntity.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("Other");
+    }
+
+    @Test
+    @DisplayName("MOR-019: @Is, Restriction and @First fail the build and name the method")
+    void unsupportedJakartaData11Features() {
+        assertThatThrownBy(() -> generate(FindWithIs.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("FindWithIs.cheap").hasMessageContaining("@Is");
+        assertThatThrownBy(() -> generate(FindWithRestriction.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("FindWithRestriction.matching")
+            .hasMessageContaining("Restriction");
+        assertThatThrownBy(() -> generate(DeleteWithIs.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("DeleteWithIs.drop");
+        assertThatThrownBy(() -> generate(QueryWithFirst.class)).isInstanceOf(IllegalStateException.class).hasMessageContaining("QueryWithFirst.top").hasMessageContaining("@First");
+        assertThatCode(() -> generate(FindFine.class)).doesNotThrowAnyException();
     }
 }

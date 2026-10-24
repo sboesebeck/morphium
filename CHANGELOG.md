@@ -140,6 +140,12 @@ context keep their own key handling.
 
 ### Fixed
 
+#### Jakarta Data: `@Is`, `Restriction` and `@First` are refused instead of being run as an equality (MOR-019)
+Every parameter of a `@Find` or `@Delete` method is bound as an equality condition. With Jakarta Data 1.1 on the classpath, `@Is(AtLeast.class) int min` would have
+run as `price = min`, and a `Restriction` parameter as a field of that name. The Quarkus build now fails for a parameter with `@Is`, for a parameter of a
+`jakarta.data.constraint` type or a `Restriction`, and for `@First` on a `@Find`, `@Delete` or `@Query` method, naming the method; the Spring repository fails when
+its proxy is created. Use a derived query or `@Query` instead. The check works on class names and needs no 1.1 API.
+
 #### The update builder, `findOneAndUpdate(Map)`, `updateOne` and `updateMany` fire the storage-listener update events (MOR-072)
 `MorphiumStorageListener.preUpdate` and `postUpdate` were fired by the writer path (`Query.set`, `inc`, `push`, ...), the bulk context and the buffered
 writer, but not by `Query.modify()`, `findOneAndUpdate(Map)`, `updateOne` and `updateMany`. They fire them now, one pair per call, with the type of the operator

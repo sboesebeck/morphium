@@ -18,6 +18,7 @@ import jakarta.data.repository.Query;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
@@ -42,6 +43,13 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
         this.repositoryInterface = repositoryInterface;
         this.delegate = new SpringMorphiumRepository(metadata);
         this.delegate.setMorphium(morphium);
+
+        // A Jakarta Data 1.1 feature that the query methods do not implement (MOR-019) fails when the repository is created, not at the first call
+        for (Method method : repositoryInterface.getMethods()) {
+            if (!method.isDefault() && (method.isAnnotationPresent(Find.class) || method.isAnnotationPresent(Delete.class) || method.isAnnotationPresent(Query.class))) {
+                rejectUnsupportedParameterStyles(method);
+            }
+        }
     }
 
     @Override
@@ -204,7 +212,40 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
                 sortIdx, orderIdx, pageRequestIdx, limitIdx);
     }
 
+    /**
+     * Throws for a Jakarta Data 1.1 feature that the {@code @Find}, {@code @Delete} and {@code @Query} methods do not implement (MOR-019): {@code @Is}, a
+     * constraint or {@code Restriction} parameter and {@code @First}. Without this check the parameter would be bound as an equality. Works on names, so
+     * it does not need the 1.1 API.
+     */
+    private static void rejectUnsupportedParameterStyles(Method method) {
+        List<String> methodAnnotations = new ArrayList<>();
+
+        for (java.lang.annotation.Annotation a : method.getAnnotations()) {
+            methodAnnotations.add(a.annotationType().getName());
+        }
+
+        List<UnsupportedParameterStyles.Param> params = new ArrayList<>();
+        java.lang.reflect.Parameter[] parameters = method.getParameters();
+
+        for (java.lang.reflect.Parameter p : parameters) {
+            List<String> names = new ArrayList<>();
+
+            for (java.lang.annotation.Annotation a : p.getAnnotations()) {
+                names.add(a.annotationType().getName());
+            }
+
+            params.add(new UnsupportedParameterStyles.Param(p.getType().getName(), names));
+        }
+
+        String problem = UnsupportedParameterStyles.check(method.getDeclaringClass().getName() + "." + method.getName(), methodAnnotations, params);
+
+        if (problem != null) {
+            throw new IllegalStateException(problem);
+        }
+    }
+
     private MethodHandler buildJdqlHandler(Method method, Query queryAnno) {
+        rejectUnsupportedParameterStyles(method);
         String jdql = queryAnno.value();
         String paramMapSpec = buildParamMapSpec(method);
 
@@ -274,6 +315,7 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
     }
 
     private MethodHandler buildFindHandler(Method method) {
+        rejectUnsupportedParameterStyles(method);
         String conditionsSpec = buildConditionsSpec(method);
         String orderBySpec = getOrderBySpec(method);
         int sortIdx = findParamIndex(method, Sort.class);
@@ -307,6 +349,7 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
     }
 
     private MethodHandler buildDeleteHandler(Method method) {
+        rejectUnsupportedParameterStyles(method);
         String conditionsSpec = buildConditionsSpec(method);
         Class<?> returnType = method.getReturnType();
 

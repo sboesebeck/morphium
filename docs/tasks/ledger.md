@@ -4,13 +4,12 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 24, done 49
+Status: open 23, done 50
 
 ## Overview
 
 | ID | Status | Prio | Type | Title | Effort | Ticket | Depends on |
 |---|---|---|---|---|---|---|---|
-| MOR-019 | open | 2 | defect | Jakarta Data: reject unsupported @Find/@Delete parameter styles at build time | S |  |  |
 | MOR-021 | open | 2 | implementation | Morphium extension: atomic update and find-and-modify repository annotations | L |  | MOR-008, MOR-010 |
 | MOR-026 | open | 2 | infrastructure | Run the Jakarta Data TCK against morphium-jakarta-data | M |  |  |
 | MOR-063 | open | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
@@ -51,6 +50,7 @@ Status: open 24, done 49
 | MOR-014 | done | 2 | implementation | Option E: startup guard for @Embedded under @Entity(translateCamelCase=false) | S |  | MOR-001 |
 | MOR-017 | done | 2 | implementation | Jakarta Data: JDQL DELETE FROM | M |  |  |
 | MOR-018 | done | 2 | implementation | Jakarta Data: JDQL UPDATE ... SET ... WHERE as one atomic update | L |  | MOR-006, MOR-007 |
+| MOR-019 | done | 2 | defect | Jakarta Data: reject unsupported @Find/@Delete parameter styles at build time | S |  |  |
 | MOR-024 | done | 2 | defect | Jakarta Data: support ordinal parameters (?1) in @Query | S |  |  |
 | MOR-025 | done | 2 | defect | Jakarta Data: @Update is not atomic and throws IllegalStateException | M |  |  |
 | MOR-029 | done | 2 | defect | InMemoryDriver: reject values BsonEncoder cannot encode | M |  |  |
@@ -423,9 +423,11 @@ Commits: a7920d6a2
 
 ### MOR-019 Jakarta Data: reject unsupported @Find/@Delete parameter styles at build time
 
-Status **open**, priority 2, type defect, effort S
+Status **done**, priority 2, type defect, effort S
 
 FindMethodBridge and MorphiumDataProcessor turn every @Find/@Delete parameter into an equality. With Jakarta Data 1.1 an @Is(AtLeast.class) parameter would silently run as eq and a Restriction parameter would be treated as an attribute. Reject @Is, Constraint, Restriction and @First usage with a clear build error until MOR-020 supports them.
+
+Evidence: UnsupportedParameterStyles (morphium-jakarta-data) checks class names, so it needs no Jakarta Data 1.1 API: @Is on a parameter, a parameter of a jakarta.data.constraint or jakarta.data.restrict type, @First on a method (UnsupportedParameterStylesTest, 2 tests). Quarkus: MorphiumDataProcessor.rejectUnsupportedParameterStyles runs for every @Find, @Delete and @Query method and fails the build with a message that names the method and the way out; MorphiumDataProcessorJdqlDeleteTest has a test with @Is on a @Find and on a @Delete, a Restriction on a @Find and @First on a @Query (each names the method) and one that a plain @Find is generated. The 1.1 types do not exist in the 1.0 API of the build, so the tests use stand-in annotations and types with the same names in the test sources. Spring: the repository is checked when its invocation handler is created, not at the first call (UnsupportedParameterStylesTest in the Spring module, 4 tests: @Is on @Find and @Delete, Restriction, @First on @Query, and a repository without them is fine). Whole suites: jakarta-data 118 (without the MongoDB variants), Quarkus runtime 83, deployment 38, integration 284, Spring 35. Docs: docs/jakarta-data.md and CHANGELOG. Not covered: derived query methods (findBy...) with such parameters are not checked, the stand-in types would clash with the real ones once the build uses Jakarta Data 1.1 (they can then be deleted), and the Spring check covers the methods of the interface that carry @Find, @Delete or @Query.
 
 Acceptance:
 
@@ -433,6 +435,8 @@ Acceptance:
 - The Spring proxy path throws at startup with the same message
 
 Source: docs/research/jakarta-data-1.1.md section 4
+
+Commits: 39b01aed2
 
 ### MOR-020 Jakarta Data 1.1: @Is, constraints, @First and attribute-only Restriction
 
