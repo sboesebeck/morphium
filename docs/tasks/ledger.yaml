@@ -381,7 +381,7 @@ tasks:
   - update-path research, 2026-10-15
   evidence: 'FieldReferenceTest (4 cases: value operators with Lombok class constants, enum constants and an attribute name; rename; pushEach/addToSetEach; unset/currentDate) green on the InMemoryDriver and MongoDB 8 (PooledDriver); MetamodelAttributeFieldReferenceTest in morphium-jakarta-data green on the InMemoryDriver; ModifyOperatorsTest unchanged. Only the missing enum overloads are new code.'
   commits:
-  - FIXME
+  - 38f9356eb
 - id: MOR-013
   title: findOneAndUpdate(Map) accepts a plain field map (auto $set)
   type: implementation

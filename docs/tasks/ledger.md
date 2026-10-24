@@ -346,7 +346,7 @@ Depends on: MOR-006
 
 Source: update-path research, 2026-10-15
 
-Commits: FIXME
+Commits: 38f9356eb
 
 ### MOR-013 findOneAndUpdate(Map) accepts a plain field map (auto $set)
 
