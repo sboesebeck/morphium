@@ -65,8 +65,8 @@ public class BufferedWriteIsolationTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void aRejectedCollectionDoesNotKeepTheOthersFromBeingWritten(Morphium m) throws Exception {
         try (m) {
-            m.dropCollection(BufA.class);
-            m.dropCollection(BufB.class);
+            // no dropCollection: for a @WriteBuffer entity it is queued with the other writes and runs asynchronously, so it can arrive after the stores below; the database of the
+            // Morphium instance is dropped when the instance is created
 
             for (int i = 0; i < 2; i++) {
                 BufA a = new BufA();
