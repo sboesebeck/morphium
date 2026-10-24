@@ -298,6 +298,26 @@ class MorphiumRepositoryProxyTest {
         assertFalse(repository.finish("nobody"));
     }
 
+    // ---- MOR-022: derived update ----
+
+    @Test
+    void derivedUpdateSetsTheParametersAfterTheCondition() {
+        repository.save(new TestEntity("a", "active", 1));
+        repository.save(new TestEntity("b", "active", 5));
+        repository.save(new TestEntity("c", "idle", 7));
+
+        assertEquals(2, repository.updateByStatus("active", 42));
+        assertEquals(List.of(42, 42), repository.findByStatus("active").stream().map(TestEntity::getPriority).toList());
+        assertEquals(7, repository.findByStatus("idle").get(0).getPriority());
+        assertEquals(0, repository.updateByStatus("nobody", 1));
+
+        var changed = repository.updateByName("c", "busy");
+        assertTrue(changed.isPresent());
+        assertEquals("busy", changed.get().getStatus());
+        assertEquals(7, changed.get().getPriority());
+        assertTrue(repository.updateByName("nobody", "x").isEmpty());
+    }
+
     private void saveSortFixture() {
         repository.save(new TestEntity("a", "x", 2));
         repository.save(new TestEntity("b", "x", 1));

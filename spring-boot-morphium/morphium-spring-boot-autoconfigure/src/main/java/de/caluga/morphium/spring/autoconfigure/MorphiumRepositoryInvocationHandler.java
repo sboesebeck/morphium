@@ -69,6 +69,11 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
             if (!method.isDefault() && method.isAnnotationPresent(AtomicUpdate.class)) {
                 handlers.put(method, buildAtomicUpdateHandler(method, method.getAnnotation(AtomicUpdate.class)));
             }
+
+            // and a derived update (MOR-022) that cannot be derived
+            if (!method.isDefault() && !method.isAnnotationPresent(AtomicUpdate.class) && DerivedUpdate.isDerivedUpdateName(method.getName())) {
+                handlers.put(method, buildAtomicUpdateHandler(method, null));
+            }
         }
     }
 
@@ -108,6 +113,11 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
         // Morphium extension (MOR-021): one atomic update with structured assignments
         if (method.isAnnotationPresent(AtomicUpdate.class)) {
             return buildAtomicUpdateHandler(method, method.getAnnotation(AtomicUpdate.class));
+        }
+
+        // Morphium extension (MOR-022): updateBy... is an atomic update that the name and the parameters describe
+        if (DerivedUpdate.isDerivedUpdateName(name)) {
+            return buildAtomicUpdateHandler(method, null);
         }
 
         // --- @Insert, @Save, @Update, @Delete with entities, under any name (MOR-077) ---
@@ -322,13 +332,11 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
             }
         }
 
-        AtomicUpdateSpec spec = new AtomicUpdateSpec(au.where(), assignments(au.set(), where), assignments(au.setOnInsert(), where), assignments(au.inc(), where), au.upsert(), au.many(),
-                au.returns(), getOrderBySpec(method), paramMapSpec);
-        java.util.Set<String> entityFields = new java.util.HashSet<>();
-
-        for (java.lang.reflect.Field f : delegate.getMorphium().getARHelper().getAllFields(entityClass)) {
-            entityFields.add(f.getName());
-        }
+        AtomicUpdateSpec spec = au != null
+                ? new AtomicUpdateSpec(au.where(), assignments(au.set(), where), assignments(au.setOnInsert(), where), assignments(au.inc(), where), au.upsert(), au.many(),
+                        au.returns(), getOrderBySpec(method), paramMapSpec)
+                : DerivedUpdate.derive(method.getName(), paramMapSpec, countForm, entityFieldsOf(delegate, entityClass));
+        java.util.Set<String> entityFields = entityFieldsOf(delegate, entityClass);
 
         spec.validate(where, countForm ? AtomicUpdateSpec.Form.COUNT : AtomicUpdateSpec.Form.DOCUMENT, paramNames, entityFields);
         String encoded = spec.encode();
@@ -349,6 +357,16 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
         }
 
         return args -> JdqlMethodBridge.executeAtomicDocument(delegate, encoded, args != null ? args : new Object[0]);
+    }
+
+    private static java.util.Set<String> entityFieldsOf(AbstractMorphiumRepository<?, ?> delegate, Class<?> entityClass) {
+        java.util.Set<String> entityFields = new java.util.HashSet<>();
+
+        for (java.lang.reflect.Field f : delegate.getMorphium().getARHelper().getAllFields(entityClass)) {
+            entityFields.add(f.getName());
+        }
+
+        return entityFields;
     }
 
     private static List<String> assignments(Assign[] assigns, String where) {

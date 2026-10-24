@@ -98,6 +98,12 @@ public interface TestEntityRepository extends MorphiumRepository<TestEntity, Mor
     @de.caluga.morphium.data.AtomicUpdate(where = "name = :name", set = @de.caluga.morphium.data.Assign(field = "status", value = "'done'"))
     boolean finish(@jakarta.data.repository.Param("name") String name);
 
+    // --- derived update (MOR-022): the condition is in the name, every parameter after it is the field that it sets ---
+
+    long updateByStatus(String status, @jakarta.data.repository.Param("priority") int priority);
+
+    java.util.Optional<TestEntity> updateByName(String name, @jakarta.data.repository.Param("status") String status);
+
     /** several Sort parameters, a Sort... parameter, and a static order that comes first (MOR-081) */
     List<TestEntity> findByStatus(String status, Sort<TestEntity> first, Sort<TestEntity> second);
 
