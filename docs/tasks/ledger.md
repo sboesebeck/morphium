@@ -4,14 +4,14 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 2, done 99
+Status: blocked 2, done 99
 
 ## Overview
 
 | ID | Status | Prio | Type | Title | Effort | Ticket | Depends on |
 |---|---|---|---|---|---|---|---|
-| MOR-015 | open | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
-| MOR-020 | open | 3 | implementation | Jakarta Data 1.1: @Is, constraints, @First and attribute-only Restriction | L |  | MOR-019, MOR-023 |
+| MOR-015 | blocked | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
+| MOR-020 | blocked | 3 | implementation | Jakarta Data 1.1: @Is, constraints, @First and attribute-only Restriction | L |  | MOR-019, MOR-023 |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -389,9 +389,11 @@ Commits: dfe3f118c
 
 ### MOR-015 Option D: opt-in INHERIT mode for @Embedded translateCamelCase
 
-Status **open**, priority 3, type implementation, effort L
+Status **blocked**, priority 3, type implementation, effort L
 
 Tri-state INHERIT/TRUE/FALSE on @Embedded with the current behaviour as default, owner setting threaded through serialize and deserialize (fieldNameCache and getFields are per class today, deserialisation has no owner context). Never change the default: stored data would change.
+
+Blocked by: Deferred for 7.0 (decision of 2026-10-24). The owner setting would have to reach serialize, deserialize, the path resolution of queries and updates (resolveFieldPath, getMongoFieldName) and the per-class caches (fieldNameCache, getFields), so more than six places of the mapper change for a case that the existing means cover: the warning and strictEmbeddedNaming (MOR-014) find it, @Embedded(translateCamelCase=false) fixes it for an embedded class that has one kind of owner, and KeyRename (MOR-016) migrates stored data. INHERIT only adds something when the same embedded class is held by owners of both kinds. Build it when somebody has that case; the default must stay as it is.
 
 Acceptance:
 
@@ -480,9 +482,11 @@ Commits: 39b01aed2
 
 ### MOR-020 Jakarta Data 1.1: @Is, constraints, @First and attribute-only Restriction
 
-Status **open**, priority 3, type implementation, effort L
+Status **blocked**, priority 3, type implementation, effort L
 
 Adopt the 1.1 query features once 1.1 is final (latest is 1.1.0-M4, no final date known). @Is, jakarta.data.constraint.*, @First and attribute-only Restriction need no new core API (operators exist in QueryExecutor); arithmetic/function restrictions need $expr. Bump jakarta.data.version, keep 1.0 compatibility decisions explicit. Do not duplicate GitHub #302 (lifecycle CDI events); link it.
+
+Blocked by: Waits for Jakarta Data 1.1 final (checked 2026-10-24: latest is 1.1.0-M4). Quarkus 3.x manages jakarta.data-api 1.0.1, so an extension built against a 1.1 milestone breaks for applications at run time (the BOM wins); only Hibernate ORM 8.0 betas, Eclipse JNoSQL 1.2.0-M2 and Micronaut Data 5.2 have the features, all on milestones (docs/research/jakarta-data-1.1.md, section 6). Until then MOR-019 refuses @Is, constraints, Restriction and @First at build time with a message that names the method, so nothing runs wrongly. Scope when 1.1 is final: unchanged.
 
 Acceptance:
 
