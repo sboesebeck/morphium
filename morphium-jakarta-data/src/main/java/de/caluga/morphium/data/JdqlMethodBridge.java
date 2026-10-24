@@ -938,7 +938,7 @@ public final class JdqlMethodBridge {
             throw new IllegalArgumentException("HAVING references invalid aggregate: " + aggFuncStr);
         }
         String funcName = aggMatcher.group(1).toUpperCase(Locale.ROOT);
-        String argName = aggMatcher.group(2);
+        String argName = JdqlParser.aggregateArgument(aggMatcher.group(2));
         JdqlQuery.AggregateType type = JdqlQuery.AggregateType.valueOf(funcName);
         for (int i = 0; i < query.aggregateFunctions().size(); i++) {
             JdqlQuery.AggregateFunction f = query.aggregateFunctions().get(i);
@@ -957,7 +957,7 @@ public final class JdqlMethodBridge {
                 .matcher(orderField);
         if (aggMatcher.matches()) {
             String funcName = aggMatcher.group(1).toUpperCase(Locale.ROOT);
-            String argName = aggMatcher.group(2);
+            String argName = JdqlParser.aggregateArgument(aggMatcher.group(2));
             JdqlQuery.AggregateType type = JdqlQuery.AggregateType.valueOf(funcName);
             for (int i = 0; i < query.aggregateFunctions().size(); i++) {
                 JdqlQuery.AggregateFunction f = query.aggregateFunctions().get(i);

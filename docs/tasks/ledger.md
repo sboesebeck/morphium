@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 23, in_progress 1, done 62
+Status: open 23, in_progress 1, done 63
 
 ## Overview
 
@@ -85,6 +85,7 @@ Status: open 23, in_progress 1, done 62
 | MOR-085 | done | 2 | defect | InMemoryDriver: a missing value or null sorts last when descending | S |  |  |
 | MOR-086 | done | 2 | defect | Jakarta Data: a derived query may return a CursoredPage, one cursor paging for all four callers | S |  |  |
 | MOR-087 | done | 2 | defect | Jakarta Data: the keyset of a cursored @Query includes the dynamic sorts | S |  |  |
+| MOR-088 | done | 2 | defect | Jakarta Data: COUNT(THIS) is the keyword in any case | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
@@ -1531,4 +1532,20 @@ Acceptance:
 Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlMethodBridge.java
 
 Commits: 5c5059479
+
+### MOR-088 Jakarta Data: COUNT(THIS) is the keyword in any case
+
+Status **done**, priority 2, type defect, effort S
+
+Found by the TCK of MOR-026: SELECT COUNT(THIS) WHERE ... counted a field named THIS and answered 0, because only the lower case this was the keyword. The argument is normalized in the SELECT, in HAVING and in the lookups of ORDER BY and HAVING.
+
+Evidence: JdqlLiteralsExecutionTest.countWithLiterals and orderAndHavingWithUpperCaseThis, JdqlParserLiteralsTest.thisInAnyCase. Reviewed in one pass: the ORDER BY lookup was still case-sensitive (fixed).
+
+Acceptance:
+
+- COUNT(THIS) and COUNT(this) answer the same, in SELECT, HAVING and ORDER BY
+
+Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/JdqlParser.java
+
+Commits: c87b162ae
 

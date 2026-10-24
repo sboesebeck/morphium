@@ -158,6 +158,10 @@ context keep their own key handling.
 
 ### Fixed
 
+#### Jakarta Data: `COUNT(THIS)` in upper case (MOR-088)
+Only the lower case `this` was the keyword in an aggregate: `SELECT COUNT(THIS) WHERE ...` counted a field named `THIS`, which no document has, and answered 0. The keyword is case-insensitive in the
+`SELECT` and in `HAVING`.
+
 #### Jakarta Data: the keyset of a `@Query` that returns a `CursoredPage` includes the dynamic sorts (MOR-087)
 The cursor of a `@Query` method was made from the `ORDER BY` of the query (or `@OrderBy`) only, so a query without `ORDER BY` and with an `Order` or `Sort` parameter had no keyset and failed with
 "No values were provided". The keyset is the `ORDER BY` of the query (or `@OrderBy`), then every dynamic `Sort`, `Sort...` and `Order`.

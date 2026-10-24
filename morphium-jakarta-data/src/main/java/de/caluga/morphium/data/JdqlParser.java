@@ -139,7 +139,7 @@ public final class JdqlParser {
                 Matcher aggMatcher = AGGREGATE_PATTERN.matcher(field);
                 if (aggMatcher.matches()) {
                     String funcName = aggMatcher.group(1).toUpperCase(Locale.ROOT);
-                    String argName = aggMatcher.group(2);
+                    String argName = aggregateArgument(aggMatcher.group(2));
                     JdqlQuery.AggregateType type = JdqlQuery.AggregateType.valueOf(funcName);
                     aggFuncs.add(new JdqlQuery.AggregateFunction(type, argName));
                 } else {
@@ -540,6 +540,11 @@ public final class JdqlParser {
         throw new IllegalArgumentException("Cannot parse JDQL condition: " + cond);
     }
 
+    /** {@code THIS} and {@code this} are the same keyword: the argument of COUNT(this) is written the way the rest of the bridge looks for it */
+    static String aggregateArgument(String argument) {
+        return "this".equalsIgnoreCase(argument) ? "this" : argument;
+    }
+
     /** a group of a match on the masked text, cut from the original text and trimmed */
     private static String part(String original, Matcher masked, int group) {
         return original.substring(masked.start(group), masked.end(group)).trim();
@@ -696,7 +701,7 @@ public final class JdqlParser {
         }
 
         String funcName = m.group(1).toUpperCase(Locale.ROOT);
-        String argName = m.group(2);
+        String argName = aggregateArgument(m.group(2));
         String opStr = m.group(3);
         String valueRef = m.group(4).trim();
 
