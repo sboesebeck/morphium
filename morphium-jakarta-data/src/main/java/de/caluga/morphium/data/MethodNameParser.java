@@ -18,7 +18,7 @@ import java.util.regex.Pattern;
  * {@link QueryResultHelper}. This mirrors what {@link JdqlParser} does for {@code @Query}-annotated
  * methods, but derives the query purely from the method name instead of an explicit query string.
  * <p>
- * Supports prefixes: {@code findBy}, {@code countBy}, {@code existsBy}, {@code deleteBy}.
+ * Supports prefixes: {@code findBy}, {@code countBy}, {@code existsBy}, {@code deleteBy}, and {@code countAll}.
  * Supports operators: Equals/Is, Not, GreaterThan, GreaterThanEqual, LessThan, LessThanEqual,
  * Between, In, NotIn, Like, StartsWith, EndsWith, Null/IsNull, NotNull/IsNotNull, True, False.
  * Supports combinators: And, Or.
@@ -55,6 +55,11 @@ public final class MethodNameParser {
      * @throws IllegalArgumentException if the method name cannot be parsed
      */
     public static QueryDescriptor parse(String methodName, java.util.Set<String> entityFields) {
+        // countAll() has no condition and no By: it counts every entity (the Jakarta Data TCK declares it on its repositories)
+        if (methodName.equals("countAll")) {
+            return new QueryDescriptor(Prefix.COUNT, List.of(), Combinator.AND, List.of(), ReturnType.COUNT);
+        }
+
         Matcher m = PREFIX_PATTERN.matcher(methodName);
         if (!m.matches()) {
             throw new IllegalArgumentException(

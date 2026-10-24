@@ -844,7 +844,7 @@ public class MorphiumDataProcessor {
 
             // Phase 2: Try to parse as query derivation method
             if (name.startsWith("findBy") || name.startsWith("countBy")
-                    || name.startsWith("existsBy") || name.startsWith("deleteBy")) {
+                    || name.startsWith("existsBy") || name.startsWith("deleteBy") || name.equals("countAll")) {
                 generateQueryMethod(cc, method, entityClassName, entityFields);
                 continue;
             }

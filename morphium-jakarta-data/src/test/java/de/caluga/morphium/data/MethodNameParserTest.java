@@ -22,6 +22,17 @@ class MethodNameParserTest {
     class MatchAllTests {
 
         @Test
+        @DisplayName("countAll() counts every entity: no By, no condition (MOR-076)")
+        void countAll() {
+            QueryDescriptor result = MethodNameParser.parse("countAll", ENTITY_FIELDS);
+
+            assertThat(result.prefix()).isEqualTo(QueryDescriptor.Prefix.COUNT);
+            assertThat(result.conditions()).isEmpty();
+            assertThat(result.returnType()).isEqualTo(QueryDescriptor.ReturnType.COUNT);
+            assertThatThrownBy(() -> MethodNameParser.parse("countEverything", ENTITY_FIELDS)).isInstanceOf(IllegalArgumentException.class);
+        }
+
+        @Test
         @DisplayName("countBy() with empty suffix returns count-all descriptor")
         void countByEmptySuffix() {
             QueryDescriptor result = MethodNameParser.parse("countBy", ENTITY_FIELDS);

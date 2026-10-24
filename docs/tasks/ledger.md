@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 24, in_progress 1, done 51
+Status: open 23, in_progress 1, done 52
 
 ## Overview
 
@@ -13,7 +13,6 @@ Status: open 24, in_progress 1, done 51
 | MOR-026 | in_progress | 2 | infrastructure | Run the Jakarta Data TCK against morphium-jakarta-data | M |  |  |
 | MOR-063 | open | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
 | MOR-069 | open | 2 | defect | PoppyDB: the update fast path reports every error as 11000 and ignores the ordered flag | S |  |  |
-| MOR-076 | open | 2 | defect | Jakarta Data: derived queries without By (countAll and similar) are unsupported | S |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
 | MOR-015 | open | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
@@ -75,6 +74,7 @@ Status: open 24, in_progress 1, done 51
 | MOR-064 | done | 2 | defect | store() of an existing entity swallows a rejected update (StoreMongoCommand) | M |  |  |
 | MOR-067 | done | 2 | defect | Query.toQueryObject puts the or queries into the $nor list when both are used | S |  |  |
 | MOR-068 | done | 2 | defect | SingleMongoConnectDriver: cannot connect to a standalone server, and a rejected bulk request keeps its only connection | S |  |  |
+| MOR-076 | done | 2 | defect | Jakarta Data: derived queries without By (countAll and similar) are unsupported | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
@@ -570,15 +570,19 @@ Source: docs/research/other-clients.md pattern 14
 
 ### MOR-076 Jakarta Data: derived queries without By (countAll and similar) are unsupported
 
-Status **open**, priority 2, type defect, effort S
+Status **done**, priority 2, type defect, effort S
 
 Found by the TCK spike of MOR-026. The Jakarta Data TCK repository NaturalNumbers declares long countAll() without an annotation, and its tests call it in @BeforeEach, so every standalone TCK test fails on it. MethodNameParser only knows find/count/exists/delete followed by By; the Quarkus processor and the Spring handler throw "Unsupported repository method" for countAll. Check which no-By forms the specification names (countAll, findAll, existsAll, deleteAll) and support them in both modules.
+
+Evidence: The TCK repositories were searched for derived names without By: countAll() is the only one that is not annotated (findAll and deleteAll are CRUD names, the others carry @Query or @Find). MethodNameParser.parse("countAll") is a count without conditions (MethodNameParserTest, red without the change); the Quarkus processor and the Spring handler route countAll to the derived-query generation. Quarkus: OrderRepository.countAll() counts all documents on the InMemoryDriver and on a real mongo:8 (AbstractMorphiumDataOrdinalQueryTest, 5 tests each); Spring: countAllHasNoByAndCountsEveryDocument. Suites: jakarta-data 129, Quarkus runtime 83, deployment 43, integration 294 (one failure, MorphiumMigrationTest.renewLockBetweenChangeUnitsAdvancesExpiry, which fails the same without this change on a busy machine, see MOR-074), Spring 41. Only countAll is supported, not existsAll or other invented forms.
 
 Acceptance:
 
 - countAll() and the other no-By forms the specification names work in the Quarkus and the Spring module
 
 Source: morphium-jakarta-data/src/main/java/de/caluga/morphium/data/MethodNameParser.java
+
+Commits: c39dbab99
 
 ### MOR-077 Jakarta Data: repositories without a single primary entity are unsupported
 
