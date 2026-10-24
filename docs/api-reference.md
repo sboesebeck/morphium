@@ -620,6 +620,20 @@ public static MorphiumConfig fromProperties(Properties props)
 )
 ```
 
+**Records and value objects** (MOR-035). A `record` annotated with `@Embedded` is an embedded value in a field, a list or a map, and it is read, written, set and queried like any other embedded document. The
+final fields of a record are not set; the mapper collects the components and calls the canonical constructor, a component that is missing in the document is `null` (the zero of a primitive).
+A record is not an entity (it has no identity to write the generated `_id` back to; GitHub #116 stays open for that), and an `@Embedded` record is the case that works:
+```java
+@Embedded public record Money(String currency, long cents) {}
+@Embedded public record Line(String sku, int quantity, Money price) {}
+```
+A value object with a single component is stored as that scalar instead of `{value: ...}`: register `SingleValueMapper` for the record.
+```java
+public record Email(String value) {}
+morphium.getMapper().registerCustomMapperFor(Email.class, SingleValueMapper.of(Email.class));   // "a@example.org" in the document, also in queries and updates
+```
+A list of single-value objects is the case of GitHub #334 and still comes back wrapped.
+
 **@Id**
 ```java
 @Id // Mark field as MongoDB _id field

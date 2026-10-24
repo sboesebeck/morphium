@@ -1481,6 +1481,9 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 throw new IllegalArgumentException("Could not instantiate " + cls.getName());
             }
 
+            // MOR-035: the final fields of a record cannot be set; the values are collected and the canonical constructor is called at the end
+            final Map<String, Object> sink = cls.isRecord() ? new LinkedHashMap<>() : null;
+
             List<String> flds = annotationHelper.getFields(cls);
 
             for (String f : flds) {
@@ -1517,7 +1520,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 // keeps the default value or sets null just like for unmapped field types.
                 if (fieldMapper != null && valueFromDb != null) {
                     try {
-                        fld.set(ret, fieldMapper.unmarshall(valueFromDb));
+                        setField(ret, sink, fld, fieldMapper.unmarshall(valueFromDb));
                     } catch (Exception e) {
                         throw new RuntimeException("Deserialization failed for field '" + f + "' (type "
                             + fldType.getName() + ") of " + cls.getName()
@@ -1565,7 +1568,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                         }
                     }
 
-                    fld.set(ret, data);
+                    setField(ret, sink, fld, data);
                     continue;
                 }
 
@@ -1603,7 +1606,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                         log.debug("Not a json string, cannot deserialize further");
                     }
 
-                    annotationHelper.setValue(ret, valueFromDb, f);
+                    setNamedField(ret, sink, valueFromDb, f);
                     continue;
                 }
 
@@ -1612,7 +1615,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                         // Field is present in DB as null
                         // Set to null unless field has @IgnoreNullFromDB protection
                         if (!fld.isAnnotationPresent(IgnoreNullFromDB.class)) {
-                            fld.set(ret, null);
+                            setField(ret, sink, fld, null);
                         }
                         // else: Field present as null in DB but has @IgnoreNullFromDB -> keep default value
                     }
@@ -1836,7 +1839,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     }
                 }
 
-                annotationHelper.setValue(ret, value, f);
+                setNamedField(ret, sink, value, f);
             }
 
             if (entity != null) {
@@ -1896,12 +1899,80 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 return (T) in.readObject();
             }
 
+            if (sink != null) {
+                return (T) buildRecord(cls, sink);
+            }
+
             return (T) ret;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
         //recursively fill class
+    }
+
+    /** sets a field of the object that is deserialized; for a record the value is collected in {@code sink} (MOR-035) */
+    private void setField(Object target, Map<String, Object> sink, Field fld, Object value) throws IllegalAccessException {
+        if (sink != null) {
+            sink.put(fld.getName(), value);
+        } else {
+            fld.set(target, value);
+        }
+    }
+
+    private void setNamedField(Object target, Map<String, Object> sink, Object value, String field) {
+        if (sink == null) {
+            annotationHelper.setValue(target, value, field);
+            return;
+        }
+
+        Field fld = annotationHelper.getField(target.getClass(), field);
+        sink.put(fld.getName(), value != null && !fld.getType().isInstance(value) && !fld.getType().isPrimitive() ? annotationHelper.convertType(value, field, fld.getType()) : value);
+    }
+
+    /** the record from the collected component values: the canonical constructor, a missing component is null or the zero of its primitive type */
+    private Object buildRecord(Class<?> cls, Map<String, Object> values) throws ReflectiveOperationException {
+        java.lang.reflect.RecordComponent[] components = cls.getRecordComponents();
+        Class<?>[] types = new Class<?>[components.length];
+        Object[] args = new Object[components.length];
+
+        for (int i = 0; i < components.length; i++) {
+            Class<?> type = components[i].getType();
+            types[i] = type;
+            Object value = values.get(components[i].getName());
+
+            if (value == null && type.isPrimitive()) {
+                value = type == boolean.class ? (Object) Boolean.FALSE : type == char.class ? (Object) (char) 0 : (Object) 0;
+            }
+
+            if (value instanceof Number num && (type.isPrimitive() || Number.class.isAssignableFrom(type))) {
+                value = convertNumber(num, type);
+            }
+
+            args[i] = value;
+        }
+
+        Constructor<?> canonical = cls.getDeclaredConstructor(types);
+        canonical.setAccessible(true);
+        return canonical.newInstance(args);
+    }
+
+    private static Object convertNumber(Number n, Class<?> type) {
+        if (type == int.class || type == Integer.class) {
+            return n.intValue();
+        } else if (type == long.class || type == Long.class) {
+            return n.longValue();
+        } else if (type == double.class || type == Double.class) {
+            return n.doubleValue();
+        } else if (type == float.class || type == Float.class) {
+            return n.floatValue();
+        } else if (type == short.class || type == Short.class) {
+            return n.shortValue();
+        } else if (type == byte.class || type == Byte.class) {
+            return n.byteValue();
+        }
+
+        return n;
     }
 
     public Object fillArray(Class<?> componentType, Collection<?> c) {
