@@ -921,7 +921,7 @@ tasks:
 - id: MOR-039
   title: 'Document pitfalls of update maps: $pull condition keys and mixed element shapes'
   type: documentation
-  status: open
+  status: done
   priority: 3
   effort: S
   description: Document that the keys inside a $pull condition are raw field names and are not translated, and what
@@ -930,6 +930,9 @@ tasks:
   - MOR-027
   source:
   - docs/research/plan-mor-001-002-003.md
+  evidence: 'docs/howtos/update-pitfalls.md section 9: the keys of a $pull condition are sent as given (pinned by UpdateDocumentMapperKeyTest), elements of push, addToSet and pull are written as store() writes container members (probe on the InMemoryDriver: store, addToSet of an equal element, push and pull by element agree, class_name on every element), what happens with an array of mixed shapes and how to pull by a condition. NOT verified on a real MongoDB: the equality rules of $addToSet and $pull for mixed shapes are MongoDB semantics, not measured here.'
+  commits:
+  - 328b864d4
 - id: MOR-040
   title: 'fieldNameCache: inner HashMap is not thread safe'
   type: defect

@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 11, done 90
+Status: open 10, done 91
 
 ## Overview
 
@@ -19,7 +19,6 @@ Status: open 11, done 90
 | MOR-032 | open | 3 | implementation | Quarkus: named Morphium instances | M |  |  |
 | MOR-033 | open | 3 | implementation | Quarkus: CDI integration for Morphium messaging | M |  |  |
 | MOR-035 | open | 3 | implementation | Records and value objects in the mapper | L |  |  |
-| MOR-039 | open | 3 | documentation | Document pitfalls of update maps: $pull condition keys and mixed element shapes | S |  | MOR-027 |
 | MOR-071 | open | 3 | defect | Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange | S |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
@@ -89,6 +88,7 @@ Status: open 11, done 90
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-013 | done | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
 | MOR-038 | done | 3 | defect | Replacement documents, findOneAndUpdateEnums and Expr values still fail with POJOs in update maps | M |  | MOR-002 |
+| MOR-039 | done | 3 | documentation | Document pitfalls of update maps: $pull condition keys and mixed element shapes | S |  | MOR-027 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-044 | done | 3 | defect | Version annotation with fieldName: store and filter disagree on the stored name | S |  |  |
 | MOR-045 | done | 3 | defect | Update documents: a String value for _id of a MorphiumId entity is not coerced | S |  | MOR-041 |
@@ -830,13 +830,17 @@ Commits: 484e3093d
 
 ### MOR-039 Document pitfalls of update maps: $pull condition keys and mixed element shapes
 
-Status **open**, priority 3, type documentation, effort S
+Status **done**, priority 3, type documentation, effort S
 
 Document that the keys inside a $pull condition are raw field names and are not translated, and what happens with mixed element shapes in $addToSet and $push, including when class_name is added to elements.
+
+Evidence: docs/howtos/update-pitfalls.md section 9: the keys of a $pull condition are sent as given (pinned by UpdateDocumentMapperKeyTest), elements of push, addToSet and pull are written as store() writes container members (probe on the InMemoryDriver: store, addToSet of an equal element, push and pull by element agree, class_name on every element), what happens with an array of mixed shapes and how to pull by a condition. NOT verified on a real MongoDB: the equality rules of $addToSet and $pull for mixed shapes are MongoDB semantics, not measured here.
 
 Depends on: MOR-027
 
 Source: docs/research/plan-mor-001-002-003.md
+
+Commits: 328b864d4
 
 ### MOR-040 fieldNameCache: inner HashMap is not thread safe
 
