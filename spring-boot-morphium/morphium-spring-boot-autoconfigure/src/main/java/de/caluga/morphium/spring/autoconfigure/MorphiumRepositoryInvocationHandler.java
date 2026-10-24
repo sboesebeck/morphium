@@ -80,7 +80,10 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
             return InvocationHandler.invokeDefault(proxy, method, args);
         }
 
-        return handlers.computeIfAbsent(method, this::analyzeMethod).handle(args);
+        Object result = handlers.computeIfAbsent(method, this::analyzeMethod).handle(args);
+
+        // a method that returns an array of the entity (MOR-080)
+        return method.getReturnType().isArray() ? ResultShapes.toArray(result, method.getReturnType().getComponentType()) : result;
     }
 
     private MethodHandler analyzeMethod(Method method) {
@@ -174,6 +177,7 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
     private MethodHandler buildDerivedQueryHandler(Method method) {
         boolean returnsAsync = CompletionStage.class.isAssignableFrom(method.getReturnType());
         boolean returnsSingle = !List.class.isAssignableFrom(method.getReturnType())
+                && !method.getReturnType().isArray()
                 && !Stream.class.isAssignableFrom(method.getReturnType())
                 && !Page.class.isAssignableFrom(method.getReturnType())
                 && !Iterable.class.isAssignableFrom(method.getReturnType())
@@ -515,6 +519,7 @@ class MorphiumRepositoryInvocationHandler implements InvocationHandler {
     private boolean isSingleReturn(Method method) {
         Class<?> rt = method.getReturnType();
         return !List.class.isAssignableFrom(rt)
+                && !rt.isArray()
                 && !Stream.class.isAssignableFrom(rt)
                 && !Page.class.isAssignableFrom(rt)
                 && !CursoredPage.class.isAssignableFrom(rt)

@@ -1625,3 +1625,17 @@ tasks:
   evidence: 'MethodNameParserTest (findFirst, derived names; red before), Quarkus integration test findFirst on the InMemoryDriver and on a real mongo:8 (AbstractMorphiumDataOrdinalQueryTest), Spring proxy tests (findFirstLimitsTheResult, findFirstCannotBeCombinedWithALimitParameter), Quarkus deployment test for First with Limit. Reviewed in three passes until no finding was left (a lost limit with a PageRequest, a duplicated name regex, the refusal only at the first call in Quarkus).'
   commits:
   - 3c2cd7e13
+- id: MOR-080
+  title: 'Jakarta Data: a repository method that returns an array of the entity is unsupported'
+  type: defect
+  status: done
+  priority: 2
+  effort: S
+  description: 'Found by the TCK of MOR-026: NaturalNumbers.findByIdLessThan(...) returns NaturalNumber[]. The Quarkus build and the Spring proxy took an array for a single entity: ClassCastException of the entity to the array (3 TCK tests). An array is now answered like a List and converted by ResultShapes.toArray.'
+  acceptance:
+  - 'A derived query, @Find and @Query method may return an array of the entity in the Quarkus and the Spring module'
+  source:
+  - morphium-jakarta-data/src/main/java/de/caluga/morphium/data/ResultShapes.java
+  evidence: 'ResultShapesTest (List, Stream, single value, empty, array stays, null, primitive component); Quarkus integration test arrays (derived, @Find, @Query; empty result) on the InMemoryDriver and on a real mongo:8; Spring proxy test aMethodMayReturnAnArray. Reviewed in two passes until no finding was left that could be fixed; the branch for a primitive component (long[]) is not covered by a test because no repository can return such an array yet (skipped, noted in the review).'
+  commits:
+  - e1870e2c3

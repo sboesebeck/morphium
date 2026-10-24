@@ -107,4 +107,13 @@ abstract class AbstractMorphiumDataOrdinalQueryTest {
         order.setStatus(status);
         return order;
     }
+
+    @Test
+    @DisplayName("a method may return an array of the entity (MOR-080)")
+    void arrays() {
+        assertThat(repository.findByStatusOrderByAmountAsc("OPEN")).extracting(OrderEntity::getCustomerId).containsExactly("C1", "C2");
+        assertThat(repository.arrayByStatus("CLOSED")).hasSize(2);
+        assertThat(repository.arrayQueryByStatus("CLOSED")).extracting(OrderEntity::getCustomerId).containsExactly("C4", "C3");
+        assertThat(repository.arrayByStatus("NOBODY")).isEmpty();
+    }
 }
