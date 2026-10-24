@@ -69,6 +69,9 @@ same wave as the other `@Deprecated(since = "6.3", forRemoval = true)` members i
 
 ### Changed
 
+#### Built and tested against Quarkus 3.40.1 (MOR-096)
+The extension moved from Quarkus 3.32.3 to 3.40.1 and needed no code change. An application on Quarkus 3.32.3 still works with it: the integration tests and the showcase were run on both versions. Versions in between were not tested. The 3.40.1 platform BOM manages `scram-client` 3.3, so the pin described in `docs/quarkus-extension.md` is needed on 3.40.1 only if you want 3.4.
+
 #### Integrated into the Morphium reactor as an optional module
 `quarkus-morphium` moves from a standalone repository under the `io.quarkiverse.morphium`
 groupId into `sboesebeck/morphium` as an optional, four-submodule (`runtime`,
@@ -82,6 +85,11 @@ module — building the reactor with `-DskipExtensions` produces an unchanged co
 Distribution moves from the interim GitHub Packages registry to Morphium's regular
 Maven Central release pipeline; the standalone repository's own CI workflow, issue
 templates, and PR template are retired in favor of the main repository's.
+
+### Fixed
+
+#### The migration lock recognises a held lock by `isDuplicateKey()` (MOR-063)
+`acquireLock()` no longer looks for the text "duplicate key" in the message; it asks `MorphiumDriverException.isDuplicateKey()`. A write concern error while taking the lock (the lock IS written) lets the run go on and release the lock, instead of failing it with the lock held for its whole TTL.
 
 ## [1.2.0]
 

@@ -16,6 +16,8 @@
 package de.caluga.morphium.quarkus.migration;
 
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.WriteConcernNotSatisfiedException;
 import de.caluga.morphium.query.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -505,9 +507,12 @@ public class MorphiumMigrationRunner {
      * Callers that want to wait for a currently-held lock to become available should call
      * {@link #acquireLockWithWait()} instead.
      *
+     * <p>Package-private so that {@code MorphiumMigrationRunnerLockTest} can test how a failed lock write is classified; production code goes through
+     * {@link #acquireLockWithWait()}.
+     *
      * @throws RuntimeException if the lock is held by another process
      */
-    private void acquireLock() {
+    void acquireLock() {
         currentOwner = getOwnerIdentifier();
         log.debug("Acquiring migration lock (owner={})", currentOwner);
 
@@ -545,9 +550,14 @@ public class MorphiumMigrationRunner {
                 throwLockHeld();
                 return;
             }
-        } catch (RuntimeException e) {
-            // DuplicateKeyError when _id exists but expires_at condition didn't match (lock still active)
-            if (e.getMessage() != null && e.getMessage().contains("duplicate key")) {
+        } catch (WriteConcernNotSatisfiedException e) {
+            // The server applied the upsert but could not satisfy the write concern in time: the lock
+            // document IS written and owned by this runner. Failing here would leave it held for its
+            // whole TTL by a run that never started, so the run goes on and releases it as usual.
+            log.warn("Migration lock written, but the write concern was not satisfied (owner={}): {}", currentOwner, e.getMessage());
+        } catch (MorphiumDriverException e) {
+            // The upsert lost: _id exists but the expires_at condition did not match (lock still active)
+            if (e.isDuplicateKey()) {
                 throwLockHeld();
                 return;
             }

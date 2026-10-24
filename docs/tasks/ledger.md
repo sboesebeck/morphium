@@ -4,14 +4,12 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 22, done 72
+Status: open 21, done 75
 
 ## Overview
 
 | ID | Status | Prio | Type | Title | Effort | Ticket | Depends on |
 |---|---|---|---|---|---|---|---|
-| MOR-063 | open | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
-| MOR-069 | open | 2 | defect | PoppyDB: the update fast path reports every error as 11000 and ignores the ordered flag | S |  |  |
 | MOR-012 | open | 3 | implementation | Builder accepts type-safe field references | M |  | MOR-006 |
 | MOR-013 | open | 3 | implementation | findOneAndUpdate(Map) accepts a plain field map (auto $set) | S |  | MOR-002 |
 | MOR-015 | open | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
@@ -32,6 +30,7 @@ Status: open 22, done 72
 | MOR-070 | open | 3 | defect | PoppyDB: the delete fast path swallows errors | S |  |  |
 | MOR-071 | open | 3 | defect | Query.set and findOneAndUpdate(Map) maintain neither @Version nor a field-only @LastChange | S |  |  |
 | MOR-075 | open | 3 | defect | JdqlParser accepts an operand that is neither a parameter nor a literal | S |  |  |
+| MOR-097 | open | 3 | defect | PoppyDB (InMemoryDriver) accepts nine statements that mongod rejects: push on a non-array, dotted path through a scalar | M |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -70,9 +69,11 @@ Status: open 22, done 72
 | MOR-058 | done | 2 | defect | InMemoryDriver: findAndModify does not reject what the update command rejects | S |  |  |
 | MOR-060 | done | 2 | defect | Write paths that write the Java field name: inc/dec with a Map and dotted paths through embedded documents | S |  |  |
 | MOR-062 | done | 2 | defect | Morphium.dec(Query, Map) and dec(Map, Query) increment instead of decrement | S |  |  |
+| MOR-063 | done | 2 | defect | quarkus-morphium migration lock: recognise a held lock by isDuplicateKey() | S |  |  |
 | MOR-064 | done | 2 | defect | store() of an existing entity swallows a rejected update (StoreMongoCommand) | M |  |  |
 | MOR-067 | done | 2 | defect | Query.toQueryObject puts the or queries into the $nor list when both are used | S |  |  |
 | MOR-068 | done | 2 | defect | SingleMongoConnectDriver: cannot connect to a standalone server, and a rejected bulk request keeps its only connection | S |  |  |
+| MOR-069 | done | 2 | defect | PoppyDB: the update fast path reports every error as 11000 and ignores the ordered flag | S |  |  |
 | MOR-076 | done | 2 | defect | Jakarta Data: derived queries without By (countAll and similar) are unsupported | S |  |  |
 | MOR-077 | done | 2 | verification | Jakarta Data: repositories without a single primary entity are unsupported | M |  |  |
 | MOR-078 | done | 2 | defect | A char or Character field cannot be read back | S |  |  |
@@ -92,6 +93,7 @@ Status: open 22, done 72
 | MOR-093 | done | 2 | implementation | Enums can be stored by their ordinal: @Enumerated and an opt-in setting | M |  |  |
 | MOR-094 | done | 2 | documentation | README: the Jakarta Data TCK result and our modules added to the entry page, release history of 6.2 and older moved out | S |  |  |
 | MOR-095 | done | 2 | verification | Verification: the showcase against this version, and two findings (scram-client pinned by the Quarkus BOM, no LICENSE file) | S |  |  |
+| MOR-096 | done | 2 | infrastructure | Quarkus extension: build and test against Quarkus 3.40.1 (was 3.32.3) | S |  |  |
 | MOR-011 | done | 3 | implementation | Typed lease / try-acquire primitive | M |  | MOR-010 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
 | MOR-047 | done | 3 | defect | MorphiumBulkContext.createUpdateRequest does not marshal update values | S |  | MOR-042 |
@@ -1214,9 +1216,11 @@ Commits: fa03a4142
 
 ### MOR-063 quarkus-morphium migration lock: recognise a held lock by isDuplicateKey()
 
-Status **open**, priority 2, type defect, effort S
+Status **done**, priority 2, type defect, effort S
 
-MorphiumMigrationRunner.acquireLock (quarkus-morphium/runtime) takes the lock with an upsert (Query.set(update, true, false)) and recognises a held lock only by e.getMessage().contains("duplicate key"). Since MOR-059 the write raises a MorphiumDriverException for the lost upsert; the message of the normaliser contains the server text, so the check still matches, but it is fragile, and a WriteConcernNotSatisfiedException (the lock IS written) is rethrown as a failure of the run while the lock stays held for its TTL. Use MorphiumDriverException.isDuplicateKey() and treat WriteConcernNotSatisfiedException as acquired (or release the lock). Released in lockstep with core 6.4.
+MorphiumMigrationRunner.acquireLock (quarkus-morphium/runtime) takes the lock with an upsert (Query.set(update, true, false)) and recognises a held lock only by e.getMessage().contains("duplicate key"). Since MOR-059 the write raises a MorphiumDriverException for the lost upsert; the message of the normaliser contains the server text, so the check still matches, but it is fragile, and a WriteConcernNotSatisfiedException (the lock IS written) is rethrown as a failure of the run while the lock stays held for its TTL. Use MorphiumDriverException.isDuplicateKey() and treat WriteConcernNotSatisfiedException as acquired (or release the lock).
+
+Evidence: MorphiumMigrationRunnerLockTest (5 tests, runtime module, Mockito): a duplicate key code or a duplicate key in the write errors is reported as a held lock whatever the message says, a message that only sounds like one is thrown as it is, another failure is thrown as it is, a WriteConcernNotSatisfiedException is an acquired lock; 4 of the 5 failed before the change. MorphiumMigrationLockRealMongoTest (3 tests, mongo:8): a lock of another instance is reported as held and left untouched, an expired lock is taken over, a second runner is told that the lock is held while the first runs on and releases the lock. The runtime unit tests (88) and MorphiumMigration* (12 with the new ones) pass. Not covered: a real write concern error on a replica set (needs a single-node replica set and a lock entity with w:2); that the run proceeds when the later writes of the run (renewal, changelog) fail with the same write concern error as well.
 
 Acceptance:
 
@@ -1224,6 +1228,8 @@ Acceptance:
 - A write concern error while taking the lock does not leave a lock held by an aborted run
 
 Source: docs/research/plan-mor-059.md
+
+Commits: 01504fbb0
 
 ### MOR-064 store() of an existing entity swallows a rejected update (StoreMongoCommand)
 
@@ -1292,9 +1298,11 @@ Commits: 23754ea9b
 
 ### MOR-069 PoppyDB: the update fast path reports every error as 11000 and ignores the ordered flag
 
-Status **open**, priority 2, type defect, effort S
+Status **done**, priority 2, type defect, effort S
 
 Found by the topology matrix of MOR-036 (update contract suite against a single node PoppyDB, PooledDriver). MongoCommandHandler.processUpdateDirect catches every exception of driver.update and writes writeErrors with the fixed code 11000, although the driver sets the code of mongod (2, 9, 14, 40, 52, 56, 66): all 56 rejection cases of the contract suite come back as duplicate key errors. The statements ARE rejected, only the code is wrong. The loop also goes on after the first error, so an ordered update (the default) applies the statements behind it, which mongod does not. processInsertDirect uses the code of the exception when it has one; the update path should do the same, and stop at the first error unless ordered is false.
+
+Evidence: FastPathOptionsTest (11 tests, 4 new): a rejected statement keeps the code of the driver (66 for a changed _id), an untyped failure ($pullAll on a string) is a BadValue (2), an ordered update stops at the first rejected statement, ordered:false goes on; the first two and the ordered stop failed before the change. The contract suites (*Contract*, 20 tests) against a single node PoppyDB with the PooledDriver: 19 pass; WritePathAuditContractTest.aRejectedWriteIsRaised no longer reports a wrong code (the pullAll(field) case was one) but 9 statements that mongod rejects are accepted by PoppyDB (MOR-097). poppydb module: 693 tests, 12 fail (ForeignResumeTokenRegistrationBurstTest, ServerRestartResumeTest, PriorityTakeoverUnderLoadTest, FailoverTests, MessagingInsertFastPathTest, AuthTlsWireE2ETest, RsInternalAuthTlsTest, PoppyDBCLIConfigIntegrationTest); the same 12 fail again when the classes are run alone, and five of the classes (6 tests) fail the same way without this change; the other three were not run on the baseline (messaging indexes not built within 5s and similar environment symptoms). The generic path of MongoCommandHandler (update through the wire command classes) is not changed.
 
 Acceptance:
 
@@ -1302,6 +1310,8 @@ Acceptance:
 - An ordered update stops at the first rejected statement
 
 Source: poppydb/src/main/java/de/caluga/poppydb/netty/MongoCommandHandler.java
+
+Commits: ff9e3d5c5
 
 ### MOR-070 PoppyDB: the delete fast path swallows errors
 
@@ -1685,4 +1695,34 @@ Acceptance:
 Source: quarkus-morphium/README.md
 
 Commits: db4f125a9, 417dfbedb
+
+### MOR-096 Quarkus extension: build and test against Quarkus 3.40.1 (was 3.32.3)
+
+Status **done**, priority 2, type infrastructure, effort S
+
+The extension was built against Quarkus 3.32.3. quarkus.version in the parent pom moved to 3.40.1. quarkus update (3.32.3 to 3.40.1, recipes 3.37, 3.38, 3.39) was run as asked; it migrates applications and changed nothing in this extension, so the version was set by hand.
+
+Evidence: Runtime and deployment tests pass; the integration tests (313) failed twice in the first full run (MorphiumMigrationTest, lock heartbeat tests, known from MOR-074), pass alone on 3.32.3 and 3.40.1, and all 313 passed in a second full run. The 3.40.1 BOM manages scram-client 3.3 (3.2 in 3.32.3), so the pin of MOR-095 is only needed for 3.4 or on older Quarkus. Checked at both ends: the extension jars built on 3.40.1 were run in the integration tests with the Quarkus version set to 3.32.3 in the pom (311 of 313, the same two migration tests fail as on 3.40.1) and in the showcase (92 of 92 on 3.32.3 and on 3.40.1). A -D override of the Quarkus version on the command line does not reach the test JVM (the bootstrap reads the pom) and gives a mixed class path: change the property in the pom. Not checked: Quarkus 3.33 to 3.39.
+
+Acceptance:
+
+- All four Quarkus modules build and their tests pass on 3.40.1
+- The documentation states the Quarkus version and what the 3.40.1 BOM manages for scram-client
+
+Source: pom.xml, quarkus-morphium/README.md, docs/quarkus-extension.md
+
+Commits: 02ae7b5bd, 0e4599de9
+
+### MOR-097 PoppyDB (InMemoryDriver) accepts nine statements that mongod rejects: push on a non-array, dotted path through a scalar
+
+Status **open**, priority 3, type defect, effort M
+
+WritePathAuditContractTest.aRejectedWriteIsRaised against a single node PoppyDB with the PooledDriver (found while closing MOR-069): Query.push(field), Query.push(enum), Query.pushAll(field), Morphium.push(entity), Morphium.addToSet, Bulk.addPushRequest (a $push or $addToSet on a field that holds a scalar), Query.inc(dotted path), Morphium.currentDate and Bulk.addCurrentDateRequest (a dotted path through a scalar value, mongod: cannot create field in element) do not raise, the document is changed (the scalar becomes a sub document, or a list). mongod rejects each of them. The test is skipped on the InMemoryDriver by design (assumeFalse isInMem: needs a real MongoDB); PoppyDB runs on the InMemoryDriver, so these are gaps of the InMemoryDriver, not of the wire path.
+
+Acceptance:
+
+- Each of the nine statements raises a MorphiumDriverException with the code of mongod (2, 14, 28 or 40 as the contract table says) and changes nothing, on PoppyDB with the PooledDriver
+- The contract table of WritePathAuditContractTest passes against PoppyDB
+
+Source: morphium-core/src/test/java/de/caluga/test/mongo/suite/contract/WritePathAuditContractTest.java
 

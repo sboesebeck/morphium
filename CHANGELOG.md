@@ -86,6 +86,9 @@ An empty builder (it would replace the document), `setOnInsert` without `upsert(
 
 ### Changed
 
+#### Quarkus extension is built and tested against Quarkus 3.40.1 (MOR-096)
+The extension moved from Quarkus 3.32.3 to 3.40.1 (`quarkus.version` in the parent pom). Nothing in the extension had to change, and an application on Quarkus 3.32.3 still works with it (integration tests and the showcase were run on 3.32.3 and on 3.40.1): it compiles, and the 313 integration tests pass (the first full run had two failures in `MorphiumMigrationTest`, the lock heartbeat tests; they pass alone on 3.32.3 and on 3.40.1 and passed in the second full run, so they look load dependent: see MOR-074). The Quarkus 3.40 platform BOM manages `scram-client` 3.3, so an application on it no longer needs the `scram-client` pin (CVE-2026-53712 is fixed in 3.3). `quarkus update` does not apply to an extension (it migrates applications); it made no change.
+
 #### `SingleMongoConnectDriver`: connects to a standalone server, releases its connection after a rejected bulk request (MOR-068)
 Two defects of the driver that has one connection. `connect()` compared its host seed with the `hosts` of the answer to `hello`, which a standalone server does not send: a `NullPointerException`, reported as "max retries exceeded", so the driver could not be used with a standalone `mongod` at all (it worked with a replica set). And the bulk context claimed the connection per request and gave it back only on success: a rejected request throws from `execute()`, the connection stayed claimed, and the next call of the driver waited until its timeout. The bulk context releases the connection in a `finally` now, as the `PooledDriver` does. `MultiDriverTestBase.getMorphiumInstances()` takes the `SingleMongoConnectDriver` into the run with `-Dmorphium.includeSingle=true` (and `single` in `-Dmorphium.driver`), which is how both were found.
 
@@ -175,6 +178,12 @@ context keep their own key handling.
 `getRealClass` writes that map on the first use of a class from any thread; it was a plain `HashMap`.
 
 ### Fixed
+
+#### PoppyDB: the update fast path keeps the code of the driver and an ordered update stops at the first error (MOR-069)
+`processUpdateDirect` answered every rejected statement with the code 11000 (duplicate key), although the driver sets the code of mongod (2, 9, 14, 40, 52, 56, 66, ...), and it applied the statements behind a rejected one also for an ordered update (the default). It reports the code of the driver now (a failure without a code is a BadValue, 2), and an ordered update stops at the first rejected statement, `ordered: false` goes on, like mongod.
+
+#### Quarkus: the migration lock recognises a held lock by `isDuplicateKey()`, a write concern error no longer aborts the run with the lock held (MOR-063)
+`MorphiumMigrationRunner.acquireLock()` took a lost upsert for a held lock only when the message contained the text "duplicate key". It asks `MorphiumDriverException.isDuplicateKey()` now (the code of the exception or of one of its write errors), so the wording of the message does not matter. A `WriteConcernNotSatisfiedException` while taking the lock means the lock document IS written: the run goes on (and releases the lock at its end) instead of failing with the lock held for its whole TTL. Any other failure of the write is thrown as before.
 
 #### Jakarta Data: several ORs in one query narrow each other (MOR-091)
 `Query.or(...)` adds its branches to the one list of or-queries of the query. So `(a OR b) AND (c OR d)`, an OR group next to `NOT BETWEEN`, and the condition that continues after a cursor on
