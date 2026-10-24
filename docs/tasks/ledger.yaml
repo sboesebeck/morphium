@@ -599,7 +599,7 @@ tasks:
 - id: MOR-023
   title: Verify which Jakarta Data providers implement the 1.1 features
   type: verification
-  status: open
+  status: done
   priority: 3
   effort: S
   description: 'Not verified in the research: whether Hibernate 7.4/8.x, Eclipse JNoSQL or Micronaut implement @Is,
@@ -609,6 +609,9 @@ tasks:
   - docs/research/jakarta-data-1.1.md gets a verified provider table with sources
   source:
   - docs/research/jakarta-data-1.1.md 'could not be verified'
+  evidence: 'docs/research/jakarta-data-1.1.md section 6: provider table with sources checked at named tags (Hibernate ORM 7.4.13 no; 8.0.0.Beta3 and main yes, on API 1.1.0-M3/M4; Eclipse JNoSQL 1.1.20 no, 1.2.0-M2 yes on M4; Micronaut Data 5.2.4 yes on M4), what the TCK on main exercises for @Is, Restriction, @First (RestrictionTests, ConstraintTests, FirstTests), update tests in the TCK are only UPDATE ... SET statements (11 simple ones plus two arithmetic ones, no upsert or find-and-modify), and a correction: 1.1.0-M4 and main differ in more than Javadoc (new @Fetching annotation, widened attribute generics in the SPI, a TemporalLiteralRecord fix). NOT verified: that the providers pass the 1.1 TCK tests for these features (source and build files were read, no TCK was run).'
+  commits:
+  - FIXME
 - id: MOR-024
   title: 'Jakarta Data: support ordinal parameters (?1) in @Query'
   type: defect

@@ -1,6 +1,6 @@
 # Jakarta Data 1.1: what it adds and what Morphium can realise
 
-Research note, no production code changed. Date of research: 2026-10-15.
+Research note, no production code changed. Date of research: 2026-10-15; section 6 (provider support) added 2026-10-24.
 Every statement carries a source. Paths below `/tmp/jd-research` are the throw-away copies used for inspection.
 
 ## 0. Source key and versions
@@ -25,7 +25,7 @@ Versions (from [MVN-META], directory listing dates):
   - Quarkus 3.39.5 (latest 3.x on Central) manages `jakarta.data-api` **1.0.1** with Hibernate ORM 7.4.9.Final (`https://repo1.maven.org/maven2/io/quarkus/quarkus-bom/3.39.5/quarkus-bom-3.39.5.pom`).
   - Quarkus 4.0.0.Beta1 (2026-09-30) manages **1.1.0-M3** with Hibernate ORM 8.0.0.Beta3 (`.../quarkus-bom/4.0.0.Beta1/quarkus-bom-4.0.0.Beta1.pom`).
   - Hibernate ORM: branch 7.4 builds against 1.0.1, branch 8.0 against 1.1.0-M3, `main` (8.1.0-SNAPSHOT) against 1.1.0-M4 (`https://github.com/hibernate/hibernate-orm/blob/<branch>/gradle/libs.versions.toml`, key `data`).
-  - Whether Hibernate 8.x actually implements `@Is`, `Restriction`, `@First`: **not verified** (only the compile-time API version was read).
+  - Whether Hibernate 8.x actually implements `@Is`, `Restriction`, `@First`: verified in section 6 (annotation processor and runtime class present on 8.0.0.Beta3 and `main`).
 
 ## 1. JDQL `UPDATE ... SET ... WHERE` and `DELETE FROM`
 
@@ -132,10 +132,57 @@ Legend: **A** = realisable with existing core API, **B** = realisable only with 
 
 ## 5. Not verified
 
-- Whether Hibernate ORM 8.x, Eclipse JNoSQL, or any provider implements `@Is`/`Restriction`/`@First` (only dependency versions were read).
-- The Jakarta Data 1.1 specification as rendered on jakarta.ee (the page says "Under Development"); the text used is the `main` branch of the repository, which may still change after M4. The M4 jar and `main` differ only in Javadoc formatting for the files compared (`diff -rq` shows changed files; content-level diff not done for every file).
+- The Jakarta Data 1.1 specification as rendered on jakarta.ee (the page says "Under Development"); the text used is the `main` branch of the repository, which may still change after M4 (see section 6.3 for what changed).
 - Exact keys (`n` versus `nModified`) in the map returned by `Query.set`/`Query.inc` at runtime (read from `sumUp` and `WriteBatchSplitter`, not executed).
 - `Morphium.currentDate` producing the wrong operator (read, not run).
 - InMemoryDriver behaviour for POJOs inside `$set` (not looked at).
-- Whether TCK 1.1 contains update tests beyond the `UPDATE ... SET` statements listed above (grep of `tck/` on `main` for `@Query("UPDATE`/`@Is`/`@First` only).
-- Jakarta EE 12 / Jakarta Data 1.1 final release date (no source found).
+- Jakarta EE 12 / Jakarta Data 1.1 final release date (no source found as of 2026-10-24).
+- Section 6 reads source code and build files of the providers. It does **not** run their TCK: "the code exists" is not "the provider passes the TCK for it".
+
+## 6. Which providers implement the 1.1 features (MOR-023, checked 2026-10-24)
+
+Method: source and build files read through the GitHub API at named tags and branches (`gh api repos/<o>/<r>/contents/<path>?ref=<tag>`, `gh search code`); the TCK sources of `jakartaee/data` `main` downloaded and searched. Feature set asked about: `@Is` with `jakarta.data.constraint.*`, `Restriction`/`Restrict`, `@First`.
+
+### 6.1 Provider table
+
+| Provider and release | Builds against API | `@Is` / constraints | `Restriction` | `@First` | Evidence |
+|---|---|---|---|---|---|
+| Hibernate ORM 7.4.13 (2026-10-11, stable line) | 1.0.1 | no | no | no | `gradle/libs.versions.toml` at `7.4`: `data = "1.0.1"`; `hibernate-core/.../query/restriction/JakartaDataRestriction.java` does not exist on `7.4` |
+| Hibernate ORM 8.0.0.Beta3 (2026-09-25) | 1.1.0-M3 | yes (compile-time) | yes | yes | tag `8.0.0.Beta3`: `libs.versions.toml` `data = "1.1.0-M3"`; `tooling/metamodel-generator/.../processor/util/Constants.java` defines `JD_IS`, `JD_FIRST`, `JD_RESTRICTION`, `JD_CONSTRAINT`, `JD_EQUAL_TO`, ... `JD_NOT_LIKE`; `AnnotationMetaEntity` uses `JD_IS`, `JD_FIRST` and `JD_RESTRICTION`, `AbstractQueryMethod` uses `JD_FIRST` and `JD_RESTRICTION` (grepped at the tag); runtime class `hibernate-core/.../query/restriction/JakartaDataRestriction.java` |
+| Hibernate ORM `main` (8.1.0-SNAPSHOT) | 1.1.0-M4 (and `dataTck = 1.1.0-SNAPSHOT`) | yes | yes | yes | same files on `main`; processor tests `data/constraint/MyConstrainedRepository`, `data/restriction/DataRestrictionRepository`, `data/select/SelectionRepository` |
+| Eclipse JNoSQL 1.1.20 (2026-10-08, stable line) | 1.0.2 | no | no | no | tag `1.1.20`: `pom.xml` `jakarta.data.api.version` = 1.0.2; `ParamValue.java` (the class that reads `@Is`) does not exist at that tag |
+| Eclipse JNoSQL 1.2.0-M2 (2026-08-29) | 1.1.0-M4 | yes | yes | yes | tag `1.2.0-M2`: `jnosql-mapping-core/.../repository/ParamValue.java` reads `@Is`; `jnosql-mapping-semistructured/.../query/RestrictionConverter.java` and `jnosql-mapping-core/.../repository/SpecialParameters.java` handle `Restriction`; `BaseSemiStructuredRepository.java` refers to `@First` and `Restriction` (file contents grepped at the tag) |
+| Micronaut Data 5.2.4 (2026-10-21) | 1.1.0-M4 | yes | yes | yes | tag `v5.2.4`: `libs.versions.toml` `managed-jakarta-data = "1.1.0-M4"`; `data-runtime/.../convert/JakartaDataConstraintConverter.java` (handles `AtLeast`, `AtMost`, `EqualTo`, `GreaterThan`, `In`, `LessThan`, `Like`, `NotEqualTo`, `NotIn`, `NotLike`: the list of the `@Is` Javadoc), `JakartaDataRestrictionsConverter.java`, `data-processor/.../mappers/jakarta/data/JakartaDataFirstByMapper.java`; there is a `data-mongodb` module |
+| Quarkus 3.39.5 / 4.0.0.Beta1 | 1.0.1 / 1.1.0-M3 | follows Hibernate ORM 7.4 / 8.0.0.Beta3 | | | section 0 |
+
+Reading: the three implementations that exist (Hibernate 8.x, JNoSQL 1.2.x, Micronaut Data 5.2) are all on 1.1 **milestone** APIs; no provider has the features in a release line that is built against a final API (there is none). The stable lines (Hibernate 7.4, JNoSQL 1.1.x) are on 1.0.x.
+
+Consequence for MOR-020: bumping `jakarta.data.version` to `1.1.0-M4` puts Morphium on the same API level as JNoSQL 1.2.0-M2 and Micronaut Data 5.2.4; Hibernate 8.0 is on M3, `main` on M4. A Morphium that stays on 1.0.x remains compatible with every stable provider line. The two candidates for a "NoSQL reference implementation" to compare behaviour with are JNoSQL's `RestrictionConverter` and Micronaut Data's `JakartaDataConstraintConverter`; Hibernate does it at compile time in the annotation processor, as the Morphium processor would.
+
+### 6.2 What the TCK on `main` exercises
+
+Downloaded the 122 Java files under `tck/src/main/java` of `jakartaee/data` `main` and searched them (not run):
+
+- `@Is(...)`: `Catalog.java` (`persistence/stateless`, needs a persistence provider), and the read-only fixtures `NaturalNumbers`, `AsciiCharacters`, `Countries`, `PositiveIntegers` (`@By(ID) @Is(AtLeast.class) long minimum`, `@Is(EqualTo.class) NumberType`, `@Is(LessThan.class) short`, ...).
+- `Restriction`/`Restrict`: `standalone/entity/RestrictionTests.java` (`Restrict.all/any` over `_Country.code.equalTo/greaterThan/notNull/in ...`, nested `all(any(...))`), `Countries`, `Inventory`.
+- `@First`: `standalone/entity/FirstTests.java`, `Countries`. `jakarta.data.constraint` is also used by `ConstraintTests`, `SortNullableTests`, `CursorPaginationTests`, `OffsetPaginationTests`.
+- **Update tests: nothing beyond `UPDATE ... SET`.** `standalone/entity/JakartaQueryUpdateTests` runs `@Query("UPDATE Vegetable SET name = :updated WHERE ...")` with `=`, `<>`, `>`, `<`, `>=`, `<=`, `BETWEEN`, `IN`, `NOT IN`, `AND`, `OR` (11 statements in `VegetableRepository`, only `name` is assigned from a parameter). `MultipleEntityRepo` has the two arithmetic forms (`SET length = length + ?1, width = width - ?1, height = height * ?2`; `SET x = :newX, y = y / :yDivisor WHERE id = :id`). `persistence/stateless/Catalog` has one `@NativeQuery("UPDATE Product SET price = ? ...")`, which is native SQL and not part of a NoSQL provider's run. No test for upsert, find-and-modify or a parameter-style partial update, which confirms section 3.
+- The method names in `JakartaQueryUpdateTests` (`updateByNameEquals`) look like derived update methods but are `@Query` statements; the specification has no derived `updateBy...` method kind.
+
+### 6.3 Does the 1.1.0-M4 release differ from `main`?
+
+Yes, more than in Javadoc. `main` is 201 commits ahead of the tag `1.1.0-M4`. Code-level (non-comment) changes in `api/src/main/java`, found by comparing the patches of `compare/1.1.0-M4...main`:
+
+- **New annotation `jakarta.data.repository.Fetching`** (`@Repeatable`, method target, depends on `jakarta.persistence.query.QueryOptions`).
+- **Generics widened** from `Attribute<U>` to `Attribute<? super U>` throughout `jakarta.data.expression.NavigableExpression` and `jakarta.data.spi.expression.path.*` (`Path.attribute()` now returns `Attribute<? super U>`). Source-compatible for callers, binary-relevant for implementers of the SPI.
+- `TemporalLiteralRecord`: a bug fix (null check on the wrong variable, year formatting).
+- `module-info.java` gains `requires`/imports for Javadoc resolution only; `package-info.java` files appear in the diff because they were added.
+- Everything else in the diff (`Is`, `First`, `Restriction`, `Restrict`, `Query`, the constraints) is Javadoc.
+- The TCK on `main` changed more (`EntityTests`, `OffsetPaginationTests`, `CursorPaginationTests`, `JakartaEvent*Tests`, `Warehouse`, `Inventory`, signature files for Java 17/21/25).
+
+So code written against M4 for `@Is`, `@First` and `Restriction` should keep compiling against the final release; the SPI generics and `@Fetching` are the visible changes.
+
+### 6.4 Open points
+
+- Whether the providers pass `RestrictionTests`/`ConstraintTests`/`FirstTests` in their own CI is not checked. The Hibernate `main` build refers to `dataTck = 1.1.0-SNAPSHOT`; the others were not looked at.
+- Behaviour of `@Is` with constraint types outside the Javadoc list (`Between`, `Null`, `NotNull`): the Micronaut converter handles the ten listed ones; whether it handles the others through `Restriction` only was not read.
