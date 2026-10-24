@@ -601,7 +601,7 @@ tasks:
   - docs/research/other-clients.md pattern 11
   evidence: 'DerivedUpdateTest (4 cases, spec derivation, count and find-and-modify form, refusals) green on the InMemoryDriver and MongoDB 8 (PooledDriver); MorphiumRepositoryProxyTest (Spring, incl. the new derived update case) green; Quarkus integration test derivedUpdate in AbstractMorphiumAtomicUpdateTest green on the InMemoryDriver and on MongoDB 8 (MORPHIUM_TEST_HOSTS), MorphiumDataProcessorAtomicUpdateTest green. NOT covered: a Quarkus deployment unit test for the refusals of a derived update (the spec check is covered by DerivedUpdateTest).'
   commits:
-  - FIXME
+  - b11942cd8
 - id: MOR-023
   title: Verify which Jakarta Data providers implement the 1.1 features
   type: verification
