@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 3, done 98
+Status: open 2, done 99
 
 ## Overview
 
@@ -12,7 +12,6 @@ Status: open 3, done 98
 |---|---|---|---|---|---|---|---|
 | MOR-015 | open | 3 | implementation | Option D: opt-in INHERIT mode for @Embedded translateCamelCase | L |  | MOR-001, MOR-014 |
 | MOR-020 | open | 3 | implementation | Jakarta Data 1.1: @Is, constraints, @First and attribute-only Restriction | L |  | MOR-019, MOR-023 |
-| MOR-035 | open | 3 | implementation | Records and value objects in the mapper | L |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -86,6 +85,7 @@ Status: open 3, done 98
 | MOR-023 | done | 3 | verification | Verify which Jakarta Data providers implement the 1.1 features | S |  |  |
 | MOR-032 | done | 3 | implementation | Quarkus: named Morphium instances | M |  |  |
 | MOR-033 | done | 3 | implementation | Quarkus: CDI integration for Morphium messaging | M |  |  |
+| MOR-035 | done | 3 | implementation | Records and value objects in the mapper | L |  |  |
 | MOR-038 | done | 3 | defect | Replacement documents, findOneAndUpdateEnums and Expr values still fail with POJOs in update maps | M |  | MOR-002 |
 | MOR-039 | done | 3 | documentation | Document pitfalls of update maps: $pull condition keys and mixed element shapes | S |  | MOR-027 |
 | MOR-042 | done | 3 | implementation | Writer path: marshal values with the shared update-value walk and use one convention for single values | L |  | MOR-002 |
@@ -791,9 +791,11 @@ Commits: ce8c34616
 
 ### MOR-035 Records and value objects in the mapper
 
-Status **open**, priority 3, type implementation, effort L
+Status **done**, priority 3, type implementation, effort L
 
 Applications keep scalars in entities to avoid {"value": ...} sub-documents. Add record and single-value converter support. Do not duplicate GitHub #116 (records as entities) and #334 (container fields of custom mappers); link them and reuse their scope.
+
+Evidence: RecordMappingTest (3 cases: a record in a field, a list and a map with nested records, enums and Instant; set, push and a dotted query; a single-value record as a bare string in the document, in a query and in an update) green on the InMemoryDriver and on MongoDB 8 (PooledDriver); the object mapping tests (CollectionMappingTest, CustomMapperTest, ObjectMapper*Test, ObjectMappingTests, ScalarCustomMapperContainerTest, EncryptedObjectMappingTests, BigDecimalMapperTest) and the 401 unit tests of the package tree pass except the known HeapReadingFreshnessTest. NOT covered: records as entities, lists of single-value objects, a record with @Reference or @AdditionalData components.
 
 Acceptance:
 
@@ -801,6 +803,8 @@ Acceptance:
 - Verified against a real MongoDB (not only the InMemoryDriver).
 
 Source: update-path research, 2026-10-15, docs/research/other-clients.md pattern 16, GitHub #116, #334
+
+Commits: FIXME
 
 ### MOR-036 Re-run the reproduction on other topologies and server versions
 
