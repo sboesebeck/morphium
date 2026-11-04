@@ -80,6 +80,7 @@ public class ConfigLoader {
         define("memory-reject", Type.INT, "--memory-reject");
         define("max-bson-size", Type.INT, "--max-bson-size");
         define("replay-buffer", Type.STRING, "--replay-buffer");
+        define("replay-buffer-events", Type.INT, "--replay-buffer-events");
         define("event-queue-budget", Type.STRING, "--event-queue-budget");
         define("cursor-queue-budget", Type.STRING, "--cursor-queue-budget");
         define("cursor-queue-events", Type.INT, "--cursor-queue-events");
