@@ -266,9 +266,13 @@ public class ConfigLoader {
             String canonicalKey = ALIASES.get(normalized);
             if (canonicalKey == null) {
                 String suggestion = suggest(normalized);
-                throw new ConfigException(String.format(
-                        "Unknown configuration key '%s' in %s%s", rawKey, path,
-                        suggestion != null ? " - did you mean '" + suggestion + "'?" : ""));
+                // Tolerant: a config written for a NEWER PoppyDB (or with a typo) must not
+                // brick an older process. Log the unknown key and keep going instead of
+                // refusing to start - the unknown setting simply has no effect here.
+                log.warn("Ignoring unknown configuration key '{}' in {}{}",
+                        rawKey, path,
+                        suggestion != null ? " - did you mean '" + suggestion + "'?" : "");
+                continue;
             }
 
             String value = raw.getProperty(rawKey);
