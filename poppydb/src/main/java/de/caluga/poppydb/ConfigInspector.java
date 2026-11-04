@@ -57,6 +57,9 @@ class ConfigInspector {
         } catch (IllegalArgumentException e) {
             errors.add(e.getMessage());
         }
+        if (opts.replayBufferEvents < 1) {
+            errors.add("replay-buffer-events must be >= 1, got: " + opts.replayBufferEvents);
+        }
         try {
             opts.eventQueueBudgetBytes();
         } catch (IllegalArgumentException e) {
@@ -228,6 +231,7 @@ class ConfigInspector {
         appendKey(sb, opts, "memory-reject", String.valueOf(opts.memoryRejectPct));
         appendKey(sb, opts, "max-bson-size", String.valueOf(opts.maxBsonSizeBytes));
         appendKey(sb, opts, "replay-buffer", opts.replayBuffer);
+        appendKey(sb, opts, "replay-buffer-events", String.valueOf(opts.replayBufferEvents));
 
         // Resolved value as a comment only - the rendered output must stay a loadable config
         // file, so the key keeps its raw input form (a percentage resolves against max heap).

@@ -260,6 +260,8 @@ public class PoppyDB {
     private final de.caluga.poppydb.netty.OpRegistry opRegistry = new de.caluga.poppydb.netty.OpRegistry();
     private final java.util.concurrent.atomic.AtomicLong connectionsCreated = new java.util.concurrent.atomic.AtomicLong();
     private volatile Map<String, Integer> hostPriorities;
+    // Effective startup options snapshot backing getCmdLineOpts (#511); set by PoppyDBCLI.
+    private volatile Map<String, Object> cmdLineOpts = null;
 
     public PoppyDB(int port, String host, int maxConnections, int idleTimeoutSeconds, int compressorId) {
         this.port = port;
@@ -375,6 +377,23 @@ public class PoppyDB {
      */
     public void setReplayBufferByteBudget(long bytes) {
         driver.setChangeStreamHistoryByteBudget(bytes);
+    }
+
+    /**
+     * Replay-buffer count bound (change-stream history events) - see
+     * InMemoryDriver.setChangeStreamHistoryLimit. Independent of the byte budget: the ring buffer
+     * evicts on overflow of either, so on a busy bus the count cap is the harder limit.
+     */
+    public void setReplayBufferEvents(int events) {
+        if (events < 1) {
+            throw new IllegalArgumentException("replay-buffer-events must be >= 1, got: " + events);
+        }
+        driver.setChangeStreamHistoryLimit(events);
+    }
+
+    /** Effective startup options snapshot backing getCmdLineOpts (#511). */
+    public void setCmdLineOpts(Map<String, Object> cmdLineOpts) {
+        this.cmdLineOpts = cmdLineOpts;
     }
 
     /**
@@ -501,7 +520,8 @@ public class PoppyDB {
                          // behind getLog:"global" and the real startup warnings
                          .setShutdownAction(PoppyDB.this::shutdown)
                          .setLogBuffer(logBuffer)
-                         .setStartupWarningsSupplier(PoppyDB.this::startupWarnings));
+                         .setStartupWarningsSupplier(PoppyDB.this::startupWarnings)
+                         .setCmdLineOpts(cmdLineOpts));
 
                         // Track the channel
                         allChannels.add(ch);
