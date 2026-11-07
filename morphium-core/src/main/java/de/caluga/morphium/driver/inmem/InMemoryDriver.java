@@ -13143,12 +13143,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     for (BulkRequest r : requests) {
                         if (r instanceof InsertBulkRequest) {
                             InsertBulkRequest ibr = (InsertBulkRequest) r;
-                            insert(db, collection, ibr.getToInsert(), null);
+                            List<Map<String, Object>> errors = insert(db, collection, ibr.getToInsert(), null);
+                            if (errors != null && !errors.isEmpty()) {
+                                throw new MorphiumDriverException("Bulk insert failed: " + errors);
+                            }
                             insertCount += ibr.getToInsert().size();
                         } else if (r instanceof UpdateBulkRequest) {
                             UpdateBulkRequest up = (UpdateBulkRequest) r;
                             Map<String, Object> updateResult = update(db, collection, up.getQuery(), null, up.getCmd(),
                                                                up.isMultiple(), up.isUpsert(), null, null);
+                            if (updateResult.get("writeErrors") instanceof List<?> errors && !errors.isEmpty()) {
+                                throw new MorphiumDriverException("Bulk update failed: " + errors);
+                            }
                             if (updateResult.containsKey("n")) {
                                 matchedCount += ((Number) updateResult.get("n")).intValue();
                             }
@@ -13166,6 +13172,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         } else if (r instanceof DeleteBulkRequest) {
                             Map<String, Object> delResult = delete (db, collection, ((DeleteBulkRequest) r).getQuery(),
                                                                     null, ((DeleteBulkRequest) r).isMultiple(), null, null);
+                            if (delResult.get("writeErrors") instanceof List<?> errors && !errors.isEmpty()) {
+                                throw new MorphiumDriverException("Bulk delete failed: " + errors);
+                            }
                             if (delResult.containsKey("n")) {
                                 delCount += ((Number) delResult.get("n")).intValue();
                             }
@@ -13175,6 +13184,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     }
                 } catch (MorphiumDriverException e) {
                     log.error("Got exception: ", e);
+                    throw e;
                 }
 
                 // Build result document

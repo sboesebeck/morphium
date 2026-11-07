@@ -772,17 +772,29 @@ public class SingleMongoConnectDriver extends DriverBase {
                         if (r instanceof InsertBulkRequest) {
                             var c = getPrimaryConnection(wc);
                             InsertMongoCommand settings = new InsertMongoCommand(c);
+                            settings.setRetryNetworkErrors(false);
                             settings.setDb(db).setColl(collection).setComment("Bulk insert").setDocuments(((InsertBulkRequest) r).getToInsert());
-                            Map<String, Object> result = settings.execute();
-                            settings.releaseConnection();
+                            settings.setWriteConcern(wc != null ? wc.asMap() : null);
+                            try {
+                                requireSuccessfulWrite(settings.execute());
+                            } finally {
+                                settings.releaseConnection();
+                            }
                             insertCount += ((InsertBulkRequest) r).getToInsert().size();
                         } else if (r instanceof UpdateBulkRequest) {
                             UpdateBulkRequest up = (UpdateBulkRequest) r;
                             var c = getPrimaryConnection(wc);
                             UpdateMongoCommand upCmd = new UpdateMongoCommand(c);
+                            upCmd.setRetryNetworkErrors(false);
                             upCmd.setColl(collection).setDb(db).setUpdates(Arrays.asList(Doc.of("q", up.getQuery(), "u", up.getCmd(), "upsert", up.isUpsert(), "multi", up.isMultiple())));
-                            Map<String, Object> result = upCmd.execute();
-                            upCmd.releaseConnection();
+                            upCmd.setWriteConcern(wc != null ? wc.asMap() : null);
+                            Map<String, Object> result;
+                            try {
+                                result = upCmd.execute();
+                                requireSuccessfulWrite(result);
+                            } finally {
+                                upCmd.releaseConnection();
+                            }
                             if (result.containsKey("n")) {
                                 matchedCount += ((Number) result.get("n")).intValue();
                             }
@@ -800,9 +812,16 @@ public class SingleMongoConnectDriver extends DriverBase {
                             DeleteBulkRequest dbr = ((DeleteBulkRequest) r);
                             var c = getPrimaryConnection(wc);
                             DeleteMongoCommand del = new DeleteMongoCommand(c);
+                            del.setRetryNetworkErrors(false);
                             del.setColl(collection).setDb(db).setDeletes(Arrays.asList(Doc.of("q", dbr.getQuery(), "limit", dbr.isMultiple() ? 0 : 1)));
-                            Map<String, Object> result = del.execute();
-                            del.releaseConnection();
+                            del.setWriteConcern(wc != null ? wc.asMap() : null);
+                            Map<String, Object> result;
+                            try {
+                                result = del.execute();
+                                requireSuccessfulWrite(result);
+                            } finally {
+                                del.releaseConnection();
+                            }
                             if (result.containsKey("n")) {
                                 delCount += ((Number) result.get("n")).intValue();
                             }
@@ -812,6 +831,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                     }
                 } catch (MorphiumDriverException e) {
                     log.error("Got exception: ", e);
+                    throw e;
                 }
 
                 // Build result document
