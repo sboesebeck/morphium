@@ -27,7 +27,6 @@ import org.bson.types.ObjectId;
 import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.stream.Stream;
 
 /**
@@ -44,6 +43,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     private static final Logger logger = LoggerFactory.getLogger(BufferedMorphiumWriterImpl.class);
     // needs to be securely stored
     private final Map < Class<?>, List<WriteBufferEntry>> opLog = new ConcurrentHashMap<>(); // synced
+    private final List<UnresolvedWrite> unresolvedWrites = Collections.synchronizedList(new ArrayList<>());
     private final Map < Class<?>, Long> lastRun = new ConcurrentHashMap<>();
     private Morphium morphium;
     private MorphiumWriter directWriter;
@@ -125,67 +125,179 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             return;
         }
 
-        List<WriteBufferEntry> localQueue = new ArrayList<>(q);
-        // either buffer size reached, or time is up => queue writes
-        List<WriteBufferEntry> didNotWrite = new ArrayList<>();
+        List<WriteBufferEntry> localQueue;
+        synchronized (q) {
+            localQueue = new ArrayList<>(q);
+        }
         Map<String, BulkRequestContext> bulkByCollectionName = new HashMap<>();
+        Map<BulkRequestContext, List<WriteBufferEntry>> entriesByContext = new IdentityHashMap<>();
+        Set<BulkRequestContext> failedContexts = Collections.newSetFromMap(new IdentityHashMap<>());
 
-        try {
-            for (WriteBufferEntry entry : localQueue) {
-                if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.exists(morphium.getConfig().connectionSettings().getDatabase(), entry.getCollectionName())) {
+        for (WriteBufferEntry entry : localQueue) {
+            if (entry.isFailed()) {
+                continue;
+            }
+
+            try {
+                if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite()
+                        && !morphium.exists(morphium.getConfig().connectionSettings().getDatabase(), entry.getCollectionName())) {
                     createCappedColl(entry.getEntityType(), entry.getCollectionName());
-                    //noinspection unchecked,unchecked
                     morphium.ensureIndicesFor(entry.getEntityType(), entry.getCollectionName(), entry.getCb(), directWriter);
                 }
 
-                try {
-                    if (bulkByCollectionName.get(entry.getCollectionName()) == null) {
-                        WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(entry.getEntityType(), WriteBuffer.class);
-                        boolean ordered = w != null && w.ordered();
-                        bulkByCollectionName.put(entry.getCollectionName(), morphium.getDriver().createBulkContext(
+                BulkRequestContext context = bulkByCollectionName.get(entry.getCollectionName());
+                if (context == null) {
+                    WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(entry.getEntityType(), WriteBuffer.class);
+                    boolean ordered = w != null && w.ordered();
+                    context = morphium.getDriver().createBulkContext(
                             morphium,
                             morphium.getConfig().connectionSettings().getDatabase(),
                             entry.getCollectionName(),
                             ordered,
-                            morphium.getWriteConcernForClass(entry.getEntityType())
-                        ));
-                    }
+                            morphium.getWriteConcernForClass(entry.getEntityType()));
+                    bulkByCollectionName.put(entry.getCollectionName(), context);
+                }
 
-                    //                logger.info("Queueing a request of type "+entry.getType());
-                    entry.getToRun().queue(bulkByCollectionName.get(entry.getCollectionName()));
-                    //noinspection unchecked
-                    entry.getCb().onOperationSucceeded(entry.getType(), null, 0, null, null);
-                } catch (RejectedExecutionException e) {
-                    logger.info("too much load - add write to next run");
-                    didNotWrite.add(entry);
-                } catch (Exception e) {
-                    logger.error("could not write", e);
+                if (failedContexts.contains(context)) {
+                    failEntry(entry, new IllegalStateException("Bulk context was not executed after an earlier enqueue failure"));
+                    continue;
+                }
+
+                entry.getToRun().queue(context);
+                entriesByContext.computeIfAbsent(context, ignored -> new ArrayList<>()).add(entry);
+            } catch (Exception e) {
+                logger.error("Could not enqueue buffered write; retaining it as unresolved", e);
+                failEntry(entry, e);
+                BulkRequestContext context = bulkByCollectionName.get(entry.getCollectionName());
+                if (context != null) {
+                    failedContexts.add(context);
+                    for (WriteBufferEntry queued : entriesByContext.getOrDefault(context, Collections.emptyList())) {
+                        failEntry(queued, e);
+                    }
                 }
             }
-        } catch (MorphiumDriverException ex) {
-            logger.error("Got error during write!", ex);
-            throw ex;
         }
 
-        try {
-            for (BulkRequestContext ctx : bulkByCollectionName.values()) {
-                if (ctx != null) {
-                    ctx.execute();
+        for (Map.Entry<BulkRequestContext, List<WriteBufferEntry>> bulk : entriesByContext.entrySet()) {
+            BulkRequestContext context = bulk.getKey();
+            List<WriteBufferEntry> entries = bulk.getValue();
+
+            if (!failedContexts.contains(context)) {
+                try {
+                    checkBulkResult(context.execute());
+                    for (WriteBufferEntry entry : entries) {
+                        reportSuccess(entry);
+                    }
+                } catch (Exception e) {
+                    logger.error("Bulk execution outcome is unknown; retaining entries without automatic retry", e);
+                    for (WriteBufferEntry entry : entries) {
+                        failEntry(entry, e);
+                    }
                 }
             }
-        } catch (Exception e) {
-            logger.error("Error during exeecution of unordered bulk", e);
         }
 
         for (WriteBufferEntry entry : localQueue) {
-            // Check if cache is still available (may be null during shutdown)
-            if (morphium.getCache() != null) {
-                morphium.clearCacheforClassIfNecessary(entry.getEntityType());
+            try {
+                if (morphium.getCache() != null) {
+                    morphium.clearCacheforClassIfNecessary(entry.getEntityType());
+                }
+            } catch (RuntimeException e) {
+                logger.warn("Could not clear cache after buffered write processing", e);
             }
 
-            if (!didNotWrite.contains(entry)) {
-                q.remove(entry);
-            }
+            q.remove(entry);
+        }
+    }
+
+    private void failEntry(WriteBufferEntry entry, Throwable error) {
+        if (!entry.isFailed()) {
+            entry.markFailed(error);
+            unresolvedWrites.add(new UnresolvedWrite(entry));
+            reportFailure(entry, error);
+        }
+    }
+
+    /**
+     * Snapshot of unresolved writes, held in memory only. Reconcile each outcome with the
+     * database/application before discarding it or submitting a new operation. Neither flush
+     * nor close retries these entries; retain the writer reference to inspect them after close.
+     * Entries and captured operation state occupy memory until explicitly discarded. The public
+     * view deliberately does not expose captured query/document state: it may be mutable or
+     * contain sensitive values. To correlate a quarantined write with application intent, pass a
+     * unique callback instance per logical operation and match it by object identity using
+     * {@link UnresolvedWrite#getCallback()}; callers that do not supply a unique callback cannot
+     * reliably distinguish otherwise identical writes from this view.
+     */
+    public List<UnresolvedWrite> getUnresolvedWrites() {
+        synchronized (unresolvedWrites) {
+            return List.copyOf(unresolvedWrites);
+        }
+    }
+
+    /** Forget an inspected entry after external reconciliation; this does not execute it. */
+    public boolean discardUnresolvedWrite(UnresolvedWrite write) {
+        return unresolvedWrites.remove(write);
+    }
+
+    public static final class UnresolvedWrite {
+        private final WriteBufferEntry entry;
+
+        private UnresolvedWrite(WriteBufferEntry entry) {
+            this.entry = entry;
+        }
+
+        public Class<?> getEntityType() { return entry.getEntityType(); }
+        public String getCollectionName() { return entry.getCollectionName(); }
+        public AsyncOperationType getType() { return entry.getType(); }
+        public long getTimestamp() { return entry.getTimestamp(); }
+        public Throwable getFailure() { return entry.failure; }
+        /**
+         * Returns the exact callback instance supplied with this operation. Use a unique callback
+         * instance for each logical write and compare by identity as the caller correlation handle.
+         * Query/document payload is intentionally not exposed; reconcile from caller-owned state
+         * rather than from mutable captured writer internals.
+         */
+        public AsyncOperationCallback<?> getCallback() { return entry.getCb(); }
+    }
+
+    private void reportFailure(WriteBufferEntry entry, Throwable error) {
+        try {
+            entry.getCb().onOperationError(entry.getType(), null, 0,
+                    "Buffered write failed; outcome may be unknown and will not be retried automatically",
+                    error, null);
+        } catch (RuntimeException callbackError) {
+            logger.warn("Buffered write failure callback threw an exception", callbackError);
+        }
+    }
+
+    private void reportSuccess(WriteBufferEntry entry) {
+        try {
+            entry.getCb().onOperationSucceeded(entry.getType(), null, 0, null, null);
+        } catch (RuntimeException callbackError) {
+            logger.warn("Buffered write success callback threw an exception", callbackError);
+        }
+    }
+
+    private void checkBulkResult(Map<String, Object> result) {
+        if (result == null || (result.get("ok") instanceof Number ok && ok.doubleValue() != 1.0)
+                || (result.get("writeErrors") instanceof List<?> errors && !errors.isEmpty())
+                || result.get("writeConcernError") != null
+                || (result.get("writeConcernErrors") instanceof List<?> errors && !errors.isEmpty())) {
+            throw new MorphiumDriverException("Bulk write was not confirmed: " + result);
+        }
+    }
+
+    private void executeImmediately(WriteBufferEntry entry, boolean ordered) {
+        try {
+            BulkRequestContext context = morphium.getDriver().createBulkContext(morphium,
+                    morphium.getConfig().connectionSettings().getDatabase(), entry.getCollectionName(),
+                    ordered, morphium.getWriteConcernForClass(entry.getEntityType()));
+            entry.getToRun().queue(context);
+            checkBulkResult(context.execute());
+            reportSuccess(entry);
+        } catch (Exception e) {
+            failEntry(entry, e);
         }
     }
 
@@ -209,26 +321,21 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
         if (size == 0) {
             // No @WriteBuffer on this class → execute immediately, do not buffer.
-            BulkRequestContext ctx = morphium.getDriver().createBulkContext(
-                    morphium,
-                    morphium.getConfig().connectionSettings().getDatabase(),
-                    collectionName,
-                    ordered,
-                    morphium.getWriteConcernForClass(type));
-            r.queue(ctx);
-            ctx.execute();
+            executeImmediately(wb, ordered);
             return;
         }
 
-        // The flush paths remove the type's entry via opLog.remove() WITHOUT holding the
-        // opLog monitor - re-reading opLog.get(type) between check and use therefore races
-        // the flusher and NPEs under load (seen in BufferedWriterTest on the parallel-phase
-        // runner). Take ONE atomic snapshot and work with that reference.
-        List<WriteBufferEntry> buffer = opLog.computeIfAbsent(type, k -> Collections.synchronizedList(new ArrayList<>()));
+        List<WriteBufferEntry> buffer;
+        synchronized (opLog) {
+            buffer = opLog.computeIfAbsent(type, k -> Collections.synchronizedList(new ArrayList<>()));
+            if (size < 0 || buffer.size() < size) {
+                buffer.add(wb);
+                return;
+            }
+        }
 
-        if (size > 0 && buffer.size() >= size) {
+        if (size > 0) {
             logger.warn("WARNING: Write buffer for type " + type.getName() + " maximum exceeded: " + buffer.size() + " entries now, max is " + size);
-            BulkRequestContext ctx = morphium.getDriver().createBulkContext(morphium, morphium.getConfig().connectionSettings().getDatabase(), collectionName, ordered, morphium.getWriteConcernForClass(type));
 
             switch (strategy) {
                 case WAIT:
@@ -246,24 +353,19 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                             throw new RuntimeException("could now write - maxWaitTimeExceded " + morphium.getConfig().connectionSettings().getMaxWaitTime() + "ms");
                         }
 
+                        synchronized (opLog) {
+                            List<WriteBufferEntry> current = opLog.computeIfAbsent(type,
+                                    k -> Collections.synchronizedList(new ArrayList<>()));
+                            if (current.size() < size) {
+                                current.add(wb);
+                                break;
+                            }
+                        }
+
                         try {
                             Thread.sleep(morphium.getConfig().driverSettings().getIdleSleepTime());
                         } catch (InterruptedException e1) {
                         }
-
-                        // deliberate re-read: waiting for the flusher to drain (remove) the entry
-                        List<WriteBufferEntry> current = opLog.get(type);
-
-                        if (current == null || current.size() < size) {
-                            break;
-                        }
-                    }
-
-                    // Re-check size and add atomically to prevent TOCTOU race:
-                    // without the lock, other threads could add entries between
-                    // the size check above and the add below, exceeding the limit.
-                    synchronized (opLog) {
-                        opLog.computeIfAbsent(type, k -> Collections.synchronizedList(new ArrayList<>())).add(wb);
                     }
                     break;
 
@@ -279,24 +381,27 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
                 case WRITE_NEW:
                     logger.warn("directly writing data... due to strategy setting");
-                    r.queue(ctx);
-                    break;
+                    executeImmediately(wb, ordered);
+                    return;
 
                 case WRITE_OLD:
                     // could have been written in the meantime
+                    WriteBufferEntry old = null;
                     synchronized (opLog) {
                         List<WriteBufferEntry> current = opLog.computeIfAbsent(type, k -> Collections.synchronizedList(new ArrayList<>()));
                         current.sort(Comparator.comparingLong(WriteBufferEntry::getTimestamp));
 
                         if (!current.isEmpty()) {
-                            WriteBufferEntry e = current.remove(0);
-                            e.getToRun().queue(ctx);
+                            old = current.remove(0);
                         }
 
                         current.add(wb);
                     }
 
-                    break;
+                    if (old != null) {
+                        executeImmediately(old, ordered);
+                    }
+                    return;
 
                 case DEL_OLD:
                     if (logger.isDebugEnabled()) {
@@ -316,10 +421,6 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
                     return;
             }
-
-            ctx.execute();
-        } else {
-            opLog.computeIfAbsent(type, k -> Collections.synchronizedList(new ArrayList<>())).add(wb);
         }
 
         //        }
@@ -864,13 +965,11 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 private void runIt(Class<?> clz) {
                     lastRun.put(clz, System.currentTimeMillis());
                     List<WriteBufferEntry> localQueue;
-                    localQueue = opLog.remove(clz);
+                    synchronized (opLog) {
+                        localQueue = opLog.remove(clz);
+                    }
                     flushQueueToMongo(localQueue);
 
-                    if (localQueue != null && !localQueue.isEmpty()) {
-                        opLog.computeIfAbsent(clz, k -> Collections.synchronizedList(new ArrayList<>()))
-                        .addAll(localQueue);
-                    }
                 }
             };
             housekeeping.setDaemon(true);
@@ -1182,33 +1281,31 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             // only one will receive the list — the other gets null and skips.
             // This prevents both threads from processing the same entries and causing
             // duplicate-key errors on insert.
-            List<WriteBufferEntry> queue = opLog.remove(clz);
+            List<WriteBufferEntry> queue;
+            synchronized (opLog) {
+                queue = opLog.remove(clz);
+            }
             if (queue == null || queue.isEmpty()) {
                 continue;
             }
 
             flushQueueToMongo(queue);
 
-            // flushQueueToMongo removes successfully-written entries from queue.
-            // Any remaining entries (didNotWrite) must be re-queued for the next cycle.
-            if (!queue.isEmpty()) {
-                opLog.computeIfAbsent(clz, k -> Collections.synchronizedList(new ArrayList<>())).addAll(queue);
-            }
         }
     }
 
     @Override
     public void flush(Class type) {
-        List<WriteBufferEntry> queue = opLog.remove(type);
+        List<WriteBufferEntry> queue;
+        synchronized (opLog) {
+            queue = opLog.remove(type);
+        }
         if (queue == null || queue.isEmpty()) {
             return;
         }
 
         flushQueueToMongo(queue);
 
-        if (!queue.isEmpty()) {
-            opLog.computeIfAbsent(type, k -> Collections.synchronizedList(new ArrayList<>())).addAll(queue);
-        }
     }
 
     @Override
@@ -1239,6 +1336,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         private AsyncOperationType type;
         private long timestamp;
         private Class entityType;
+        private volatile Throwable failure;
 
         private WriteBufferEntry(Class entitiyType, String collectionName, BufferedBulkOp toRun, long timestamp, AsyncOperationCallback c, AsyncOperationType t) {
             this.toRun = toRun;
@@ -1282,6 +1380,14 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
         public BufferedBulkOp getToRun() {
             return toRun;
+        }
+
+        private boolean isFailed() {
+            return failure != null;
+        }
+
+        private void markFailed(Throwable failure) {
+            this.failure = failure;
         }
 
         @SuppressWarnings("unused")
