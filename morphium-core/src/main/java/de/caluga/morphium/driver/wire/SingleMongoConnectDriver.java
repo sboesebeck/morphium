@@ -780,8 +780,10 @@ public class SingleMongoConnectDriver extends DriverBase {
                             InsertMongoCommand settings = new InsertMongoCommand(c);
 
                             try {
+                                settings.setRetryNetworkErrors(false);
                                 settings.setDb(db).setColl(collection).setComment("Bulk insert").setDocuments(((InsertBulkRequest) r).getToInsert());
-                                settings.execute();
+                                settings.setWriteConcern(wc != null ? wc.asMap() : null);
+                                requireConfirmed(db, collection, settings.execute());
                             } finally {
                                 // the one connection of this driver: a rejected insert throws from execute() and must not keep it claimed (MOR-068)
                                 settings.releaseConnection();
@@ -795,6 +797,8 @@ public class SingleMongoConnectDriver extends DriverBase {
                             Map<String, Object> result;
 
                             try {
+                                upCmd.setRetryNetworkErrors(false);
+                                upCmd.setWriteConcern(wc != null ? wc.asMap() : null);
                                 upCmd.setColl(collection).setDb(db).setUpdates(Arrays.asList(Doc.of("q", up.getQuery(), "u", up.getCmd(), "upsert", up.isUpsert(), "multi", up.isMultiple())));
                                 result = upCmd.execute();
                             } finally {
@@ -814,10 +818,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                                     upsertedIds.add(u.get("_id"));
                                 }
                             }
-                            MorphiumDriverException rejected = WriteReplyErrors.rejectionOf(db, collection, result);
-                            if (rejected != null) {
-                                throw rejected;
-                            }
+                            requireConfirmed(db, collection, result);
                         } else if (r instanceof DeleteBulkRequest) {
                             DeleteBulkRequest dbr = ((DeleteBulkRequest) r);
                             var c = getPrimaryConnection(wc);
@@ -825,6 +826,8 @@ public class SingleMongoConnectDriver extends DriverBase {
                             Map<String, Object> result;
 
                             try {
+                                del.setRetryNetworkErrors(false);
+                                del.setWriteConcern(wc != null ? wc.asMap() : null);
                                 del.setColl(collection).setDb(db).setDeletes(Arrays.asList(Doc.of("q", dbr.getQuery(), "limit", dbr.isMultiple() ? 0 : 1)));
                                 result = del.execute();
                             } finally {
@@ -834,10 +837,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                             if (result.containsKey("n")) {
                                 delCount += ((Number) result.get("n")).intValue();
                             }
-                            MorphiumDriverException rejected = WriteReplyErrors.rejectionOf(db, collection, result);
-                            if (rejected != null) {
-                                throw rejected;
-                            }
+                            requireConfirmed(db, collection, result);
                         } else {
                             throw new RuntimeException("Unknown operation " + r.getClass().getName());
                         }
@@ -850,6 +850,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                     }
                 } catch (MorphiumDriverException e) {
                     log.error("Got exception: ", e);
+                    throw e;
                 }
 
                 // Build result document

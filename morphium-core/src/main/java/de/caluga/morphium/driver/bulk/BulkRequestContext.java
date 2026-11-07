@@ -6,6 +6,7 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.BulkWriteException;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.commands.WriteReplyErrors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,8 +46,29 @@ public abstract class BulkRequestContext {
     }
 
 
+    /**
+     * Execute the queued requests. Implementations must throw if any request failed or its
+     * outcome cannot be confirmed; a normal return means all requests completed successfully.
+     * An exception can still mean that some requests were applied.
+     */
     @SuppressWarnings("RedundantThrows")
     public abstract Map<String, Object> execute() throws MorphiumDriverException;
+
+    /**
+     * A reply that reports a rejection raises the exception of {@link WriteReplyErrors} (duplicate key, write concern not satisfied, ...); a reply that does not confirm
+     * the write ({@code ok} is not 1, or no reply) raises as well, because the outcome cannot be told.
+     */
+    protected static void requireConfirmed(String db, String collection, Map<String, Object> result) throws MorphiumDriverException {
+        MorphiumDriverException rejected = WriteReplyErrors.rejectionOf(db, collection, result);
+
+        if (rejected != null) {
+            throw rejected;
+        }
+
+        if (result == null || !(result.get("ok") instanceof Number) || ((Number) result.get("ok")).doubleValue() != 1.0) {
+            throw new MorphiumDriverException("Bulk write was not confirmed: " + result);
+        }
+    }
 
     public abstract UpdateBulkRequest addUpdateBulkRequest();
 

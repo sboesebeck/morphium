@@ -2701,10 +2701,12 @@ public class PooledDriver extends DriverBase {
                                     try {
                                         con = getPrimaryConnection(wc);
                                         settings = new InsertMongoCommand(con);
+                                        settings.setRetryNetworkErrors(false);
                                         settings.setDb(db).setColl(collection).setComment("Bulk insert")
                                                 .setDocuments(insert.getToInsert())
                                                 .setWriteConcern(wc != null ? wc.asMap() : null);
                                         Map<String, Object> result = settings.execute();
+                                        requireConfirmed(db, collection, result);
                                         settings.releaseConnection();
                                         settings = null;
                                         con = null;
@@ -2723,6 +2725,7 @@ public class PooledDriver extends DriverBase {
                                     try {
                                         con = getPrimaryConnection(wc);
                                         upCmd = new UpdateMongoCommand(con);
+                                        upCmd.setRetryNetworkErrors(false);
                                         upCmd.setColl(collection).setDb(db).setUpdates(Arrays.asList(Doc.of("q", update.getQuery(), "u",
                                                 update.getCmd(), "upsert", update.isUpsert(), "multi", update.isMultiple())))
                                              .setWriteConcern(wc != null ? wc.asMap() : null);
@@ -2743,10 +2746,7 @@ public class PooledDriver extends DriverBase {
                                                 upsertedIds.add(u.get("_id"));
                                             }
                                         }
-                                        MorphiumDriverException rejected = WriteReplyErrors.rejectionOf(db, collection, result);
-                                        if (rejected != null) {
-                                            throw rejected;
-                                        }
+                                        requireConfirmed(db, collection, result);
                                     } finally {
                                         if (upCmd != null) {
                                             upCmd.releaseConnection();
@@ -2761,6 +2761,7 @@ public class PooledDriver extends DriverBase {
                                     try {
                                         con = getPrimaryConnection(wc);
                                         del = new DeleteMongoCommand(con);
+                                        del.setRetryNetworkErrors(false);
                                         del.setColl(collection).setDb(db).setDeletes(
                                                            Arrays.asList(Doc.of("q", delete.getQuery(), "limit", delete.isMultiple() ? 0 : 1)))
                                            .setWriteConcern(wc != null ? wc.asMap() : null);
@@ -2771,10 +2772,7 @@ public class PooledDriver extends DriverBase {
                                         if (result.containsKey("n")) {
                                             delCount += ((Number) result.get("n")).intValue();
                                         }
-                                        MorphiumDriverException rejected = WriteReplyErrors.rejectionOf(db, collection, result);
-                                        if (rejected != null) {
-                                            throw rejected;
-                                        }
+                                        requireConfirmed(db, collection, result);
                                     } finally {
                                         if (del != null) {
                                             del.releaseConnection();
@@ -2795,6 +2793,7 @@ public class PooledDriver extends DriverBase {
                 } catch (MorphiumDriverException e) {
                     log.error("Got exception: ", e);
                     stats.get(DriverStatsKey.ERRORS).incrementAndGet();
+                    throw e;
                 }
 
                 // Build result document
