@@ -64,7 +64,6 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.LockSupport;
 import de.caluga.morphium.driver.DnsSrvResolver;
 
 /**
@@ -118,6 +117,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     private ValueEncryptionProvider valueEncryptionProvider;
     private String CREDENTIAL_ENCRYPT_KEY_NAME;
     private final ConcurrentHashMap<String, SequenceGenerator> sequenceGenerators = new ConcurrentHashMap<>();
+    private volatile boolean closed;
 
     private Class <? extends MorphiumMessaging > messagingClass;
 
@@ -305,7 +305,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 try {
                     close();
                 } catch (Exception e) {
-                    // swallow
+                    log.error("Morphium shutdown failed", e);
                 }
             }
         });
@@ -3057,59 +3057,132 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
     @SuppressWarnings("CommentedOutCode")
     public void close() {
-        sequenceGenerators.clear();
+        synchronized (this) {
+            if (closed) {
+                return;
+            }
 
-        for (ShutdownListener l : shutDownListeners) {
-            l.onShutdown(this);
+            closed = true;
         }
 
-        if (asyncOperationsThreadPool != null) {
-            // Use graceful shutdown instead of shutdownNow() to avoid interrupting 
+        List<RuntimeException> failures = new ArrayList<>();
+        runShutdownStep("sequence generator cleanup", sequenceGenerators::clear, failures);
+
+        for (ShutdownListener l : new ArrayList<>(shutDownListeners)) {
+            try {
+                l.onShutdown(this);
+            } catch (RuntimeException e) {
+                failures.add(new IllegalStateException("Shutdown listener failed: " + l, e));
+            }
+        }
+
+        ThreadPoolExecutor executor = asyncOperationsThreadPool;
+        if (executor != null) {
+            // Use graceful shutdown instead of shutdownNow() to avoid interrupting
             // in-flight I/O operations which causes "operation was interrupted" errors.
             // Give operations a chance to complete before forcing shutdown.
-            asyncOperationsThreadPool.shutdown();
+            runShutdownStep("async executor shutdown", executor::shutdown, failures);
+            boolean interrupted = false;
             try {
                 // Wait for active tasks to complete - use reasonable timeout
-                if (!asyncOperationsThreadPool.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                if (!executor.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
                     log.warn("Async operations did not complete in 5 seconds, forcing shutdown");
-                    asyncOperationsThreadPool.shutdownNow();
-                    // Wait a bit more after forced shutdown
-                    if (!asyncOperationsThreadPool.awaitTermination(2, java.util.concurrent.TimeUnit.SECONDS)) {
-                        log.warn("Some async operations may not have completed cleanly");
-                    }
+                    runShutdownStep("async executor forced shutdown", executor::shutdownNow, failures);
+                    awaitExecutorTermination(executor, 2, failures);
                 }
             } catch (InterruptedException e) {
-                // Re-interrupt and force shutdown
-                asyncOperationsThreadPool.shutdownNow();
-                Thread.currentThread().interrupt();
+                interrupted = true;
+                failures.add(new IllegalStateException("Interrupted while awaiting async operations", e));
+                runShutdownStep("async executor forced shutdown", executor::shutdownNow, failures);
+                awaitExecutorTermination(executor, 2, failures);
+            } catch (RuntimeException e) {
+                failures.add(new IllegalStateException("Failed while awaiting async operations", e));
+                runShutdownStep("async executor forced shutdown", executor::shutdownNow, failures);
+                awaitExecutorTermination(executor, 2, failures);
+            } finally {
+                if (interrupted) {
+                    Thread.currentThread().interrupt();
+                }
             }
         }
 
         asyncOperationsThreadPool = null;
 
-        if (config != null) {
-            getConfig().writerSettings().getAsyncWriter().close();
-            getConfig().writerSettings().getBufferedWriter().close();
-            getConfig().writerSettings().getWriter().close();
+        MorphiumConfig shutdownConfig = config;
+        if (shutdownConfig != null) {
+            runShutdownStep("async writer cleanup", () -> {
+                if (shutdownConfig.writerSettings().getAsyncWriter() != null) {
+                    shutdownConfig.writerSettings().getAsyncWriter().close();
+                }
+            }, failures);
+            runShutdownStep("buffered writer cleanup", () -> {
+                if (shutdownConfig.writerSettings().getBufferedWriter() != null) {
+                    shutdownConfig.writerSettings().getBufferedWriter().close();
+                }
+            }, failures);
+            runShutdownStep("writer cleanup", () -> {
+                if (shutdownConfig.writerSettings().getWriter() != null) {
+                    shutdownConfig.writerSettings().getWriter().close();
+                }
+            }, failures);
         }
 
-        releaseDriver();
+        runShutdownStep("driver cleanup", this::releaseDriver, failures);
 
-        if (config != null) {
-            if (getConfig().cacheSettings().getCache() != null) {
-                getConfig().cacheSettings().getCache().resetCache();
-                getConfig().cacheSettings().getCache().close();
+        if (shutdownConfig != null) {
+            runShutdownStep("cache reset", () -> {
+                if (shutdownConfig.cacheSettings().getCache() != null) {
+                    shutdownConfig.cacheSettings().getCache().resetCache();
+                }
+            }, failures);
+            runShutdownStep("cache cleanup", () -> {
+                if (shutdownConfig.cacheSettings().getCache() != null) {
+                    shutdownConfig.cacheSettings().getCache().close();
+                }
+            }, failures);
+
+            runShutdownStep("buffered writer reference cleanup",
+                    () -> shutdownConfig.writerSettings().setBufferedWriter(null), failures);
+            runShutdownStep("async writer reference cleanup",
+                    () -> shutdownConfig.writerSettings().setAsyncWriter(null), failures);
+            runShutdownStep("writer reference cleanup",
+                    () -> shutdownConfig.writerSettings().setWriter(null), failures);
+            runShutdownStep("configuration cleanup", () -> config = null, failures);
+        }
+
+        runShutdownStep("Morphium instance deregistration", () -> instances.remove(this), failures);
+
+        if (!failures.isEmpty()) {
+            IllegalStateException shutdownFailure = new IllegalStateException(
+                    "Morphium shutdown completed with " + failures.size() + " failure(s)");
+            for (RuntimeException failure : failures) {
+                log.error("Morphium shutdown step failed", failure);
+                shutdownFailure.addSuppressed(failure);
             }
-
-            getConfig().writerSettings().setBufferedWriter(null);
-            getConfig().writerSettings().setAsyncWriter(null);
-            getConfig().writerSettings().setWriter(null);
-            config = null;
+            throw shutdownFailure;
         }
+    }
 
-        // getConfig().getCache().resetCache();
-        // MorphiumSingleton.reset();
-        instances.remove(this);
+    private void runShutdownStep(String step, Runnable cleanup, List<RuntimeException> failures) {
+        try {
+            cleanup.run();
+        } catch (RuntimeException e) {
+            failures.add(new IllegalStateException("Failed during " + step, e));
+        }
+    }
+
+    private void awaitExecutorTermination(ThreadPoolExecutor executor, long seconds,
+                                          List<RuntimeException> failures) {
+        try {
+            if (!executor.awaitTermination(seconds, java.util.concurrent.TimeUnit.SECONDS)) {
+                log.warn("Some async operations may not have completed cleanly");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            failures.add(new IllegalStateException("Interrupted while awaiting async operations", e));
+        } catch (RuntimeException e) {
+            failures.add(new IllegalStateException("Failed while awaiting async operations", e));
+        }
     }
 
     /**
@@ -3139,9 +3212,12 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                     // Only close the driver when the last Morphium instance releases it
                     if (remaining == 0) {
                         log.info("Last reference to InMemoryDriver for database '{}', closing driver", dbName);
-                        morphiumDriver.close();
-                        inMemoryDriversByDatabase.remove(dbName);
-                        inMemoryDriverRefCounts.remove(dbName);
+                        try {
+                            morphiumDriver.close();
+                        } finally {
+                            inMemoryDriversByDatabase.remove(dbName);
+                            inMemoryDriverRefCounts.remove(dbName);
+                        }
                     } else {
                         log.info("Skipping driver close, {} other Morphium instance(s) still using it", remaining);
                     }
@@ -3159,9 +3235,12 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                     // Only close the driver when the last Morphium instance releases it
                     if (remaining == 0) {
                         log.info("Last reference to shared driver for key '{}', closing driver", sharedDriverKey);
-                        morphiumDriver.close();
-                        sharedDriversByKey.remove(sharedDriverKey);
-                        sharedDriverRefCounts.remove(sharedDriverKey);
+                        try {
+                            morphiumDriver.close();
+                        } finally {
+                            sharedDriversByKey.remove(sharedDriverKey);
+                            sharedDriverRefCounts.remove(sharedDriverKey);
+                        }
                     } else {
                         log.info("Skipping driver close, {} other Morphium instance(s) still using it", remaining);
                     }
@@ -3174,10 +3253,10 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 morphiumDriver.close();
             }
         } catch (Exception e) {
-            //swallow - during close!
+            throw new IllegalStateException("Failed to release Morphium driver", e);
+        } finally {
+            morphiumDriver = null;
         }
-
-        morphiumDriver = null;
     }
 
     public String createCamelCase(String n) {
@@ -3344,16 +3423,12 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public void queueTask(Runnable runnable) {
-        boolean queued = false;
+        ThreadPoolExecutor executor = asyncOperationsThreadPool;
+        if (closed || executor == null || executor.isShutdown()) {
+            throw new RejectedExecutionException("Morphium is closed; async task was not submitted");
+        }
 
-        do {
-            try {
-                asyncOperationsThreadPool.execute(runnable);
-                queued = true;
-            } catch (Exception e) {
-                LockSupport.parkNanos(200000000);
-            }
-        } while (!queued);
+        executor.execute(runnable);
     }
 
     public int getNumberOfAvailableThreads() {
