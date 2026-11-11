@@ -2071,3 +2071,80 @@ tasks:
   evidence: 'RaiseOnWriteErrorsTest, BulkRaiseOnWriteErrorsTest, DeleteRaisesOnRejectedDeleteTest, StoreRaisesOnRejectedUpdateTest, QueryRaiseOnWriteErrorsTest, MorphiumConfigTest and FindAndModifyWriteErrorTest pass on the InMemoryDriver and against mongo:8 with the PooledDriver; the tests of the switch (bulk, store, config) were removed, the delete and query tests use the per-query override; all modules build. Not changed: the research notes under docs/research (history).'
   commits:
   - 99a6a56db
+- id: MOR-103
+  title: 'Writer path: guard the numeric operators on an @Encrypted field'
+  type: defect
+  status: open
+  priority: 3
+  effort: S
+  description: 'UpdateDocumentMapper refuses $inc, $mul, $min, $max and $bit on an @Encrypted field (ENCRYPTION_CHECKED_OPERATORS), but UpdateFieldGuards.guardWriterUpdate (MOR-049) covers only set, push, addToSet and pull. Query.inc/dec/mul/min/max on such a field is still accepted by the writer path. Found in the review of MOR-049, skipped there.'
+  acceptance:
+  - 'Query.inc and the other numeric writer methods on an @Encrypted field fail with the message of the mapper, nothing is written, on the InMemoryDriver and a real MongoDB'
+  source:
+  - morphium-core/src/main/java/de/caluga/morphium/query/UpdateFieldGuards.java
+- id: MOR-104
+  title: 'Test the guard calls of the buffered writer'
+  type: verification
+  status: open
+  priority: 3
+  effort: S
+  description: 'BufferedMorphiumWriterImpl calls UpdateFieldGuards in set, pushPull and pushPullAll (MOR-049); WriterPathGuardTest runs the synchronous writer only, so a dropped call in the buffered writer would not fail a test.'
+  acceptance:
+  - 'A test with a buffered writer shows that an entity for a @Reference field and plaintext for an @Encrypted field are refused on the calling thread and nothing is queued'
+  source:
+  - morphium-core/src/test/java/de/caluga/test/mongo/suite/contract/WriterPathGuardTest.java
+- id: MOR-105
+  title: 'Derived update: the messages of the spec check name the method, not @AtomicUpdate'
+  type: cleanup
+  status: open
+  priority: 3
+  effort: S
+  description: 'AtomicUpdateSpec.validate prefixes every message with ''@AtomicUpdate on <method>''; for a derived updateBy... method (MOR-022) that names an annotation the user never wrote. Pass the kind of method to validate, or let DerivedUpdate catch and reword.'
+  acceptance:
+  - 'An unknown field in a derived update fails with a message that starts with the method name and says ''derived update'''
+  source:
+  - morphium-jakarta-data/src/main/java/de/caluga/morphium/data/AtomicUpdateSpec.java
+- id: MOR-106
+  title: 'PooledDriver: re-check the write that fails after stop/start of the only replica set member'
+  type: verification
+  status: open
+  priority: 3
+  effort: S
+  description: 'Issue #487 was withdrawn for the freeze case (the probe thawed too late), but the stop/start case remains: with the only member stopped for 6 s one write fails after about 5.8 s with ''removed while waiting for a connection (failover?)''. Stephan fixed related paths on develop (aa345ba2e, 297d7dc1c). Rerun the probe (.local/probe-pooled-outage/exp) on release/7.x after the merge of develop and report or close.'
+  acceptance:
+  - 'The probe is run on a tree that contains the develop fixes; the result is posted on issue 487 and the issue is closed or a defect is filed'
+  source:
+  - 'https://github.com/sboesebeck/morphium/issues/487'
+- id: MOR-107
+  title: 'KeyRename: large collections'
+  type: implementation
+  status: open
+  priority: 3
+  effort: M
+  description: 'KeyRename (MOR-016) reads the documents of the path in one query and plans all renames before the first write. A very large collection needs batches by _id range and a restartable run; the refusal of an overwrite must still happen before the first write, so it needs a first pass that only checks.'
+  acceptance:
+  - 'A rename over a collection that does not fit into memory runs in batches and can be repeated after an interruption; a conflict is reported before the first write'
+  source:
+  - morphium-core/src/main/java/de/caluga/morphium/migration/KeyRename.java
+- id: MOR-108
+  title: 'Quarkus: MorphiumMigrationTest heartbeat tests are timing sensitive'
+  type: defect
+  status: open
+  priority: 3
+  effort: S
+  description: 'inFlightHeartbeatAdvancesExpiryDuringSingleUnit and renewLockBetweenChangeUnitsAdvancesExpiry failed in two full runs of the Quarkus modules, on the unchanged base as well, and passed in a later full run. Make the expiry assertions independent of the wall clock or the load.'
+  acceptance:
+  - 'Both tests pass ten times in a row under load on the InMemDriver'
+  source:
+  - quarkus-morphium/integration-tests/src/test/java/de/caluga/morphium/quarkus/it/MorphiumMigrationTest.java
+- id: MOR-109
+  title: 'Quarkus named instances: real MongoDB, native image and dev mode'
+  type: verification
+  status: open
+  priority: 3
+  effort: M
+  description: 'MOR-032 is tested with two InMemDriver instances in a @QuarkusTest. Not verified: a named instance against a real MongoDB, native image (the synthetic beans are runtime-init), dev-mode hot reload with a named instance, a MorphiumMessaging for a named instance (MOR-033 wires the default instance only).'
+  acceptance:
+  - 'A @QuarkusTest with a named instance on a real MongoDB; a note in docs/quarkus-extension.md for native image and hot reload, verified or marked unsupported'
+  source:
+  - quarkus-morphium/runtime/src/main/java/de/caluga/morphium/quarkus/NamedMorphiumRegistry.java
