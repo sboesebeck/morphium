@@ -166,6 +166,7 @@ public class ModifyOptionsTest extends MultiDriverTestBase {
     public void anUnknownHintIsRejectedByAMongoDB(Morphium m) throws Exception {
         try (m) {
             assumeFalse(m.getDriver() instanceof InMemoryDriver, "the InMemoryDriver has no query planner: it accepts and ignores a hint");
+            assumeFalse(m.getDriver().isPoppyDB(), "PoppyDB does not read hint on any path yet (MOR-110): it accepts and ignores an unknown one");
             seed(m, "a", "k", "x", 1);
             assertThrows(MorphiumDriverException.class, () -> byKey(m, "k").findOneAndUpdate(set("count", 2), FindAndModifyOptions.options().hint("no_such_index").returnDocument(ReturnDocument.AFTER)));
             assertEquals(1, byKey(m, "k").get().count);

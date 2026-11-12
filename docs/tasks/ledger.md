@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 7, blocked 2, done 99
+Status: open 8, blocked 2, done 99
 
 ## Overview
 
@@ -19,6 +19,7 @@ Status: open 7, blocked 2, done 99
 | MOR-107 | open | 3 | implementation | KeyRename: large collections | M |  |  |
 | MOR-108 | open | 3 | defect | Quarkus: MorphiumMigrationTest heartbeat tests are timing sensitive | S |  |  |
 | MOR-109 | open | 3 | verification | Quarkus named instances: real MongoDB, native image and dev mode | M |  |  |
+| MOR-110 | open | 3 | defect | PoppyDB: an unknown hint is accepted and ignored, mongod rejects it | M |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -1984,4 +1985,18 @@ Acceptance:
 - A @QuarkusTest with a named instance on a real MongoDB; a note in docs/quarkus-extension.md for native image and hot reload, verified or marked unsupported
 
 Source: quarkus-morphium/runtime/src/main/java/de/caluga/morphium/quarkus/NamedMorphiumRegistry.java
+
+### MOR-110 PoppyDB: an unknown hint is accepted and ignored, mongod rejects it
+
+Status **open**, priority 3, type defect, effort M
+
+mongod answers a findAndModify (and a find, update or delete) whose hint names no index of the collection with BadValue (code 2) and changes nothing. PoppyDB reads hint on no path - processFindDirect says it explicitly ("hint stays unread: the InMemoryDriver has no hint support on any path") - and answers as if the hint were not given, so a misspelled index name silently runs unplanned. ModifyOptionsTest.anUnknownHintIsRejectedByAMongoDB is green against mongod and failed in both PoppyDB phases of the run of 2026-11-12; the test skips the PoppyDB backend like it skips the InMemoryDriver until this is done.
+
+Acceptance:
+
+- A findAndModify with a hint that names no index of the collection raises a MorphiumDriverException with code 2 and changes nothing; the same for find, update and delete
+- A hint by index name and by key document is accepted; whether the planner uses it is not part of this task
+- The backend skip for the hint test in ModifyOptionsTest is removed
+
+Source: poppydb/src/main/java/de/caluga/poppydb/netty/MongoCommandHandler.java, morphium-core/src/test/java/de/caluga/test/mongo/suite/base/ModifyOptionsTest.java
 
