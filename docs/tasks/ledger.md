@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 8, blocked 2, done 100
+Status: open 9, blocked 2, done 100
 
 ## Overview
 
@@ -20,6 +20,7 @@ Status: open 8, blocked 2, done 100
 | MOR-108 | open | 3 | defect | Quarkus: MorphiumMigrationTest heartbeat tests are timing sensitive | S |  |  |
 | MOR-109 | open | 3 | verification | Quarkus named instances: real MongoDB, native image and dev mode | M |  |  |
 | MOR-110 | open | 3 | defect | PoppyDB: an unknown hint is accepted and ignored, mongod rejects it | M |  |  |
+| MOR-112 | open | 3 | implementation | hasJournal() reads the journal capability from the handshake instead of the PoppyDB brand | S |  | MOR-111 |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -2016,4 +2017,20 @@ Acceptance:
 - Documented in the PoppyDB howto: what a missing journal means for leases and for exactly-once messaging
 
 Source: morphium-core/src/main/java/de/caluga/morphium/messaging/MsgLock.java, poppydb/src/main/java/de/caluga/poppydb/netty/MongoCommandHandler.java
+
+### MOR-112 hasJournal() reads the journal capability from the handshake instead of the PoppyDB brand
+
+Status **open**, priority 3, type implementation, effort S
+
+Follow-up of MOR-111. MorphiumDriver.hasJournal() is a default method that returns !isPoppyDB(): the check is brand-based. PoppyDB already advertises the fact in its hello answer - MongoCommandHandler.helloAnswer() puts poppyCapabilities.journal = false next to the identity flags - but no driver in morphium-core reads the poppyCapabilities document. PooledDriver and SingleMongoConnectDriver should keep the journal value of the handshake and answer hasJournal() from it, falling back to the brand when the document or the key is missing (an older PoppyDB), so a later PoppyDB with a journal is recognised without a client change. Out of scope, but to be stated in the result: a mongod on its in-memory storage engine has no journal either and its hello carries no such flag (serverStatus.storageEngine.persistent would tell); it still gets j:true.
+
+Acceptance:
+
+- Against a PoppyDB whose hello carries poppyCapabilities.journal = false, hasJournal() of the PooledDriver and of the SingleMongoConnectDriver is false and comes from the handshake value, not from isPoppyDB()
+- A hello with poppyCapabilities.journal = true gives hasJournal() = true although isPoppyDB() is true; a PoppyDB hello without the capabilities document falls back to false; a mongod hello stays true
+- JournalWriteConcernTest and WriteConcernStandaloneTest stay green
+
+Depends on: MOR-111
+
+Source: morphium-core/src/main/java/de/caluga/morphium/driver/MorphiumDriver.java, morphium-core/src/main/java/de/caluga/morphium/driver/wire/PooledDriver.java, morphium-core/src/main/java/de/caluga/morphium/driver/wire/SingleMongoConnectDriver.java, poppydb/src/main/java/de/caluga/poppydb/netty/MongoCommandHandler.java
 
