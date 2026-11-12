@@ -127,6 +127,9 @@ public class MultiDriverTestBase {
      * backend as well - otherwise the deviation comes back as a red test in the PoppyDB phases only.
      */
     protected static boolean isInMemoryBacked(Morphium m) {
+        // the instanceof branch is redundant today (InMemoryDriver.isPoppyDB() returns true by design, "always a
+        // PoppyDB-compatible backend"); it stays so the helper keeps meaning the engine and not the brand, should
+        // that ever change
         return m.getDriver() instanceof InMemoryDriver || m.getDriver().isPoppyDB();
     }
 

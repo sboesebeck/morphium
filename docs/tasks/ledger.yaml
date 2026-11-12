@@ -2189,8 +2189,11 @@ tasks:
     failed in both PoppyDB phases of the run of 2026-11-12). Not the insert was the problem - the lock insert ignores
     a writeConcernError - but the delete. Fixed where the concern is built: Morphium.getWriteConcernForClass drops
     j:true for a backend that reports no journal (MorphiumDriver.hasJournal(), false for PoppyDB and the
-    InMemoryDriver), with one warning per Morphium instance; the w of the annotation is untouched. mongod on the
-    in-memory storage engine behaves like PoppyDB here, so this is capability negotiation, not a PoppyDB workaround.'
+    InMemoryDriver), with one warning per Morphium instance; the w of the annotation is untouched. Scope of the
+    detection: hasJournal() is !isPoppyDB(). A mongod on its in-memory storage engine reports no journal too but its
+    hello carries no such flag, so it still gets j:true and runs into the same error - reading poppyCapabilities.journal
+    from the PoppyDB handshake (MongoCommandHandler) would make the check capability-based instead of brand-based and
+    is the natural follow-up.'
   acceptance:
   - 'A backend that reports no journal gets write concerns without j:true when the entity asks for it, with one
     warning per Morphium instance; a backend with a journal keeps the flag'
