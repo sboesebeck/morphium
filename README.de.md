@@ -315,7 +315,7 @@ Detaillierte Checkliste und Codebeispiele im
 
 ### JDK 21 & Moderne Java-Features
 - **Pattern Matching**: Verbesserte Code-Klarheit und Typ-Sicherheit
-- **Records**: Noch nicht als `@Entity` oder `@Embedded` unterstützt (siehe [#116](https://github.com/sboesebeck/morphium/issues/116))
+- **Records**: Ab 7.0 als `@Embedded`-Wert unterstützt (in Feldern, Listen und Maps; Ein-Wert-Records über `SingleValueMapper`), noch nicht als `@Entity` (siehe [#116](https://github.com/sboesebeck/morphium/issues/116))
 - **Sealed Classes**: Bessere Typ-Hierarchien in Domain-Models
 - **Virtual Threads** wurden in dieser Ära eingeführt, aber in 6.2.x wieder ausgebaut: JDK 21s `synchronized`-Pinning führte unter Last zu Deadlocks. Morphium läuft durchgehend auf Plattform-Threads; eine Neubewertung ist geplant, sobald JEP 491 (JDK 24+) die Baseline ist.
 
