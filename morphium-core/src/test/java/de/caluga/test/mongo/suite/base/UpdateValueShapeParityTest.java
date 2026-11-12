@@ -302,8 +302,9 @@ public class UpdateValueShapeParityTest extends MultiDriverTestBase {
             m.createQueryFor(Shaped.class).f("_id").eq(s.id).findOneAndUpdate(Map.of("$pull", Map.of("items", Map.of("when", D))), false, true);
             assertEquals(List.of("b"), m.createQueryFor(Shaped.class).f("_id").eq(s.id).get().items.stream().map(i -> i.name).toList(), "pull with a condition on a field of embedded documents");
 
-            // pinned deviation MOR-066: the InMemoryDriver does not apply query operators to the fields of the elements of a $pull with a document condition
-            if (!(m.getDriver() instanceof de.caluga.morphium.driver.inmem.InMemoryDriver)) {
+            // pinned deviation MOR-066: the in-memory engine does not apply query operators to the fields of the elements
+            // of a $pull with a document condition - PoppyDB runs the same engine, so it is skipped as well
+            if (!isInMemoryBacked(m)) {
                 m.createQueryFor(Shaped.class).f("_id").eq(s.id).findOneAndUpdate(Map.of("$pull", Map.of("dateList", Map.of("$gte", D3))), false, true);
                 assertEquals(List.of(D), m.createQueryFor(Shaped.class).f("_id").eq(s.id).get().dateList, "pull with an operator condition on wrapped elements");
             }

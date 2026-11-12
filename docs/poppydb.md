@@ -998,7 +998,16 @@ Practical consequences for non-Morphium drivers:
   issue #293.)
 - **`j: true` write concerns fail honestly** with `writeConcernError` code 2 (`BadValue`),
   like mongod running without journaling: PoppyDB persists via periodic snapshots, there is
-  no journal to wait for. The write itself is still executed.
+  no journal to wait for. The write itself is still executed. Morphium's own client does not
+  send the flag: an entity annotated `@WriteSafety(waitForJournalCommit = true)` (e.g.
+  `MsgLock`, the lock of an exclusive message) gets its write concern without `j`, with one
+  warning per `Morphium` instance (MOR-111). For exactly-once messaging that is acceptable:
+  a lock is a lease with a TTL and its correctness does not depend on a journal. A crash
+  before the next snapshot can still lose the lock document, and with it the
+  "already processed" bookkeeping of that window - the reason a phase that checks exactly-once
+  messaging belongs on a real MongoDB. Only the `@WriteSafety` path is covered: a write concern you
+  build yourself (`WriteConcern.getWc(w, true, timeout)`) is sent as given, so `j:true` still fails
+  a delete or update with `WriteConcernNotSatisfiedException`.
 - **Reads on a secondary require an explicit read preference.** MongoDB's default read
   preference is `primary`, so a read without `$readPreference` is rejected on a secondary
   with `NotPrimaryNoSecondaryOk` (13435) — the same way mongod treats a direct secondary

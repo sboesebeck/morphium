@@ -174,6 +174,37 @@ public class WriteConcernStandaloneTest {
     }
 
     @Test
+    void aBackendWithoutJournalGetsNoJournalFlag() {
+        // MOR-111: PoppyDB - and the InMemoryDriver, which is the same engine - have no journal and answer
+        // j:true with a writeConcernError (code 2) AFTER the write was applied. Since MOR-065 an update or
+        // delete raises that concern, so MsgLock (@WriteSafety(waitForJournalCommit = true)) could not be
+        // released at all. The flag is dropped for such a backend - the same shape as the w downgrade on a
+        // standalone.
+        morphium = createMorphium(false);
+        assertFalse(morphium.getDriver().hasJournal(), "precondition: the in-memory engine has no journal");
+        WriteConcern wc = morphium.getWriteConcernForClass(JournaledEntity.class);
+        assertNotNull(wc);
+        assertFalse(Boolean.TRUE.equals(wc.asMap().get("j")),
+                "j:true must be dropped for a backend without journal, got " + wc.asMap());
+    }
+
+    @Test
+    void aBackendWithJournalKeepsTheJournalFlag() {
+        morphium = createMorphium(false);
+        morphium.setDriver(new InMemoryDriver() {
+            @Override
+            public boolean isPoppyDB() {
+                // stands in for a mongod, which has a journal
+                return false;
+            }
+        });
+        assertTrue(morphium.getDriver().hasJournal(), "precondition: this backend can journal");
+        WriteConcern wc = morphium.getWriteConcernForClass(JournaledEntity.class);
+        assertNotNull(wc);
+        assertEquals(Boolean.TRUE, wc.asMap().get("j"), "a backend with a journal keeps j:true");
+    }
+
+    @Test
     void standaloneResetsNegativeTimeout() {
         morphium = createMorphium(false);
         WriteConcern wc = morphium.getWriteConcernForClass(NegativeTimeoutEntity.class);
@@ -213,6 +244,13 @@ public class WriteConcernStandaloneTest {
 
     @Entity
     static class NoAnnotationEntity {
+        @Id
+        String id;
+    }
+
+    @Entity
+    @WriteSafety(level = SafetyLevel.MAJORITY, waitForJournalCommit = true)
+    static class JournaledEntity {
         @Id
         String id;
     }

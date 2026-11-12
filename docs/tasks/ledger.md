@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 7, blocked 2, done 99
+Status: open 8, blocked 2, done 100
 
 ## Overview
 
@@ -19,6 +19,7 @@ Status: open 7, blocked 2, done 99
 | MOR-107 | open | 3 | implementation | KeyRename: large collections | M |  |  |
 | MOR-108 | open | 3 | defect | Quarkus: MorphiumMigrationTest heartbeat tests are timing sensitive | S |  |  |
 | MOR-109 | open | 3 | verification | Quarkus named instances: real MongoDB, native image and dev mode | M |  |  |
+| MOR-110 | open | 3 | defect | PoppyDB: an unknown hint is accepted and ignored, mongod rejects it | M |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -118,6 +119,7 @@ Status: open 7, blocked 2, done 99
 | MOR-098 | done | 3 | defect | InMemoryDriver: a unique index on an array field is not enforced per element (multikey unique index) | M |  |  |
 | MOR-100 | done | 3 | documentation | Documentation: conditional single-document writes as the pattern behind leases, claims, idempotency keys and optimistic locks | S |  |  |
 | MOR-101 | done | 3 | analysis | WorkClaim: a recipe for claiming a unit of work (state, allowed from-states, visibility timeout, attempts) | S |  |  |
+| MOR-111 | done | 3 | defect | Messaging without a journal: MsgLock asks for waitForJournalCommit | S |  |  |
 
 ## Details
 
@@ -1984,4 +1986,34 @@ Acceptance:
 - A @QuarkusTest with a named instance on a real MongoDB; a note in docs/quarkus-extension.md for native image and hot reload, verified or marked unsupported
 
 Source: quarkus-morphium/runtime/src/main/java/de/caluga/morphium/quarkus/NamedMorphiumRegistry.java
+
+### MOR-110 PoppyDB: an unknown hint is accepted and ignored, mongod rejects it
+
+Status **open**, priority 3, type defect, effort M
+
+mongod answers a findAndModify (and a find, update or delete) whose hint names no index of the collection with BadValue (code 2) and changes nothing. PoppyDB reads hint on no path - processFindDirect says it explicitly ("hint stays unread: the InMemoryDriver has no hint support on any path") - and answers as if the hint were not given, so a misspelled index name silently runs unplanned. ModifyOptionsTest.anUnknownHintIsRejectedByAMongoDB is green against mongod and failed in both PoppyDB phases of the run of 2026-11-12; the test skips the PoppyDB backend like it skips the InMemoryDriver until this is done.
+
+Acceptance:
+
+- A findAndModify with a hint that names no index of the collection raises a MorphiumDriverException with code 2 and changes nothing; the same for find, update and delete
+- A hint by index name and by key document is accepted; whether the planner uses it is not part of this task
+- The backend skip for the hint test in ModifyOptionsTest is removed
+
+Source: poppydb/src/main/java/de/caluga/poppydb/netty/MongoCommandHandler.java, morphium-core/src/test/java/de/caluga/test/mongo/suite/base/ModifyOptionsTest.java
+
+### MOR-111 Messaging without a journal: MsgLock asks for waitForJournalCommit
+
+Status **done**, priority 3, type defect, effort S
+
+MsgLock carries @WriteSafety(waitForJournalCommit = true, level = MAJORITY), so every lock write asked for j:true. PoppyDB has no journal and answers such a write with a writeConcernError (code 2, BadValue): the write is applied and then reported as unsatisfied. Since MOR-065 an update or delete raises that concern, so SingleCollectionMessaging.deleteLock threw on every lock release although the lock was gone (ExclusiveOnceReproTest failed in both PoppyDB phases of the run of 2026-11-12). Not the insert was the problem - the lock insert ignores a writeConcernError - but the delete. Fixed where the concern is built: Morphium.getWriteConcernForClass drops j:true for a backend that reports no journal (MorphiumDriver.hasJournal(), false for PoppyDB and the InMemoryDriver), with one warning per Morphium instance; the w of the annotation is untouched. Scope of the detection: hasJournal() is !isPoppyDB(). A mongod on its in-memory storage engine reports no journal too but its hello carries no such flag, so it still gets j:true and runs into the same error - reading poppyCapabilities.journal from the PoppyDB handshake (MongoCommandHandler) would make the check capability-based instead of brand-based and is the natural follow-up.
+
+Evidence: JournalWriteConcernTest (embedded PoppyDB, tag server): aLockWriteConcernCarriesNoJournalFlagOnPoppyDB and aLockCanBeStoredAndDeletedOnPoppyDB, both green with the fix and both red without it (j=true and a WriteConcernNotSatisfiedException from the lock delete). WriteConcernStandaloneTest 13 green, among them aBackendWithoutJournalGetsNoJournalFlag and aBackendWithJournalKeepsTheJournalFlag. The PoppyDB documentation (docs/poppydb.md, "Capabilities document and driver settings") now says that Morphium drops the flag and what a missing journal means for a lease and for exactly-once messaging.
+
+Acceptance:
+
+- A backend that reports no journal gets write concerns without j:true when the entity asks for it, with one warning per Morphium instance; a backend with a journal keeps the flag
+- A MsgLock can be stored and released against PoppyDB (JournalWriteConcernTest)
+- Documented in the PoppyDB howto: what a missing journal means for leases and for exactly-once messaging
+
+Source: morphium-core/src/main/java/de/caluga/morphium/messaging/MsgLock.java, poppydb/src/main/java/de/caluga/poppydb/netty/MongoCommandHandler.java
 

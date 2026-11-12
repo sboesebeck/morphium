@@ -2154,3 +2154,57 @@ tasks:
   - 'A @QuarkusTest with a named instance on a real MongoDB; a note in docs/quarkus-extension.md for native image and hot reload, verified or marked unsupported'
   source:
   - quarkus-morphium/runtime/src/main/java/de/caluga/morphium/quarkus/NamedMorphiumRegistry.java
+- id: MOR-110
+  title: 'PoppyDB: an unknown hint is accepted and ignored, mongod rejects it'
+  type: defect
+  status: open
+  priority: 3
+  effort: M
+  description: 'mongod answers a findAndModify (and a find, update or delete) whose hint names no
+    index of the collection with BadValue (code 2) and changes nothing. PoppyDB reads hint on no path -
+    processFindDirect says it explicitly ("hint stays unread: the InMemoryDriver has no hint support on
+    any path") - and answers as if the hint were not given, so a misspelled index name silently runs
+    unplanned. ModifyOptionsTest.anUnknownHintIsRejectedByAMongoDB is green against mongod and failed in
+    both PoppyDB phases of the run of 2026-11-12; the test skips the PoppyDB backend like it skips the
+    InMemoryDriver until this is done.'
+  acceptance:
+  - 'A findAndModify with a hint that names no index of the collection raises a MorphiumDriverException
+    with code 2 and changes nothing; the same for find, update and delete'
+  - 'A hint by index name and by key document is accepted; whether the planner uses it is not part of
+    this task'
+  - 'The backend skip for the hint test in ModifyOptionsTest is removed'
+  source:
+  - poppydb/src/main/java/de/caluga/poppydb/netty/MongoCommandHandler.java
+  - morphium-core/src/test/java/de/caluga/test/mongo/suite/base/ModifyOptionsTest.java
+- id: MOR-111
+  title: 'Messaging without a journal: MsgLock asks for waitForJournalCommit'
+  type: defect
+  status: done
+  priority: 3
+  effort: S
+  description: 'MsgLock carries @WriteSafety(waitForJournalCommit = true, level = MAJORITY), so every lock write
+    asked for j:true. PoppyDB has no journal and answers such a write with a writeConcernError (code 2, BadValue):
+    the write is applied and then reported as unsatisfied. Since MOR-065 an update or delete raises that concern, so
+    SingleCollectionMessaging.deleteLock threw on every lock release although the lock was gone (ExclusiveOnceReproTest
+    failed in both PoppyDB phases of the run of 2026-11-12). Not the insert was the problem - the lock insert ignores
+    a writeConcernError - but the delete. Fixed where the concern is built: Morphium.getWriteConcernForClass drops
+    j:true for a backend that reports no journal (MorphiumDriver.hasJournal(), false for PoppyDB and the
+    InMemoryDriver), with one warning per Morphium instance; the w of the annotation is untouched. Scope of the
+    detection: hasJournal() is !isPoppyDB(). A mongod on its in-memory storage engine reports no journal too but its
+    hello carries no such flag, so it still gets j:true and runs into the same error - reading poppyCapabilities.journal
+    from the PoppyDB handshake (MongoCommandHandler) would make the check capability-based instead of brand-based and
+    is the natural follow-up.'
+  acceptance:
+  - 'A backend that reports no journal gets write concerns without j:true when the entity asks for it, with one
+    warning per Morphium instance; a backend with a journal keeps the flag'
+  - 'A MsgLock can be stored and released against PoppyDB (JournalWriteConcernTest)'
+  - 'Documented in the PoppyDB howto: what a missing journal means for leases and for exactly-once messaging'
+  evidence: 'JournalWriteConcernTest (embedded PoppyDB, tag server): aLockWriteConcernCarriesNoJournalFlagOnPoppyDB and
+    aLockCanBeStoredAndDeletedOnPoppyDB, both green with the fix and both red without it (j=true and a
+    WriteConcernNotSatisfiedException from the lock delete). WriteConcernStandaloneTest 13 green, among them
+    aBackendWithoutJournalGetsNoJournalFlag and aBackendWithJournalKeepsTheJournalFlag. The PoppyDB documentation
+    (docs/poppydb.md, "Capabilities document and driver settings") now says that Morphium drops the flag and what a
+    missing journal means for a lease and for exactly-once messaging.'
+  source:
+  - morphium-core/src/main/java/de/caluga/morphium/messaging/MsgLock.java
+  - poppydb/src/main/java/de/caluga/poppydb/netty/MongoCommandHandler.java
