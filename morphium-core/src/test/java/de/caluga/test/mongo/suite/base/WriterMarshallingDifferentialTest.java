@@ -159,7 +159,7 @@ public class WriterMarshallingDifferentialTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesInMemOnly")
+    @MethodSource("getMorphiumInstanceForOfflineTests")
     public void theWriterFunctionEqualsTheLegacyCopyForEveryKeepRow(Morphium morphium) throws Exception {
         try (morphium) {
             MorphiumWriterImpl writer = (MorphiumWriterImpl) morphium.getConfig().writerSettings().getWriter();
@@ -176,7 +176,7 @@ public class WriterMarshallingDifferentialTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesInMemOnly")
+    @MethodSource("getMorphiumInstanceForOfflineTests")
     public void pushAllMarshalsEveryElementWithTheSameFunction(Morphium morphium) throws Exception {
         try (morphium) {
             MorphiumWriterImpl writer = (MorphiumWriterImpl) morphium.getConfig().writerSettings().getWriter();
@@ -190,7 +190,7 @@ public class WriterMarshallingDifferentialTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesInMemOnly")
+    @MethodSource("getMorphiumInstanceForOfflineTests")
     public void legacyCopyKnownDifferencesStayVisible(Morphium morphium) throws Exception {
         try (morphium) {
             // documents what the copy does today and what the later change alters on purpose (asserted in WriterPathMarshallingTest)
@@ -202,7 +202,7 @@ public class WriterMarshallingDifferentialTest extends MultiDriverTestBase {
 
     /** the rows that change on purpose (MOR-042); the new expectation is written out, the previous behaviour is shown by the legacy copy */
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesInMemOnly")
+    @MethodSource("getMorphiumInstanceForOfflineTests")
     public void theSwitchRowsChangeOnPurpose(Morphium morphium) throws Exception {
         try (morphium) {
             MorphiumWriterImpl writer = (MorphiumWriterImpl) morphium.getConfig().writerSettings().getWriter();
