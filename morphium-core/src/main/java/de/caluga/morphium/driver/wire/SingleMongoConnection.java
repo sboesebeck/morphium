@@ -171,9 +171,11 @@ public class SingleMongoConnection implements MongoConnection {
         // maxWaitTime here would make connects to half-dead hosts (TCP accepted, mongod
         // frozen) hang for up to a minute - stalling startup and the heartbeat.
         int helloTimeout = drv.getConnectionTimeout() > 0 ? Math.max(drv.getConnectionTimeout(), 2000) : 5000;
-        var hello = getHelloResult(true, helloTimeout);
+        // Known before the handshake, so a handshake that gets no answer names the host it
+        // tried instead of "null:0" (#487); `connected` still flips only after the hello.
         connectedTo = host;
         connectedToPort = port;
+        var hello = getHelloResult(true, helloTimeout);
         //log.info("Connected to "+connectedTo+":"+port);
         connected = true;
         return hello;

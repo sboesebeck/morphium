@@ -140,6 +140,51 @@ class InsertRetryDuplicateKeyTest {
     }
 
     /**
+     * The shape a real {@code Morphium.store()} produces (#487): the object mapper serialises a
+     * {@code MorphiumId} field as a bson {@code ObjectId}, while the reply's {@code keyValue}
+     * decodes to a {@code MorphiumId}. The two are the same id and must be recognised as such -
+     * before, {@code equals} between the two classes was false and the reconciliation never
+     * fired for any entity stored through the writer, only for hand-built documents.
+     */
+    @Test
+    void retryReconcilesWhenTheDocumentCarriesABsonObjectId() throws MorphiumDriverException {
+        MorphiumId id = new MorphiumId();
+        org.bson.types.ObjectId mapped = new org.bson.types.ObjectId(id.getBytes());
+        Map<String, Object> doc = Doc.of("_id", mapped, "value", "v");
+        ScriptedConnection con = new ScriptedConnection(java.util.Arrays.asList(
+                null,
+                duplicateKeyAnswer(Doc.of("_id", 1), Doc.of("_id", id),
+                        "E11000 duplicate key error collection: test_db.test_coll index: _id_ dup key: { _id: ObjectId('"
+                                + id + "') }")));
+
+        Map<String, Object> result = insertOf(con, doc).execute();
+
+        assertFalse(result.containsKey("writeErrors"),
+                "a bson ObjectId in the document and a MorphiumId in keyValue are the same id");
+        assertEquals(1, ((Number) result.get("n")).intValue());
+    }
+
+    /**
+     * A duplicate-key answer without keyPattern/keyValue, naming only the key in the message -
+     * what PoppyDB and the InMemoryDriver sent before 6.3.16, and what mongod before 4.4 sends.
+     * The document position plus "dup key: { _id:" is enough to attribute it.
+     */
+    @Test
+    void retryReconcilesAnAnswerThatOnlyNamesTheKeyInTheMessage() throws MorphiumDriverException {
+        MorphiumId id = new MorphiumId();
+        Map<String, Object> doc = Doc.of("_id", id, "value", "v");
+        Map<String, Object> legacyAnswer = Doc.of("ok", 1.0, "n", 0, "writeErrors",
+                List.of(Doc.of("index", 0, "code", 11000,
+                        "errmsg", "E11000 duplicate key error collection: test_db.test_coll dup key: { _id: " + id + " }")));
+        ScriptedConnection con = new ScriptedConnection(java.util.Arrays.asList(null, legacyAnswer));
+
+        Map<String, Object> result = insertOf(con, doc).execute();
+
+        assertFalse(result.containsKey("writeErrors"), "the message names the _id key - our own collision");
+        assertEquals(1, ((Number) result.get("n")).intValue());
+    }
+
+    /**
      * A collision on any other unique index is a genuine conflict, even on a retry - nothing
      * says our own first attempt caused it.
      */

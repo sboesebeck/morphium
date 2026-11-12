@@ -111,6 +111,22 @@ public class PooledDriver extends DriverBase {
     private final Logger log = LoggerFactory.getLogger(PooledDriver.class);
     private volatile String primaryNode;
     private final Object primaryNodeLock = new Object();  // Lock for primaryNode updates only
+
+    /**
+     * The host a caller wanted a connection from is no longer part of the topology - the heartbeat
+     * evicted it while the caller was queued for a connection (failover), or the primary it was
+     * routed to has just been forgotten. A network-class error on purpose: the right reaction is
+     * to re-select and retry, which {@link #selectPrimaryConnection} does itself and
+     * {@code NetworkCallHelper} does for every other caller. Before this was a plain
+     * {@code MorphiumDriverException}, so a store() that had been waiting for the dead primary
+     * surfaced as a hard failure a few hundred milliseconds AFTER the new primary was elected
+     * (FailoverTests.pooledDriverPrimaryChangeTest, testrunner 2026-10-21).
+     */
+    public static class HostRemovedException extends de.caluga.morphium.driver.MorphiumDriverNetworkException {
+        public HostRemovedException(String message) {
+            super(message);
+        }
+    }
     // Last error seen while trying to establish a connection to any seed host. Surfaced in the
     // "No primary node found" timeout exception so callers see the actual cause (e.g. a TLS
     // handshake failure) instead of a bare timeout message. Also exposed via
@@ -1372,6 +1388,13 @@ public class PooledDriver extends DriverBase {
         boolean needToDecrement = false;
         Host h = hosts.get(host);
         if (h == null) {
+            // Deliberately NOT the retryable HostRemovedException: a host that is not in the map
+            // when the borrow starts is the "nothing listening there" case (an unreachable seed,
+            // a driver whose hosts were all evicted), and callers rely on it failing in
+            // milliseconds - AbortNeverWipesTest pins that a ReplicationManager pointed at an
+            // unbound port can be stopped at once. Only the eviction DURING a wait (below) is
+            // the failover race worth re-selecting for. ChangeStreamMonitor.handleWatchError
+            // still classifies this message as transient.
             throw new MorphiumDriverException("No such host: " + host);
         }
         try {
@@ -1416,7 +1439,7 @@ public class PooledDriver extends DriverBase {
                     break;
                 }
                 if (!hosts.containsKey(host)) {
-                    throw new MorphiumDriverException("Host " + host + " was removed while waiting for a connection (failover?)");
+                    throw new HostRemovedException("Host " + host + " was removed while waiting for a connection (failover?)");
                 }
                 if (!running) {
                     throw new MorphiumDriverException("Driver is shutting down");
@@ -1783,7 +1806,48 @@ public class PooledDriver extends DriverBase {
             }
         }
 
-        return borrowConnection(primaryNode);
+        String target = primaryNode;
+
+        try {
+            return borrowConnection(target);
+        } catch (HostRemovedException e) {
+            // The heartbeat evicted the node we were queued for while we waited - the failover race.
+            // Forget it as primary (unless the heartbeat has already replaced it) and give the winner
+            // ONE short chance: wait at most a couple of heartbeats for a new primary and borrow from
+            // it once. Bounded on purpose - a full server-selection loop here turned a dead primary
+            // into 30-second stalls per call and kept zombie drivers alive on the testrunner
+            // (PeerReconnectAfterRestartTest, 2026-10-21); past the grace the caller gets the
+            // network error and its own retry policy decides.
+            synchronized (primaryNodeLock) {
+                if (target != null && target.equals(primaryNode)) {
+                    primaryNode = null;
+                }
+            }
+
+            long grace = Math.min(5000L, Math.max(500L, (long) getHeartbeatFrequency() * 2L + 500L));
+            long deadline = System.currentTimeMillis() + grace;
+            String successor;
+
+            while ((successor = primaryNode) == null || successor.equals(target)) {
+                if (!running) {
+                    throw new MorphiumDriverException("Driver is shutting down", e);
+                }
+
+                if (System.currentTimeMillis() >= deadline) {
+                    throw e;
+                }
+
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new MorphiumDriverException("Interrupted while re-selecting the primary", ie);
+                }
+            }
+
+            log.info("primary {} was removed while waiting for a connection - retrying once on the new primary {}", target, successor);
+            return borrowConnection(successor);
+        }
     }
 
     /**

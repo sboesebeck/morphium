@@ -260,10 +260,15 @@ public class ElectionManagerTest {
                 "the first outgoing request of an election round must be a PreVote probe");
         // Sanity: the barrage was actually in flight BEFORE candidacy - otherwise this test
         // would pass for the wrong reason (e.g. a broken sender thread, or denials so sparse
-        // the timer was never contested). >= 3 leaves ample slack: at a 30ms cadence against a
-        // >= 325ms effective timeout, ~10 denials are expected before the timer first fires.
-        assertTrue(denialsAtCandidacy.get() >= 3,
-                "expected several denied vote requests before candidacy, got " + denialsAtCandidacy.get());
+        // the timer was never contested). At a 30ms cadence against a >= 325ms effective
+        // timeout ~10 denials are expected, but the sender thread starts AFTER the timer and
+        // on a loaded runner its first iterations lag by hundreds of milliseconds (testrunner
+        // 2026-10-21: exactly 2 denials before a perfectly timed candidacy). One denial before
+        // the latch fired is all the invariant needs - the timer was contested and still fired.
+        assertTrue(denialsAtCandidacy.get() >= 1,
+                "expected at least one denied vote request before candidacy, got " + denialsAtCandidacy.get());
+        assertTrue(deniedCount.get() >= 3,
+                "the barrage must have kept running during the await, got " + deniedCount.get() + " denials in total");
         // Our higher-priority node must never actually vote for the lower-priority candidate.
         assertEquals(0, grantedCount.get(),
                 "no vote must ever be granted to the lower-priority candidate");

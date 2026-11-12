@@ -196,23 +196,25 @@ class ConfigLoaderTest {
     }
 
     @Test
-    void unknownKeyThrows(@TempDir Path dir) throws IOException {
-        Path cfg = writeConfig(dir, "config", "totally-bogus-key=1\n");
+    void unknownKeyIsWarnedAndIgnored(@TempDir Path dir) throws IOException {
+        Path cfg = writeConfig(dir, "config", "totally-bogus-key=1\nport=27017\n");
         ConfigLoader loader = new ConfigLoader();
 
-        assertThatThrownBy(() -> loader.load(cfg))
-                .isInstanceOf(ConfigException.class)
-                .hasMessageContaining("Unknown configuration key");
+        // Tolerant: an unknown key must not brick the start - it is ignored (and logged as WARN).
+        Properties props = loader.load(cfg);
+        assertThat(props.getProperty("port")).isEqualTo("27017");
+        assertThat(props.containsKey("totally-bogus-key")).isFalse();
     }
 
     @Test
-    void unknownKeySuggestsClosestMatch(@TempDir Path dir) throws IOException {
-        Path cfg = writeConfig(dir, "config", "bnid=0.0.0.0\n");
+    void unknownKeyWithSuggestableTyposIsIgnoredAndKnownKeysStay(@TempDir Path dir) throws IOException {
+        Path cfg = writeConfig(dir, "config", "bnid=0.0.0.0\nrs-name=foo\n");
         ConfigLoader loader = new ConfigLoader();
 
-        assertThatThrownBy(() -> loader.load(cfg))
-                .isInstanceOf(ConfigException.class)
-                .hasMessageContaining("did you mean 'bind'");
+        // "bnid" would suggest "bind", but it is still just an unknown key - warn + continue.
+        Properties props = loader.load(cfg);
+        assertThat(props.getProperty("rs-name")).isEqualTo("foo");
+        assertThat(props.containsKey("bnid")).isFalse();
     }
 
     @Test
