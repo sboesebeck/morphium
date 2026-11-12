@@ -903,7 +903,7 @@ Status **done**, priority 2, type implementation, effort M
 
 Translate the keys of operator maps in findOneAndUpdate to the Mongo field names for every operator, including the key of $unset and the key and target of $rename, dotted keys through a lenient resolveFieldPath and the single-segment resolver, never through @Aliases. The translation is always on, with a kill switch (translateUpdateFieldNames, default true) and a per-query override. Two keys that resolve to the same name throw only if their values differ. An update that would write a plaintext value into an @Encrypted field is rejected. The one-argument AnnotationAndReflectionHelper constructor gets a thread safe realClassCache.
 
-Evidence: New tests: StoredFieldNameResolverTest 19, ResolveFieldPathTest 8, UpdateDocumentMapperKeyTest 12, UpdateKeyTranslationTest 48 invocations (1 skipped: cross-operator path conflict on InMem), MorphiumConfigTest 16; all green on PooledDriver (mongo:8, v8.3.11) and InMemoryDriver. The raw-document reads of UpdateKeyTranslationTest bypass the projection to known fields that Query adds, so stray fields are really detected (the first run with asMapList was vacuous for strays). Regression subset of 38 classes: 672 tests on Mongo + InMem and 470 on InMem, 0 failures, only ReferenceCascadeTest errors (Byte Buddy does not support Java 25, the JDK of the run; unrelated). Scope kept to the decisions in docs/research/plan-mor-041.md; Query.f is unchanged (MOR-043).
+Evidence: New tests: StoredFieldNameResolverTest 19, ResolveFieldPathTest 8, UpdateDocumentMapperKeyTest 12, UpdateKeyTranslationTest 48 invocations (1 skipped: cross-operator path conflict on InMem), MorphiumConfigTest 16; all green on PooledDriver (mongo:8, v8.3.11) and InMemoryDriver. The raw-document reads of UpdateKeyTranslationTest bypass the projection to known fields that Query adds, so stray fields are really detected (the first run with asMapList was vacuous for strays). Regression subset of 38 classes: 672 tests on Mongo + InMem and 470 on InMem, 0 failures, only ReferenceCascadeTest errors (Byte Buddy does not support Java 25, the JDK of the run; unrelated). Scope kept to the decisions in docs/research/plan-mor-041.md; Query.f is unchanged (MOR-043). Correction 2026-11-12: the "all green on PooledDriver" claim held for the other classes only. UpdateDocumentMapperKeyTest was parameterised by getMorphiumInstancesInMemOnly, which yields an empty stream in a server phase, and JUnit counts that as a configuration error - 12 errors per server phase, green under --driver inmem. It uses getMorphiumInstanceForOfflineTests (in-memory instance regardless of the requested driver) now; verified with -Dmorphium.driver=single (12 errors before, 12 green after).
 
 Acceptance:
 
@@ -919,7 +919,7 @@ Depends on: MOR-002
 
 Source: docs/research/plan-mor-001-002-003.md, docs/research/plan-mor-041.md
 
-Commits: c0a2aede1
+Commits: c0a2aede1, f9391c0d2
 
 ### MOR-042 Writer path: marshal values with the shared update-value walk and use one convention for single values
 

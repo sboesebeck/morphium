@@ -136,6 +136,18 @@ public class MultiDriverTestBase {
         return getMorphiumAllInstances(false, true, false);
     }
 
+    /**
+     * In-memory instance regardless of {@code -Dmorphium.driver}: for tests that never touch a database and
+     * therefore must not care which driver the current phase runs. A filtered-out driver yields an empty
+     * {@code @MethodSource}, and JUnit does not read that as "skip": every {@code @ParameterizedTest} of the
+     * class errors with "You must configure at least one set of arguments". That is what made MOR-041's
+     * {@code UpdateDocumentMapperKeyTest} red with 12 errors in each of the four server phases while it was
+     * green under the in-memory driver (2026-11-12).
+     */
+    public static Stream<Arguments> getMorphiumInstanceForOfflineTests() {
+        return getMorphiumAllInstances(false, true, false, true);
+    }
+
     public static Stream<Arguments> getMorphiumInstancesNoInMem() {
         return getMorphiumAllInstances(true, false, true);
     }
@@ -153,6 +165,14 @@ public class MultiDriverTestBase {
     }
 
     public static Stream<Arguments> getMorphiumAllInstances(boolean includeSingle, boolean includeInMem, boolean includePooled) {
+        return getMorphiumAllInstances(includeSingle, includeInMem, includePooled, false);
+    }
+
+    /**
+     * @param forceInMemory create the in-memory instance even when the current run explicitly requested another
+     *                      driver - for database-free tests that must never see an empty method source.
+     */
+    public static Stream<Arguments> getMorphiumAllInstances(boolean includeSingle, boolean includeInMem, boolean includePooled, boolean forceInMemory) {
         init();
         List<Arguments> morphiums = new ArrayList<>();
         MorphiumConfig base = TestConfig.load();
@@ -213,7 +233,7 @@ public class MultiDriverTestBase {
         //        log.info("Running test with DB morphium_test_" + number.get() + " for " + mongoDriver.getDriverName());
         //
         //
-        if (includeInMem && allowed.contains(InMemoryDriver.driverName)) {
+        if (includeInMem && (forceInMemory || allowed.contains(InMemoryDriver.driverName))) {
             MorphiumConfig inMemCfg = MorphiumConfig.fromProperties(base.asProperties());
             // The base config may have been loaded for an external driver, where sharing defaults
             // to false. Tests commonly create additional Morphium instances from this config and
