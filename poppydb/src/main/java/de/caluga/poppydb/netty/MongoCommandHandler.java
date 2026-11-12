@@ -114,6 +114,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     private volatile boolean authRequired = false;
     private volatile String authenticatedUser = null;
     private volatile String pendingAuthUser = null;
+    // Effective startup options snapshot backing getCmdLineOpts (#511); null on the embedded path.
+    private volatile Map<String, Object> cmdLineOpts = null;
 
     private static final Set<String> CONTROL_COMMANDS = Set.of(
             "getcmdlineopts", "buildinfo", "ismaster", "hello",
@@ -443,6 +445,12 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         return this;
     }
 
+    /** Effective startup options snapshot for getCmdLineOpts (#511). Unset -> getCmdLineOpts answers empty. */
+    public MongoCommandHandler setCmdLineOpts(Map<String, Object> cmdLineOpts) {
+        this.cmdLineOpts = cmdLineOpts;
+        return this;
+    }
+
     private Runnable shutdownAction;
     private de.caluga.poppydb.LogRingBuffer logBuffer;
     private java.util.function.Supplier<List<String>> startupWarningsSupplier;
@@ -589,7 +597,9 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
         switch (cmd) {
             case "getCmdLineOpts":
-                answer = Doc.of("argv", List.of(), "parsed", Map.of(), "ok", 1.0);
+                Map<String, Object> optsSnap = cmdLineOpts;
+                answer = optsSnap != null ? optsSnap
+                        : Doc.of("argv", List.of(), "parsed", Map.of(), "ok", 1.0);
                 break;
 
             case "buildInfo":

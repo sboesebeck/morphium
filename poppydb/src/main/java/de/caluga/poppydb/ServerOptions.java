@@ -50,6 +50,12 @@ class ServerOptions {
     // plain number = bytes, 0 = byte cap off. Kept as the raw string so --print-config can show
     // both the input form and the resolved value.
     String replayBuffer = "256m";
+    // Count bound of the replication replay buffer (change-stream history) backing secondary
+    // resume-after-disconnect. Independent of the byte budget: this is a hard ring-buffer cap
+    // that ALWAYS applies, so on a busy bus raising --replay-buffer alone does not fully widen
+    // the resume window. Raise together with the byte budget when secondaries must survive
+    // longer / higher message rates (default 100_000, must be >= 1).
+    int replayBufferEvents = 100_000;
     // Byte budget for a secondary's replication event queue, raw input form - same size syntax
     // as replay-buffer (k/m/g, % of max heap, plain number = bytes, 0 = byte cap off). Unlike
     // the replay buffer this budget never discards events; it blocks the watch reader
@@ -85,6 +91,67 @@ class ServerOptions {
 
     Source sourceOf(String key) {
         return sources.getOrDefault(key, Source.DEFAULT);
+    }
+
+    /**
+     * The effective startup options as a mongod-style {@code getCmdLineOpts} answer: {@code argv}
+     * (the values one could pass to a fresh start) and {@code parsed} (kebab-case keys -> typed
+     * values). Secrets (root-password, ssl-keystore-password) are never included, and the two bare
+     * boolean flags (ssl, auth) appear in argv only when enabled. Backs the {@code getCmdLineOpts}
+     * wire command (#511).
+     */
+    public Map<String, Object> cmdLineOpts() {
+        Map<String, Object> parsed = new LinkedHashMap<>();
+        List<String> argv = new ArrayList<>();
+        append(parsed, argv, "port", "--port", port);
+        append(parsed, argv, "bind", "--bind", bind);
+        append(parsed, argv, "log-level", "--log-level", logLevel);
+        append(parsed, argv, "memory-warn", "--memory-warn", memoryWarnPct);
+        append(parsed, argv, "memory-reject", "--memory-reject", memoryRejectPct);
+        append(parsed, argv, "max-bson-size", "--max-bson-size", maxBsonSizeBytes);
+        append(parsed, argv, "compressor", "--compressor", compressor);
+        append(parsed, argv, "replay-buffer", "--replay-buffer", replayBuffer);
+        append(parsed, argv, "replay-buffer-events", "--replay-buffer-events", replayBufferEvents);
+        append(parsed, argv, "event-queue-budget", "--event-queue-budget", eventQueueBudget);
+        append(parsed, argv, "cursor-queue-budget", "--cursor-queue-budget", cursorQueueBudget);
+        append(parsed, argv, "cursor-queue-events", "--cursor-queue-events", cursorQueueEvents);
+        append(parsed, argv, "global-cursor-budget", "--global-cursor-budget", globalCursorBudget);
+        append(parsed, argv, "replication-flow-control", "--replication-flow-control", replicationFlowControl);
+        append(parsed, argv, "replication-flow-control-high-water", "--replication-flow-control-high-water", replicationFlowControlHighWater);
+        append(parsed, argv, "replication-flow-control-low-water", "--replication-flow-control-low-water", replicationFlowControlLowWater);
+        append(parsed, argv, "replication-flow-control-max-wait", "--replication-flow-control-max-wait", replicationFlowControlMaxWait);
+        append(parsed, argv, "rs-name", "--rs-name", rsName);
+        append(parsed, argv, "rs-seed", "--rs-seed", rsSeed);
+        append(parsed, argv, "rs-priorities", "--rs-priorities", rsPriorities);
+        append(parsed, argv, "ssl", "--ssl", ssl);
+        append(parsed, argv, "auth", "--auth", auth);
+        append(parsed, argv, "ssl-keystore", "--sslKeystore", sslKeystore);
+        append(parsed, argv, "users-file", "--users-file", usersFile);
+        append(parsed, argv, "dump-dir", "--dump-dir", dumpDir);
+        append(parsed, argv, "dump-interval", "--dump-interval", dumpIntervalSec);
+        append(parsed, argv, "election-state-path", "--election-state-path", electionStatePath);
+        append(parsed, argv, "max-connections", "--max-connections", maxConnections);
+        append(parsed, argv, "socket-timeout", "--socket-timeout", socketTimeoutSec);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("argv", argv);
+        out.put("parsed", parsed);
+        out.put("ok", 1.0);
+        return out;
+    }
+
+    private static void append(Map<String, Object> parsed, List<String> argv,
+                               String kebab, String flag, Object value) {
+        if (value == null || value instanceof String s && s.isEmpty() && !kebab.equals("bind")
+                || "ssl".equals(kebab) && Boolean.FALSE.equals(value)
+                || "auth".equals(kebab) && Boolean.FALSE.equals(value)) {
+            return; // null / empty / disabled bare-flag keys omitted
+        }
+        parsed.put(kebab, value);
+        if ("ssl".equals(kebab) || "auth".equals(kebab)) {
+            argv.add(flag); // bare boolean flag when enabled
+        } else {
+            argv.add(flag + " " + value);
+        }
     }
 
     /** rs-seed split into host:port entries, default port 27017 - same rules as the old parser. */

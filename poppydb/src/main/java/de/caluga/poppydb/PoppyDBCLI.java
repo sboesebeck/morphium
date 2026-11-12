@@ -311,6 +311,12 @@ public class PoppyDBCLI {
                     idx += 2;
                     break;
 
+                case "--replay-buffer-events":
+                    opts.replayBufferEvents = intValue(effectiveArgs, idx);
+                    opts.sources.put("replay-buffer-events", src);
+                    idx += 2;
+                    break;
+
                 case "--event-queue-budget":
                     opts.eventQueueBudget = value(effectiveArgs, idx);
                     opts.sources.put("event-queue-budget", src);
@@ -555,6 +561,7 @@ public class PoppyDBCLI {
         }
 
         var srv = new PoppyDB(opts.port, opts.bind, opts.maxConnections, opts.socketTimeoutSec, compressorId);
+        srv.setCmdLineOpts(opts.cmdLineOpts());
         srv.setMemoryWatermarks(opts.memoryWarnPct, opts.memoryRejectPct);
         srv.setMaxBsonObjectSize(opts.maxBsonSizeBytes);
 
@@ -569,6 +576,9 @@ public class PoppyDBCLI {
         srv.setReplayBufferByteBudget(replayBufferBytes);
         log.info("Replay buffer byte budget: {} ({} bytes{})", opts.replayBuffer, replayBufferBytes,
             replayBufferBytes == 0 ? ", byte cap off" : "");
+
+        srv.setReplayBufferEvents(opts.replayBufferEvents);
+        log.info("Replay buffer event limit: {} events", opts.replayBufferEvents);
 
         long eventQueueBudgetBytes;
 
@@ -791,6 +801,10 @@ public class PoppyDBCLI {
         System.out.println("  --replay-buffer <size>     : Byte budget for the change-stream replay buffer backing replication resume.");
         System.out.println("                               Fixed size with k/m/g suffix (e.g. 512m, 1g) or percent of max heap (e.g. 5%),");
         System.out.println("                               0 = byte cap off (default: 256m; the 100000-event count limit always applies)");
+        System.out.println("  --replay-buffer-events <n> : Count bound of the replication replay buffer (change-stream history). A hard cap");
+        System.out.println("                               that ALWAYS applies in addition to the byte budget - raise it (e.g. 1000000)");
+        System.out.println("                               together with --replay-buffer on busy buses so secondaries survive longer message");
+        System.out.println("                               bursts (default 100000, must be >= 1).");
         System.out.println("  --cursor-queue-budget <size>: Per-cursor byte budget for a watch cursor's buffered events (same size syntax");
         System.out.println("                               as --replay-buffer, default 64m, 0 = byte cap off). A slow consumer whose");
         System.out.println("                               buffered events exceed the budget is killed, same policy as the count cap.");

@@ -60,7 +60,10 @@ class InMemoryDriverOrderedInsertTest extends MorphiumInMemTestBase {
 
         assertThat(writeErrors).hasSize(1);
         assertThat(writeErrors.get(0).get("code")).isEqualTo(11000);
-        assertThat(writeErrors.get(0).get("errmsg").toString()).contains("dup key");
+        // mongod's shape - the write retry's own-_id reconciliation reads these fields (#487)
+        assertThat(writeErrors.get(0).get("errmsg").toString()).contains("index: _id_ dup key: { _id:");
+        assertThat(writeErrors.get(0).get("keyPattern")).isEqualTo(Doc.of("_id", 1));
+        assertThat(writeErrors.get(0).get("keyValue")).isEqualTo(Doc.of("_id", existingId));
 
         // The valid document should have been inserted
         var results = driver.find(DB, COLL, Doc.of("_id", newId), null, null, 0, 1);

@@ -2,6 +2,7 @@ package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.util.ArrayList;
@@ -166,7 +167,50 @@ public class InsertMongoCommand extends WriteMongoCommand<InsertMongoCommand> {
         // keyValue is the authoritative statement of what collided (mongod >= 4.4); older
         // servers only send errmsg, and there the index position identifies the document
         Object reported = writeError.get("keyValue") instanceof Map<?, ?> kv ? kv.get("_id") : null;
-        return reported == null || ourId.equals(reported) ? ourId : null;
+        return reported == null || sameId(ourId, reported) ? ourId : null;
+    }
+
+    /**
+     * Whether two id values denote the same {@code _id}, across the representations an id takes
+     * on its way through the driver: the object mapper hands the insert a bson {@code ObjectId}
+     * for a {@code MorphiumId} field, while the reply's {@code keyValue} decodes to a
+     * {@code MorphiumId}. Those two never {@code equals} each other (#487: the lost-reply
+     * reconciliation silently did nothing for every entity stored through {@code Morphium.store}).
+     */
+    static boolean sameId(Object ours, Object reported) {
+        if (ours.equals(reported)) {
+            return true;
+        }
+
+        String a = idHex(ours);
+        String b = idHex(reported);
+        return a != null && a.equalsIgnoreCase(b);
+    }
+
+    private static String idHex(Object id) {
+        if (id instanceof MorphiumId mid) {
+            return mid.toString();
+        }
+
+        if (id instanceof org.bson.types.ObjectId oid) {
+            return oid.toHexString();
+        }
+
+        if (id instanceof String s && s.length() == 24) {
+            return s;
+        }
+
+        if (id instanceof byte[] bytes && bytes.length == 12) {
+            StringBuilder sb = new StringBuilder(24);
+
+            for (byte bt : bytes) {
+                sb.append(String.format("%02x", bt));
+            }
+
+            return sb.toString();
+        }
+
+        return null;
     }
 
     private boolean isIdIndexViolation(Map<String, Object> writeError) {
@@ -174,7 +218,10 @@ public class InsertMongoCommand extends WriteMongoCommand<InsertMongoCommand> {
             return keyPattern.size() == 1 && keyPattern.containsKey("_id");
         }
 
-        return writeError.get("errmsg") instanceof String errmsg && errmsg.contains("index: _id_");
+        // No keyPattern: mongod < 4.4 names the index in the message; the InMemoryDriver
+        // and PoppyDB (before they sent keyPattern) only named the key
+        return writeError.get("errmsg") instanceof String errmsg
+               && (errmsg.contains("index: _id_") || errmsg.contains("dup key: { _id:"));
     }
 
 
