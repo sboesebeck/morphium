@@ -1008,9 +1008,15 @@ tasks:
     bypass the projection to known fields that Query adds, so stray fields are really detected (the first run with
     asMapList was vacuous for strays). Regression subset of 38 classes: 672 tests on Mongo + InMem and 470 on InMem,
     0 failures, only ReferenceCascadeTest errors (Byte Buddy does not support Java 25, the JDK of the run; unrelated).
-    Scope kept to the decisions in docs/research/plan-mor-041.md; Query.f is unchanged (MOR-043).'
+    Scope kept to the decisions in docs/research/plan-mor-041.md; Query.f is unchanged (MOR-043). Correction 2026-11-12:
+    the "all green on PooledDriver" claim held for the other classes only. UpdateDocumentMapperKeyTest was parameterised
+    by getMorphiumInstancesInMemOnly, which yields an empty stream in a server phase, and JUnit counts that as a
+    configuration error - 12 errors per server phase, green under --driver inmem. It uses
+    getMorphiumInstanceForOfflineTests (in-memory instance regardless of the requested driver) now; verified with
+    -Dmorphium.driver=single (12 errors before, 12 green after).'
   commits:
   - c0a2aede1
+  - f9391c0d2
 - id: MOR-042
   title: 'Writer path: marshal values with the shared update-value walk and use one convention for single values'
   type: implementation
