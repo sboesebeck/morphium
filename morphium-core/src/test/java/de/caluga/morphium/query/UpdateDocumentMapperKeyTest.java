@@ -68,7 +68,7 @@ public class UpdateDocumentMapperKeyTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesInMemOnly")
+    @MethodSource("getMorphiumInstanceForOfflineTests")
     public void everyValueOperatorTranslatesItsKeys(Morphium morphium) throws Exception {
         try (morphium) {
             Object one = 1;
@@ -81,7 +81,7 @@ public class UpdateDocumentMapperKeyTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesInMemOnly")
+    @MethodSource("getMorphiumInstanceForOfflineTests")
     public void pushAddToSetAndPullTranslateTheFieldButNotTheModifiers(Morphium morphium) throws Exception {
         try (morphium) {
             Map<String, Object> each = m("$each", List.of("a", "b"), "$position", 0, "$slice", 5, "$sort", 1);
@@ -100,7 +100,7 @@ public class UpdateDocumentMapperKeyTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesInMemOnly")
+    @MethodSource("getMorphiumInstanceForOfflineTests")
     public void renameTranslatesKeyAndTarget(Morphium morphium) throws Exception {
         try (morphium) {
             Map<String, Object> mapped = mapper(morphium).map(m("$rename", m("ownerName", "expiresAt", "legacy_x", "retryCount", "tagList", 5)));
@@ -109,7 +109,7 @@ public class UpdateDocumentMapperKeyTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesInMemOnly")
+    @MethodSource("getMorphiumInstanceForOfflineTests")
     public void dottedKeysGoThroughSingleEmbeddedFields(Morphium morphium) throws Exception {
         try (morphium) {
             Map<String, Object> mapped = mapper(morphium).map(m("$set", m("childEntry.fileName", "f"), "$unset", m("childEntry.fileName", ""), "$rename", m("childEntry.fileName", "childEntry.other")));
@@ -120,7 +120,7 @@ public class UpdateDocumentMapperKeyTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesInMemOnly")
+    @MethodSource("getMorphiumInstanceForOfflineTests")
     public void aliasUnknownPositionalAndDollarKeysPassThrough(Morphium morphium) throws Exception {
         try (morphium) {
             Map<String, Object> in = m("$set", m("legacy_owner", 1, "unknown", 2, "tagList.$", 3, "tagList.$[x]", 4, "$weird", 5));
@@ -130,7 +130,7 @@ public class UpdateDocumentMapperKeyTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesInMemOnly")
+    @MethodSource("getMorphiumInstanceForOfflineTests")
     public void enumKeysAreAccepted(Morphium morphium) throws Exception {
         try (morphium) {
             Map<Object, Object> fields = new LinkedHashMap<>();
@@ -144,7 +144,7 @@ public class UpdateDocumentMapperKeyTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesInMemOnly")
+    @MethodSource("getMorphiumInstanceForOfflineTests")
     public void translationOffReturnsTheKeysUnchanged(Morphium morphium) throws Exception {
         try (morphium) {
             Map<String, Object> in = m("$set", m("ownerName", "x", "id", "i"), "$unset", m("expiresAt", ""), "$rename", m("tagList", "retryCount"));
@@ -154,7 +154,7 @@ public class UpdateDocumentMapperKeyTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesInMemOnly")
+    @MethodSource("getMorphiumInstanceForOfflineTests")
     public void aMapWithoutOperatorsIsASetOfTheTranslatedFields(Morphium morphium) throws Exception {
         try (morphium) {
             // MOR-013: not a replacement document
@@ -165,7 +165,7 @@ public class UpdateDocumentMapperKeyTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesInMemOnly")
+    @MethodSource("getMorphiumInstanceForOfflineTests")
     public void keysThatCollideAfterTranslationAreMergedIfTheValuesAreEqual(Morphium morphium) throws Exception {
         try (morphium) {
             Map<String, Object> mapped = mapper(morphium).map(m("$set", m("ownerName", "x", "owner_name", "x")));
@@ -176,7 +176,7 @@ public class UpdateDocumentMapperKeyTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesInMemOnly")
+    @MethodSource("getMorphiumInstanceForOfflineTests")
     public void keysThatCollideAfterTranslationAreRejectedIfTheValuesDiffer(Morphium morphium) throws Exception {
         try (morphium) {
             IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> mapper(morphium).map(m("$set", m("ownerName", "x", "owner_name", "y"))));
@@ -185,7 +185,7 @@ public class UpdateDocumentMapperKeyTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesInMemOnly")
+    @MethodSource("getMorphiumInstanceForOfflineTests")
     public void mappingIsIdempotentAndDoesNotModifyTheCallersMap(Morphium morphium) throws Exception {
         try (morphium) {
             Map<String, Object> in = m("$set", m("ownerName", "x", "childEntry.fileName", "f"), "$unset", m("expiresAt", ""), "$rename", m("tagList", "retryCount"));
@@ -197,7 +197,7 @@ public class UpdateDocumentMapperKeyTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesInMemOnly")
+    @MethodSource("getMorphiumInstanceForOfflineTests")
     public void encryptedFieldsRejectPlaintextWritesButAllowUnsetAndRename(Morphium morphium) throws Exception {
         try (morphium) {
             for (String op : List.of("$set", "$setOnInsert", "$push", "$addToSet", "$inc")) {
