@@ -120,6 +120,16 @@ public class MultiDriverTestBase {
         return true;
     }
 
+    /**
+     * True when the data lives in the in-memory engine, either directly ({@code --driver inmem}) or behind PoppyDB,
+     * which runs the same engine and therefore shares its pinned deviations (see
+     * {@code docs/research/reproduction-results.md}). A guard that skips the InMemoryDriver has to skip a PoppyDB
+     * backend as well - otherwise the deviation comes back as a red test in the PoppyDB phases only.
+     */
+    protected static boolean isInMemoryBacked(Morphium m) {
+        return m.getDriver() instanceof InMemoryDriver || m.getDriver().isPoppyDB();
+    }
+
     public static Stream<Arguments> getMorphiumInstancesPooledOnly() {
         return getMorphiumAllInstances(false, false, true);
     }
