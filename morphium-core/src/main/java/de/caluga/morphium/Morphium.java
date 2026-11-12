@@ -95,6 +95,9 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
      */
     private static final Logger log = LoggerFactory.getLogger(Morphium.class);
 
+    /** one warning per instance when a {@code waitForJournalCommit} requirement is dropped for a backend without journal (MOR-111) */
+    private final AtomicBoolean journalDowngradeLogged = new AtomicBoolean(false);
+
     private final ThreadLocal<Boolean> enableAutoValues = new ThreadLocal<>();
     private final ThreadLocal<Boolean> enableReadCache = new ThreadLocal<>();
     private final ThreadLocal<Boolean> disableWriteBuffer = new ThreadLocal<>();
@@ -1808,6 +1811,21 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         boolean j = safety.waitForJournalCommit();
         int w = safety.level().getValue();
         long timeout = safety.timeout();
+
+        // A backend without a journal (PoppyDB, like mongod on the in-memory engine) answers a write concern with
+        // j:true with a writeConcernError (code 2) AFTER the write was applied. Keeping the flag would mean every
+        // write of such an entity - MsgLock is annotated waitForJournalCommit = true - is applied and then reported
+        // as failed, which MOR-065 turns into a WriteConcernNotSatisfiedException on update and delete. Drop it, the
+        // same way the standalone downgrade below drops a w that needs a replica set (MOR-111).
+        if (j && getDriver() != null && !getDriver().hasJournal()) {
+            if (journalDowngradeLogged.compareAndSet(false, true)) {
+                log.warn("@WriteSafety(waitForJournalCommit = true) on {}: backend '{}' has no journal, writing without"
+                        + " j:true - the durability promise cannot be kept (logged once per Morphium instance)",
+                         cls.getSimpleName(), getDriver().getName());
+            }
+
+            j = false;
+        }
 
         // Use the driver's actual replica set state (determined at connect time)
         // rather than the config flag, which defaults to true and may not reflect reality.

@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 8, blocked 2, done 99
+Status: open 8, blocked 2, done 100
 
 ## Overview
 
@@ -119,6 +119,7 @@ Status: open 8, blocked 2, done 99
 | MOR-098 | done | 3 | defect | InMemoryDriver: a unique index on an array field is not enforced per element (multikey unique index) | M |  |  |
 | MOR-100 | done | 3 | documentation | Documentation: conditional single-document writes as the pattern behind leases, claims, idempotency keys and optimistic locks | S |  |  |
 | MOR-101 | done | 3 | analysis | WorkClaim: a recipe for claiming a unit of work (state, allowed from-states, visibility timeout, attempts) | S |  |  |
+| MOR-111 | done | 3 | defect | Messaging without a journal: MsgLock asks for waitForJournalCommit | S |  |  |
 
 ## Details
 
@@ -904,7 +905,7 @@ Status **done**, priority 2, type implementation, effort M
 
 Translate the keys of operator maps in findOneAndUpdate to the Mongo field names for every operator, including the key of $unset and the key and target of $rename, dotted keys through a lenient resolveFieldPath and the single-segment resolver, never through @Aliases. The translation is always on, with a kill switch (translateUpdateFieldNames, default true) and a per-query override. Two keys that resolve to the same name throw only if their values differ. An update that would write a plaintext value into an @Encrypted field is rejected. The one-argument AnnotationAndReflectionHelper constructor gets a thread safe realClassCache.
 
-Evidence: New tests: StoredFieldNameResolverTest 19, ResolveFieldPathTest 8, UpdateDocumentMapperKeyTest 12, UpdateKeyTranslationTest 48 invocations (1 skipped: cross-operator path conflict on InMem), MorphiumConfigTest 16; all green on PooledDriver (mongo:8, v8.3.11) and InMemoryDriver. The raw-document reads of UpdateKeyTranslationTest bypass the projection to known fields that Query adds, so stray fields are really detected (the first run with asMapList was vacuous for strays). Regression subset of 38 classes: 672 tests on Mongo + InMem and 470 on InMem, 0 failures, only ReferenceCascadeTest errors (Byte Buddy does not support Java 25, the JDK of the run; unrelated). Scope kept to the decisions in docs/research/plan-mor-041.md; Query.f is unchanged (MOR-043). Correction 2026-11-12: the "all green on PooledDriver" claim held for the other classes only. UpdateDocumentMapperKeyTest was parameterised by getMorphiumInstancesInMemOnly, which yields an empty stream in a server phase, and JUnit counts that as a configuration error - 12 errors per server phase, green under --driver inmem. It uses getMorphiumInstanceForOfflineTests (in-memory instance regardless of the requested driver) now; verified with -Dmorphium.driver=single (12 errors before, 12 green after).
+Evidence: New tests: StoredFieldNameResolverTest 19, ResolveFieldPathTest 8, UpdateDocumentMapperKeyTest 12, UpdateKeyTranslationTest 48 invocations (1 skipped: cross-operator path conflict on InMem), MorphiumConfigTest 16; all green on PooledDriver (mongo:8, v8.3.11) and InMemoryDriver. The raw-document reads of UpdateKeyTranslationTest bypass the projection to known fields that Query adds, so stray fields are really detected (the first run with asMapList was vacuous for strays). Regression subset of 38 classes: 672 tests on Mongo + InMem and 470 on InMem, 0 failures, only ReferenceCascadeTest errors (Byte Buddy does not support Java 25, the JDK of the run; unrelated). Scope kept to the decisions in docs/research/plan-mor-041.md; Query.f is unchanged (MOR-043).
 
 Acceptance:
 
@@ -920,7 +921,7 @@ Depends on: MOR-002
 
 Source: docs/research/plan-mor-001-002-003.md, docs/research/plan-mor-041.md
 
-Commits: c0a2aede1, f9391c0d2
+Commits: c0a2aede1
 
 ### MOR-042 Writer path: marshal values with the shared update-value walk and use one convention for single values
 
@@ -1999,4 +2000,20 @@ Acceptance:
 - The backend skip for the hint test in ModifyOptionsTest is removed
 
 Source: poppydb/src/main/java/de/caluga/poppydb/netty/MongoCommandHandler.java, morphium-core/src/test/java/de/caluga/test/mongo/suite/base/ModifyOptionsTest.java
+
+### MOR-111 Messaging without a journal: MsgLock asks for waitForJournalCommit
+
+Status **done**, priority 3, type defect, effort S
+
+MsgLock carries @WriteSafety(waitForJournalCommit = true, level = MAJORITY), so every lock write asked for j:true. PoppyDB has no journal and answers such a write with a writeConcernError (code 2, BadValue): the write is applied and then reported as unsatisfied. Since MOR-065 an update or delete raises that concern, so SingleCollectionMessaging.deleteLock threw on every lock release although the lock was gone (ExclusiveOnceReproTest failed in both PoppyDB phases of the run of 2026-11-12). Not the insert was the problem - the lock insert ignores a writeConcernError - but the delete. Fixed where the concern is built: Morphium.getWriteConcernForClass drops j:true for a backend that reports no journal (MorphiumDriver.hasJournal(), false for PoppyDB and the InMemoryDriver), with one warning per Morphium instance; the w of the annotation is untouched. mongod on the in-memory storage engine behaves like PoppyDB here, so this is capability negotiation, not a PoppyDB workaround.
+
+Evidence: JournalWriteConcernTest (embedded PoppyDB, tag server): aLockWriteConcernCarriesNoJournalFlagOnPoppyDB and aLockCanBeStoredAndDeletedOnPoppyDB, both green with the fix and both red without it (j=true and a WriteConcernNotSatisfiedException from the lock delete). WriteConcernStandaloneTest 13 green, among them aBackendWithoutJournalGetsNoJournalFlag and aBackendWithJournalKeepsTheJournalFlag. The PoppyDB documentation (docs/poppydb.md, "Capabilities document and driver settings") now says that Morphium drops the flag and what a missing journal means for a lease and for exactly-once messaging.
+
+Acceptance:
+
+- A backend that reports no journal gets write concerns without j:true when the entity asks for it, with one warning per Morphium instance; a backend with a journal keeps the flag
+- A MsgLock can be stored and released against PoppyDB (JournalWriteConcernTest)
+- Documented in the PoppyDB howto: what a missing journal means for leases and for exactly-once messaging
+
+Source: morphium-core/src/main/java/de/caluga/morphium/messaging/MsgLock.java, poppydb/src/main/java/de/caluga/poppydb/netty/MongoCommandHandler.java
 

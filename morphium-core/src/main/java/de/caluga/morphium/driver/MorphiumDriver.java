@@ -146,6 +146,18 @@ public interface MorphiumDriver extends Closeable {
     boolean isPoppyDB();
 
     /**
+     * Whether this backend can honour a write concern with {@code j:true}. PoppyDB has no journal and answers such a
+     * write with a {@code writeConcernError} (code 2, BadValue) after it was applied - the same thing mongod does on
+     * its in-memory storage engine. An entity annotated {@code @WriteSafety(waitForJournalCommit = true)} (e.g.
+     * {@link de.caluga.morphium.messaging.MsgLock}) is therefore not writable there unless the journal flag is
+     * dropped; {@link de.caluga.morphium.Morphium#getWriteConcernForClass(Class)} does that, with one warning
+     * (MOR-111).
+     */
+    default boolean hasJournal() {
+        return !isPoppyDB();
+    }
+
+    /**
      * Returns true if the backend is Azure CosmosDB for MongoDB API.
      * Detected automatically via hostname and hello handshake signals.
      */
