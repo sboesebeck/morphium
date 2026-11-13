@@ -2049,7 +2049,7 @@ Acceptance:
 - mvn -Pshowcase -pl quarkus-morphium-showcase -am install builds it and its 92 tests pass against 7.0.0-SNAPSHOT
 - The default build and -DskipExtensions do not build it
 
-Commits: 32b5d92b7
+Commits: c7ec09d94
 
 ### MOR-114 Showcase module: CI, the docs hub from docs/, the old repository
 

@@ -2247,7 +2247,7 @@ tasks:
   - 'The default build and -DskipExtensions do not build it'
   evidence: 'mvn -Pshowcase -pl quarkus-morphium-showcase -am install -DskipTests builds on JDK 21; the 92 tests of the module pass against 7.0.0-SNAPSHOT (mvn -Pshowcase -pl quarkus-morphium-showcase test, InMem through the testing module); the default build does not contain the module. Not verified: the Docker image build, quarkus:dev, a CI run.'
   commits:
-  - 32b5d92b7
+  - c7ec09d94
 - id: MOR-114
   title: 'Showcase module: CI, the docs hub from docs/, the old repository'
   type: implementation
