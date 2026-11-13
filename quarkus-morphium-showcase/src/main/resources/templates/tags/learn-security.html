@@ -1,0 +1,133 @@
+<!-- Learn Tab: Security & Caching -->
+
+<!-- Section 1: What Morphium Offers -->
+<div class="capability-section">
+    <h2>What Morphium Offers</h2>
+    <p>Two independent Morphium-core capabilities beyond ORM basics: <strong>field-level
+    encryption</strong>, which transparently encrypts individual entity fields before they hit
+    MongoDB and decrypts them on load, and a <strong>JSR-107 (JCache)</strong>-backed cache
+    implementation as a drop-in alternative to Morphium's default in-memory cache.</p>
+</div>
+
+<!-- Section 2: The Challenge -->
+<div class="challenge-section">
+    <h2>The Challenge</h2>
+    <p>Sensitive fields (secrets, PII) need encryption at rest without every read/write path in
+    the application having to encrypt/decrypt by hand. Separately, applications that already
+    standardize on a JSR-107 cache provider (EHCache, Hazelcast, ...) for the rest of their stack
+    shouldn't need a second, incompatible caching mechanism just for Morphium.</p>
+</div>
+
+<!-- Section 3: Morphium Features with Tooltips -->
+<div class="learn-section">
+    <h2>Morphium Features Used</h2>
+    <div class="feature-tags-grid">
+        {#include tags/tooltip color="purple" text="@Encrypted" compat="all"}
+        {#tip}Field-level annotation. Attributes: provider() (default AESEncryptionProvider.class) and keyName() (defaults to the owning class's fully-qualified name). ObjectMapperImpl encrypts on serialize, decrypts on deserialize -- entirely transparent to application code. Import: de.caluga.morphium.annotations.encryption.Encrypted{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="EncryptionKeyProvider" compat="all"}
+        {#tip}Holds the encryption/decryption keys by name. Reach it via morphium.getEncryptionKeyProvider() and call setEncryptionKey(name, bytes)/setDecryptionKey(name, bytes) before the first store()/query touching an @Encrypted field. Built-in impls also support reading keys from Properties or MongoDB itself.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="@Cache" compat="all"}
+        {#tip}Type-level annotation enabling query-result caching for an entity. Same annotation regardless of which MorphiumCache implementation backs it -- default in-memory, or JSR-107. Attributes: timeout, maxEntries, strategy (LRU/FIFO/RANDOM), clearOnWrite, readCache. Import: de.caluga.morphium.annotations.caching.Cache{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="MorphiumCacheJCacheImpl" compat="all"}
+        {#tip}A MorphiumCache implementation backed by any javax.cache.spi.CachingProvider (JSR-107). Falls back to Morphium's own minimal in-memory reference implementation if no external JCache provider (EHCache, Hazelcast, ...) is on the classpath -- no extra dependency required for a self-contained demo. Import: de.caluga.morphium.cache.MorphiumCacheJCacheImpl{/tip}
+        {/include}
+    </div>
+</div>
+
+<!-- Section 4: Prerequisites -->
+<div class="learn-section">
+    <h2>Prerequisites &amp; Key Concepts</h2>
+    <div class="card">
+        <ul class="prereq-list">
+            <li><strong>Encryption keys must exist before first use.</strong> Register them via
+            <code>morphium.getEncryptionKeyProvider()</code> at application startup (e.g. a CDI
+            <code>@PostConstruct</code>) &mdash; there is no automatic key generation.</li>
+            <li><strong>A normal query can never prove encryption.</strong>
+            <code>morphium.createQueryFor(Entity.class).get()</code> always returns the
+            transparently-decrypted value, by design. To see the ciphertext, you must read the
+            raw MongoDB document via the low-level driver, bypassing the object mapper entirely.</li>
+            <li><strong>The cache implementation is chosen per Morphium instance, at
+            configuration time</strong> &mdash; <code>cacheSettings().setCache(...)</code> must be
+            set before the instance connects, and cannot be swapped afterwards. Because the
+            CDI-injected <code>Morphium</code> already uses the default cache for every other
+            feature in this showcase, the JCache demo below runs against a second, independent
+            <code>Morphium</code> instance rather than reconfiguring the shared one.</li>
+            <li><strong>Cache activation is annotation-driven either way.</strong> Switching cache
+            implementations changes <em>how</em> caching works under the hood, not <em>which</em>
+            entities are cached &mdash; that remains controlled by <code>@Cache</code> on the
+            entity, same as the Product Catalog's non-JCache caching demo.</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Section 5: Entity Source Code -->
+<div class="learn-section">
+    <h2>Field-Level Encryption: Entity Source Code</h2>
+    {#include tags/code-block title="SecureNote.java" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.encryption.Encrypted;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.encryption.AESEncryptionProvider;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Entity</span>(collectionName = <span class="string">&quot;secure_notes&quot;</span>)</span>
+<span class="line"><span class="keyword">public class</span> <span class="type">SecureNote</span> &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Id</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">MorphiumId</span> id;</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">private</span> String title;      <span class="comment">// plaintext</span></span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Encrypted</span>(provider = <span class="type">AESEncryptionProvider</span>.<span class="keyword">class</span>, keyName = <span class="string">&quot;secure-note-key&quot;</span>)<span class="code-callout">1</span></span>
+<span class="line">    <span class="keyword">private</span> String secretContent;</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> Everything else about this field is ordinary Java &mdash; no manual encrypt/decrypt calls anywhere in application code.</div>
+    </div>
+
+    {#include tags/code-block title="Registering keys and proving ciphertext" lang="Java"}
+    {#content}<span class="line"><span class="annotation">@PostConstruct</span></span>
+<span class="line"><span class="keyword">void</span> ensureKeys() &#123;<span class="code-callout">1</span></span>
+<span class="line">    morphium.getEncryptionKeyProvider().setEncryptionKey(KEY_NAME, DEMO_KEY);</span>
+<span class="line">    morphium.getEncryptionKeyProvider().setDecryptionKey(KEY_NAME, DEMO_KEY);</span>
+<span class="line">&#125;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Bypasses the object mapper entirely -- returns the document exactly as MongoDB stores it</span></span>
+<span class="line"><span class="type">FindCommand</span> fc = <span class="keyword">new</span> <span class="type">FindCommand</span>(morphium.getDriver().getPrimaryConnection(<span class="keyword">null</span>))<span class="code-callout">2</span></span>
+<span class="line">    .setDb(morphium.getDatabase())</span>
+<span class="line">    .setColl(morphium.getMapper().getCollectionName(SecureNote.<span class="keyword">class</span>))</span>
+<span class="line">    .setFilter(Map.of(<span class="string">&quot;_id&quot;</span>, note.getId()));</span>
+<span class="line"><span class="type">List</span>&lt;Map&lt;String,Object&gt;&gt; raw = fc.execute();</span>
+<span class="line"><span class="comment">// raw.get(0).get(&quot;secretContent&quot;) is a byte[] -- ciphertext, not the plaintext string</span></span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> Must run before the first store()/query touching an @Encrypted field.</div>
+        <div class="callout-item"><span class="code-callout">2</span> This is the only way to see the raw ciphertext -- a normal query always decrypts transparently.</div>
+    </div>
+</div>
+
+<!-- Section 6: JCache Setup -->
+<div class="learn-section">
+    <h2>JCache: Standalone Instance Setup</h2>
+    {#include tags/code-block title="Configuring a second Morphium instance with JCache" lang="Java"}
+    {#content}<span class="line"><span class="type">MorphiumConfig</span> cfg = <span class="keyword">new</span> <span class="type">MorphiumConfig</span>();</span>
+<span class="line">cfg.connectionSettings().setDatabase(<span class="string">&quot;showcase-jcache-demo&quot;</span>);<span class="code-callout">1</span></span>
+<span class="line">cfg.driverSettings().setDriverName(<span class="type">InMemoryDriver</span>.driverName);</span>
+<span class="line">cfg.cacheSettings().setCache(<span class="keyword">new</span> <span class="type">MorphiumCacheJCacheImpl</span>());<span class="code-callout">2</span></span>
+<span class="line"><span class="type">Morphium</span> jcacheMorphium = <span class="keyword">new</span> <span class="type">Morphium</span>(cfg);<span class="code-callout">3</span></span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> A separate database name keeps this instance's data isolated from the rest of the showcase.</div>
+        <div class="callout-item"><span class="code-callout">2</span> Must be set on the config <em>before</em> constructing the instance &mdash; if left unset, Morphium defaults to its own in-memory cache during initialization.</div>
+        <div class="callout-item"><span class="code-callout">3</span> The constructor connects synchronously; no separate <code>.connect()</code> call needed.</div>
+    </div>
+</div>
+
+<!-- Section 7: Related Documentation -->
+<div class="learn-section">
+    {#include tags/doc-links docLinks=docLinks /}
+</div>

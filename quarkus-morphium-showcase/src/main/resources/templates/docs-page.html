@@ -1,0 +1,20 @@
+{#include base title=docTitle active="docs"}
+{#content}
+<div class="page-header">
+    <div class="breadcrumb">
+        <a href="/docs">Docs Hub</a> &rsaquo; <span>{docTitle}</span>
+    </div>
+    <h1>{docTitle}</h1>
+</div>
+
+<div class="card">
+    <div class="doc-content">
+        {docHtml.raw}
+    </div>
+</div>
+
+<div style="margin-top:1rem">
+    <a href="/docs" class="btn btn-outline">&larr; Back to Documentation Hub</a>
+</div>
+{/content}
+{/include}

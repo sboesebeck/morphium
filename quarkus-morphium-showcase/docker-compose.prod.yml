@@ -1,0 +1,33 @@
+services:
+  mongodb:
+    image: mongo:8
+    container_name: morphium-mongodb
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: >
+        mongosh --quiet --eval "
+          try { rs.status().ok }
+          catch(e) { rs.initiate({_id:'rs0', members:[{_id:0, host:'mongodb:27017'}]}).ok }
+        " | grep 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  showcase:
+    image: ghcr.io/bardioc1977/quarkus-morphium-showcase:latest
+    container_name: morphium-showcase
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8090:8080"
+    environment:
+      - QUARKUS_PROFILE=prod
+    restart: unless-stopped
+
+volumes:
+  mongodb_data:

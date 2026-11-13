@@ -1,0 +1,129 @@
+<!-- Demo Tab: Security & Caching -->
+
+<div class="demo-context">
+    Two independent demos on this page: <strong>Field-Level Encryption</strong> (create a note,
+    then compare its plaintext value against the raw ciphertext stored in MongoDB) and
+    <strong>JCache Integration</strong> (a hit/miss timing comparison against a JSR-107-backed
+    cache).
+</div>
+
+{#include tags/under-the-hood lastOperation=lastOperation lastMongoCommand=lastMongoCommand /}
+
+{#if successMessage}
+<div class="alert alert-success">{successMessage}</div>
+{/if}
+{#if errorMessage}
+<div class="alert alert-error">{errorMessage}</div>
+{/if}
+
+<!-- Encryption Demo -->
+<div class="card">
+    <h3>Field-Level Encryption</h3>
+    <div class="card-grid">
+        <div class="card">
+            <h4>Create a Secure Note</h4>
+            <form hx-post="/security/notes" hx-target="#tab-content" hx-swap="innerHTML">
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" name="title" required placeholder="e.g. API Credentials">
+                </div>
+                <div class="form-group">
+                    <label>Secret Content (will be encrypted)</label>
+                    <input type="text" name="secretContent" required placeholder="e.g. sk-live-abc123...">
+                </div>
+                <div class="form-group">
+                    <label>Category</label>
+                    <input type="text" name="category" placeholder="e.g. api-keys">
+                </div>
+                <button type="submit" class="btn btn-primary">Create &amp; Encrypt</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h4>Proof: Plaintext vs. Raw MongoDB Document</h4>
+            {#if latestNote}
+            <table>
+                <tr>
+                    <th>Via <code>morphium.createQueryFor(...)</code> (decrypted)</th>
+                    <td><code>{latestNote.secretContent}</code></td>
+                </tr>
+                <tr>
+                    <th>Raw MongoDB document (bypassing the mapper)</th>
+                    <td><code>{rawSecretDescription}</code></td>
+                </tr>
+            </table>
+            {#else}
+            <p class="empty-state">Create a note to see the comparison.</p>
+            {/if}
+        </div>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr><th>Title</th><th>Category</th><th>Secret (decrypted)</th><th>Created</th></tr>
+            </thead>
+            <tbody>
+                {#for note in notes}
+                <tr>
+                    <td>{note.title}</td>
+                    <td>{note.category}</td>
+                    <td><code>{note.secretContent}</code></td>
+                    <td><code>{note.createdAt}</code></td>
+                </tr>
+                {/for}
+            </tbody>
+        </table>
+        {#if notes.isEmpty()}
+        <p class="empty-state">No secure notes yet.</p>
+        {/if}
+    </div>
+    <p><span class="tag tag-blue">{noteCount} note(s) in <code>secure_notes</code></span></p>
+</div>
+
+<!-- JCache Demo -->
+<div class="card">
+    <h3>JCache (JSR-107) Integration</h3>
+    <p>
+        <span class="tag tag-blue">{jcacheReportCount} report(s) in a separate, JCache-backed <code>Morphium</code> instance</span>
+    </p>
+    <div class="demo-actions">
+        <button class="btn btn-primary" hx-post="/security/jcache/compare" hx-target="#tab-content" hx-swap="innerHTML">
+            Run Hit/Miss Timing Comparison
+        </button>
+    </div>
+
+    {#if jcacheTiming}
+    <table>
+        <tr><th>First call (cache miss)</th><td>{jcacheTiming.get('missMs')} ms</td></tr>
+        <tr><th>Second call (cache hit)</th><td>{jcacheTiming.get('hitMs')} ms</td></tr>
+    </table>
+    {/if}
+
+    <h4>Cache Sizes (per JCache cache name)</h4>
+    <table>
+        {#for entry in jcacheSizes.entrySet()}
+        <tr><td><code>{entry.getKey()}</code></td><td>{entry.getValue()} entries</td></tr>
+        {/for}
+    </table>
+    {#if jcacheSizes.isEmpty()}
+    <p class="empty-state">Cache is empty — run the comparison above.</p>
+    {/if}
+
+    <div class="table-wrapper">
+        <table>
+            <thead><tr><th>Title</th><th>Revenue</th></tr></thead>
+            <tbody>
+                {#for report in jcacheReports}
+                <tr><td>{report.title}</td><td>{report.revenue}</td></tr>
+                {/for}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="demo-actions">
+    <button class="btn btn-outline btn-sm" hx-post="/security/reset" hx-target="#tab-content" hx-swap="innerHTML">
+        Reset Both Demos
+    </button>
+</div>

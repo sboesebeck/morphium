@@ -1,0 +1,13 @@
+{#if docLinks != null && !docLinks.isEmpty}
+<div class="card">
+    <h3>Related Documentation</h3>
+    <ul class="doc-links-list">
+        {#for link in docLinks}
+        <li>
+            <a href="{link.url}">{link.title}</a>
+            <span class="doc-link-desc">&mdash; {link.description}</span>
+        </li>
+        {/for}
+    </ul>
+</div>
+{/if}

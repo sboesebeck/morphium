@@ -1,0 +1,5 @@
+services:
+  showcase:
+    build:
+      context: .
+    image: quarkus-morphium-showcase:local

@@ -1,0 +1,440 @@
+<!-- Learn Tab: Jakarta Data Integration -->
+
+<!-- Section 1: What Morphium Offers -->
+<div class="capability-section">
+    <h2>What Morphium Offers</h2>
+    <p>Jakarta Data 1.0 support: define a <code>@Repository</code> interface with query methods, and
+    the Quarkus extension generates the implementation at build time. Method-name derivation,
+    <code>@Find</code>/<code>@By</code> annotations, JDQL queries and full <code>MorphiumRepository</code>
+    escape hatch for when you need the raw Morphium API.</p>
+</div>
+
+<!-- Section 2: The Challenge -->
+<div class="challenge-section">
+    <h2>The Challenge</h2>
+    <p>Most MongoDB ODMs do not support Jakarta Data. Developers who want declarative repositories
+    with MongoDB are usually stuck writing manual implementations or switching to a JPA-like
+    abstraction that doesn't fit document databases.</p>
+</div>
+
+<!-- Section 2: Jakarta Data Features -->
+<div class="learn-section">
+    <h2>Jakarta Data Features</h2>
+    <div class="feature-tags-grid">
+        {#include tags/tooltip color="blue" text="@Repository" compat="all"}
+        {#tip}Marks an interface as a Jakarta Data repository. The quarkus-morphium extension generates the implementation at build time. Extends BasicRepository or CrudRepository for CRUD methods. Import: jakarta.data.repository.Repository{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="CrudRepository" compat="all"}
+        {#tip}Provides save(), findById(), delete(), findAll(), insert(), insertAll() etc. Extends BasicRepository with insert operations. Import: jakarta.data.repository.CrudRepository{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="MorphiumRepository" compat="all"}
+        {#tip}Extends CrudRepository with Morphium-specific operations: distinct(), morphium(), query(). The escape hatch for features beyond Jakarta Data 1.0 without injecting Morphium separately. Import: de.caluga.morphium.quarkus.data.MorphiumRepository{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="Query Derivation" compat="all"}
+        {#tip}Method names like findByDepartment(), countByStatus(), existsByEmail() are parsed at build time into Morphium queries. Supports Equals, GreaterThan, LessThan, Between, Like, True, False, In, Not, and more.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="Pagination" compat="all"}
+        {#tip}Pass PageRequest and Order parameters to get paginated results back as Page&lt;T&gt; with totalElements, totalPages, hasNext etc. CursoredPage&lt;T&gt; for keyset pagination. Import: jakarta.data.page.PageRequest, jakarta.data.page.Page{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="@Find / @By / @OrderBy" compat="all"}
+        {#tip}Fine-grained query control. @By maps parameters to specific fields (supports dot notation for embedded fields). @OrderBy specifies static sort order. @Find marks the method as a query. Import: jakarta.data.repository.Find, By, OrderBy{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="@Query (JDQL)" compat="all"}
+        {#tip}Jakarta Data Query Language &mdash; SQL-like syntax for complex queries. WHERE, AND, OR, LIKE, ORDER BY, BETWEEN, GROUP BY, HAVING with aggregation functions. Parameters with :name syntax. Import: jakarta.data.repository.Query{/tip}
+        {/include}
+
+        {#include tags/tooltip color="purple" text="GROUP BY + Aggregation" compat="all"}
+        {#tip}JDQL supports SELECT with GROUP BY and aggregate functions: COUNT(this), SUM(field), AVG(field), MIN(field), MAX(field). Results map to Java Records. Translates to MongoDB $group pipeline stage.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="purple" text="HAVING (AND/OR)" compat="all"}
+        {#tip}Filter aggregated results with HAVING clause. Supports AND/OR combinators: HAVING COUNT(this) > :min OR SUM(salary) >= :threshold. Translates to MongoDB $match after $group.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="Stream<T>" compat="all"}
+        {#tip}Cursor-backed lazy Stream for memory-efficient large result set processing. Auto-closeable. Works with query derivation, @Find and @Query methods.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="CompletionStage<T>" compat="all"}
+        {#tip}Non-blocking async repository methods. Return CompletionStage&lt;T&gt; for any query. Executed on Morphium's async thread pool. Suffix method name with Async.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="purple" text="@StaticMetamodel" compat="all"}
+        {#tip}Generated at build time. Provides type-safe Sort attributes like Employee_.salary.desc() for use with Order.by(). Import: jakarta.data.metamodel.StaticMetamodel{/tip}
+        {/include}
+    </div>
+</div>
+
+<!-- Section 3: Side-by-Side Comparison -->
+<div class="learn-section">
+    <h2>Morphium API vs Jakarta Data &mdash; Side-by-Side</h2>
+
+    <h3>CRUD Operations</h3>
+    <div class="comparison-table">
+        <table>
+            <thead>
+                <tr><th>Operation</th><th>Morphium (imperative)</th><th>Jakarta Data (declarative)</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Find all</td>
+                    <td><code>morphium.createQueryFor(Product.class).asList()</code></td>
+                    <td><code>repository.findAll().toList()</code></td>
+                </tr>
+                <tr>
+                    <td>Find by ID</td>
+                    <td><code>morphium.findById(Product.class, id)</code></td>
+                    <td><code>repository.findById(id)</code></td>
+                </tr>
+                <tr>
+                    <td>Save (upsert)</td>
+                    <td><code>morphium.store(product)</code></td>
+                    <td><code>repository.save(product)</code></td>
+                </tr>
+                <tr>
+                    <td>Insert (fail if exists)</td>
+                    <td><code>morphium.insert(product)</code></td>
+                    <td><code>repository.insert(product)</code></td>
+                </tr>
+                <tr>
+                    <td>Delete</td>
+                    <td><code>morphium.delete(product)</code></td>
+                    <td><code>repository.delete(product)</code></td>
+                </tr>
+                <tr>
+                    <td>Count</td>
+                    <td><code>morphium.createQueryFor(Product.class).countAll()</code></td>
+                    <td><code>repository.countByPriceGreaterThanEqual(0)</code></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h3>Query Derivation</h3>
+    {#include tags/code-block title="Repository Interface" lang="Java"}
+    {#content}<span class="line"><span class="annotation">@Repository</span></span>
+<span class="line"><span class="keyword">public interface</span> <span class="type">EmployeeRepository</span></span>
+<span class="line">        <span class="keyword">extends</span> <span class="type">BasicRepository</span>&lt;<span class="type">Employee</span>, <span class="type">MorphiumId</span>&gt; &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="comment">// Equality: WHERE department = ?</span></span>
+<span class="line">    <span class="type">List</span>&lt;<span class="type">Employee</span>&gt; findByDepartment(String dept);</span>
+<span class="line"></span>
+<span class="line">    <span class="comment">// Greater Than: WHERE salary &gt; ?</span></span>
+<span class="line">    <span class="type">List</span>&lt;<span class="type">Employee</span>&gt; findBySalaryGreaterThan(<span class="keyword">double</span> min);</span>
+<span class="line"></span>
+<span class="line">    <span class="comment">// Between: WHERE salary &gt;= ? AND salary &lt;= ?</span></span>
+<span class="line">    <span class="type">List</span>&lt;<span class="type">Employee</span>&gt; findBySalaryBetween(<span class="keyword">double</span> min, <span class="keyword">double</span> max);</span>
+<span class="line"></span>
+<span class="line">    <span class="comment">// Boolean: WHERE active = true</span></span>
+<span class="line">    <span class="type">List</span>&lt;<span class="type">Employee</span>&gt; findByActiveTrue();</span>
+<span class="line"></span>
+<span class="line">    <span class="comment">// Count: COUNT WHERE department = ?</span></span>
+<span class="line">    <span class="keyword">long</span> countByDepartment(String dept);</span>
+<span class="line"></span>
+<span class="line">    <span class="comment">// Exists: EXISTS WHERE email = ?</span></span>
+<span class="line">    <span class="keyword">boolean</span> existsByEmail(String email);</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+
+    <p>Each method name is parsed at <strong>build time</strong> into a Morphium query. The equivalent imperative code would be:</p>
+
+    {#include tags/code-block title="Equivalent Morphium API" lang="Java"}
+    {#content}<span class="line"><span class="comment">// findByDepartment(&quot;Engineering&quot;)</span></span>
+<span class="line">morphium.createQueryFor(<span class="type">Employee</span>.<span class="keyword">class</span>)</span>
+<span class="line">    .f(Fields.department).eq(<span class="string">&quot;Engineering&quot;</span>)</span>
+<span class="line">    .asList();</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// findBySalaryGreaterThan(90000)</span></span>
+<span class="line">morphium.createQueryFor(<span class="type">Employee</span>.<span class="keyword">class</span>)</span>
+<span class="line">    .f(Fields.salary).gt(<span class="number">90000</span>)</span>
+<span class="line">    .asList();</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// countByDepartment(&quot;Engineering&quot;)</span></span>
+<span class="line">morphium.createQueryFor(<span class="type">Employee</span>.<span class="keyword">class</span>)</span>
+<span class="line">    .f(Fields.department).eq(<span class="string">&quot;Engineering&quot;</span>)</span>
+<span class="line">    .countAll();</span>{/content}
+    {/include}
+
+    <h3>Pagination &amp; Sorting</h3>
+    <div class="comparison-table">
+        <table>
+            <thead>
+                <tr><th>Morphium</th><th>Jakarta Data</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><pre>query.f(Fields.department).eq(dept)
+    .sort(Map.of(Fields.salary, -1))
+    .skip((page - 1) * size)
+    .limit(size)
+    .asList();</pre></td>
+                    <td><pre>repository.findByDepartment(dept,
+    PageRequest.ofPage(page, size, true),
+    Order.by(Sort.desc("salary")));</pre></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <p>Jakarta Data returns a <code>Page&lt;T&gt;</code> with <code>totalElements()</code>,
+    <code>totalPages()</code>, <code>hasNext()</code> &mdash; all in one call. With Morphium,
+    you need a separate <code>countAll()</code> call.</p>
+
+    <h3>@Find / @By / @OrderBy</h3>
+    {#include tags/code-block title="Fine-Grained Queries" lang="Java"}
+    {#content}<span class="line"><span class="comment">// Embedded field (dot notation) + sort + limit</span></span>
+<span class="line"><span class="annotation">@Find</span></span>
+<span class="line"><span class="annotation">@OrderBy</span>(value = <span class="string">&quot;salary&quot;</span>, descending = <span class="keyword">true</span>)</span>
+<span class="line"><span class="type">List</span>&lt;<span class="type">Employee</span>&gt; topEarnersInDepartment(</span>
+<span class="line">    <span class="annotation">@By</span>(<span class="string">&quot;department&quot;</span>) String dept,</span>
+<span class="line">    <span class="annotation">@By</span>(<span class="string">&quot;active&quot;</span>) <span class="keyword">boolean</span> active,</span>
+<span class="line">    <span class="type">Limit</span> limit);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Equivalent Morphium API:</span></span>
+<span class="line">morphium.createQueryFor(<span class="type">Employee</span>.<span class="keyword">class</span>)</span>
+<span class="line">    .f(Fields.department).eq(dept)</span>
+<span class="line">    .f(Fields.active).eq(<span class="keyword">true</span>)</span>
+<span class="line">    .sort(Map.of(Fields.salary, -<span class="number">1</span>))</span>
+<span class="line">    .limit(<span class="number">2</span>)</span>
+<span class="line">    .asList();</span>{/content}
+    {/include}
+
+    <h3>@Query / JDQL</h3>
+    {#include tags/code-block title="JDQL (Jakarta Data Query Language)" lang="Java"}
+    {#content}<span class="line"><span class="comment">// Complex query with multiple conditions + sort</span></span>
+<span class="line"><span class="annotation">@Query</span>(<span class="string">&quot;WHERE department = :dept&quot;</span></span>
+<span class="line">     + <span class="string">&quot; AND salary &gt;= :minSalary&quot;</span></span>
+<span class="line">     + <span class="string">&quot; AND active = true&quot;</span></span>
+<span class="line">     + <span class="string">&quot; ORDER BY salary DESC&quot;</span>)</span>
+<span class="line"><span class="type">List</span>&lt;<span class="type">Employee</span>&gt; topActiveEarners(</span>
+<span class="line">    <span class="annotation">@Param</span>(<span class="string">&quot;dept&quot;</span>) String dept,</span>
+<span class="line">    <span class="annotation">@Param</span>(<span class="string">&quot;minSalary&quot;</span>) <span class="keyword">double</span> minSalary);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// LIKE pattern matching (replaces Morphium regex)</span></span>
+<span class="line"><span class="annotation">@Query</span>(<span class="string">&quot;WHERE name LIKE :pattern ORDER BY price ASC&quot;</span>)</span>
+<span class="line"><span class="type">List</span>&lt;<span class="type">Product</span>&gt; searchByNameLike(</span>
+<span class="line">    <span class="annotation">@Param</span>(<span class="string">&quot;pattern&quot;</span>) String pattern);</span>{/content}
+    {/include}
+
+    <h3>GROUP BY + Aggregation (JDQL)</h3>
+    <p>JDQL supports <code>GROUP BY</code> with aggregate functions &mdash; no manual pipeline construction needed.
+    Results map directly to <strong>Java Records</strong>:</p>
+    {#include tags/code-block title="Aggregation via JDQL" lang="Java"}
+    {#content}<span class="line"><span class="comment">// Record return type — fields match SELECT order</span></span>
+<span class="line"><span class="keyword">record</span> <span class="type">DeptStats</span>(String department, <span class="keyword">long</span> count, <span class="keyword">double</span> sum) &#123;&#125;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Headcount + total salary per department</span></span>
+<span class="line"><span class="annotation">@Query</span>(<span class="string">&quot;SELECT department, COUNT(this), SUM(salary)&quot;</span></span>
+<span class="line">     + <span class="string">&quot; GROUP BY department ORDER BY department ASC&quot;</span>)</span>
+<span class="line"><span class="type">List</span>&lt;<span class="type">DeptStats</span>&gt; statsByDepartment();</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Equivalent Morphium aggregation pipeline:</span></span>
+<span class="line"><span class="keyword">var</span> agg = morphium.createAggregator(<span class="type">Employee</span>.<span class="keyword">class</span>, <span class="type">Map</span>.<span class="keyword">class</span>);</span>
+<span class="line">agg.group(<span class="string">&quot;$department&quot;</span>)</span>
+<span class="line">    .sum(<span class="string">&quot;count&quot;</span>, <span class="number">1</span>)</span>
+<span class="line">    .sum(<span class="string">&quot;sum&quot;</span>, <span class="string">&quot;$salary&quot;</span>)</span>
+<span class="line">    .end();</span>
+<span class="line">agg.sort(Map.of(<span class="string">&quot;_id&quot;</span>, <span class="number">1</span>));</span>
+<span class="line">agg.aggregate();</span>{/content}
+    {/include}
+    <p><strong>Supported aggregate functions:</strong> <code>COUNT(this)</code>, <code>COUNT(field)</code>,
+    <code>SUM(field)</code>, <code>AVG(field)</code>, <code>MIN(field)</code>, <code>MAX(field)</code>.
+    Multi-field GROUP BY is supported: <code>GROUP BY department, status</code>.</p>
+
+    <h3>HAVING Clause</h3>
+    <p>Filter aggregated results with <code>HAVING</code> &mdash; supports <strong>AND/OR</strong> combinators:</p>
+    {#include tags/code-block title="HAVING with AND/OR" lang="Java"}
+    {#content}<span class="line"><span class="comment">// Only departments with &gt; 1 employee</span></span>
+<span class="line"><span class="annotation">@Query</span>(<span class="string">&quot;SELECT department, COUNT(this), SUM(salary)&quot;</span></span>
+<span class="line">     + <span class="string">&quot; GROUP BY department&quot;</span></span>
+<span class="line">     + <span class="string">&quot; HAVING COUNT(this) &gt; :min&quot;</span>)</span>
+<span class="line"><span class="type">List</span>&lt;<span class="type">DeptStats</span>&gt; deptStatsHavingCountAbove(</span>
+<span class="line">    <span class="annotation">@Param</span>(<span class="string">&quot;min&quot;</span>) <span class="keyword">long</span> minCount);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// OR combinator: large team OR high total salary</span></span>
+<span class="line"><span class="annotation">@Query</span>(<span class="string">&quot;SELECT department, COUNT(this), SUM(salary)&quot;</span></span>
+<span class="line">     + <span class="string">&quot; GROUP BY department&quot;</span></span>
+<span class="line">     + <span class="string">&quot; HAVING COUNT(this) &gt; :minCount&quot;</span></span>
+<span class="line">     + <span class="string">&quot; OR SUM(salary) &gt;= :minSalary&quot;</span>)</span>
+<span class="line"><span class="type">List</span>&lt;<span class="type">DeptStats</span>&gt; deptStatsHavingOr(</span>
+<span class="line">    <span class="annotation">@Param</span>(<span class="string">&quot;minCount&quot;</span>) <span class="keyword">long</span> minCount,</span>
+<span class="line">    <span class="annotation">@Param</span>(<span class="string">&quot;minSalary&quot;</span>) <span class="keyword">double</span> minSalary);</span>{/content}
+    {/include}
+    <p>Translates to a <code>$match</code> stage after <code>$group</code> in the MongoDB aggregation pipeline.
+    The extension handles the entire pipeline construction &mdash; you just write JDQL.</p>
+
+    <h3>Stream&lt;T&gt; &mdash; Memory-Efficient Processing</h3>
+    <p>Return <code>Stream&lt;T&gt;</code> from any query method for <strong>cursor-backed lazy loading</strong>.
+    Documents are fetched incrementally &mdash; ideal for large result sets that don't fit in memory:</p>
+    {#include tags/code-block title="Cursor-Backed Stream" lang="Java"}
+    {#content}<span class="line"><span class="annotation">@Query</span>(<span class="string">&quot;WHERE department = :dept ORDER BY salary DESC&quot;</span>)</span>
+<span class="line"><span class="type">Stream</span>&lt;<span class="type">Employee</span>&gt; streamByDepartment(</span>
+<span class="line">    <span class="annotation">@Param</span>(<span class="string">&quot;dept&quot;</span>) String department);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Usage — auto-closeable, processes one document at a time</span></span>
+<span class="line"><span class="keyword">try</span> (<span class="type">Stream</span>&lt;<span class="type">Employee</span>&gt; stream = repo.streamByDepartment(<span class="string">&quot;Engineering&quot;</span>)) &#123;</span>
+<span class="line">    stream.filter(e -&gt; e.getSalary() &gt; <span class="number">80000</span>)</span>
+<span class="line">          .map(<span class="type">Employee</span>::getFirstName)</span>
+<span class="line">          .forEach(<span class="type">System</span>.out::println);</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <p>Works with query derivation, <code>@Find</code>, and <code>@Query</code> methods.
+    The stream delegates to Morphium's <code>Query.stream()</code> which uses a MongoDB cursor internally.</p>
+
+    <h3>CompletionStage&lt;T&gt; &mdash; Async Queries</h3>
+    <p>Return <code>CompletionStage&lt;T&gt;</code> for <strong>non-blocking repository queries</strong>.
+    The query executes on Morphium's async thread pool:</p>
+    {#include tags/code-block title="Async Repository Method" lang="Java"}
+    {#content}<span class="line"><span class="comment">// Suffix method name with Async — return type is CompletionStage</span></span>
+<span class="line"><span class="type">CompletionStage</span>&lt;<span class="type">List</span>&lt;<span class="type">Employee</span>&gt;&gt; findByDepartmentAsync(</span>
+<span class="line">    String department);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Usage — compose with thenApply, thenAccept, etc.</span></span>
+<span class="line">repo.findByDepartmentAsync(<span class="string">&quot;Engineering&quot;</span>)</span>
+<span class="line">    .thenApply(employees -&gt; employees.stream()</span>
+<span class="line">        .map(<span class="type">Employee</span>::getFirstName)</span>
+<span class="line">        .toList())</span>
+<span class="line">    .thenAccept(names -&gt; <span class="type">System</span>.out.println(names));</span>{/content}
+    {/include}
+    <p>Async variants also work for <code>findById</code>, <code>save</code>, <code>insert</code>,
+    <code>update</code>, and <code>delete</code> operations on <code>MorphiumRepository</code>.</p>
+
+    <h3>@StaticMetamodel</h3>
+    {#include tags/code-block title="Generated Metamodel" lang="Java"}
+    {#content}<span class="line"><span class="comment">// Generated at Quarkus build time (not in source code!)</span></span>
+<span class="line"><span class="annotation">@StaticMetamodel</span>(<span class="type">Employee</span>.<span class="keyword">class</span>)</span>
+<span class="line"><span class="keyword">public class</span> <span class="type">Employee_</span> &#123;</span>
+<span class="line">    <span class="keyword">public static volatile</span> <span class="type">Attribute</span>&lt;<span class="type">Employee</span>&gt; firstName;</span>
+<span class="line">    <span class="keyword">public static volatile</span> <span class="type">SortableAttribute</span>&lt;<span class="type">Employee</span>&gt; salary;</span>
+<span class="line">    <span class="keyword">public static volatile</span> <span class="type">TextAttribute</span>&lt;<span class="type">Employee</span>&gt; email;</span>
+<span class="line">    <span class="comment">// ... all fields of the entity</span></span>
+<span class="line">&#125;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Usage: type-safe sort (no magic strings!)</span></span>
+<span class="line">Order.by(<span class="type">Employee_</span>.salary.desc());</span>{/content}
+    {/include}
+</div>
+
+<!-- Section 4: Morphium ORM features through Jakarta Data -->
+<div class="learn-section">
+    <h2>Morphium ORM Features &mdash; Transparent Through Repositories</h2>
+    <div class="card">
+        <p>Since generated repositories delegate to <code>morphium.store()</code>, <code>morphium.findById()</code> etc.
+        internally, <strong>all Morphium ORM features work transparently</strong> through Jakarta Data repositories:</p>
+        <ul class="prereq-list">
+            <li><strong><code>@Version</code> (Optimistic Locking)</strong> &mdash; <code>repository.save(entity)</code> checks and increments the version automatically. A <code>VersionMismatchException</code> is thrown on concurrent modification, just like with <code>morphium.store()</code>.</li>
+            <li><strong><code>@CreationTime</code> / <code>@LastChange</code></strong> &mdash; Timestamps are set automatically on every <code>save()</code> or <code>insert()</code> call through the repository.</li>
+            <li><strong><code>@PreStore</code> / <code>@PostStore</code> / <code>@PostLoad</code></strong> &mdash; All lifecycle callbacks fire normally when entities are loaded or stored through repositories.</li>
+            <li><strong><code>@Cache</code> / <code>@WriteBuffer</code></strong> &mdash; Morphium's read cache and write buffer are active for all repository queries.</li>
+            <li><strong><code>@Reference</code></strong> &mdash; Lazy and eager references are resolved automatically when entities are loaded via <code>findById()</code>, <code>findAll()</code> or query methods.</li>
+            <li><strong><code>@Index</code></strong> &mdash; Indexes are created on startup, independent of how you access the data.</li>
+        </ul>
+    </div>
+    <h3>MorphiumRepository &mdash; The Escape Hatch</h3>
+    <div class="card">
+        <p><code>MorphiumRepository&lt;T, K&gt;</code> extends <code>CrudRepository</code> with three
+        Morphium-specific methods for features beyond Jakarta Data 1.0:</p>
+        <ul class="prereq-list">
+            <li><strong><code>distinct(fieldName)</code></strong> &mdash; returns unique values for a field across all documents</li>
+            <li><strong><code>morphium()</code></strong> &mdash; direct access to the Morphium instance for aggregation, atomic updates, etc.</li>
+            <li><strong><code>query()</code></strong> &mdash; creates a typed Morphium Query for complex conditions</li>
+        </ul>
+        <p>This means you can use <code>repository.morphium().inc(entity, "field", 1)</code> instead of
+        injecting <code>Morphium</code> separately. All standard Jakarta Data features still work exactly the same.</p>
+    </div>
+    <h3>Requires Direct Morphium API</h3>
+    <div class="card">
+        <p>The following features require <code>MorphiumRepository.morphium()</code> or <code>@Inject Morphium</code>:</p>
+        <ul class="prereq-list">
+            <li><strong>Atomic updates (<code>$inc</code>, <code>$set</code>, <code>$push</code>, <code>$pull</code>)</strong> &mdash; field-level updates without loading the entity</li>
+            <li><strong>Multi-stage aggregation</strong> &mdash; $lookup, $unwind, $bucket, $facet (simple GROUP BY + HAVING works through JDQL)</li>
+            <li><strong>Change streams / Messaging</strong> &mdash; real-time event processing</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Section 5: When to use which? -->
+<div class="learn-section">
+    <h2>When to Use Which Approach?</h2>
+    <div class="comparison-table">
+        <table>
+            <thead>
+                <tr><th>Use Case</th><th>Recommendation</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Standard CRUD</td>
+                    <td><strong>Jakarta Data</strong> &mdash; less boilerplate, declarative, type-safe</td>
+                </tr>
+                <tr>
+                    <td>Simple queries (equality, range, boolean)</td>
+                    <td><strong>Jakarta Data</strong> &mdash; query derivation from method names</td>
+                </tr>
+                <tr>
+                    <td>Complex queries (multi-condition, sort, LIKE)</td>
+                    <td><strong>Jakarta Data @Query/JDQL</strong> &mdash; SQL-like, readable</td>
+                </tr>
+                <tr>
+                    <td>Pagination</td>
+                    <td><strong>Jakarta Data</strong> &mdash; Page&lt;T&gt; / CursoredPage&lt;T&gt; with total count in one call</td>
+                </tr>
+                <tr>
+                    <td>GROUP BY / aggregation (COUNT, SUM, AVG)</td>
+                    <td><strong>Jakarta Data @Query/JDQL</strong> &mdash; GROUP BY + HAVING with Record return types</td>
+                </tr>
+                <tr>
+                    <td>Stream / async queries</td>
+                    <td><strong>Jakarta Data</strong> &mdash; Stream&lt;T&gt; (cursor-backed) and CompletionStage&lt;T&gt;</td>
+                </tr>
+                <tr>
+                    <td>Complex aggregation ($lookup, $unwind, $bucket)</td>
+                    <td><strong>Morphium API</strong> &mdash; multi-stage pipelines beyond GROUP BY</td>
+                </tr>
+                <tr>
+                    <td>Atomic field updates ($inc, $set)</td>
+                    <td><strong>Morphium API</strong> &mdash; field-level updates without loading the entity</td>
+                </tr>
+                <tr>
+                    <td>@Version, @CreationTime, @PreStore, @Cache</td>
+                    <td><strong>Both!</strong> &mdash; work transparently through repository calls</td>
+                </tr>
+                <tr>
+                    <td>Distinct queries</td>
+                    <td><strong>MorphiumRepository</strong> &mdash; <code>repository.distinct("field")</code></td>
+                </tr>
+                <tr>
+                    <td>Mixed: CRUD + advanced features</td>
+                    <td><strong>MorphiumRepository</strong> &mdash; Jakarta Data + <code>morphium()</code> / <code>query()</code> escape hatch</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Section 6: Architecture -->
+<div class="learn-section">
+    <h2>How It Works Under the Hood</h2>
+    {#include tags/code-block title="Build-Time Code Generation (Gizmo)" lang="text"}
+    {#content}<span class="line">1. Jandex scans for @Repository interfaces at build time</span>
+<span class="line">2. Quarkus build step extracts entity type, ID type from generics</span>
+<span class="line">3. Custom method names are parsed: findByXxxAndYyyGreaterThan</span>
+<span class="line">4. Gizmo generates implementation class:</span>
+<span class="line">   - extends AbstractMorphiumRepository&lt;T, K&gt;</span>
+<span class="line">   - implements YourRepository interface</span>
+<span class="line">   - delegates to Morphium API at runtime</span>
+<span class="line">5. CDI registers the generated bean as @ApplicationScoped</span>
+<span class="line">6. @StaticMetamodel classes generated for all @Entity types</span>
+<span class="line"></span>
+<span class="line">Result: Zero runtime reflection, GraalVM native compatible!</span>{/content}
+    {/include}
+</div>
+
+<!-- Section 7: Related Documentation -->
+<div class="learn-section">
+    {#include tags/doc-links docLinks=docLinks /}
+</div>
