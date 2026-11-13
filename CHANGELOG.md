@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### The showcase application is an optional module: `quarkus-morphium-showcase` (MOR-113)
+The Quarkus + Qute demo of all Morphium features, until now the separate repository `Bardioc1977/quarkus-morphium-showcase`, is a module of this repository, with its history. It is behind the Maven profile `showcase` and not part of the default build: `mvn -Pshowcase -pl quarkus-morphium-showcase -am install -DskipTests`, run with `quarkus:dev`, or as an image (`docker build -f quarkus-morphium-showcase/Dockerfile .` from the repository root). It uses the Morphium and Quarkus versions of `morphium-parent`, so it is built against what is in the checkout and not against a release. Its 92 tests pass against 7.0.0-SNAPSHOT. Not done yet (MOR-114): a CI job for the profile, the docs hub from `docs/` instead of copies, the old repository.
+
+
 #### Mapper: `@Embedded` records and `SingleValueMapper` for value objects (MOR-035)
 A `record` annotated with `@Embedded` is an embedded value in a field, a list or a map: written through its components, read back through the canonical constructor (the mapper collects the component values, because the final fields of a record cannot be set; a missing component is `null`, a primitive is zero), and set, pushed and queried like any other embedded document. The deserialization of every other class is unchanged. `SingleValueMapper.of(Email.class)` is a custom mapper for a record with one component that stores the scalar instead of `{value: ...}`, in the field, in queries and in updates. Not covered: records as entities (no identity to write the generated `_id` back to, GitHub #116 stays open for it) and lists of single-value objects (GitHub #334). Tests: `RecordMappingTest` (InMemoryDriver and MongoDB 8).
 

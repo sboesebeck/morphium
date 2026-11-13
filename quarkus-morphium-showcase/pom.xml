@@ -4,49 +4,26 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>de.caluga</groupId>
+    <parent>
+        <groupId>de.caluga</groupId>
+        <artifactId>morphium-parent</artifactId>
+        <version>7.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
     <artifactId>quarkus-morphium-showcase</artifactId>
-    <version>1.1.2-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>Quarkus Morphium Showcase</name>
     <description>Comprehensive demo application showcasing all Morphium ORM features with Quarkus and Qute</description>
-    <url>https://github.com/Bardioc1977/quarkus-morphium-showcase</url>
-
-    <licenses>
-        <license>
-            <name>Apache License, Version 2.0</name>
-            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
-            <distribution>repo</distribution>
-        </license>
-    </licenses>
-
-    <scm>
-        <connection>scm:git:https://github.com/Bardioc1977/quarkus-morphium-showcase.git</connection>
-        <developerConnection>scm:git:git@github.com:Bardioc1977/quarkus-morphium-showcase.git</developerConnection>
-        <url>https://github.com/Bardioc1977/quarkus-morphium-showcase</url>
-    </scm>
-
-    <issueManagement>
-        <system>GitHub Issues</system>
-        <url>https://github.com/Bardioc1977/quarkus-morphium-showcase/issues</url>
-    </issueManagement>
-
-    <developers>
-        <developer>
-            <id>Bardioc1977</id>
-            <url>https://github.com/Bardioc1977</url>
-        </developer>
-    </developers>
 
     <properties>
-        <maven.compiler.release>21</maven.compiler.release>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- a demo application: never deployed to a repository -->
+        <maven.deploy.skip>true</maven.deploy.skip>
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
-        <quarkus.platform.version>3.40.1</quarkus.platform.version>
-        <quarkus-morphium.version>6.3.1</quarkus-morphium.version>
-        <morphium.version>6.3.1</morphium.version>
+        <!-- the Quarkus version is the one of morphium-parent (quarkus.version) -->
+        <quarkus.platform.version>${quarkus.version}</quarkus.platform.version>
         <compiler-plugin.version>3.13.0</compiler-plugin.version>
         <surefire-plugin.version>3.5.2</surefire-plugin.version>
         <lombok.version>1.18.42</lombok.version>
@@ -83,7 +60,7 @@
         <dependency>
             <groupId>de.caluga</groupId>
             <artifactId>quarkus-morphium</artifactId>
-            <version>${quarkus-morphium.version}</version>
+            <version>${project.version}</version>
         </dependency>
 
         <!-- Health checks (optional in the extension since v1.1.1, opt-in explicitly) -->
@@ -96,7 +73,7 @@
         <dependency>
             <groupId>jakarta.data</groupId>
             <artifactId>jakarta.data-api</artifactId>
-            <version>1.0.0</version>
+            <version>${jakarta.data.version}</version>
         </dependency>
 
         <!-- Markdown Rendering (for Docs Hub) -->
@@ -123,7 +100,7 @@
         <dependency>
             <groupId>de.caluga</groupId>
             <artifactId>quarkus-morphium-testing</artifactId>
-            <version>${quarkus-morphium.version}</version>
+            <version>${project.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -159,6 +136,7 @@
         <plugins>
             <plugin>
                 <artifactId>maven-resources-plugin</artifactId>
+                <version>3.3.1</version>
                 <configuration>
                     <useDefaultDelimiters>false</useDefaultDelimiters>
                     <delimiters>

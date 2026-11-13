@@ -71,10 +71,10 @@ public class Vehicle {
     @Id
     private MorphiumId id;
 
-    /** Manufacturer / brand name of the vehicle (e.g. "Porsche", "MAN"). */
+    /** Manufacturer / brand name of the vehicle (e.g. "Acme Motors", "MAN"). */
     private String manufacturer;
 
-    /** Model designation (e.g. "911 Carrera", "TGX 18.510"). */
+    /** Model designation (e.g. "Roadster", "TGX 18.510"). */
     private String model;
 
     /** Model year of the vehicle. */

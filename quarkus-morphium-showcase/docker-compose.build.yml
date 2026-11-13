@@ -1,5 +1,6 @@
 services:
   showcase:
     build:
-      context: .
+      context: ..
+      dockerfile: quarkus-morphium-showcase/Dockerfile
     image: quarkus-morphium-showcase:local

@@ -1,15 +1,11 @@
-# Stage 1: Build
+# Stage 1: Build. The build context is the ROOT of the morphium repository (the showcase is a module of it):
+#   docker build -f quarkus-morphium-showcase/Dockerfile -t quarkus-morphium-showcase:local .
 FROM maven:3.9-eclipse-temurin-21 AS build
 
 WORKDIR /app
 
-# Copy pom.xml first for layer caching
-COPY pom.xml .
-RUN mvn -B dependency:go-offline -DskipTests || true
-
-# Copy source and build
-COPY src src
-RUN mvn -B package -DskipTests
+COPY . .
+RUN mvn -B -Pshowcase -pl quarkus-morphium-showcase -am package -DskipTests
 
 # Stage 2: Runtime
 FROM eclipse-temurin:21-jre
@@ -18,7 +14,7 @@ RUN groupadd -r quarkus && useradd -r -g quarkus -d /app quarkus
 
 WORKDIR /app
 
-COPY --from=build --chown=quarkus:quarkus /app/target/quarkus-app/ ./quarkus-app/
+COPY --from=build --chown=quarkus:quarkus /app/quarkus-morphium-showcase/target/quarkus-app/ ./quarkus-app/
 
 USER quarkus
 

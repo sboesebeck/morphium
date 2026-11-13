@@ -505,5 +505,17 @@
         <module>spring-boot-morphium</module>
       </modules>
     </profile>
+    <!--
+      The showcase application (Quarkus + Qute demo of all Morphium features). Optional and NOT
+      part of the default build. It needs the extensions (profile "extensions", active by default), so it cannot be combined with -DskipExtensions.
+        mvn -Pshowcase -pl quarkus-morphium-showcase -am install -DskipTests    build it (with what it needs)
+        mvn -Pshowcase -pl quarkus-morphium-showcase test                       run its tests
+    -->
+    <profile>
+      <id>showcase</id>
+      <modules>
+        <module>quarkus-morphium-showcase</module>
+      </modules>
+    </profile>
   </profiles>
 </project>

@@ -182,9 +182,9 @@ public class PolymorphismResource {
     }
 
     private void seedVehicles() {
-        Car car1 = new Car(); car1.setManufacturer("Porsche"); car1.setModel("911 Carrera"); car1.setYear(2024); car1.setPrice(115000.00); car1.setDoors(2); car1.setFuelType("Petrol"); car1.setConvertible(false);
-        Car car2 = new Car(); car2.setManufacturer("Porsche"); car2.setModel("Taycan"); car2.setYear(2024); car2.setPrice(89000.00); car2.setDoors(4); car2.setFuelType("Electric"); car2.setConvertible(false);
-        Car car3 = new Car(); car3.setManufacturer("Porsche"); car3.setModel("718 Boxster"); car3.setYear(2023); car3.setPrice(67000.00); car3.setDoors(2); car3.setFuelType("Petrol"); car3.setConvertible(true);
+        Car car1 = new Car(); car1.setManufacturer("Acme Motors"); car1.setModel("Roadster"); car1.setYear(2024); car1.setPrice(115000.00); car1.setDoors(2); car1.setFuelType("Petrol"); car1.setConvertible(false);
+        Car car2 = new Car(); car2.setManufacturer("Acme Motors"); car2.setModel("Voltra"); car2.setYear(2024); car2.setPrice(89000.00); car2.setDoors(4); car2.setFuelType("Electric"); car2.setConvertible(false);
+        Car car3 = new Car(); car3.setManufacturer("Acme Motors"); car3.setModel("Cruiser"); car3.setYear(2023); car3.setPrice(67000.00); car3.setDoors(2); car3.setFuelType("Petrol"); car3.setConvertible(true);
         Truck truck1 = new Truck(); truck1.setManufacturer("MAN"); truck1.setModel("TGX 18.510"); truck1.setYear(2024); truck1.setPrice(125000.00); truck1.setPayloadTons(18.5); truck1.setAxles(4); truck1.setHasTowbar(true);
         Truck truck2 = new Truck(); truck2.setManufacturer("Mercedes-Benz"); truck2.setModel("Actros L"); truck2.setYear(2023); truck2.setPrice(140000.00); truck2.setPayloadTons(25.0); truck2.setAxles(6); truck2.setHasTowbar(true);
         morphium.storeList(List.of(car1, car2, car3, truck1, truck2));

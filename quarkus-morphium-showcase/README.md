@@ -1,20 +1,24 @@
 # Quarkus Morphium Showcase
 
-[![Build](https://github.com/Bardioc1977/quarkus-morphium-showcase/actions/workflows/build.yml/badge.svg)](https://github.com/Bardioc1977/quarkus-morphium-showcase/actions/workflows/build.yml)
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Quarkus](https://img.shields.io/badge/Quarkus-3.32.3-blue)](https://quarkus.io)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](../LICENSE)
 [![Java](https://img.shields.io/badge/Java-21%2B-orange)](https://adoptium.net)
 [![Jakarta Data](https://img.shields.io/badge/Jakarta%20Data-1.0-green)](https://jakarta.ee/specifications/data/1.0/)
-[![quarkus-morphium](https://img.shields.io/badge/quarkus--morphium-6.3.1-blue)](https://central.sonatype.com/artifact/de.caluga/quarkus-morphium)
+
+> **A module of the Morphium repository.** The showcase lives here since 7.0 (before: `Bardioc1977/quarkus-morphium-showcase`, whose history is kept).
+> It is optional and not part of the default build; it always uses the Morphium and Quarkus versions of this checkout (`morphium-parent`).
+>
+> ```bash
+> mvn -Pshowcase -pl quarkus-morphium-showcase -am install -DskipTests    # build it with the modules it needs
+> mvn -Pshowcase -pl quarkus-morphium-showcase quarkus:dev                # run it (dev mode, MongoDB through Dev Services)
+> mvn -Pshowcase -pl quarkus-morphium-showcase test                       # its tests
+> docker build -f quarkus-morphium-showcase/Dockerfile -t quarkus-morphium-showcase:local .   # the image, context is the repository root
+> ```
 
 An interactive demo application showcasing [Morphium](https://github.com/sboesebeck/morphium) ORM
 and **Jakarta Data 1.0** with [Quarkus](https://quarkus.io), [Qute](https://quarkus.io/guides/qute) templates
 and [HTMX](https://htmx.org).
 
-Built on the [quarkus-morphium](https://github.com/sboesebeck/morphium/tree/develop/quarkus-morphium)
-extension, part of the main Morphium repository since its 6.3.0 modularization. Both
-`de.caluga:quarkus-morphium` and `de.caluga:morphium` are published to Maven Central — no bundled
-jars, no GitHub Packages credentials, no fork required to build this showcase.
+Built on the [quarkus-morphium](../quarkus-morphium) extension of this repository.
 
 ### New in 6.3.1
 
