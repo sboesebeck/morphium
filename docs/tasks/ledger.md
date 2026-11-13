@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 9, blocked 2, done 100
+Status: open 10, blocked 2, done 101
 
 ## Overview
 
@@ -21,6 +21,7 @@ Status: open 9, blocked 2, done 100
 | MOR-109 | open | 3 | verification | Quarkus named instances: real MongoDB, native image and dev mode | M |  |  |
 | MOR-110 | open | 3 | defect | PoppyDB: an unknown hint is accepted and ignored, mongod rejects it | M |  |  |
 | MOR-112 | open | 3 | implementation | hasJournal() reads the journal capability from the handshake instead of the PoppyDB brand | S |  | MOR-111 |
+| MOR-114 | open | 3 | implementation | Showcase module: CI, the docs hub from docs/, the old repository | M |  |  |
 | MOR-001 | done | 1 | analysis | Decide the serialisation approach for update operator maps (options A to E) | S |  |  |
 | MOR-002 | done | 1 | defect | Option B: marshal every operator map in Query.findOneAndUpdate | M |  | MOR-001 |
 | MOR-003 | done | 1 | defect | findOneAndUpdate with a compound filter and upsert collides on _id (code 66) | S |  |  |
@@ -121,6 +122,7 @@ Status: open 9, blocked 2, done 100
 | MOR-100 | done | 3 | documentation | Documentation: conditional single-document writes as the pattern behind leases, claims, idempotency keys and optimistic locks | S |  |  |
 | MOR-101 | done | 3 | analysis | WorkClaim: a recipe for claiming a unit of work (state, allowed from-states, visibility timeout, attempts) | S |  |  |
 | MOR-111 | done | 3 | defect | Messaging without a journal: MsgLock asks for waitForJournalCommit | S |  |  |
+| MOR-113 | done | 3 | implementation | The showcase application becomes an optional module of the repository | M |  |  |
 
 ## Details
 
@@ -2033,4 +2035,30 @@ Acceptance:
 Depends on: MOR-111
 
 Source: morphium-core/src/main/java/de/caluga/morphium/driver/MorphiumDriver.java, morphium-core/src/main/java/de/caluga/morphium/driver/wire/PooledDriver.java, morphium-core/src/main/java/de/caluga/morphium/driver/wire/SingleMongoConnectDriver.java, poppydb/src/main/java/de/caluga/poppydb/netty/MongoCommandHandler.java
+
+### MOR-113 The showcase application becomes an optional module of the repository
+
+Status **done**, priority 3, type implementation, effort M
+
+Bardioc1977/quarkus-morphium-showcase is a Quarkus + Qute demo of all Morphium features. Maintaining it as a separate repository does not pay off: it is built against a released version, so every change of the 7.x line needs a second pass. It moves into the repository as the module quarkus-morphium-showcase, with its history, behind the profile showcase (not part of the default build), using the versions of morphium-parent.
+
+Evidence: mvn -Pshowcase -pl quarkus-morphium-showcase -am install -DskipTests builds on JDK 21; the 92 tests of the module pass against 7.0.0-SNAPSHOT (mvn -Pshowcase -pl quarkus-morphium-showcase test, InMem through the testing module); the default build does not contain the module. Not verified: the Docker image build, quarkus:dev, a CI run.
+
+Acceptance:
+
+- mvn -Pshowcase -pl quarkus-morphium-showcase -am install builds it and its 92 tests pass against 7.0.0-SNAPSHOT
+- The default build and -DskipExtensions do not build it
+
+Commits: c7ec09d94
+
+### MOR-114 Showcase module: CI, the docs hub from docs/, the old repository
+
+Status **open**, priority 3, type implementation, effort M
+
+Follow-ups of MOR-113. (1) CI: build.yml does not build the profile showcase; add a job or step (the image workflow of the old repository, docker.yml, was dropped). (2) src/main/resources/docs of the module holds copies of docs/ of this repository that were synced by hand; copy them at build time instead. (3) The old repository Bardioc1977/quarkus-morphium-showcase gets a README that points here, and is archived. (4) The Quarkus version badge and the sections for 6.3.1 in the module README are out of date.
+
+Acceptance:
+
+- A CI run builds the profile showcase and runs its tests
+- The docs hub shows the files of docs/ without a second copy in the module
 

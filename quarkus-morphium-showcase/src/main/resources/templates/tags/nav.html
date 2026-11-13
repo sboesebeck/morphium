@@ -1,0 +1,119 @@
+<aside class="sidebar">
+    <div class="sidebar-header">
+        <h2>Morphium</h2>
+        <span class="version">Product Showcase</span>
+        <div class="sidebar-versions">
+            <span>Morphium {config:property('showcase.version.morphium')}</span>
+            <span>Extension {config:property('showcase.version.extension')}</span>
+        </div>
+    </div>
+    <div class="sidebar-search">
+        <input type="text" id="nav-search" placeholder="Search features, annotations..."
+               autocomplete="off" spellcheck="false">
+        <span class="search-icon">&#128269;</span>
+        <button class="search-clear" id="nav-search-clear" aria-label="Clear search">&times;</button>
+    </div>
+    <nav>
+        <a href="/" class="{#if active == 'home'}active{/if}"
+           data-keywords="home overview start welcome morphium showcase">
+            <span class="nav-icon-css icon-home"></span>
+            <span>Home</span>
+        </a>
+
+        <div class="nav-section">Data Access</div>
+        <a href="/catalog" class="{#if active == 'catalog'}active{/if}"
+           data-keywords="@Entity @Cache @Index @Embedded @Id @Property CRUD store delete createQueryFor storeList LRU caching field mapping embedded documents indexing products categories regex price range query annotation">
+            <span class="nav-icon-css icon-data"></span>
+            <span>Product Catalog<span class="nav-hint">@Entity, @Cache, @Index</span></span>
+        </a>
+        <a href="/blog" class="{#if active == 'blog'}active{/if}"
+           data-keywords="@Version @Reference @CreationTime @LastChange @PreStore @PostStore @PostLoad lifecycle callbacks versioning optimistic locking references timestamps comments publishing annotation">
+            <span class="nav-icon-css icon-blog"></span>
+            <span>Blog System<span class="nav-hint">@Version, @Reference, Lifecycle</span></span>
+        </a>
+        <a href="/polymorphism" class="{#if active == 'polymorphism'}active{/if}"
+           data-keywords="TypeMapper type hierarchy inheritance discriminator class_name Vehicle Car Truck subtype deserialization abstract polymorphic">
+            <span class="nav-icon-css icon-poly"></span>
+            <span>Polymorphism<span class="nav-hint">Type Hierarchies, TypeMapper</span></span>
+        </a>
+        <a href="/query" class="{#if active == 'query'}active{/if}"
+           data-keywords="Query API fluent operators pagination sort skip limit stream regex $gte $lte $in $ne projection text search filter where field">
+            <span class="nav-icon-css icon-query"></span>
+            <span>Advanced Query<span class="nav-hint">Operators, Pagination, Stream</span></span>
+        </a>
+        <a href="/jakarta-data" class="{#if active == 'jakarta-data'}active{/if}"
+           data-keywords="@Repository JDQL @Query @Find @OrderBy @By @Delete @Insert @Save BasicRepository CrudRepository MorphiumRepository distinct query derivation build-time generation @StaticMetamodel annotation Jakarta Data GROUP BY HAVING aggregation COUNT SUM AVG MIN MAX Stream CompletionStage async pagination Page CursoredPage Record">
+            <span class="nav-icon-css icon-jakarta"></span>
+            <span>Jakarta Data<span class="nav-hint">@Repository, JDQL, GROUP BY, Stream</span></span>
+        </a>
+
+        <div class="nav-section">Processing</div>
+        <a href="/analytics" class="{#if active == 'analytics'}active{/if}"
+           data-keywords="Aggregation pipeline $group $match $sort $project $lookup $bucket $unwind $count revenue analytics MapReduce stage">
+            <span class="nav-icon-css icon-chart"></span>
+            <span>Sales Analytics<span class="nav-hint">Aggregation Pipelines</span></span>
+        </a>
+        <a href="/importer" class="{#if active == 'importer'}active{/if}"
+           data-keywords="storeList batch bulk write buffer cursor iterator sequence inc dec push pull array operations high-volume import">
+            <span class="nav-icon-css icon-import"></span>
+            <span>Bulk Import<span class="nav-hint">Batch Ops, Write Buffers</span></span>
+        </a>
+        <a href="/geo" class="{#if active == 'geo'}active{/if}"
+           data-keywords="Geospatial 2dsphere $near $geoWithin GeoJSON coordinates latitude longitude location distance geo spatial">
+            <span class="nav-icon-css icon-geo"></span>
+            <span>Store Locator<span class="nav-hint">Geospatial Queries</span></span>
+        </a>
+        <a href="/changestreams" class="{#if active == 'changestreams'}active{/if}"
+           data-keywords="ChangeStreamMonitor ChangeStreamEvent change stream watch realtime notification insert update replace delete resume token SSE server-sent events">
+            <span class="nav-icon-css icon-stream"></span>
+            <span>Change Streams<span class="nav-hint">ChangeStreamMonitor, Realtime</span></span>
+        </a>
+
+        <div class="nav-section">Platform</div>
+        <a href="/messaging" class="{#if active == 'messaging'}active{/if}"
+           data-keywords="Messaging message queue MQ topic broadcast exclusive SSE server-sent events MorphiumMessaging Msg publish subscribe listener">
+            <span class="nav-icon-css icon-msg"></span>
+            <span>Messaging<span class="nav-hint">MongoDB-backed MQ</span></span>
+        </a>
+        <a href="/bank" class="{#if active == 'bank'}active{/if}"
+           data-keywords="@MorphiumTransactional transaction session atomic inc dec transfer rollback commit beginTransaction commitTransaction @Version optimistic locking annotation">
+            <span class="nav-icon-css icon-tx"></span>
+            <span>Transactions<span class="nav-hint">@MorphiumTransactional</span></span>
+        </a>
+        <a href="/audit" class="{#if active == 'audit'}active{/if}"
+           data-keywords="Capped capped collection tailable cursor @Capped lifecycle callbacks @PreStore @PostStore change stream audit trail logging annotation">
+            <span class="nav-icon-css icon-audit"></span>
+            <span>Audit Log<span class="nav-hint">Capped Collections</span></span>
+        </a>
+        <a href="/health" class="{#if active == 'health'}active{/if}"
+           data-keywords="MicroProfile Health liveness readiness startup probe health check Kubernetes driver connection pool DriverStats monitoring">
+            <span class="nav-icon-css icon-health"></span>
+            <span>Health Checks<span class="nav-hint">MicroProfile Health</span></span>
+        </a>
+        <a href="/migration" class="{#if active == 'migration'}active{/if}"
+           data-keywords="MorphiumChangeUnit Execution RollbackExecution migration runner changelog distributed lock schema version database migration">
+            <span class="nav-icon-css icon-migration"></span>
+            <span>Migration Runner<span class="nav-hint">@MorphiumChangeUnit</span></span>
+        </a>
+        <a href="/security" class="{#if active == 'security'}active{/if}"
+           data-keywords="Encrypted encryption AESEncryptionProvider EncryptionKeyProvider field-level encryption ciphertext JCache JSR-107 MorphiumCacheJCacheImpl cache hit miss security">
+            <span class="nav-icon-css icon-security"></span>
+            <span>Security &amp; Caching<span class="nav-hint">@Encrypted, JCache</span></span>
+        </a>
+
+        <div class="nav-section">Resources</div>
+        <a href="/docs" class="{#if active == 'docs'}active{/if}"
+           data-keywords="documentation docs guide API reference how-to configuration migration tutorial">
+            <span class="nav-icon-css icon-docs"></span>
+            <span>Documentation Hub</span>
+        </a>
+
+        <div class="nav-no-results" id="nav-no-results">No matching features found.</div>
+    </nav>
+    <div class="theme-toggle">
+        <button onclick="toggleTheme()" aria-label="Toggle color theme">
+            <span class="theme-icon"><span class="icon-moon">&#9790;</span><span class="icon-sun">&#9788;</span></span>
+            <span class="label-dark">Dark mode</span><span class="label-light">Light mode</span>
+        </button>
+    </div>
+</aside>

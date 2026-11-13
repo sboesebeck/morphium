@@ -1,0 +1,165 @@
+<!-- Learn Tab: Change Streams -->
+
+<!-- Section 1: What Morphium Offers -->
+<div class="capability-section">
+    <h2>What Morphium Offers</h2>
+    <p>MongoDB Change Streams notify listening applications in (near) realtime whenever a document
+    in a watched collection is inserted, updated, replaced, or deleted &mdash; no polling required.
+    Morphium exposes this via <code>ChangeStreamMonitor</code>, which manages the underlying
+    <code>watch()</code> aggregation pipeline, resume tokens, and reconnection for you.</p>
+</div>
+
+<!-- Section 2: The Challenge -->
+<div class="challenge-section">
+    <h2>The Challenge</h2>
+    <p>Polling a collection for changes wastes cycles and adds latency. The MongoDB driver's raw
+    change stream API requires managing cursors, resume tokens across reconnects, and translating
+    BSON change documents by hand. <code>ChangeStreamMonitor</code> handles the cursor lifecycle and
+    hands you plain <code>ChangeStreamEvent</code> objects instead.</p>
+</div>
+
+<!-- Section 2: Morphium Features with Tooltips -->
+<div class="learn-section">
+    <h2>Morphium Features Used</h2>
+    <div class="feature-tags-grid">
+        {#include tags/tooltip color="purple" text="ChangeStreamMonitor" compat="no-cosmos"}
+        {#tip}Manages a MongoDB change stream: opens the watch cursor, tracks the resume token, reconnects on transient errors, and dispatches each change to registered listeners. Import: de.caluga.morphium.changestream.ChangeStreamMonitor{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="ChangeStreamEvent" compat="no-cosmos"}
+        {#tip}Represents one change notification: operationType (insert/update/replace/delete), documentKey (the changed document's _id), fullDocument (when requested), updatedFields, and removedFields. Import: de.caluga.morphium.changestream.ChangeStreamEvent{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="@CreationTime" compat="all"}
+        {#tip}Automatically populated by Morphium with the current timestamp on first store(). Import: de.caluga.morphium.annotations.CreationTime{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="@LastChange" compat="all"}
+        {#tip}Automatically updated by Morphium on every subsequent store()/update call &mdash; a convenient cross-check against the change stream's own clusterTime. Import: de.caluga.morphium.annotations.LastChange{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="@Entity" compat="all"}
+        {#tip}Maps a Java class to a MongoDB collection. Change streams can watch this collection without any special annotation on the entity itself. Import: de.caluga.morphium.annotations.Entity{/tip}
+        {/include}
+    </div>
+</div>
+
+<!-- Section 3: Prerequisites -->
+<div class="learn-section">
+    <h2>Prerequisites &amp; Key Concepts</h2>
+    <div class="card">
+        <ul class="prereq-list">
+            <li><strong>Replica set required.</strong> Change streams are built on MongoDB's
+            replication oplog, so they require a replica set (or sharded cluster) &mdash; a
+            standalone MongoDB instance cannot open one. Dev Services starts a single-node
+            replica set by default, so this works out of the box locally.</li>
+            <li><strong>Resume tokens</strong> let a change stream reconnect after a network blip
+            or application restart and continue exactly where it left off, without missing or
+            duplicating events. <code>ChangeStreamMonitor</code> tracks this automatically.</li>
+            <li><strong>No entity-side annotation.</strong> Unlike most Morphium features shown
+            elsewhere in this showcase, change streams are entirely configured on the
+            <em>watching</em> side. Any collection can be watched, regardless of how its entity
+            is mapped.</li>
+            <li><strong>Not supported on Azure CosmosDB.</strong> CosmosDB's MongoDB API does not
+            implement change streams the same way; this feature is MongoDB/PoppyDB-only.</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Section 4: About Change Streams -->
+<div class="learn-section">
+    <h2>About Change Streams</h2>
+    <div class="card">
+        <p>A change stream is a standing MongoDB aggregation pipeline (<code>$changeStream</code>)
+        that the server keeps open and pushes new events into as they happen, rather than the
+        client repeatedly asking "did anything change?". This makes realtime features &mdash; live
+        dashboards, cache invalidation, audit trails, cross-service notifications &mdash; possible
+        without a separate message broker, as long as all consumers are already talking to the
+        same MongoDB deployment.</p>
+        <p>Each event carries an <code>operationType</code> (<code>insert</code>,
+        <code>update</code>, <code>replace</code>, <code>delete</code>, ...), the changed
+        document's key, and &mdash; for inserts/updates/replaces, if requested &mdash; the full
+        resulting document. Update events additionally carry an <code>updateDescription</code>
+        with exactly which fields changed and which were removed, so consumers don't have to
+        diff documents themselves.</p>
+    </div>
+</div>
+
+<!-- Section 5: Entity Source Code -->
+<div class="learn-section">
+    <h2>Entity Source Code</h2>
+    {#include tags/code-block title="LiveNote.java" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.CreationTime;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Entity;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Id;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.LastChange;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.driver.MorphiumId;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Entity</span>(collectionName = <span class="string">&quot;live_notes&quot;</span>)<span class="code-callout">1</span></span>
+<span class="line"><span class="keyword">public class</span> <span class="type">LiveNote</span> &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Id</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">MorphiumId</span> id;</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">private</span> String title;</span>
+<span class="line">    <span class="keyword">private</span> String content;</span>
+<span class="line">    <span class="keyword">private</span> String author;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@CreationTime</span><span class="code-callout">2</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">LocalDateTime</span> createdAt;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@LastChange</span><span class="code-callout">3</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">LocalDateTime</span> updatedAt;</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> No change-stream-specific annotation is required &mdash; this is an ordinary Morphium entity, watched from the outside.</div>
+        <div class="callout-item"><span class="code-callout">2</span> <code>@CreationTime</code> gives a reliable "created at" reference independent of the change stream's own clock.</div>
+        <div class="callout-item"><span class="code-callout">3</span> <code>@LastChange</code> is a convenient cross-check against the event's own <code>clusterTime</code>.</div>
+    </div>
+</div>
+
+<!-- Section 6: Service Code -->
+<div class="learn-section">
+    <h2>Watching for Changes</h2>
+    {#include tags/code-block title="LiveNoteChangeStreamService.java — starting the monitor" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.changestream.ChangeStreamMonitor;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.changestream.ChangeStreamEvent;</span>
+<span class="line"></span>
+<span class="line"><span class="type">ChangeStreamMonitor</span> monitor = <span class="keyword">new</span> <span class="type">ChangeStreamMonitor</span>(morphium, <span class="string">&quot;live_notes&quot;</span>);<span class="code-callout">1</span></span>
+<span class="line">monitor.addListener(evt -&gt; &#123;<span class="code-callout">2</span></span>
+<span class="line">    <span class="type">ChangeEventView</span> view = <span class="type">ChangeEventView</span>.from(evt);</span>
+<span class="line">    broadcastToSubscribers(view); <span class="comment">// forwarded to every connected SSE client</span></span>
+<span class="line">    <span class="keyword">return</span> <span class="keyword">true</span>; <span class="comment">// keep listening</span></span>
+<span class="line">&#125;);</span>
+<span class="line">morphium.queueTask(monitor);<span class="code-callout">3</span></span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> The monitor is scoped to a single collection name &mdash; here <code>live_notes</code>, matching <code>LiveNote</code>'s <code>@Entity(collectionName=...)</code>.</div>
+        <div class="callout-item"><span class="code-callout">2</span> The listener receives every insert/update/replace/delete on that collection as a <code>ChangeStreamEvent</code>, converted here into the demo's flattened <code>ChangeEventView</code>.</div>
+        <div class="callout-item"><span class="code-callout">3</span> The monitor runs on Morphium's background task executor for the lifetime of the application (started on <code>StartupEvent</code>, stopped on <code>ShutdownEvent</code> in this showcase).</div>
+    </div>
+
+    {#include tags/code-block title="Delivering events to the browser (Server-Sent Events)" lang="Java"}
+    {#content}<span class="line"><span class="annotation">@GET</span></span>
+<span class="line"><span class="annotation">@Path</span>(<span class="string">&quot;/events&quot;</span>)</span>
+<span class="line"><span class="annotation">@Produces</span>(MediaType.SERVER_SENT_EVENTS)</span>
+<span class="line"><span class="keyword">public void</span> streamEvents(<span class="annotation">@Context</span> SseEventSink sink, <span class="annotation">@Context</span> Sse sse) &#123;<span class="code-callout">1</span></span>
+<span class="line">    <span class="keyword">for</span> (<span class="type">ChangeEventView</span> evt : changeStreamService.recentHistory()) &#123;<span class="code-callout">2</span></span>
+<span class="line">        sink.send(sse.newEventBuilder().name(<span class="string">&quot;change&quot;</span>).data(evt).build());</span>
+<span class="line">    &#125;</span>
+<span class="line">    changeStreamService.subscribe(evt -&gt;</span>
+<span class="line">        sink.send(sse.newEventBuilder().name(<span class="string">&quot;change&quot;</span>).data(evt).build()));<span class="code-callout">3</span></span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> Each connecting browser tab opens its own <code>SseEventSink</code> &mdash; this is the same JAX-RS SSE mechanism used by the Messaging feature.</div>
+        <div class="callout-item"><span class="code-callout">2</span> Recent history is replayed first, so a tab opened after some activity already has context.</div>
+        <div class="callout-item"><span class="code-callout">3</span> The stream is driven purely by what MongoDB's change stream reports &mdash; it would react identically to writes made by a completely different process connected to the same database.</div>
+    </div>
+</div>
+
+<!-- Section 7: Related Documentation -->
+<div class="learn-section">
+    {#include tags/doc-links docLinks=docLinks /}
+</div>

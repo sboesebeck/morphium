@@ -1,0 +1,194 @@
+<!-- Learn Tab: Audit Log -->
+
+<!-- Section 1: What Morphium Offers -->
+<div class="capability-section">
+    <h2>What Morphium Offers</h2>
+    <p>Capped collections + tailable cursors + lifecycle callbacks = automatic audit trails that stream
+    in realtime. <code>@Capped</code> limits collection size, <code>@PreStore</code>/<code>@PostRemove</code>
+    callbacks capture every change, and tailable cursors deliver new entries as they arrive &mdash; no
+    polling required.</p>
+</div>
+
+<!-- Section 2: The Challenge -->
+<div class="challenge-section">
+    <h2>The Challenge</h2>
+    <p>Audit logging typically requires a separate event bus or manually inserted log entries in every
+    write path. Capped collections with tailable cursors are powerful but require understanding MongoDB's
+    specific constraints around them.</p>
+</div>
+
+<!-- Section 2: Morphium Features with Tooltips -->
+<div class="learn-section">
+    <h2>Morphium Features Used</h2>
+    <div class="feature-tags-grid">
+        {#include tags/tooltip color="orange" text="@Capped" compat="no-cosmos"}
+        {#tip}Creates the MongoDB collection as a capped (fixed-size, FIFO) collection. Parameters: maxSize (bytes) and maxEntries (document count). Oldest documents are automatically removed when limits are reached. Import: de.caluga.morphium.annotations.Capped{/tip}
+        {/include}
+
+        {#include tags/tooltip color="purple" text="Tailable Cursor" compat="no-cosmos"}
+        {#tip}A special cursor type for capped collections that remains open after exhausting results, streaming new documents as they are inserted &mdash; similar to Unix &quot;tail -f&quot;. Morphium supports tailable cursors via the query API.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="@Lifecycle Callbacks" compat="all"}
+        {#tip}Morphium fires lifecycle events during store operations: @PreStore and @PostStore for writes, @PreRemove and @PostRemove for deletes, @PostLoad for reads. These are method-level annotations on the entity class.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="@CreationTime" compat="all"}
+        {#tip}Automatically populated by Morphium with the current timestamp on first store(). Supports Date, long (epoch millis), and String. Not modified on subsequent updates. Import: de.caluga.morphium.annotations.CreationTime{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="@Entity" compat="all"}
+        {#tip}Maps a Java class to a MongoDB collection. The collectionName attribute sets the collection explicitly. Import: de.caluga.morphium.annotations.Entity{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="sort / limit" compat="all"}
+        {#tip}sort(Map.of(field, -1)) orders results descending. limit(N) restricts the number of documents returned from the server. Both are methods on Morphium's Query object.{/tip}
+        {/include}
+    </div>
+</div>
+
+<!-- Section 3: Prerequisites -->
+<div class="learn-section">
+    <h2>Prerequisites &amp; Key Concepts</h2>
+    <div class="card">
+        <ul class="prereq-list">
+            <li><strong>Capped Collections</strong> are fixed-size MongoDB collections that maintain insertion order. When the size limit (<code>maxSize</code>) or document count limit (<code>maxEntries</code>) is reached, the oldest documents are automatically removed to make room for new ones &mdash; no manual cleanup needed.</li>
+            <li><strong>Cannot delete individual documents</strong> from a capped collection. You can only drop the entire collection. Updates that would increase a document's size are also not allowed.</li>
+            <li><strong>Tailable Cursors</strong> are a special cursor type that remains open after returning all existing results, waiting for and streaming new documents as they are inserted. This is similar to <code>tail -f</code> on a log file. Only capped collections support tailable cursors.</li>
+            <li><strong>Automatic creation</strong> &mdash; Morphium creates the capped collection on the first <code>store()</code> call if <code>autoIndexAndCappedCreationOnWrite</code> is enabled (default). You cannot convert an existing non-capped collection to capped; you must drop it first.</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Section 4: About Capped Collections -->
+<div class="learn-section">
+    <h2>About Capped Collections</h2>
+    <div class="card">
+        <p>A capped collection is a special MongoDB collection type with a fixed maximum size. Think of it as a
+        circular buffer: once the collection reaches its size limit (e.g. 10 MB) or its document count limit
+        (e.g. 10,000 entries), MongoDB automatically removes the oldest documents to make room for new ones.
+        This FIFO (First In, First Out) behavior makes capped collections ideal for audit logs, event streams,
+        and rolling window data.</p>
+        <p>Because capped collections maintain insertion order by design, queries that sort by <code>$natural</code>
+        order are extremely efficient &mdash; no index is needed. Additionally, capped collections support
+        <strong>tailable cursors</strong>, which behave like the Unix <code>tail -f</code> command: the cursor
+        stays open after returning all existing documents and streams new documents as they arrive.</p>
+    </div>
+</div>
+
+<!-- Section 5: Entity Source Code -->
+<div class="learn-section">
+    <h2>Entity Source Code</h2>
+    {#include tags/code-block title="AuditEntry.java" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Capped;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.CreationTime;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Entity;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.annotations.Id;</span>
+<span class="line"><span class="keyword">import</span> de.caluga.morphium.driver.MorphiumId;</span>
+<span class="line"><span class="keyword">import</span> lombok.experimental.FieldNameConstants;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Entity</span>(collectionName = <span class="string">&quot;audit_log&quot;</span>)<span class="code-callout">1</span></span>
+<span class="line"><span class="annotation">@Capped</span>(maxSize = <span class="number">10485760</span>, maxEntries = <span class="number">10000</span>)<span class="code-callout">2</span></span>
+<span class="line"><span class="annotation">@Data</span> <span class="annotation">@Builder</span> <span class="annotation">@NoArgsConstructor</span> <span class="annotation">@AllArgsConstructor</span></span>
+<span class="line"><span class="annotation">@FieldNameConstants</span><span class="code-callout">3</span></span>
+<span class="line"><span class="keyword">public class</span> <span class="type">AuditEntry</span> &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@Id</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">MorphiumId</span> id;</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">private</span> String entityType;  <span class="comment">// e.g. &quot;Product&quot;, &quot;Account&quot;</span></span>
+<span class="line">    <span class="keyword">private</span> String entityId;    <span class="comment">// e.g. &quot;product-42&quot;</span></span>
+<span class="line">    <span class="keyword">private</span> String action;      <span class="comment">// CREATE, UPDATE, DELETE</span></span>
+<span class="line">    <span class="keyword">private</span> String details;     <span class="comment">// human-readable description</span></span>
+<span class="line">    <span class="keyword">private</span> String user;        <span class="comment">// who performed the action</span></span>
+<span class="line"></span>
+<span class="line">    <span class="annotation">@CreationTime</span> <span class="comment">// auto-set on first store(), immutable thereafter</span><span class="code-callout">4</span></span>
+<span class="line">    <span class="keyword">private</span> <span class="type">LocalDateTime</span> timestamp;</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> <code>@Entity(collectionName=...)</code> maps this class to a MongoDB collection with an explicit name.</div>
+        <div class="callout-item"><span class="code-callout">2</span> <code>@Capped</code> instructs Morphium to create a fixed-size FIFO collection; <code>maxSize</code> is in bytes, <code>maxEntries</code> caps the document count.</div>
+        <div class="callout-item"><span class="code-callout">3</span> <code>@FieldNameConstants</code> generates compile-time constants like <code>AuditEntry.Fields.action</code> for type-safe query field references.</div>
+        <div class="callout-item"><span class="code-callout">4</span> <code>@CreationTime</code> is automatically set by Morphium on the first <code>store()</code> and never overwritten, making it a reliable audit timestamp.</div>
+    </div>
+</div>
+
+<!-- Section 6: Service Code — Morphium API vs Jakarta Data -->
+<div class="learn-section">
+    <h2>Service Code</h2>
+    {#include tags/api-comparison}
+    {#morphium}
+    {#include tags/code-block title="Morphium API — Capped Collection" lang="Java"}
+    {#content}<span class="line"><span class="keyword">import</span> de.caluga.morphium.Morphium;</span>
+<span class="line"></span>
+<span class="line"><span class="annotation">@Inject</span> <span class="type">Morphium</span> morphium;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Store a new audit entry &mdash; Morphium handles @CreationTime and @Id</span></span>
+<span class="line"><span class="type">AuditEntry</span> entry = <span class="type">AuditEntry</span>.builder()<span class="code-callout">1</span></span>
+<span class="line">    .entityType(<span class="string">&quot;Product&quot;</span>)</span>
+<span class="line">    .entityId(<span class="string">&quot;product-42&quot;</span>)</span>
+<span class="line">    .action(<span class="string">&quot;UPDATE&quot;</span>)</span>
+<span class="line">    .details(<span class="string">&quot;Price changed from 9.99 to 12.99&quot;</span>)</span>
+<span class="line">    .user(<span class="string">&quot;alice&quot;</span>)</span>
+<span class="line">    .build();</span>
+<span class="line">morphium.store(entry); <span class="comment">// auto-creates capped collection on first write</span><span class="code-callout">2</span></span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> Lombok's <code>@Builder</code> provides a fluent builder; the <code>timestamp</code> field is left unset because <code>@CreationTime</code> will populate it.</div>
+        <div class="callout-item"><span class="code-callout">2</span> <code>morphium.store()</code> creates the capped collection automatically on the first write if it does not already exist.</div>
+    </div>
+
+    {#include tags/code-block title="Querying with sort + limit" lang="Java"}
+    {#content}<span class="line"><span class="comment">// Find the 50 most recent audit entries</span></span>
+<span class="line">morphium.createQueryFor(<span class="type">AuditEntry</span>.<span class="keyword">class</span>)</span>
+<span class="line">    .sort(Map.of(<span class="type">AuditEntry</span>.Fields.timestamp, <span class="number">-1</span>))<span class="code-callout">1</span></span>
+<span class="line">    .limit(<span class="number">50</span>)<span class="code-callout">2</span></span>
+<span class="line">    .asList();</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Count all entries in the capped collection</span></span>
+<span class="line">morphium.createQueryFor(<span class="type">AuditEntry</span>.<span class="keyword">class</span>).countAll();<span class="code-callout">3</span></span>{/content}
+    {/include}
+    <div class="callout-list">
+        <div class="callout-item"><span class="code-callout">1</span> <code>sort(Map.of(field, -1))</code> sorts by timestamp descending so the newest entries appear first.</div>
+        <div class="callout-item"><span class="code-callout">2</span> <code>limit(N)</code> restricts how many documents MongoDB returns, keeping memory usage bounded.</div>
+        <div class="callout-item"><span class="code-callout">3</span> <code>countAll()</code> runs a server-side count query without transferring documents to the application.</div>
+    </div>
+    {/morphium}
+    {#jakarta}
+    {#include tags/code-block title="Jakarta Data — Repository Interface" lang="Java"}
+    {#content}<span class="line"><span class="annotation">@Repository</span></span>
+<span class="line"><span class="keyword">public interface</span> <span class="type">AuditEntryRepository</span></span>
+<span class="line">        <span class="keyword">extends</span> <span class="type">MorphiumRepository</span>&lt;<span class="type">AuditEntry</span>, <span class="type">MorphiumId</span>&gt; &#123;</span>
+<span class="line"></span>
+<span class="line">    <span class="type">List</span>&lt;<span class="type">AuditEntry</span>&gt; findByAction(String action);</span>
+<span class="line"></span>
+<span class="line">    <span class="type">List</span>&lt;<span class="type">AuditEntry</span>&gt; findByEntityType(String entityType);</span>
+<span class="line"></span>
+<span class="line">    <span class="keyword">long</span> countByAction(String action);</span>
+<span class="line">&#125;</span>{/content}
+    {/include}
+    {#include tags/code-block title="Jakarta Data — Usage" lang="Java"}
+    {#content}<span class="line"><span class="annotation">@Inject</span> <span class="type">AuditEntryRepository</span> repository;</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Store — @Capped, @CreationTime work transparently</span></span>
+<span class="line">repository.save(entry);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Query by action</span></span>
+<span class="line">repository.findByAction(<span class="string">&quot;UPDATE&quot;</span>);</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Count</span></span>
+<span class="line">repository.count();</span>
+<span class="line"></span>
+<span class="line"><span class="comment">// Tailable cursors — Morphium-specific,</span></span>
+<span class="line"><span class="comment">// use the escape hatch:</span></span>
+<span class="line">repository.morphium();</span>{/content}
+    {/include}
+    {/jakarta}
+    {/include}
+</div>
+
+<!-- Section 7: Related Documentation -->
+<div class="learn-section">
+    {#include tags/doc-links docLinks=docLinks /}
+</div>

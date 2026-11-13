@@ -1,0 +1,22 @@
+{#include base title="Documentation Hub" active="docs"}
+{#content}
+<div class="page-header">
+    <h1>Morphium Documentation Hub</h1>
+    <p>{totalDocs} documents available &mdash; Guides, API Reference, How-Tos and more</p>
+</div>
+
+{#for entry in docsByCategory.entrySet()}
+<div class="card">
+    <h3>{entry.key}</h3>
+    <div class="doc-card-grid">
+        {#for doc in entry.value}
+        <a href="/docs/{doc.slug}" class="doc-card-link">
+            <span class="doc-card-title">{doc.title}</span>
+            <span class="doc-card-slug">{doc.slug}</span>
+        </a>
+        {/for}
+    </div>
+</div>
+{/for}
+{/content}
+{/include}

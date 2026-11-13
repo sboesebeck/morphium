@@ -1,0 +1,17 @@
+{#if lastOperation}
+<div class="under-the-hood">
+    <div class="under-the-hood-header">What Morphium did</div>
+    <div class="under-the-hood-body">
+        <div class="under-the-hood-step">
+            <span class="step-label">API Call</span>
+            <code>{lastOperation}</code>
+        </div>
+        {#if lastMongoCommand}
+        <div class="under-the-hood-step">
+            <span class="step-label">MongoDB</span>
+            <code>{lastMongoCommand}</code>
+        </div>
+        {/if}
+    </div>
+</div>
+{/if}

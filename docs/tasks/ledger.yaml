@@ -2235,3 +2235,26 @@ tasks:
   - morphium-core/src/main/java/de/caluga/morphium/driver/wire/PooledDriver.java
   - morphium-core/src/main/java/de/caluga/morphium/driver/wire/SingleMongoConnectDriver.java
   - poppydb/src/main/java/de/caluga/poppydb/netty/MongoCommandHandler.java
+- id: MOR-113
+  title: 'The showcase application becomes an optional module of the repository'
+  type: implementation
+  status: done
+  priority: 3
+  effort: M
+  description: 'Bardioc1977/quarkus-morphium-showcase is a Quarkus + Qute demo of all Morphium features. Maintaining it as a separate repository does not pay off: it is built against a released version, so every change of the 7.x line needs a second pass. It moves into the repository as the module quarkus-morphium-showcase, with its history, behind the profile showcase (not part of the default build), using the versions of morphium-parent.'
+  acceptance:
+  - 'mvn -Pshowcase -pl quarkus-morphium-showcase -am install builds it and its 92 tests pass against 7.0.0-SNAPSHOT'
+  - 'The default build and -DskipExtensions do not build it'
+  evidence: 'mvn -Pshowcase -pl quarkus-morphium-showcase -am install -DskipTests builds on JDK 21; the 92 tests of the module pass against 7.0.0-SNAPSHOT (mvn -Pshowcase -pl quarkus-morphium-showcase test, InMem through the testing module); the default build does not contain the module. Not verified: the Docker image build, quarkus:dev, a CI run.'
+  commits:
+  - c7ec09d94
+- id: MOR-114
+  title: 'Showcase module: CI, the docs hub from docs/, the old repository'
+  type: implementation
+  status: open
+  priority: 3
+  effort: M
+  description: 'Follow-ups of MOR-113. (1) CI: build.yml does not build the profile showcase; add a job or step (the image workflow of the old repository, docker.yml, was dropped). (2) src/main/resources/docs of the module holds copies of docs/ of this repository that were synced by hand; copy them at build time instead. (3) The old repository Bardioc1977/quarkus-morphium-showcase gets a README that points here, and is archived. (4) The Quarkus version badge and the sections for 6.3.1 in the module README are out of date.'
+  acceptance:
+  - 'A CI run builds the profile showcase and runs its tests'
+  - 'The docs hub shows the files of docs/ without a second copy in the module'
