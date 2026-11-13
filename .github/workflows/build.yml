@@ -2,7 +2,7 @@ name: Build
 
 on:
   push:
-    branches: ["develop", "master"]
+    branches: ["develop", "master", "release/7.x"]
   pull_request:
 
 concurrency:
