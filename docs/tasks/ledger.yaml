@@ -2258,3 +2258,16 @@ tasks:
   acceptance:
   - 'A CI run builds the profile showcase and runs its tests'
   - 'The docs hub shows the files of docs/ without a second copy in the module'
+- id: MOR-115
+  title: 'Showcase: the pages say what holds for 7.0, a page for atomic updates, a migration page 6 to 7'
+  type: documentation
+  status: done
+  priority: 3
+  effort: M
+  description: 'The showcase is written for the 7.0 state and has a page for the migration from 6 to 7. Step 1: the docs hub shows docs/ (MOR-114 part 2) and docs/howtos/migration-v6-to-v7.md is new. Step 2: README and two version statements. Step 3: the page Atomic Updates (Query.modify(), LeaseManager, derived updateBy methods, a rejected write) with tests.'
+  acceptance:
+  - 'The docs hub lists the migration page and the pages of docs/ without a copy in the module'
+  - 'The page /atomic claims a ticket exactly once for two workers, holds a lease, assigns by a derived update and shows a duplicate key as a rejected write'
+  evidence: 'DocsHubTest and MarkdownServiceTest (hub, links, admonitions), AtomicServiceTest (8 cases) and the existing tests of the module pass against 7.0.0-SNAPSHOT on the InMemDriver. Not verified: a real MongoDB, the Docker image, quarkus:dev, a look at the pages in a browser.'
+  commits:
+  - FIXME

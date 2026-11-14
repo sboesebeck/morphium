@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 10, blocked 2, done 101
+Status: open 10, blocked 2, done 102
 
 ## Overview
 
@@ -123,6 +123,7 @@ Status: open 10, blocked 2, done 101
 | MOR-101 | done | 3 | analysis | WorkClaim: a recipe for claiming a unit of work (state, allowed from-states, visibility timeout, attempts) | S |  |  |
 | MOR-111 | done | 3 | defect | Messaging without a journal: MsgLock asks for waitForJournalCommit | S |  |  |
 | MOR-113 | done | 3 | implementation | The showcase application becomes an optional module of the repository | M |  |  |
+| MOR-115 | done | 3 | documentation | Showcase: the pages say what holds for 7.0, a page for atomic updates, a migration page 6 to 7 | M |  |  |
 
 ## Details
 
@@ -2061,4 +2062,19 @@ Acceptance:
 
 - A CI run builds the profile showcase and runs its tests
 - The docs hub shows the files of docs/ without a second copy in the module
+
+### MOR-115 Showcase: the pages say what holds for 7.0, a page for atomic updates, a migration page 6 to 7
+
+Status **done**, priority 3, type documentation, effort M
+
+The showcase is written for the 7.0 state and has a page for the migration from 6 to 7. Step 1: the docs hub shows docs/ (MOR-114 part 2) and docs/howtos/migration-v6-to-v7.md is new. Step 2: README and two version statements. Step 3: the page Atomic Updates (Query.modify(), LeaseManager, derived updateBy methods, a rejected write) with tests.
+
+Evidence: DocsHubTest and MarkdownServiceTest (hub, links, admonitions), AtomicServiceTest (8 cases) and the existing tests of the module pass against 7.0.0-SNAPSHOT on the InMemDriver. Not verified: a real MongoDB, the Docker image, quarkus:dev, a look at the pages in a browser.
+
+Acceptance:
+
+- The docs hub lists the migration page and the pages of docs/ without a copy in the module
+- The page /atomic claims a ticket exactly once for two workers, holds a lease, assigns by a derived update and shows a duplicate key as a rejected write
+
+Commits: FIXME
 

@@ -193,7 +193,7 @@ standard Jakarta Data CRUD plus `morphium()` and `query()` as the escape hatch.
 From the root of the Morphium repository (the showcase is an optional module, profile `showcase`):
 
 ```bash
-mvn -Pshowcase -pl quarkus-morphium-showcase -am install -DskipTests
+mvn -Pshowcase -pl quarkus-morphium/deployment,quarkus-morphium-showcase -am install -DskipTests
 mvn -Pshowcase -pl quarkus-morphium-showcase quarkus:dev      # Dev Services starts MongoDB automatically
 ```
 

@@ -110,7 +110,7 @@ The Jakarta Data API stays at 1.0; 1.1 features are refused at build time (item 
 ## New in 7 (opt in)
 
 `Query.modify()` (atomic update builder), `LeaseManager` and the [conditional writes](conditional-writes.md) pattern, `@AtomicUpdate` and `updateBy...` in Jakarta Data repositories, `@Query` with `UPDATE` and `DELETE`,
-`@Embedded` records and `SingleValueMapper`, `KeyRename` ([migrating key names](embedded-key-migration.md)), named Quarkus instances, `MorphiumMessaging` as a CDI bean, the optional showcase module. Read
+`@Embedded` records and `SingleValueMapper`, `KeyRename` ([migrating key names](embedded-key-migration.md)), named Quarkus instances, `MorphiumMessaging` as a CDI bean, the optional showcase module (its page "Atomic Updates" runs the update builder, a lease, `updateBy...` and a rejected write). Read
 [update pitfalls](update-pitfalls.md) before you touch update code.
 
 ## Checklist

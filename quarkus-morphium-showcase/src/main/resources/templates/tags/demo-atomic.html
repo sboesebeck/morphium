@@ -1,0 +1,102 @@
+<!-- Demo Tab: Atomic Updates (7.0) -->
+
+<div class="demo-context">
+    Two workers, <strong>alice</strong> and <strong>bob</strong>, compete for tickets and for one lease. Every button is ONE command; the sentence below says who won.
+    The unique <code>code</code> of a ticket shows what a rejected write looks like since 7.0.
+</div>
+
+{#include tags/under-the-hood lastOperation=lastOperation lastMongoCommand=lastMongoCommand /}
+
+{#if message}
+<div class="alert alert-success">{message}</div>
+{/if}
+
+<div class="card-grid">
+    <div class="card">
+        <h3>Lease <span class="tag tag-blue"><code>atomic_leases</code></span></h3>
+        <p>
+            {#if lease}
+            Held by <strong>{lease.ownerName}</strong> until <code>{lease.expiresAt}</code>.
+            {#else}
+            Nobody holds the lease yet.
+            {/if}
+        </p>
+        <div class="demo-actions">
+            <button class="btn btn-primary btn-sm" hx-post="/atomic/lease/acquire" hx-vals='&#123;"worker": "alice"&#125;' hx-target="#tab-content" hx-swap="innerHTML">alice acquires</button>
+            <button class="btn btn-primary btn-sm" hx-post="/atomic/lease/acquire" hx-vals='&#123;"worker": "bob"&#125;' hx-target="#tab-content" hx-swap="innerHTML">bob acquires</button>
+            <button class="btn btn-outline btn-sm" hx-post="/atomic/lease/release" hx-vals='&#123;"worker": "alice"&#125;' hx-target="#tab-content" hx-swap="innerHTML">alice releases</button>
+            <button class="btn btn-outline btn-sm" hx-post="/atomic/lease/release" hx-vals='&#123;"worker": "bob"&#125;' hx-target="#tab-content" hx-swap="innerHTML">bob releases</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Derived update methods</h3>
+        <form hx-post="/atomic/assign" hx-target="#tab-content" hx-swap="innerHTML">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>State</label>
+                    <select name="state">
+                        {#for s in states}
+                        <option value="{s}">{s}</option>
+                        {/for}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Ticket id (empty: all in the state)</label>
+                    <input type="text" name="ticket" placeholder="e.g. T-1">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Owner</label>
+                <input type="text" name="owner" required value="dave">
+            </div>
+            <button type="submit" class="btn btn-primary">Assign</button>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <h3>Tickets <span class="tag tag-blue">{tickets.size} in collection <code>atomic_tickets</code></span>
+        <button class="btn btn-outline btn-sm" style="float:right" hx-post="/atomic/reset" hx-target="#tab-content" hx-swap="innerHTML">Reset</button>
+    </h3>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Id</th>
+                    <th>Code (unique)</th>
+                    <th>State</th>
+                    <th>Owner</th>
+                    <th>Attempts</th>
+                    <th>Started</th>
+                    <th>Changed</th>
+                    <th>Claim</th>
+                    <th>Change the code</th>
+                </tr>
+            </thead>
+            <tbody>
+                {#for t in tickets}
+                <tr>
+                    <td><strong>{t.id}</strong></td>
+                    <td><code>{t.code}</code></td>
+                    <td><span class="tag">{t.state}</span></td>
+                    <td>{t.owner ?: ''}</td>
+                    <td>{t.attempts}</td>
+                    <td>{t.startedAt ?: ''}</td>
+                    <td>{t.changedAt}</td>
+                    <td>
+                        <button class="btn btn-primary btn-sm" hx-post="/atomic/tickets/{t.id}/claim" hx-vals='&#123;"worker": "alice"&#125;' hx-target="#tab-content" hx-swap="innerHTML">alice</button>
+                        <button class="btn btn-primary btn-sm" hx-post="/atomic/tickets/{t.id}/claim" hx-vals='&#123;"worker": "bob"&#125;' hx-target="#tab-content" hx-swap="innerHTML">bob</button>
+                    </td>
+                    <td>
+                        <form hx-post="/atomic/tickets/{t.id}/code" hx-target="#tab-content" hx-swap="innerHTML" style="display:flex;gap:0.25rem">
+                            <input type="text" name="code" required placeholder="e.g. A-200" size="8">
+                            <button type="submit" class="btn btn-outline btn-sm">Set</button>
+                        </form>
+                    </td>
+                </tr>
+                {/for}
+            </tbody>
+        </table>
+    </div>
+</div>
