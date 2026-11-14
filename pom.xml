@@ -508,7 +508,8 @@
     <!--
       The showcase application (Quarkus + Qute demo of all Morphium features). Optional and NOT
       part of the default build. It needs the extensions (profile "extensions", active by default), so it cannot be combined with -DskipExtensions.
-        mvn -Pshowcase -pl quarkus-morphium-showcase -am install -DskipTests    build it (with what it needs)
+        mvn -Pshowcase -pl quarkus-morphium/deployment,quarkus-morphium-showcase -am install -DskipTests    build it (with what it needs)
+      The deployment module of the extension is named because Quarkus loads it at build time, but the showcase does not depend on it: without it in the reactor an old installed one would be used.
         mvn -Pshowcase -pl quarkus-morphium-showcase test                       run its tests
     -->
     <profile>

@@ -2042,11 +2042,11 @@ Status **done**, priority 3, type implementation, effort M
 
 Bardioc1977/quarkus-morphium-showcase is a Quarkus + Qute demo of all Morphium features. Maintaining it as a separate repository does not pay off: it is built against a released version, so every change of the 7.x line needs a second pass. It moves into the repository as the module quarkus-morphium-showcase, with its history, behind the profile showcase (not part of the default build), using the versions of morphium-parent.
 
-Evidence: mvn -Pshowcase -pl quarkus-morphium-showcase -am install -DskipTests builds on JDK 21; the 92 tests of the module pass against 7.0.0-SNAPSHOT (mvn -Pshowcase -pl quarkus-morphium-showcase test, InMem through the testing module); the default build does not contain the module. Not verified: the Docker image build, quarkus:dev, a CI run.
+Evidence: mvn -Pshowcase -pl quarkus-morphium/deployment,quarkus-morphium-showcase -am install -DskipTests builds on JDK 21; the 92 tests of the module pass against 7.0.0-SNAPSHOT (mvn -Pshowcase -pl quarkus-morphium-showcase test, InMem through the testing module); the default build does not contain the module. Not verified: the Docker image build, quarkus:dev, a CI run.
 
 Acceptance:
 
-- mvn -Pshowcase -pl quarkus-morphium-showcase -am install builds it and its 92 tests pass against 7.0.0-SNAPSHOT
+- mvn -Pshowcase -pl quarkus-morphium/deployment,quarkus-morphium-showcase -am install builds it and its 92 tests pass against 7.0.0-SNAPSHOT
 - The default build and -DskipExtensions do not build it
 
 Commits: c7ec09d94

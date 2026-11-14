@@ -8,7 +8,7 @@
 > It is optional and not part of the default build; it always uses the Morphium and Quarkus versions of this checkout (`morphium-parent`).
 >
 > ```bash
-> mvn -Pshowcase -pl quarkus-morphium-showcase -am install -DskipTests    # build it with the modules it needs
+> mvn -Pshowcase -pl quarkus-morphium/deployment,quarkus-morphium-showcase -am install -DskipTests    # build it with the modules it needs (Quarkus loads the deployment module of the extension, so it is named, too)
 > mvn -Pshowcase -pl quarkus-morphium-showcase quarkus:dev                # run it (dev mode, MongoDB through Dev Services)
 > mvn -Pshowcase -pl quarkus-morphium-showcase test                       # its tests
 > docker build -f quarkus-morphium-showcase/Dockerfile -t quarkus-morphium-showcase:local .   # the image, context is the repository root

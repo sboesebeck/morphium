@@ -5,7 +5,7 @@ FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /app
 
 COPY . .
-RUN mvn -B -Pshowcase -pl quarkus-morphium-showcase -am package -DskipTests
+RUN mvn -B -Pshowcase -pl quarkus-morphium/deployment,quarkus-morphium-showcase -am package -DskipTests
 
 # Stage 2: Runtime
 FROM eclipse-temurin:21-jre
