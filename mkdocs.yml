@@ -98,6 +98,7 @@ nav:
     - Admin Handbook: howtos/poppydb-admin-handbook.md
     - Migrating from MongoDB: howtos/migration-mongodb-to-poppydb.md
   - How-To Guides:
+    - Upgrade v6→v7: howtos/migration-v6-to-v7.md
     - Upgrade v6.2→v6.3: howtos/migration-v6_2-to-v6_3.md
     - Upgrade v6.1→v6.2: howtos/migration-v6_1-to-v6_2.md
     - Migration v5→v6: howtos/migration-v5-to-v6.md

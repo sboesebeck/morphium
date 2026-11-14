@@ -144,6 +144,37 @@
                     </delimiters>
                 </configuration>
             </plugin>
+            <!-- The docs hub shows docs/ of this repository: copied at build time, there is no second copy in the module.
+                 docs-index.txt (the list of the pages, read by MarkdownService) is generated from what was copied; research notes and the task ledger stay out. -->
+            <plugin>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>docs-hub</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <copy todir="${project.build.outputDirectory}/docs">
+                                    <fileset dir="${project.basedir}/../docs">
+                                        <include name="**/*.md"/>
+                                        <exclude name="research/**"/>
+                                        <exclude name="tasks/**"/>
+                                    </fileset>
+                                </copy>
+                                <fileset id="docs.hub.files" dir="${project.build.outputDirectory}" includes="docs/**/*.md"/>
+                                <pathconvert property="docs.hub.index" refid="docs.hub.files" pathsep="${line.separator}">
+                                    <map from="${project.build.outputDirectory}${file.separator}" to=""/>
+                                </pathconvert>
+                                <echo file="${project.build.outputDirectory}/docs-index.txt" message="${docs.hub.index}${line.separator}"/>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>${quarkus.platform.group-id}</groupId>
                 <artifactId>quarkus-maven-plugin</artifactId>
