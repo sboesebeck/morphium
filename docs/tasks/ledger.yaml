@@ -2270,4 +2270,4 @@ tasks:
   - 'The page /atomic claims a ticket exactly once for two workers, holds a lease, assigns by a derived update and shows a duplicate key as a rejected write'
   evidence: 'DocsHubTest and MarkdownServiceTest (hub, links, admonitions), AtomicServiceTest (8 cases) and the existing tests of the module pass against 7.0.0-SNAPSHOT on the InMemDriver. Not verified: a real MongoDB, the Docker image, quarkus:dev, a look at the pages in a browser.'
   commits:
-  - FIXME
+  - 7b88542d6
