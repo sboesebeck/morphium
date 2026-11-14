@@ -113,7 +113,7 @@
         <div class="callout-item"><span class="code-callout">2</span> Buffers up to 500 writes in memory, flushing as bulk operations. <code>WRITE_NEW</code> sends new writes immediately when buffer is full. <code>timeout = 5000</code> ms ensures flush even at low throughput.</div>
         <div class="callout-item"><span class="code-callout">3</span> Morphium auto-assigns the next value from the <code>import_number</code> sequence. Uses <code>Long</code> (boxed) so <code>null</code> signals &quot;not yet assigned&quot;. For bulk inserts, <code>getNextBatch(n)</code> reserves N values in a single atomic operation.</div>
         <div class="callout-item"><span class="code-callout">4</span> Automatically timestamped on first <code>store()</code> &mdash; never overwritten on updates</div>
-        <div class="callout-item"><span class="code-callout">5</span> Modified via <code>morphium.push()</code> / <code>morphium.pull()</code> for atomic array operations without loading the full document</div>
+        <div class="callout-item"><span class="code-callout">5</span> Modified via <code>morphium.push()</code> / <code>morphium.pull()</code> for atomic array operations without loading the full document Values are mapped like <code>store()</code> maps them (embedded objects, enums, <code>java.time</code>) and a rejected statement raises since 7.0.</div>
     </div>
 </div>
 

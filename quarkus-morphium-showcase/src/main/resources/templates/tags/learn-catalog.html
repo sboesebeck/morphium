@@ -298,7 +298,7 @@
     {#include tags/code-block title="Without the extension (hypothetical)" lang="json"}
     {#content}<span class="line">&#123; <span class="string">&quot;id&quot;</span>: &#123; <span class="string">&quot;pid&quot;</span>: 12345, <span class="string">&quot;counter&quot;</span>: 1, <span class="string">&quot;machineId&quot;</span>: 987, <span class="string">&quot;bytes&quot;</span>: <span class="string">&quot;...&quot;</span>, <span class="string">&quot;time&quot;</span>: 1700000000000 &#125;, <span class="string">&quot;name&quot;</span>: <span class="string">&quot;Laptop Pro 15&quot;</span> &#125;</span>{/content}
     {/include}
-    <p><code>quarkus-morphium</code> 6.3.1 registers an automatic Jackson module
+    <p>The <code>quarkus-morphium</code> extension registers an automatic Jackson module
     (<code>MorphiumIdJacksonModule</code>) and, if <code>quarkus-jsonb</code> is on the classpath instead
     of/alongside Jackson, a JSON-B adapter (<code>MorphiumIdJsonbModule</code> /
     <code>MorphiumIdJsonbAdapter</code>) that (de)serialize every <code>@Id MorphiumId</code> field as a

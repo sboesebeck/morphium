@@ -142,7 +142,7 @@
         <div class="callout-item"><span class="code-callout">1</span> Maps this class to the <code>accounts</code> MongoDB collection.</div>
         <div class="callout-item"><span class="code-callout">2</span> Lombok: generates <code>Account.Fields.accountNumber</code>, <code>.balance</code> etc. for type-safe queries.</div>
         <div class="callout-item"><span class="code-callout">3</span> Primary key, mapped to MongoDB <code>_id</code>. Auto-generated if null.</div>
-        <div class="callout-item"><span class="code-callout">4</span> Unique index &mdash; MongoDB rejects duplicate account numbers at database level.</div>
+        <div class="callout-item"><span class="code-callout">4</span> Unique index &mdash; MongoDB rejects duplicate account numbers at database level. Since 7.0 a rejected write always raises a <code>MorphiumDriverException</code> (<code>isDuplicateKey()</code>), also for updates such as <code>Query.set</code>; <code>VersionMismatchException</code> is only for a stale <code>@Version</code>.</div>
         <div class="callout-item"><span class="code-callout">5</span> Optimistic locking &mdash; Morphium increments on every <code>store()</code> and throws <code>VersionMismatchException</code> on conflict.</div>
         <div class="callout-item"><span class="code-callout">6</span> Automatically set on first <code>store()</code>, never updated again.</div>
     </div>
