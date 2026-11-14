@@ -2056,7 +2056,7 @@ Commits: c7ec09d94
 
 Status **open**, priority 3, type implementation, effort M
 
-Follow-ups of MOR-113. (1) CI: build.yml does not build the profile showcase; add a job or step (the image workflow of the old repository, docker.yml, was dropped). (2) DONE in this change: the docs hub copies docs/ at build time (antrun, docs-index.txt generated), the copies in the module are gone, relative links and admonitions are rendered; the page docs/howtos/migration-v6-to-v7.md is new. (3) The old repository Bardioc1977/quarkus-morphium-showcase gets a README that points here, and is archived. (4) The Quarkus version badge and the sections for 6.3.1 in the module README are out of date.
+Follow-ups of MOR-113. (1) CI: build.yml does not build the profile showcase; add a job or step (the image of the showcase is built by a workflow of the maintainer's fork, polling release/7.x, see Bardioc1977/morphium#26). (2) DONE in this change: the docs hub copies docs/ at build time (antrun, docs-index.txt generated), the copies in the module are gone, relative links and admonitions are rendered; the page docs/howtos/migration-v6-to-v7.md is new. (3) The old repository Bardioc1977/quarkus-morphium-showcase gets a README that points here, and is archived. (4) The Quarkus version badge and the sections for 6.3.1 in the module README are out of date.
 
 Acceptance:
 
