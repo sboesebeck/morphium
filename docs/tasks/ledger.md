@@ -4,7 +4,7 @@ As of 2026-10-15. Generated from `docs/tasks/ledger.yaml` with `python3 scripts/
 
 Sources: [reproduction](../research/reproduction-results.md), [jakarta-data](../research/jakarta-data-1.1.md), [other-clients](../research/other-clients.md)
 
-Status: open 10, blocked 2, done 101
+Status: open 10, blocked 2, done 102
 
 ## Overview
 
@@ -123,6 +123,7 @@ Status: open 10, blocked 2, done 101
 | MOR-101 | done | 3 | analysis | WorkClaim: a recipe for claiming a unit of work (state, allowed from-states, visibility timeout, attempts) | S |  |  |
 | MOR-111 | done | 3 | defect | Messaging without a journal: MsgLock asks for waitForJournalCommit | S |  |  |
 | MOR-113 | done | 3 | implementation | The showcase application becomes an optional module of the repository | M |  |  |
+| MOR-115 | done | 3 | documentation | Showcase: the pages say what holds for 7.0, a page for atomic updates, a migration page 6 to 7 | M |  |  |
 
 ## Details
 
@@ -2042,11 +2043,11 @@ Status **done**, priority 3, type implementation, effort M
 
 Bardioc1977/quarkus-morphium-showcase is a Quarkus + Qute demo of all Morphium features. Maintaining it as a separate repository does not pay off: it is built against a released version, so every change of the 7.x line needs a second pass. It moves into the repository as the module quarkus-morphium-showcase, with its history, behind the profile showcase (not part of the default build), using the versions of morphium-parent.
 
-Evidence: mvn -Pshowcase -pl quarkus-morphium-showcase -am install -DskipTests builds on JDK 21; the 92 tests of the module pass against 7.0.0-SNAPSHOT (mvn -Pshowcase -pl quarkus-morphium-showcase test, InMem through the testing module); the default build does not contain the module. Not verified: the Docker image build, quarkus:dev, a CI run.
+Evidence: mvn -Pshowcase -pl quarkus-morphium/deployment,quarkus-morphium-showcase -am install -DskipTests builds on JDK 21; the 92 tests of the module pass against 7.0.0-SNAPSHOT (mvn -Pshowcase -pl quarkus-morphium-showcase test, InMem through the testing module); the default build does not contain the module. Not verified: the Docker image build, quarkus:dev, a CI run.
 
 Acceptance:
 
-- mvn -Pshowcase -pl quarkus-morphium-showcase -am install builds it and its 92 tests pass against 7.0.0-SNAPSHOT
+- mvn -Pshowcase -pl quarkus-morphium/deployment,quarkus-morphium-showcase -am install builds it and its 92 tests pass against 7.0.0-SNAPSHOT
 - The default build and -DskipExtensions do not build it
 
 Commits: c7ec09d94
@@ -2055,10 +2056,25 @@ Commits: c7ec09d94
 
 Status **open**, priority 3, type implementation, effort M
 
-Follow-ups of MOR-113. (1) CI: build.yml does not build the profile showcase; add a job or step (the image workflow of the old repository, docker.yml, was dropped). (2) src/main/resources/docs of the module holds copies of docs/ of this repository that were synced by hand; copy them at build time instead. (3) The old repository Bardioc1977/quarkus-morphium-showcase gets a README that points here, and is archived. (4) The Quarkus version badge and the sections for 6.3.1 in the module README are out of date.
+Follow-ups of MOR-113. (1) CI: build.yml does not build the profile showcase; add a job or step (the image of the showcase is built by a workflow of the maintainer's fork, polling release/7.x, see Bardioc1977/morphium#26). (2) DONE in this change: the docs hub copies docs/ at build time (antrun, docs-index.txt generated), the copies in the module are gone, relative links and admonitions are rendered; the page docs/howtos/migration-v6-to-v7.md is new. (3) The old repository Bardioc1977/quarkus-morphium-showcase gets a README that points here, and is archived. (4) The Quarkus version badge and the sections for 6.3.1 in the module README are out of date.
 
 Acceptance:
 
 - A CI run builds the profile showcase and runs its tests
 - The docs hub shows the files of docs/ without a second copy in the module
+
+### MOR-115 Showcase: the pages say what holds for 7.0, a page for atomic updates, a migration page 6 to 7
+
+Status **done**, priority 3, type documentation, effort M
+
+The showcase is written for the 7.0 state and has a page for the migration from 6 to 7. Step 1: the docs hub shows docs/ (MOR-114 part 2) and docs/howtos/migration-v6-to-v7.md is new. Step 2: README and two version statements. Step 3: the page Atomic Updates (Query.modify(), LeaseManager, derived updateBy methods, a rejected write) with tests.
+
+Evidence: DocsHubTest and MarkdownServiceTest (hub, links, admonitions), AtomicServiceTest (8 cases) and the existing tests of the module pass against 7.0.0-SNAPSHOT on the InMemDriver. Not verified: a real MongoDB, the Docker image, quarkus:dev, a look at the pages in a browser.
+
+Acceptance:
+
+- The docs hub lists the migration page and the pages of docs/ without a copy in the module
+- The page /atomic claims a ticket exactly once for two workers, holds a lease, assigns by a derived update and shows a duplicate key as a rejected write
+
+Commits: 7b88542d6
 

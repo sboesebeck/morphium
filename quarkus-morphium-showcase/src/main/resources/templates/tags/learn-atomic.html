@@ -1,0 +1,101 @@
+<!-- Learn Tab: Atomic Updates (7.0) -->
+
+<div class="capability-section">
+    <h2>What Morphium Offers</h2>
+    <p>Several workers compete for the same tickets and for one lease. The update must be decided by the database in <strong>one</strong> command:
+    a worker that reads "NEW" and then writes "RUNNING" loses against another one in between. <code>Query.modify()</code> builds one atomic update with the field
+    names translated, the values mapped like <code>store()</code> maps them, <code>@LastChange</code> set, and a typed outcome (<code>UPDATED</code>, <code>NOT_MATCHED</code>,
+    <code>DUPLICATE_KEY</code>) instead of a <code>null</code> that can mean three things.</p>
+</div>
+
+<div class="challenge-section">
+    <h2>The Challenge</h2>
+    <p>With 6.x, a write that the server rejected (a unique index, a path below a scalar) returned as if it had happened, and a hand-built <code>findAndModify</code> map needed
+    <code>Date.from(...)</code>, snake_case keys and a hand-made duplicate key check. In 7.0 a rejected write raises a <code>MorphiumDriverException</code>, and the typed API does the rest.</p>
+</div>
+
+<div class="learn-section">
+    <h2>Morphium Features Used</h2>
+    <div class="feature-tags-grid">
+        {#include tags/tooltip color="blue" text="Query.modify()" compat="all"}
+        {#tip}One atomic update with set, inc, push, rename, min, max and more. Nothing is written until findOneAndUpdate, tryFindOneAndUpdate, updateOne or updateMany is called. Field names are Java names, enum constants, Lombok field constants or dotted paths; the builder translates them to the stored names.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="blue" text="UpdateOutcome" compat="all"}
+        {#tip}The typed result of tryFindOneAndUpdate: UPDATED, INSERTED, NOT_MATCHED or DUPLICATE_KEY (the lost conditional upsert), with the document.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="LeaseManager" compat="all"}
+        {#tip}A lease as one conditional upsert: acquire, renew by the same owner, take over after the expiry, release. A fencing token and a key other than the id are builder options.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="orange" text="updateBy... methods" compat="all"}
+        {#tip}Derived update methods of Jakarta Data repositories (a Morphium extension): the name after updateBy is the condition, every parameter after the condition is a field to set. long or boolean gives the count form, the entity or an Optional the find-and-modify form.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="Rejected writes raise" compat="all"}
+        {#tip}Since 7.0 a statement that the server rejects (duplicate key, $pull on a non-array) throws a MorphiumDriverException: getMongoCode(), isDuplicateKey(), getWriteErrors(). Query.setRaiseOnWriteErrors(false) is the override for one best-effort query.{/tip}
+        {/include}
+
+        {#include tags/tooltip color="green" text="@LastChange on the field" compat="all"}
+        {#tip}A @LastChange that sits on the field only is set by store(), the update builder and, since 7.0, the writer methods (Query.set, inc, push, ...).{/tip}
+        {/include}
+    </div>
+</div>
+
+<div class="learn-section">
+    <h2>Claiming a ticket</h2>
+    <p>The condition (<code>state = NEW</code>) and the change are one command; exactly one of two workers wins.</p>
+    {#include tags/code-block title="Claiming a ticket" lang="Java"}
+    {#content}<pre><code>UpdateOutcome&lt;JobTicket&gt; outcome = morphium.createQueryFor(JobTicket.class)
+        .f(JobTicket.Fields.id).eq(ticketId)
+        .f(JobTicket.Fields.state).eq(JobState.NEW)
+        .modify()
+        .set(JobTicket.Fields.state, JobState.RUNNING)       // an enum, stored by name
+        .set(JobTicket.Fields.owner, worker)
+        .set(JobTicket.Fields.startedAt, Instant.now())      // an Instant, stored as a date
+        .inc(JobTicket.Fields.attempts, 1)
+        .tryFindOneAndUpdate(ReturnDocument.AFTER);
+
+switch (outcome.getKind()) &#123;
+    case UPDATED     -> /* this worker won, outcome.getDocument() is the ticket */;
+    case NOT_MATCHED -> /* somebody else was faster, or the ticket does not exist */;
+&#125;</code></pre>{/content}
+    {/include}
+</div>
+
+<div class="learn-section">
+    <h2>A lease</h2>
+    {#include tags/code-block title="Lease" lang="Java"}
+    {#content}<pre><code>LeaseManager&lt;WorkLease&gt; leases = LeaseManager.of(morphium, WorkLease.class, "ownerName", "expiresAt");
+LeaseResult&lt;WorkLease&gt; result = leases.tryAcquire("nightly-import", worker, Duration.ofSeconds(60));
+if (result.isAcquired()) &#123; /* the lease is held until result.getLease().getExpiresAt() */ &#125;
+leases.release("nightly-import", worker);</code></pre>{/content}
+    {/include}
+</div>
+
+<div class="learn-section">
+    <h2>Derived update methods</h2>
+    {#include tags/code-block title="JobTicketRepository" lang="Java"}
+    {#content}<pre><code>@Repository
+public interface JobTicketRepository extends BasicRepository&lt;JobTicket, String&gt; &#123;
+    long updateByState(JobState state, @Param("owner") String owner);                         // updateMany
+    Optional&lt;JobTicket&gt; updateByIdAndState(String id, JobState state, @Param("owner") String owner);  // findAndModify
+&#125;</code></pre>{/content}
+    {/include}
+</div>
+
+<div class="learn-section">
+    <h2>A rejected write</h2>
+    {#include tags/code-block title="Rejected write" lang="Java"}
+    {#content}<pre><code>try &#123;
+    query.f("id").eq(ticketId).set("code", newCode);          // the code has a unique index
+&#125; catch (MorphiumDriverException e) &#123;
+    if (e.isDuplicateKey()) &#123; /* 6.x ignored the reply of the server and returned as if it had written */ &#125;
+&#125;</code></pre>{/content}
+    {/include}
+</div>
+
+<div class="learn-section">
+    {#include tags/doc-links docLinks=docLinks /}
+</div>

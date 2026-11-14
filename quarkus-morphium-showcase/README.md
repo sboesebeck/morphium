@@ -8,7 +8,7 @@
 > It is optional and not part of the default build; it always uses the Morphium and Quarkus versions of this checkout (`morphium-parent`).
 >
 > ```bash
-> mvn -Pshowcase -pl quarkus-morphium-showcase -am install -DskipTests    # build it with the modules it needs
+> mvn -Pshowcase -pl quarkus-morphium/deployment,quarkus-morphium-showcase -am install -DskipTests    # build it with the modules it needs (Quarkus loads the deployment module of the extension, so it is named, too)
 > mvn -Pshowcase -pl quarkus-morphium-showcase quarkus:dev                # run it (dev mode, MongoDB through Dev Services)
 > mvn -Pshowcase -pl quarkus-morphium-showcase test                       # its tests
 > docker build -f quarkus-morphium-showcase/Dockerfile -t quarkus-morphium-showcase:local .   # the image, context is the repository root
@@ -20,33 +20,16 @@ and [HTMX](https://htmx.org).
 
 Built on the [quarkus-morphium](../quarkus-morphium) extension of this repository.
 
-### New in 6.3.1
+### What the showcase shows of 7.0
 
-- **Migration Runner** -- `@MorphiumChangeUnit`/`@Execution`/`@RollbackExecution`, a changelog,
-  and a distributed lock so multiple instances never run the same migration concurrently
-- **Field-Level Encryption** -- `@Encrypted` transparently encrypts individual entity fields
-  before they hit MongoDB
-- **JCache (JSR-107) Integration** -- `MorphiumCacheJCacheImpl` as a drop-in alternative to the
-  default in-memory cache
-- **Change Streams** -- realtime insert/update/delete notifications via `ChangeStreamMonitor`,
-  streamed to the browser over Server-Sent Events
-- **`CursoredPage<T>`** -- keyset (cursor) pagination alongside the existing offset `Page<T>`
-- **`MorphiumId` JSON serialization** -- entities serialize their `@Id MorphiumId` field as a
-  plain 24-character hex string over REST, no custom serializer needed
-- **CDI transaction lifecycle events** -- `@MorphiumTxPhase(BEFORE_COMMIT/AFTER_COMMIT/AFTER_ROLLBACK)`
-  observers alongside `@MorphiumTransactional`
+- **Writes that fail raise** -- a unique index violation or a `$pull` on a non-array is a `MorphiumDriverException` (`isDuplicateKey()`), no longer ignored
+- **Update values are mapped like `store()`** -- embedded objects, enums and `java.time` in `Query.set/push`; no `Date.from(...)` workarounds
+- **Atomic updates** -- `Query.modify()`, `@AtomicUpdate`, derived `updateBy...` repository methods, leases with `LeaseManager`
+- **Jakarta Data** -- `findFirstBy`, `IgnoreCase`, `@Query("UPDATE ...")`, ordinal parameters, repositories without a primary entity
+- **Records and enums** -- `@Embedded` records, `@Enumerated` (name or ordinal)
+- **Docs hub** -- the documentation of this repository, including [Migrating from 6 to 7](/docs/howtos/migration-v6-to-v7)
 
-<details>
-<summary>Earlier releases</summary>
-
-**quarkus-morphium v1.1.0** (pre-modularization fork, since merged into the main Morphium
-repository):
-
-- **GROUP BY + Aggregation** -- `SELECT department, COUNT(this), SUM(salary) GROUP BY department` with Java Record return types
-- **HAVING (AND/OR)** -- `HAVING COUNT(this) > :min OR SUM(salary) >= :threshold`
-- **Stream** -- cursor-backed `Stream<T>` for memory-efficient large result set processing
-- **Async** -- `CompletionStage<T>` for non-blocking repository queries
-</details>
+Coming from Morphium 6: the [migration page](../docs/howtos/migration-v6-to-v7.md) lists what to look at.
 
 ---
 
@@ -207,40 +190,23 @@ standard Jakarta Data CRUD plus `morphium()` and `query()` as the escape hatch.
 
 ## Quick Start
 
+From the root of the Morphium repository (the showcase is an optional module, profile `showcase`):
+
 ```bash
-# Clone and run (Dev Services starts MongoDB automatically)
-git clone https://github.com/Bardioc1977/quarkus-morphium-showcase.git
-cd quarkus-morphium-showcase
-mvn quarkus:dev
+mvn -Pshowcase -pl quarkus-morphium/deployment,quarkus-morphium-showcase -am install -DskipTests
+mvn -Pshowcase -pl quarkus-morphium-showcase quarkus:dev      # Dev Services starts MongoDB automatically
 ```
 
-Open [http://localhost:8080](http://localhost:8080) in your browser.
+Open [http://localhost:8080](http://localhost:8080) in your browser. The showcase is built against the Morphium and Quarkus versions of the checkout, not against a release.
 
-`quarkus-morphium` and `morphium` are resolved directly from Maven Central -- no extra
-repository configuration, no credentials, no need to build the extension from source.
+## Docker
 
-## Docker Quickstart
-
-Run the showcase with a single command -- no JDK, Maven, or local MongoDB required:
+The image is built from the root of the repository and published by the workflow of the maintainer's fork; the server pulls `:latest` (Watchtower).
 
 ```bash
-docker compose up
-```
-
-Open [http://localhost:8080](http://localhost:8080) in your browser.
-
-```bash
-# Stop containers (keep data)
-docker compose down
-
-# Stop containers and remove data
-docker compose down -v
-```
-
-### Local build
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.build.yml up --build
+docker build -f quarkus-morphium-showcase/Dockerfile -t quarkus-morphium-showcase:local .
+docker compose -f quarkus-morphium-showcase/docker-compose.yml up        # image from GHCR
+docker compose -f quarkus-morphium-showcase/docker-compose.build.yml up --build   # build locally
 ```
 
 ## Prerequisites
@@ -256,36 +222,20 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up --build
 Tests use Morphium's `InMemDriver` -- no Docker or MongoDB needed:
 
 ```bash
-mvn test
+mvn -Pshowcase -pl quarkus-morphium-showcase test
 ```
 
-92 tests covering all repositories, services, and query operators.
-
-## Building
-
-```bash
-# Full build with tests
-mvn verify
-
-# Skip tests
-mvn package -DskipTests
-```
+Covers all repositories, services, query operators and the docs hub.
 
 ## Contributing
 
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md).
+Changes go through pull requests to the Morphium repository, like any other module; see its `docs/contributing.md`.
 
 ## License
 
-[Apache License 2.0](LICENSE)
+[Apache License 2.0](../LICENSE)
 
 ## Related Projects
 
 - [sboesebeck/morphium](https://github.com/sboesebeck/morphium) -- Morphium ORM, including the
   `quarkus-morphium` and `morphium-jakarta-data` modules this showcase depends on
-- [Bardioc1977/morphium](https://github.com/Bardioc1977/morphium) -- fork used for contributing
-  PRs upstream
-- [Quarkus](https://quarkus.io) -- supersonic, subatomic Java framework
-- [Jakarta Data 1.0](https://jakarta.ee/specifications/data/1.0/) -- the specification

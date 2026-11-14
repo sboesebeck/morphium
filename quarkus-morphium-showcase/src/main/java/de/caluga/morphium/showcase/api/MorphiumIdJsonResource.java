@@ -45,7 +45,7 @@ import java.util.List;
  * (e.g. {@code String(row.id)} collapsing to {@code "[object Object]"}), and forces every consuming
  * application to write and register its own custom serializer/deserializer.
  *
- * <p>{@code quarkus-morphium} 6.3.1 removes that requirement entirely. As soon as the extension
+ * <p>The {@code quarkus-morphium} extension removes that requirement entirely. As soon as the extension
  * detects a compatible JSON layer on the classpath, it registers the matching module automatically
  * -- no configuration, no code in this application:
  * <ul>

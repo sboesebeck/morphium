@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -51,7 +52,9 @@ public class MarkdownService {
     private static final String DOCS_PREFIX = "docs/";
     private static final String DOCS_INDEX = "docs-index.txt";
 
-    private static final Pattern LINK_PATTERN = Pattern.compile("\\[([^]]+)]\\(\\./([^)]+)\\.md\\)");
+    /** a relative link to a Markdown page of the hub: {@code [text](howtos/x.md)}, {@code (../x.md#anchor)}, {@code (./x.md)} */
+    private static final Pattern LINK_PATTERN = Pattern.compile("(\\[[^]]*]\\()(?!https?:|mailto:|#|/)([^)#\\s]+)\\.md(#[^)\\s]*)?\\)");
+    private static final Pattern ADMONITION_PATTERN = Pattern.compile("^!!!\\s+(\\w+)(?:\\s+\"([^\"]*)\")?\\s*$");
     private static final Pattern HEADING_PATTERN = Pattern.compile("^#\\s+(.+)$", Pattern.MULTILINE);
 
     private final Parser parser;
@@ -107,7 +110,7 @@ public class MarkdownService {
     public Optional<String> renderDoc(String slug) {
         String resourcePath = DOCS_PREFIX + slug + ".md";
         return readResource(resourcePath).map(markdown -> {
-            markdown = rewriteLinks(markdown);
+            markdown = rewriteAdmonitions(rewriteLinks(markdown, slug));
             Node document = parser.parse(markdown);
             return renderer.render(document);
         });
@@ -142,8 +145,53 @@ public class MarkdownService {
         return entries;
     }
 
-    private String rewriteLinks(String markdown) {
-        return LINK_PATTERN.matcher(markdown).replaceAll("[$1](/docs/$2)");
+    /**
+     * Rewrites the relative links of a page to the URLs of the hub: the link is resolved against the directory of the page ({@code slug}), so {@code ../api-reference.md}
+     * in {@code howtos/x} is {@code /docs/api-reference}. A link above the root of {@code docs/} is left alone.
+     */
+    static String rewriteLinks(String markdown, String slug) {
+        int slash = slug.lastIndexOf('/');
+        Path base = slash < 0 ? Path.of("") : Path.of(slug.substring(0, slash));
+        return LINK_PATTERN.matcher(markdown).replaceAll(m -> {
+            Path target = base.resolve(m.group(2)).normalize();
+
+            if (target.startsWith("..")) {
+                return Matcher.quoteReplacement(m.group());
+            }
+
+            String anchor = m.group(3) == null ? "" : m.group(3);
+            return Matcher.quoteReplacement(m.group(1) + "/docs/" + target.toString().replace('\\', '/') + anchor + ")");
+        });
+    }
+
+    /** MkDocs admonitions ({@code !!! note "Title"} and the indented block) are shown as block quotes, which this renderer knows. */
+    static String rewriteAdmonitions(String markdown) {
+        String[] lines = markdown.split("\n", -1);
+        StringBuilder out = new StringBuilder();
+
+        for (int i = 0; i < lines.length; i++) {
+            Matcher m = ADMONITION_PATTERN.matcher(lines[i]);
+
+            if (!m.matches()) {
+                out.append(lines[i]);
+
+                if (i < lines.length - 1) {
+                    out.append('\n');
+                }
+
+                continue;
+            }
+
+            String title = m.group(2) != null ? m.group(2) : capitalize(m.group(1));
+            out.append("> **").append(title).append("**\n>\n");
+
+            while (i + 1 < lines.length && (lines[i + 1].startsWith("    ") || lines[i + 1].isBlank()) && !(lines[i + 1].isBlank() && (i + 2 >= lines.length || !lines[i + 2].startsWith("    ")))) {
+                i++;
+                out.append("> ").append(lines[i].startsWith("    ") ? lines[i].substring(4) : "").append('\n');
+            }
+        }
+
+        return out.toString();
     }
 
     private static String capitalize(String s) {
