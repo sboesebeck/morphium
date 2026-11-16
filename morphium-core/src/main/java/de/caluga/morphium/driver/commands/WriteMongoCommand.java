@@ -1,4 +1,5 @@
 package de.caluga.morphium.driver.commands;
+import de.caluga.morphium.annotations.Transient;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriverException;
@@ -14,9 +15,16 @@ import org.slf4j.LoggerFactory;
 public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCommand<T> {
     private Map<String, Object> writeConcern;
     private Boolean bypassDocumentValidation;
+    @Transient
+    private boolean retryNetworkErrors = true;
 
     public WriteMongoCommand(MongoConnection d) {
         super(d);
+    }
+
+    /** Disable retries when a lost reply would make a non-idempotent write ambiguous. */
+    public void setRetryNetworkErrors(boolean retryNetworkErrors) {
+        this.retryNetworkErrors = retryNetworkErrors;
     }
 
     public Map<String, Object> getWriteConcern() {
@@ -205,6 +213,9 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
 
                 return resentAfterNetworkError ? reconcileWriteErrorsAfterNetworkRetry(crs) : crs;
             } catch (MorphiumDriverException e) {
+                if (!retryNetworkErrors && e instanceof MorphiumDriverNetworkException) {
+                    throw e;
+                }
                 String errMsg = e.getMessage() == null ? "" : e.getMessage().toLowerCase();
                 if (StepDownErrors.isStepDownError(e)) {
                     // Primary stepped down / is shutting down: the write was rejected, so

@@ -13934,6 +13934,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     }
                 } catch (MorphiumDriverException e) {
                     log.error("Got exception: ", e);
+                    throw e;
                 }
 
                 // Build result document
