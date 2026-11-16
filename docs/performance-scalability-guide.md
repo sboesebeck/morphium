@@ -58,6 +58,14 @@ To force a rescan (e.g., after hot-reloading classes):
 ClassGraphCache.invalidate();
 ```
 
+The cache is process-global and assumes one stable application classpath; it is not
+scoped per classloader. The Quarkus extension pre-registers selected annotation-name
+lookups at build time for native-image use. That does not make every `ClassGraphCache`
+API scan-free: metadata lookups (`getClassInfoWithAnnotation` /
+`getSubclassInfoOf`) and subclass-name lookups still use a live scan. Use the
+Quarkus extension's documented index-check modes for native images; do not assume
+plain JVM scanning or arbitrary classloader changes work in a native image.
+
 ### Index Check Settings
 The `IndexCheck` setting controls what happens at startup when indices defined on `@Entity` classes don't match the database:
 
