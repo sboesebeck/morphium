@@ -151,6 +151,18 @@ public class WriteConcernWaitsClusterTest {
         assertTrue(poll(40_000, node::isPrimary), what + ": node must become primary");
     }
 
+    /**
+     * A w=2 write sent before any secondary has reported is answered "no secondaries" after
+     * 100 ms - correctly, but not what these tests are about. On a loaded host the secondaries
+     * need longer for their initial sync than the test needs to send its first write.
+     */
+    private void awaitSecondariesLive(PoppyDB primary) throws Exception {
+        assertTrue(poll(40_000, () -> {
+            ReplicationCoordinator coordinator = primary.getReplicationCoordinator();
+            return coordinator != null && coordinator.getActiveSecondaryCount() == 2;
+        }), "both secondaries must have reported to the primary");
+    }
+
     private PoppyDB currentPrimaryOtherThan(PoppyDB notThis) {
         for (PoppyDB node : List.of(node1, node2, node3)) {
             if (node != notThis && node.isPrimary()) {
@@ -213,6 +225,7 @@ public class WriteConcernWaitsClusterTest {
     public void w2WritesAreAcknowledgedAgainRightAfterTheNodeTookTheLeadBack() throws Exception {
         startThreeNodeSet();
         awaitPrimary(node1, "initial election");
+        awaitSecondariesLive(node1);
 
         // Steady state: w=2 writes are acknowledged by the secondaries.
         for (int i = 0; i < 5; i++) {
@@ -343,6 +356,7 @@ public class WriteConcernWaitsClusterTest {
     public void anIdleSetKeepsItsSecondariesLive() throws Exception {
         startThreeNodeSet();
         awaitPrimary(node1, "initial election");
+        awaitSecondariesLive(node1);
 
         // One write with w=2, then silence - nothing but the heartbeat report keeps this alive.
         Map<String, Object> reply = insert(port1, "only-write", 2, 10_000);
