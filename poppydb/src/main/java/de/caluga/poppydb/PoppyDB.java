@@ -264,6 +264,35 @@ public class PoppyDB {
     // for serverStatus, and the per-host priorities replSetGetConfig reports.
     private final de.caluga.poppydb.netty.OpRegistry opRegistry = new de.caluga.poppydb.netty.OpRegistry();
     private final java.util.concurrent.atomic.AtomicLong connectionsCreated = new java.util.concurrent.atomic.AtomicLong();
+
+    // Connection limit (#530). The replica-set members connect to the same port as the clients,
+    // so a node at its client limit used to turn away its own set as well (replication watch,
+    // progress reports, election traffic, the members' driver probes). A connection whose remote
+    // ADDRESS (the source port is ephemeral) is one of the configured hosts is a member connection:
+    // it does not count against --max-connections, only against its own fixed cap (when that is
+    // full it takes a free client slot). Both counters go up on accept and down on the channel's
+    // close future - exactly once, however it closes.
+    static final int MAX_MEMBER_CONNECTIONS = 256;
+    // Package-private and not final only so a test can reach the cap without 256 sockets.
+    int maxMemberConnections = MAX_MEMBER_CONNECTIONS;
+    private final AtomicInteger clientConnections = new AtomicInteger();
+    private final AtomicInteger memberConnections = new AtomicInteger();
+    private final java.util.concurrent.atomic.AtomicLong connectionsRejected = new java.util.concurrent.atomic.AtomicLong();
+    private final ConnectionRejectionLog clientRejectionLog = new ConnectionRejectionLog("client connection limit");
+    private final ConnectionRejectionLog memberRejectionLog = new ConnectionRejectionLog("member connection cap");
+    // The addresses the hosts list resolves to - empty on a standalone node, so nothing is a member
+    // there. Resolved before the bind and refreshed off the event loop (memberAddressResolver):
+    // the accept path only ever reads this set, it never does a lookup.
+    private volatile Set<java.net.InetAddress> memberAddresses = Set.of();
+    // Last successful lookup per host name: a failed lookup keeps the previous addresses instead
+    // of demoting a member to a client because of a DNS hiccup.
+    private volatile Map<String, Set<java.net.InetAddress>> resolvedMemberHosts = Map.of();
+    private final Set<String> unresolvedMemberHosts = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private volatile java.util.concurrent.ScheduledExecutorService memberAddressResolver;
+    static final long MEMBER_ADDRESS_REFRESH_MS = 60_000;
+    static final long MEMBER_ADDRESS_RETRY_MS = 5_000;
+    private volatile java.util.function.Predicate<java.net.InetSocketAddress> memberConnectionCheck =
+            remote -> remote != null && memberAddresses.contains(remote.getAddress());
     private volatile Map<String, Integer> hostPriorities;
     // Effective startup options snapshot backing getCmdLineOpts (#511); set by PoppyDBCLI.
     private volatile Map<String, Object> cmdLineOpts = null;
@@ -480,9 +509,8 @@ public class PoppyDB {
                 .childHandler(new ChannelInitializer<SocketChannel>() {
                     @Override
                     protected void initChannel(SocketChannel ch) throws Exception {
-                        // Check connection limit
-                        if (allChannels.size() >= maxConnections) {
-                            log.warn("Connection limit reached ({}/{}), rejecting", allChannels.size(), maxConnections);
+                        // Check connection limit - clients and replica-set members separately (#530)
+                        if (!admitConnection(ch)) {
                             ch.close();
                             return;
                         }
@@ -518,6 +546,7 @@ public class PoppyDB {
                          .setOpRegistry(opRegistry)
                          .setWriteConcernWaitStats(writeConcernWaitStats)
                          .setConnectionCounters(allChannels::size, connectionsCreated::get)
+                         .setConnectionLimitCounters(memberConnections::get, connectionsRejected::get)
                          .setRsPriorities(hostPriorities)
                          .setDumpNowAction(dumpDirectory == null ? null : PoppyDB.this::triggerDumpNow)
                          .setDumpStatusSupplier(PoppyDB.this::getDumpStatus)
@@ -540,11 +569,16 @@ public class PoppyDB {
         // data yet. Decided before the bind so no read can slip in ahead of it.
         enterAwaitingFirstSyncIfReplicating();
 
+        // #530: know the members' addresses before the first connection arrives (on this thread,
+        // never on the event loop), then keep them fresh in the background
+        boolean memberAddressesResolved = !isReplicaSetConfigured() || refreshMemberAddresses();
+
         // Bind and start
         ChannelFuture future = bootstrap.bind(host, port).sync();
         serverChannel = future.channel();
         shutdownStarted.set(false);
         running = true;
+        startMemberAddressResolver(memberAddressesResolved);
 
         log.info("PoppyDB started on {}:{} (workers: {})", host, port, workerThreads);
 
@@ -646,6 +680,8 @@ public class PoppyDB {
 
         // Stop dump scheduler
         stopDumpScheduler();
+
+        stopMemberAddressResolver();
 
         // Final dump. The scheduler is already stopped, but an on-demand dumpNow may still be
         // running - wait a bounded time for the guard instead of writing the same files
@@ -2601,6 +2637,192 @@ public class PoppyDB {
     }
 
     /**
+     * The connection limit (#530): a member connection counts against {@link #maxMemberConnections},
+     * every other one - and a member that finds its cap full - against {@code maxConnections}. Runs on the accept path (an event loop) and
+     * therefore only reads the resolved member addresses, it never looks a name up. The counter
+     * of an admitted channel goes down on its close future - exactly once, whoever closes it.
+     */
+    private boolean admitConnection(SocketChannel ch) {
+        java.net.InetSocketAddress remote = ch.remoteAddress();
+        boolean member = memberConnectionCheck.test(remote);
+        ConnectionRejectionLog rejectionLog = member ? memberRejectionLog : clientRejectionLog;
+        long now = System.currentTimeMillis();
+        AtomicInteger counter = null;
+
+        if (member) {
+            if (memberConnections.incrementAndGet() <= maxMemberConnections) {
+                counter = memberConnections;
+            } else {
+                memberConnections.decrementAndGet();
+            }
+        }
+
+        // A member that finds its cap full falls back to a free client slot: a set whose seeds
+        // resolve to the clients' address too (loopback, an application on a member's host) must
+        // never admit fewer connections than the plain client limit did before.
+        if (counter == null) {
+            if (clientConnections.incrementAndGet() <= maxConnections) {
+                counter = clientConnections;
+            } else {
+                clientConnections.decrementAndGet();
+            }
+        }
+
+        if (counter == null) {
+            connectionsRejected.incrementAndGet();
+            String line = rejectionLog.rejected(now, () -> (member ? "Member connection cap and connection limit" : "Connection limit")
+                    + " reached (clients " + clientConnections.get() + "/" + maxConnections
+                    + ", members " + memberConnections.get() + "/" + maxMemberConnections + "), rejecting " + remote);
+
+            if (line != null) {
+                log.warn(line);
+            }
+
+            return false;
+        }
+
+        AtomicInteger admittedAs = counter;
+        ch.closeFuture().addListener(f -> admittedAs.decrementAndGet());
+        String line = rejectionLog.accepted(now);
+
+        if (line != null) {
+            log.info(line);
+        }
+
+        return true;
+    }
+
+    private boolean isReplicaSetConfigured() {
+        return rsName != null && !rsName.isEmpty() && hosts != null && !hosts.isEmpty();
+    }
+
+    /**
+     * Resolves the hosts list to the addresses member connections come from (#530). A host whose
+     * lookup fails keeps its last known addresses. Runs at start (before the bind) and on the
+     * resolver thread - never on an event loop.
+     *
+     * @return true if every host resolved
+     */
+    boolean refreshMemberAddresses() {
+        Map<String, Set<java.net.InetAddress>> previous = resolvedMemberHosts;
+        Map<String, Set<java.net.InetAddress>> next = new HashMap<>();
+        boolean allResolved = true;
+
+        for (String member : new ArrayList<>(hosts)) {
+            String name = hostOf(member);
+
+            try {
+                Set<java.net.InetAddress> addresses = Set.copyOf(Arrays.asList(java.net.InetAddress.getAllByName(name)));
+                next.put(name, addresses);
+
+                if (unresolvedMemberHosts.remove(name)) {
+                    log.info("Replica set host {} resolves again: {}", name, addresses);
+                }
+            } catch (java.net.UnknownHostException e) {
+                allResolved = false;
+                Set<java.net.InetAddress> known = previous.get(name);
+
+                if (known != null) {
+                    next.put(name, known);
+                }
+
+                if (unresolvedMemberHosts.add(name)) {
+                    log.warn("Cannot resolve replica set host {} ({}) - {}, retrying every {} s", name, e.getMessage(),
+                             known == null ? "its connections count as client connections"
+                                           : "keeping its last known addresses " + known,
+                             MEMBER_ADDRESS_RETRY_MS / 1000);
+                }
+            }
+        }
+
+        Set<java.net.InetAddress> all = new HashSet<>();
+        next.values().forEach(all::addAll);
+        resolvedMemberHosts = next;
+        memberAddresses = Set.copyOf(all);
+        return allResolved;
+    }
+
+    /** The host part of a {@code host:port} entry ({@code [v6]:port} included). */
+    static String hostOf(String hostAndPort) {
+        if (hostAndPort.startsWith("[") && hostAndPort.indexOf(']') > 0) {
+            return hostAndPort.substring(1, hostAndPort.indexOf(']'));
+        }
+
+        int colon = hostAndPort.lastIndexOf(':');
+        // more than one colon without brackets: a bare IPv6 address, no port to strip
+        return colon > 0 && hostAndPort.indexOf(':') == colon ? hostAndPort.substring(0, colon) : hostAndPort;
+    }
+
+    /** Re-resolves the hosts list periodically, sooner after a failed lookup (#530). */
+    private void startMemberAddressResolver(boolean lastRefreshComplete) {
+        if (!isReplicaSetConfigured() || memberAddressResolver != null) {
+            return;
+        }
+
+        memberAddressResolver = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "poppydb-member-resolver-" + port);
+            t.setDaemon(true);
+            return t;
+        });
+        scheduleMemberAddressRefresh(lastRefreshComplete);
+    }
+
+    private void scheduleMemberAddressRefresh(boolean lastRefreshComplete) {
+        java.util.concurrent.ScheduledExecutorService resolver = memberAddressResolver;
+
+        if (resolver == null) {
+            return;
+        }
+
+        try {
+            resolver.schedule(() -> {
+                boolean complete;
+
+                try {
+                    complete = refreshMemberAddresses();
+                } catch (Throwable e) {
+                    log.warn("Refreshing the replica set member addresses failed: {}", e.toString());
+                    complete = false;
+                }
+
+                scheduleMemberAddressRefresh(complete);
+            }, lastRefreshComplete ? MEMBER_ADDRESS_REFRESH_MS : MEMBER_ADDRESS_RETRY_MS, TimeUnit.MILLISECONDS);
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            // shut down meanwhile
+        }
+    }
+
+    private void stopMemberAddressResolver() {
+        java.util.concurrent.ScheduledExecutorService resolver = memberAddressResolver;
+        memberAddressResolver = null;
+
+        if (resolver != null) {
+            resolver.shutdownNow();
+        }
+    }
+
+    /** Test seam (#530): decide member vs client by something other than the remote address. */
+    void setMemberConnectionCheckForTest(java.util.function.Predicate<java.net.InetSocketAddress> check) {
+        this.memberConnectionCheck = check;
+    }
+
+    boolean isMemberAddress(java.net.InetAddress address) {
+        return memberAddresses.contains(address);
+    }
+
+    int getClientConnectionCount() {
+        return clientConnections.get();
+    }
+
+    int getMemberConnectionCount() {
+        return memberConnections.get();
+    }
+
+    long getRejectedConnectionCount() {
+        return connectionsRejected.get();
+    }
+
+    /**
      * Test/monitoring hook: number of currently open server-side find cursors on THIS instance
      * only. Delegates to this instance's own {@link FindCursorRegistry} — see that class'
      * javadoc for why this must never be a JVM-static count shared across PoppyDB instances.
@@ -2621,6 +2843,8 @@ public class PoppyDB {
         Map<String, Object> stats = new HashMap<>();
         stats.put("connections", allChannels.size());
         stats.put("maxConnections", maxConnections);
+        stats.put("memberConnections", memberConnections.get());
+        stats.put("connectionsRejected", connectionsRejected.get());
         stats.put("running", running);
         stats.put("primary", primary);
         stats.put("primaryHost", primaryHost);

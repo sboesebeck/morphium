@@ -253,7 +253,7 @@ case/separator-insensitive) — flags without one are CLI-only (there is nothing
 | `--users-file <path>` | `users-file` | JSON file declaring users to provision at startup (idempotent upsert, primary-only apply, optional version gate). See [Bootstrapping users](#bootstrapping-users-users-file). | |
 | `-d`, `--dump-dir <path>` | `dump-dir` | Directory for periodic database dumps. Enables persistence. | |
 | `--dump-interval <seconds>` | `dump-interval` | Interval between periodic dumps. 0 = only dump on shutdown. | `0` |
-| `--max-connections <num>` | `max-connections` | Maximum concurrent connections. | `500` |
+| `--max-connections <num>` | `max-connections` | Maximum concurrent client connections. Connections from replica-set members are counted separately, see [Connection limit](#connection-limit). | `500` |
 | `--socket-timeout <seconds>` | `socket-timeout` | Idle connection timeout in seconds. | `300` |
 | `--cfg <path>`, `-f <path>` | | Load settings from this [configuration file](#configuration-file). | |
 | `--no-config` | | Skip the configuration file's default search paths (an explicit `--cfg`/`-f` still applies). | |
@@ -315,6 +315,46 @@ directions**, mixed clusters included. For a rolling restart, restarting the hig
 node last is still the tidier order - nothing breaks otherwise, that is what these mechanisms
 are for, but it keeps a freshly started, still-syncing node with a priority advantage out of
 the critical path.
+
+### Connection limit
+
+The members of a replica set connect to the same port as the clients: the secondaries'
+replication watch and progress reports, the election traffic (vote requests, the leader's
+heartbeats) and the `hello` probes of the members' drivers. So that a client connection storm
+cannot cut a node off from its own set, a connection whose remote IP address is the address of
+one of the `--rs-seed` hosts counts as a **member connection**:
+
+- `--max-connections` limits only the other (client) connections.
+- Member connections have their own fixed cap of 256 per node. A member connection that finds
+  this cap full takes a free client slot instead (and counts as a client until it closes); only
+  when both are full is it rejected. A replica-set node therefore admits up to 256 +
+  `--max-connections` connections in total, never fewer than `--max-connections`.
+- The seed host names are resolved at start and re-resolved every 60 s (every 5 s while a
+  lookup fails; a host keeps its last known addresses meanwhile), so a DNS change needs no
+  restart. Only the address is compared - the source port is ephemeral. The first lookup runs
+  during start, before the node binds its port, so a slow or broken DNS delays the startup.
+- A standalone node has no members: every connection is a client connection, as before.
+
+Consequence to keep in mind: a client running on a member's host - and every client of a set
+that runs entirely on one host, such as a local test cluster on `127.0.0.1` - counts as a member
+connection: such a node fills its member cap first and then its client slots. Connections are made from the address the
+operating system picks for the route to the peer; a member that reaches the others through NAT
+or from an interface its seed name does not resolve to counts as a client.
+
+Rejections are logged rate-limited: the first one after a clean period as a WARN with the
+client count, the limit, the member count and the rejected address; while rejections continue
+at most one summary WARN per 10 s with the number rejected since the last line; one INFO with
+the total and the duration (first to last rejection) for the first accepted connection after
+10 s without a rejection. Churn at the limit - a slot frees, one connection is accepted, the
+next is rejected - keeps the episode open instead of logging every freed slot.
+
+`serverStatus.connections` reports, besides `current` (all open connections), `available` and
+`totalCreated`:
+
+| Field | Meaning |
+|---|---|
+| `members` | open member connections |
+| `rejected` | connections rejected by either limit since the process started |
 
 ### Programmatic Replica Set Configuration
 
@@ -1430,7 +1470,7 @@ PoppyDB implements the following MongoDB admin commands:
 | `listCommands` | Names of every command this server answers - and only those; `shutdown` is listed only where it works, explicitly refused commands are not listed |
 | `currentOp` / `$currentOp` stage | Live operations from the server's op registry — `db.currentOp()` works, including `$match` filters |
 | `killOp` | Marks an op kill-pending; best-effort thread interrupt (never a Netty event loop — cooperative like mongod) |
-| `serverStatus` | Includes real client connection gauges (`connections.current`/`totalCreated` from the Netty channel group) and the change stream counters `changeStreams.registrations` / `resumeRegistrations` (lifetime totals of registrations that reached this node, served or refused) / `open` (#380) |
+| `serverStatus` | Includes real client connection gauges (`connections.current`/`totalCreated` from the Netty channel group, `members`/`rejected` - see [Connection limit](#connection-limit)) and the change stream counters `changeStreams.registrations` / `resumeRegistrations` (lifetime totals of registrations that reached this node, served or refused) / `open` (#380) |
 | `dbStats` / `collStats` | Real BSON data sizes, estimated index sizes |
 | `hostInfo` | Host basics (hostname, cores, memory, OS, JVM) |
 | `connectionStatus` | Authenticated user of this connection (empty without `--auth`) |

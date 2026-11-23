@@ -15,6 +15,9 @@ After a leader change back to the same node, every `w>=2` write on it timed out 
 #### PoppyDB: a write-concern wait no longer occupies a thread (#529)
 The entry above removes one backlog, not its cause: every unacknowledged `w>=2` write held one of very few command-pool threads for its whole `wtimeout`, so any pause in acknowledgements (a slow or re-syncing secondary, a network hiccup) queued every other `w>=2` write behind it. The wait is now a registered callback, completed by a progress report, a single shared timer or the step-down, and the command pool is gone. A wait released by a step-down (or shutdown) is answered at once as `writeConcernError` code 189 (`PrimarySteppedDown`) with `ok: 1` - not a top-level not-primary error, because the write was applied and drivers re-send on those; the Morphium driver re-sends on neither 64 nor 189. Idle secondaries now report every 5 s once their initial sync is done, so the primary keeps counting them as live, and `serverStatus.writeConcernWaits` shows current waits and outcome counters that survive leader changes.
 
+#### PoppyDB: replica-set members are no longer rejected by the client connection limit (#530)
+Members connect to the same port as clients, so a node held at `--max-connections` by a client reconnect storm also turned away its own set (replication, progress reports, election traffic). Connections from the address of a seed host now count as member connections with their own cap of 256 (overflowing into free client slots, so a node never admits fewer connections than before); `--max-connections` applies to all others. The rejection log is rate-limited (one WARN, then a summary per 10 s), and `serverStatus.connections` adds `members` and `rejected`.
+
 
 ## [6.3.16] - 2026-11-04
 

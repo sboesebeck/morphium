@@ -422,6 +422,20 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         return this;
     }
 
+    private java.util.function.IntSupplier memberConnectionCountSupplier;
+    private java.util.function.LongSupplier connectionsRejectedSupplier;
+
+    /**
+     * serverStatus.connections.members / rejected (#530): the replica-set member connections
+     * (counted apart from the client limit) and the connections rejected since process start.
+     */
+    public MongoCommandHandler setConnectionLimitCounters(java.util.function.IntSupplier members,
+            java.util.function.LongSupplier rejected) {
+        this.memberConnectionCountSupplier = members;
+        this.connectionsRejectedSupplier = rejected;
+        return this;
+    }
+
     /** Per-host election priorities for replSetGetConfig (rs.conf()). */
     public MongoCommandHandler setRsPriorities(Map<String, Integer> rsPriorities) {
         this.rsPriorities = rsPriorities;
@@ -1646,8 +1660,15 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
             if (cmd.equals("serverStatus") && connectionCountSupplier != null) {
                 int current = connectionCountSupplier.getAsInt();
                 long created = connectionsCreatedSupplier == null ? current : connectionsCreatedSupplier.getAsLong();
-                answer.put("connections", Doc.of("current", current,
-                        "available", Math.max(0, 1000000 - current), "totalCreated", created));
+                Doc connections = Doc.of("current", current,
+                        "available", Math.max(0, 1000000 - current), "totalCreated", created);
+                if (memberConnectionCountSupplier != null) {
+                    connections.put("members", memberConnectionCountSupplier.getAsInt());
+                }
+                if (connectionsRejectedSupplier != null) {
+                    connections.put("rejected", connectionsRejectedSupplier.getAsLong());
+                }
+                answer.put("connections", connections);
             }
 
             // #380 instrumentation: the change stream registration counters (see
