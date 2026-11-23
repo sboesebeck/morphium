@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+#### PoppyDB: write-concern waits of a former primary no longer block the answers of all later writes
+After a leader change back to the same node, every `w>=2` write on it timed out for minutes (prod bus, 2026-11-20 and 2026-11-23; ended only by a restart or once the queue had drained). A `w>=2` write waits for its acknowledgement on the fixed command pool (2 x cores) and keeps the `ReplicationCoordinator` it was written under. When the node lost leadership the coordinator was dropped but the waits were not: no secondary reports to that instance any more, so each one held a pool thread for its full timeout (10 s), counted from the moment it got a thread. The writes of the next leadership queued behind them and got their answers only after the backlog - 24 threads x 10 s = 144 timeouts per minute. `ReplicationCoordinator.close()` now ends all waits on a coordinator when the node steps down, and the timeout counts from the write, so a wait that expired in the queue returns at once. Pinned in `ReplicationCoordinatorCloseTest`.
+
 
 ## [6.3.16] - 2026-11-04
 
