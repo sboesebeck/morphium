@@ -344,6 +344,44 @@ When using entities with `@WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES)`
 - This allows you to store documents on the primary before starting secondary nodes
 - Once secondaries connect, writes will properly wait for replication acknowledgment
 
+A waiting `w > 1` write does not occupy a server thread: the primary registers the wait and
+answers the write when a secondary reports the sequence, when `wtimeout` (counted from the write,
+default 10 s) runs out, or when the node steps down or shuts down. Any number of writes can wait at the same
+time, and one wait never delays the answer of another. The write itself is always executed on
+the primary and answered with `ok: 1`; a concern that could not be met is reported in
+`writeConcernError`:
+
+| Situation | `writeConcernError` |
+|---|---|
+| `wtimeout` elapsed, or no secondary has ever reported (after the 100 ms grace) | `code: 64`, `codeName: "WriteConcernFailed"`, `errInfo: {wtimeout: true}` |
+| the primary stepped down (or shut down) while the write was waiting | `code: 189`, `codeName: "PrimarySteppedDown"` - answered at once, not at the end of `wtimeout` |
+
+`PrimarySteppedDown` is deliberately a write-concern error and not a top-level not-primary error:
+the write was applied on the old primary, and a driver re-sends a write on a top-level
+not-primary error, which would apply a non-idempotent update twice. Whether the write survives
+the leader change depends on whether it reached a secondary before - as with mongod. The Morphium
+driver re-sends the write for neither code; note that it also does not raise either of them to a
+`store()` caller.
+
+Once its initial sync is complete, a secondary reports its replication progress to the primary at
+least every 5 s even when nothing changed, so on an idle set the primary keeps counting them as live (it drops a secondary
+whose last report is older than 30 s).
+
+`serverStatus` exposes the waits under `writeConcernWaits`, on every node (a secondary has
+nothing waiting but keeps the counters it collected while it was primary):
+
+| Field | Meaning |
+|---|---|
+| `waiting` | writes waiting for their write concern right now |
+| `oldestWaitMs` | how long the oldest of them has been waiting |
+| `acknowledged`, `timedOut`, `noSecondaries`, `steppedDown` | how the waits ended, cumulative since the process started (they survive leader changes) |
+
+In the log, the first failed wait (timeout or no secondaries) after a clean period - an
+acknowledged write, or 60 s without a failure - is a WARN with the write's sequence, `w`, the
+primary's current sequence and each secondary's last reported sequence and the age of that
+report; while timeouts continue there is at most one summary WARN per 10 s, and one INFO once
+waits are acknowledged again. A step-down logs one INFO with the number of waits it released.
+
 This is particularly useful for testing scenarios where you want to:
 1. Start a primary node
 2. Store initial test data
