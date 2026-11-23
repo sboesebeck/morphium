@@ -17,6 +17,7 @@ import de.caluga.morphium.driver.commands.GenericCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.poppydb.ReplicationCoordinator;
+import de.caluga.poppydb.WriteConcernWaitStats;
 import de.caluga.poppydb.election.*;
 import de.caluga.poppydb.messaging.MessagingCollectionInfo;
 import de.caluga.poppydb.messaging.MessagingOptimizer;
@@ -26,8 +27,6 @@ import de.caluga.morphium.driver.wireprotocol.*;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
@@ -40,22 +39,12 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
     private static final Logger log = LoggerFactory.getLogger(MongoCommandHandler.class);
 
-    // Executor used ONLY for the asynchronous write-concern replication wait (see postWrite) -
-    // command processing itself, including the insert/find/update/delete fast paths, runs
-    // synchronously on the Netty event loop. A slow command therefore blocks every other
-    // connection on the same event loop; moving data commands onto a worker pool (with per-
-    // channel response ordering) is a known, deliberate open point, not an oversight.
-    // Uses a fixed pool (not virtual threads) to bound memory: virtual threads caused OOM
-    // because hundreds accumulated waiting on InMemoryDriver's per-collection write lock.
-    // Pool size = 2x CPU cores provides enough parallelism without memory pressure.
-    private static final ExecutorService COMMAND_EXECUTOR = Executors.newFixedThreadPool(
-            Math.max(16, Runtime.getRuntime().availableProcessors() * 2),
-            r -> {
-                Thread t = new Thread(r);
-                t.setDaemon(true);
-                t.setName("PoppyDB-cmd-" + t.threadId());
-                return t;
-            });
+    // Command processing, including the insert/find/update/delete fast paths, runs synchronously
+    // on the Netty event loop. A slow command therefore blocks every other connection on the same
+    // event loop; moving data commands onto a worker pool (with per-channel response ordering) is
+    // a known, deliberate open point, not an oversight. The write-concern wait no longer needs
+    // such a pool: it registers a waiter with the replication coordinator (see postWrite), which
+    // costs no thread at all.
 
     // Channel attributes for per-connection state
     private static final AttributeKey<MorphiumTransactionContext> TX_CONTEXT_KEY =
@@ -413,6 +402,15 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
     /** The server-wide op registry backing currentOp/$currentOp/killOp. */
     public MongoCommandHandler setOpRegistry(OpRegistry opRegistry) {
         this.opRegistry = opRegistry;
+        return this;
+    }
+
+    // The node's cumulative write-concern counters (owned by PoppyDB, outlive every coordinator).
+    private WriteConcernWaitStats writeConcernWaitStats;
+
+    /** Counters for serverStatus.writeConcernWaits while this node has no coordinator (secondary). */
+    public MongoCommandHandler setWriteConcernWaitStats(WriteConcernWaitStats writeConcernWaitStats) {
+        this.writeConcernWaitStats = writeConcernWaitStats;
         return this;
     }
 
@@ -856,8 +854,9 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
         }
 
         // Shared write-concern handling for fast-path writes (insert/update/delete/
-        // createIndexes). When w>1 this waits for replication off the I/O thread and sends
-        // the response itself; otherwise we send it here synchronously.
+        // createIndexes). When w>1 this registers a wait with the replication coordinator
+        // (no thread involved) and sends the response itself; otherwise we send it here
+        // synchronously.
         if (WRITE_COMMANDS.contains(cmd.toLowerCase())
                 && postWrite(ctx, doc, cmd, answer, requestId)) {
             return; // response will be sent asynchronously after the replication wait
@@ -1660,6 +1659,20 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 answer.put("poppyFlowControl", cursorManager.replicationFlowControl().statusSnapshot());
             }
 
+            // Write-concern waits: how many w>=2 writes of THIS node are waiting for a secondary
+            // right now, and how the finished ones ended since process start. Through the
+            // coordinator (resolved live) so a leadership change is reflected at once; a node
+            // without one has nothing waiting but still reports the counters it collected while
+            // it was primary.
+            if (cmd.equals("serverStatus")) {
+                ReplicationCoordinator statusCoordinator = replicationCoordinator();
+                answer.put("writeConcernWaits", statusCoordinator != null
+                        ? statusCoordinator.getWaitStats()
+                        : writeConcernWaitStats != null
+                                ? writeConcernWaitStats.snapshot(0, 0)
+                                : WriteConcernWaitStats.emptySnapshot());
+            }
+
             // Promote the pending user once the driver confirms the SCRAM exchange succeeded.
             // done:true covers both skipEmptyExchange and the empty third round trip.
             if (cmd.equals("saslContinue") && Boolean.TRUE.equals(answer.get("done"))
@@ -1691,8 +1704,8 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
                 setupTailableCursor(doc, answer);
             }
 
-            // Shared write-concern handling (w>1 waits for replication off the I/O thread
-            // and sends the response itself).
+            // Shared write-concern handling (w>1 registers a wait with the replication
+            // coordinator, which costs no thread, and sends the response itself).
             if (WRITE_COMMANDS.contains(cmd.toLowerCase())
                     && postWrite(ctx, doc, cmd, answer, requestId)) {
                 return; // Response will be sent asynchronously
@@ -1829,9 +1842,10 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
     /**
      * Shared write-concern handling for both dispatch paths, called after a successful write.
-     * If the effective write concern requires replication acknowledgement (w &gt; 1) this waits
-     * off the Netty I/O thread and sends the response itself, returning {@code true}. Otherwise
-     * it returns {@code false} and the caller sends the response synchronously.
+     * If the effective write concern requires replication acknowledgement (w &gt; 1) this hands the
+     * wait to the replication coordinator - no thread is blocked for it - and sends the response
+     * itself once the coordinator reports the outcome, returning {@code true}. Otherwise it
+     * returns {@code false} and the caller sends the response synchronously.
      *
      * <p>The replication coordinator is resolved through {@link #replicationCoordinator()} at
      * call time so a later switch to a live supplier needs no change here.
@@ -1865,27 +1879,43 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
         long writeSeq = driver.getChangeStreamSequence();
         long wtimeout = getWriteConcernTimeout(doc);
-        // The timeout counts from here, not from when a pool thread picks the wait up.
+        // The timeout counts from here, not from when a free slot to wait in turns up: the wait
+        // does not occupy one any more.
         long writtenAtMs = System.currentTimeMillis();
-        final Map<String, Object> finalAnswer = answer;
-        log.debug("Starting async replication wait: cmd={}, w={}, wtimeout={}", cmd, w, wtimeout);
-        COMMAND_EXECUTOR.execute(() -> {
-            try {
-                boolean acknowledged = coordinator.waitForReplication(writeSeq, w, wtimeout, writtenAtMs);
-                if (!acknowledged) {
-                    finalAnswer.put("writeConcernError", Doc.of(
-                        "code", 64,
-                        "codeName", "WriteConcernFailed",
-                        "errmsg", "waiting for replication timed out",
-                        "errInfo", Doc.of("wtimeout", true)
-                    ));
-                }
-            } finally {
-                // Dispatch response back to Netty event loop since we're on COMMAND_EXECUTOR
-                ctx.channel().eventLoop().execute(() -> sendResponse(ctx, requestId, finalAnswer));
-            }
+        log.debug("Starting replication wait: cmd={}, w={}, wtimeout={}", cmd, w, wtimeout);
+        coordinator.awaitReplication(writeSeq, w, wtimeout, writtenAtMs, outcome -> {
+            addWriteConcernOutcome(answer, outcome);
+            // Dispatch response back to the Netty event loop - the callback may run on the
+            // timer thread or on a reporting secondary's thread.
+            ctx.channel().eventLoop().execute(() -> sendResponse(ctx, requestId, answer));
         });
         return true;
+    }
+
+    /**
+     * Adds the {@code writeConcernError} for a wait that was not acknowledged; {@code ok} stays as
+     * it is. Package-private for WriteConcernWaitAnswerTest.
+     */
+    static void addWriteConcernOutcome(Map<String, Object> answer, ReplicationCoordinator.WaitOutcome outcome) {
+        if (outcome == ReplicationCoordinator.WaitOutcome.TIMEOUT
+                || outcome == ReplicationCoordinator.WaitOutcome.NO_SECONDARIES) {
+            answer.put("writeConcernError", Doc.of(
+                "code", 64,
+                "codeName", "WriteConcernFailed",
+                "errmsg", "waiting for replication timed out",
+                "errInfo", Doc.of("wtimeout", true)
+            ));
+        } else if (outcome == ReplicationCoordinator.WaitOutcome.STEPPED_DOWN) {
+            // Deliberately a writeConcernError and NOT a top-level NotWritablePrimary: the
+            // write WAS executed locally. A driver that re-sends on a top-level not-primary
+            // error would apply a non-idempotent update twice; a failed write concern is
+            // reported as such and not re-sent.
+            answer.put("writeConcernError", Doc.of(
+                "code", 189,
+                "codeName", "PrimarySteppedDown",
+                "errmsg", "primary stepped down while waiting for replication"
+            ));
+        }
     }
 
     /**

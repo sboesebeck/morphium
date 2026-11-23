@@ -233,6 +233,11 @@ public class PoppyDB {
     // (not just newly accepted ones) immediately observes the new value.
     private final AtomicReference<ReplicationCoordinator> replicationCoordinatorRef = new AtomicReference<>();
 
+    // Write-concern wait counters, deliberately OUTSIDE the coordinator: a leadership change
+    // replaces the coordinator, and the numbers an operator reads after an incident must not
+    // restart with it. Handed to every coordinator this node creates.
+    private final WriteConcernWaitStats writeConcernWaitStats = new WriteConcernWaitStats();
+
     // Bounded-backoff retry for a failed startReplicationToLeader() attempt (Finding B
     // hardening) - see scheduleReplicationRetry/retryReplicationStart. Single daemon thread,
     // created lazily (most PoppyDB instances - standalone, static-mode RS, most tests - never
@@ -511,6 +516,7 @@ public class PoppyDB {
                                 PoppyDB.this::isSecondarySyncing
                         ).setAuthRequired(authRequired)
                          .setOpRegistry(opRegistry)
+                         .setWriteConcernWaitStats(writeConcernWaitStats)
                          .setConnectionCounters(allChannels::size, connectionsCreated::get)
                          .setRsPriorities(hostPriorities)
                          .setDumpNowAction(dumpDirectory == null ? null : PoppyDB.this::triggerDumpNow)
@@ -622,6 +628,14 @@ public class PoppyDB {
 
         // Stop election system
         stopElection();
+
+        // stopElection() does not go through onLeadershipChange(false): release the write-concern
+        // waits here, while the event loops can still send their answers. Left alone they would
+        // sit in the shared timer until their deadline and then hit a closed event loop.
+        ReplicationCoordinator coordinator = replicationCoordinatorRef.getAndSet(null);
+        if (coordinator != null) {
+            coordinator.close();
+        }
 
         // Stop replication
         stopReplication();
@@ -1031,7 +1045,7 @@ public class PoppyDB {
 
         // Initialize replication coordinator for primary nodes in replica sets (static mode only)
         if (!electionEnabled && primary && !rsName.isEmpty() && hosts.size() > 1) {
-            replicationCoordinatorRef.set(new ReplicationCoordinator(hosts.size()));
+            replicationCoordinatorRef.set(newReplicationCoordinator());
             log.info("Replication coordinator initialized for {} nodes", hosts.size());
         }
 
@@ -1135,7 +1149,7 @@ public class PoppyDB {
             primaryHost = host + ":" + port;
 
             // Initialize replication coordinator (only if not already present)
-            if (hosts.size() > 1 && replicationCoordinatorRef.compareAndSet(null, new ReplicationCoordinator(hosts.size()))) {
+            if (hosts.size() > 1 && replicationCoordinatorRef.compareAndSet(null, newReplicationCoordinator())) {
                 log.info("Replication coordinator initialized for {} nodes", hosts.size());
             }
 
@@ -2633,6 +2647,12 @@ public class PoppyDB {
 
     public ReplicationCoordinator getReplicationCoordinator() {
         return replicationCoordinatorRef.get();
+    }
+
+    /** A coordinator for this node's leadership, recording into the node's write-concern counters. */
+    private ReplicationCoordinator newReplicationCoordinator() {
+        return new ReplicationCoordinator(hosts.size(), 10000, writeConcernWaitStats,
+                driver::getChangeStreamSequence);
     }
 
     /** Test hook: the secondary-side replication manager (null on a node that is currently primary). */

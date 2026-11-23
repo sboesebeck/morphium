@@ -49,6 +49,11 @@ public class ReplicationManager {
     private final AtomicLong lastEventTime = new AtomicLong(0);
     private final AtomicLong lastAppliedSequence = new AtomicLong(0);
     private final AtomicLong lastReportedSequence = new AtomicLong(0);
+    // When the last progress report was sent. Only a report refreshes this secondary's heartbeat
+    // on the primary, and the primary counts it as live for write concerns only while the report
+    // is younger than 30s - so an idle set has to keep reporting. Set on the attempt, not on
+    // success: a primary that rejects the report (no coordinator yet) gets one every 5s, not 20/s.
+    private final AtomicLong lastReportAttemptAtMs = new AtomicLong(0);
     // The primary's own change-stream sequence as observed at the most recent watch
     // registration (piggybacked on the wire as "poppyPrimarySequence", mirroring how
     // "poppyResumeSequence" rides the resumeAfter token in the other direction - see
@@ -85,6 +90,9 @@ public class ReplicationManager {
     // Test hook: when true the replication loop severs its connection and stops reconnecting,
     // simulating a network partition between this secondary and the primary.
     private final AtomicBoolean pausedForTest = new AtomicBoolean(false);
+    // Test hook: replication keeps running, but no progress report reaches the primary, so its
+    // write-concern waits stay pending (see holdProgressReportsForTest).
+    private final AtomicBoolean progressReportsHeldForTest = new AtomicBoolean(false);
 
     // Secondary's address for reporting back to primary
     private String myAddress;
@@ -381,6 +389,11 @@ public class ReplicationManager {
     // Progress reporting interval - balanced for good throughput and write concern latency
     // 50ms gives good responsiveness while not overwhelming the primary with reports
     private static final long PROGRESS_REPORT_INTERVAL_MS = 50;
+
+    // How often a secondary reports even when its applied sequence did not move: the primary's
+    // liveness window for a secondary is 30s (ReplicationCoordinator), and only a report
+    // refreshes it - well under it, and cheap on an idle set.
+    static final long PROGRESS_HEARTBEAT_INTERVAL_MS = 5000;
 
     // Batching configuration for efficient replication
     // Using reasonable batch interval for good throughput
@@ -1267,21 +1280,39 @@ public class ReplicationManager {
     }
 
     /**
+     * Whether a progress report is due: on progress, as before, and - when there is none - a
+     * heartbeat at least every {@link #PROGRESS_HEARTBEAT_INTERVAL_MS}. The primary only refreshes
+     * a secondary's heartbeat on a report and counts it as live for write concerns for 30s, so on
+     * an idle set "nothing changed, nothing to report" made every secondary read as dead after
+     * half a minute. The heartbeat starts only once the initial sync is complete: a node that has
+     * applied nothing must not count as live - its report would also switch off the primary's
+     * fast "no secondaries" answer and make every w&gt;=2 write wait for its full timeout.
+     */
+    static boolean shouldReportProgress(long currentSeq, long lastReported, boolean initialSyncComplete,
+                                        long nowMs, long lastAttemptAtMs) {
+        if (currentSeq > lastReported) {
+            return true;
+        }
+        return initialSyncComplete && nowMs - lastAttemptAtMs >= PROGRESS_HEARTBEAT_INTERVAL_MS;
+    }
+
+    /**
      * Report current replication progress to the primary.
      * Uses synchronous communication to ensure acknowledgment is received.
      */
     private void reportProgressToPrimary() {
-        if (!connected.get() || primaryMorphium == null || myAddress == null) {
+        if (!connected.get() || primaryMorphium == null || myAddress == null
+                || progressReportsHeldForTest.get()) {
             return;
         }
 
         long currentSeq = lastAppliedSequence.get();
-        long lastReported = lastReportedSequence.get();
-
-        // Only report if there's new progress
-        if (currentSeq <= lastReported) {
+        long now = System.currentTimeMillis();
+        if (!shouldReportProgress(currentSeq, lastReportedSequence.get(), initialSyncComplete.get(),
+                now, lastReportAttemptAtMs.get())) {
             return;
         }
+        lastReportAttemptAtMs.set(now);
 
         MongoConnection con = null;
         try {
@@ -3032,6 +3063,14 @@ public class ReplicationManager {
         pausedForTest.set(true);
         connected.set(false);
         disconnectFromPrimary();
+    }
+
+    /**
+     * Test hook: keep replicating but send no progress report to the primary (true) - the
+     * primary's write-concern waits then stay pending - or report again (false).
+     */
+    void holdProgressReportsForTest(boolean hold) {
+        progressReportsHeldForTest.set(hold);
     }
 
     /** Test hook: heal the simulated partition; the replication loop reconnects and resumes. */
