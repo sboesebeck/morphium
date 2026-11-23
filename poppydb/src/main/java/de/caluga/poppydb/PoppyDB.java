@@ -1170,8 +1170,12 @@ public class PoppyDB {
         } else {
             // Stepping down from leader (primary flag already flipped to false by the caller)
 
-            // Clean up replication coordinator
-            replicationCoordinatorRef.set(null);
+            // Clean up replication coordinator. Closing it releases the write-concern waits that
+            // still reference it - they can never be acknowledged once this node is not primary.
+            ReplicationCoordinator oldCoordinator = replicationCoordinatorRef.getAndSet(null);
+            if (oldCoordinator != null) {
+                oldCoordinator.close();
+            }
 
             // Writes parked by replication flow control were never applied; answer them
             // NotWritablePrimary so the client re-resolves the primary and retries there.

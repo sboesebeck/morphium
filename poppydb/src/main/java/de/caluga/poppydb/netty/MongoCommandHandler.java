@@ -1865,11 +1865,13 @@ public class MongoCommandHandler extends ChannelInboundHandlerAdapter {
 
         long writeSeq = driver.getChangeStreamSequence();
         long wtimeout = getWriteConcernTimeout(doc);
+        // The timeout counts from here, not from when a pool thread picks the wait up.
+        long writtenAtMs = System.currentTimeMillis();
         final Map<String, Object> finalAnswer = answer;
         log.debug("Starting async replication wait: cmd={}, w={}, wtimeout={}", cmd, w, wtimeout);
         COMMAND_EXECUTOR.execute(() -> {
             try {
-                boolean acknowledged = coordinator.waitForReplication(writeSeq, w, wtimeout);
+                boolean acknowledged = coordinator.waitForReplication(writeSeq, w, wtimeout, writtenAtMs);
                 if (!acknowledged) {
                     finalAnswer.put("writeConcernError", Doc.of(
                         "code", 64,

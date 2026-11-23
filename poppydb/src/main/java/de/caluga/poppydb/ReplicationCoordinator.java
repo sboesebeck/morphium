@@ -36,6 +36,10 @@ public class ReplicationCoordinator {
     private final int replicaSetSize;
     private final long defaultWriteConcernTimeoutMs;
 
+    // Set when this node stops being primary. No secondary reports to a closed coordinator any
+    // more, so nothing waiting on it can ever be acknowledged - see close().
+    private volatile boolean closed = false;
+
     public ReplicationCoordinator(int replicaSetSize) {
         this(replicaSetSize, 10000); // Default 10 second timeout
     }
@@ -97,6 +101,18 @@ public class ReplicationCoordinator {
      * @return true if replication was acknowledged, false if timeout
      */
     public boolean waitForReplication(long sequenceNumber, int w, long timeoutMs) {
+        return waitForReplication(sequenceNumber, w, timeoutMs, System.currentTimeMillis());
+    }
+
+    /**
+     * Same wait, with the timeout counted from {@code startedAtMs} (the moment the write was
+     * executed) instead of from the moment this method is entered. The caller runs this on a
+     * small fixed pool; a wait that sat in that pool's queue has already spent part - or all - of
+     * its timeout there and must not occupy a pool thread for a full timeout on top of it.
+     *
+     * @param startedAtMs {@link System#currentTimeMillis()} at the time of the write
+     */
+    public boolean waitForReplication(long sequenceNumber, int w, long timeoutMs, long startedAtMs) {
         if (w <= 1) {
             // w=1 means primary only, no need to wait
             return true;
@@ -107,7 +123,12 @@ public class ReplicationCoordinator {
         }
 
         int requiredSecondaries = w - 1; // Subtract 1 for primary
-        long deadline = System.currentTimeMillis() + timeoutMs;
+        long deadline = startedAtMs + timeoutMs;
+
+        if (closed) {
+            log.debug("Write seq={} not acknowledged: this node is no longer primary", sequenceNumber);
+            return false;
+        }
 
         // Fail fast if no secondaries have ever connected and timeout is long
         // This prevents blocking for the full timeout when secondary isn't started
@@ -138,6 +159,11 @@ public class ReplicationCoordinator {
                     return true;
                 }
 
+                if (closed) {
+                    log.debug("Write seq={} not acknowledged: this node is no longer primary", sequenceNumber);
+                    return false;
+                }
+
                 long remainingMs = deadline - System.currentTimeMillis();
                 if (remainingMs <= 0) {
                     log.warn("Write concern timeout: seq={}, w={}, acknowledged={}/{}",
@@ -153,6 +179,24 @@ public class ReplicationCoordinator {
                     return false;
                 }
             }
+        } finally {
+            replicationLock.unlock();
+        }
+    }
+
+    /**
+     * Ends every wait on this coordinator, running or still to come, as "not acknowledged".
+     * Called when the node stops being primary: its secondaries then follow another primary and
+     * report their progress to that node's coordinator (or, after a failback, to the NEW
+     * coordinator of this node), so a wait on this instance could only run into its timeout.
+     * On the fixed command pool those dead waits blocked every thread for a full timeout each
+     * and held up the answers of all writes queued behind them (prod, 2026-11-20 and 2026-11-23).
+     */
+    public void close() {
+        closed = true;
+        replicationLock.lock();
+        try {
+            replicationCondition.signalAll();
         } finally {
             replicationLock.unlock();
         }
