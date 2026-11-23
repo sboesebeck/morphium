@@ -1157,6 +1157,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#connection-limit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connection limit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#programmatic-replica-set-configuration" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2450,6 +2461,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#connection-limit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connection limit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#programmatic-replica-set-configuration" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2834,7 +2856,7 @@ case/separator-insensitive) — flags without one are CLI-only (there is nothing
 <tr>
 <td><code>--max-connections &lt;num&gt;</code></td>
 <td><code>max-connections</code></td>
-<td>Maximum concurrent connections.</td>
+<td>Maximum concurrent client connections. Connections from replica-set members are counted separately, see <a href="#connection-limit">Connection limit</a>.</td>
 <td><code>500</code></td>
 </tr>
 <tr>
@@ -2925,6 +2947,55 @@ directions</strong>, mixed clusters included. For a rolling restart, restarting 
 node last is still the tidier order - nothing breaks otherwise, that is what these mechanisms
 are for, but it keeps a freshly started, still-syncing node with a priority advantage out of
 the critical path.</p>
+<h3 id="connection-limit">Connection limit<a class="headerlink" href="#connection-limit" title="Permanent link">&para;</a></h3>
+<p>The members of a replica set connect to the same port as the clients: the secondaries'
+replication watch and progress reports, the election traffic (vote requests, the leader's
+heartbeats) and the <code>hello</code> probes of the members' drivers. So that a client connection storm
+cannot cut a node off from its own set, a connection whose remote IP address is the address of
+one of the <code>--rs-seed</code> hosts counts as a <strong>member connection</strong>:</p>
+<ul>
+<li><code>--max-connections</code> limits only the other (client) connections.</li>
+<li>Member connections have their own fixed cap of 256 per node. A member connection that finds
+  this cap full takes a free client slot instead (and counts as a client until it closes); only
+  when both are full is it rejected. A replica-set node therefore admits up to 256 +
+  <code>--max-connections</code> connections in total, never fewer than <code>--max-connections</code>.</li>
+<li>The seed host names are resolved at start and re-resolved every 60 s (every 5 s while a
+  lookup fails; a host keeps its last known addresses meanwhile), so a DNS change needs no
+  restart. Only the address is compared - the source port is ephemeral. The first lookup runs
+  during start, before the node binds its port, so a slow or broken DNS delays the startup.</li>
+<li>A standalone node has no members: every connection is a client connection, as before.</li>
+</ul>
+<p>Consequence to keep in mind: a client running on a member's host - and every client of a set
+that runs entirely on one host, such as a local test cluster on <code>127.0.0.1</code> - counts as a member
+connection: such a node fills its member cap first and then its client slots. Connections are made from the address the
+operating system picks for the route to the peer; a member that reaches the others through NAT
+or from an interface its seed name does not resolve to counts as a client.</p>
+<p>Rejections are logged rate-limited: the first one after a clean period as a WARN with the
+client count, the limit, the member count and the rejected address; while rejections continue
+at most one summary WARN per 10 s with the number rejected since the last line; one INFO with
+the total and the duration (first to last rejection) for the first accepted connection after
+10 s without a rejection. Churn at the limit - a slot frees, one connection is accepted, the
+next is rejected - keeps the episode open instead of logging every freed slot.</p>
+<p><code>serverStatus.connections</code> reports, besides <code>current</code> (all open connections), <code>available</code> and
+<code>totalCreated</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>members</code></td>
+<td>open member connections</td>
+</tr>
+<tr>
+<td><code>rejected</code></td>
+<td>connections rejected by either limit since the process started</td>
+</tr>
+</tbody>
+</table>
 <h3 id="programmatic-replica-set-configuration">Programmatic Replica Set Configuration<a class="headerlink" href="#programmatic-replica-set-configuration" title="Permanent link">&para;</a></h3>
 <p>You can configure a replica set programmatically using the <code>configureReplicaSet()</code> method:</p>
 <div class="language-java highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">PoppyDB</span><span class="w"> </span><span class="n">primary</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PoppyDB</span><span class="p">(</span><span class="mi">27017</span><span class="p">,</span><span class="w"> </span><span class="s">"localhost"</span><span class="p">,</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span>
@@ -4098,7 +4169,7 @@ Netty internals, replace the configuration via <code>-Dlogback.configurationFile
 </tr>
 <tr>
 <td><code>serverStatus</code></td>
-<td>Includes real client connection gauges (<code>connections.current</code>/<code>totalCreated</code> from the Netty channel group) and the change stream counters <code>changeStreams.registrations</code> / <code>resumeRegistrations</code> (lifetime totals of registrations that reached this node, served or refused) / <code>open</code> (#380)</td>
+<td>Includes real client connection gauges (<code>connections.current</code>/<code>totalCreated</code> from the Netty channel group, <code>members</code>/<code>rejected</code> - see <a href="#connection-limit">Connection limit</a>) and the change stream counters <code>changeStreams.registrations</code> / <code>resumeRegistrations</code> (lifetime totals of registrations that reached this node, served or refused) / <code>open</code> (#380)</td>
 </tr>
 <tr>
 <td><code>dbStats</code> / <code>collStats</code></td>
