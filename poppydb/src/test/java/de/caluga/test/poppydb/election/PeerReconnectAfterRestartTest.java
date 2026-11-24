@@ -119,6 +119,12 @@ public class PeerReconnectAfterRestartTest {
 
         assertTrue(waitFor(() -> leaderAmong(first, middle) != null, 10000),
                 "one of the two higher-priority nodes should have become leader");
+        // If the priority-50 node won term 1, the priority-100 node takes the lead from it a few
+        // seconds later (priority takeover). That is a second, legitimate leader change - and
+        // when it fell into the restart below, the restarted follower was heartbeated by the NEW
+        // leader and the test failed for naming the old one. Wait for the leader that stays.
+        assertTrue(waitFor(() -> leaderAmong(first, middle) == first, 30000),
+                "the priority-100 node should end up as leader (priority takeover)");
         PoppyDB leader = leaderAmong(first, middle);
         assertNotNull(leader, "leader disappeared between the wait and the lookup");
         String leaderAddress = "localhost:" + (leader == first ? firstPort : middlePort);
