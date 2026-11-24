@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [6.3.17] - 2026-11-24
+
 ### Fixed
 
 #### PoppyDB: write-concern waits of a former primary no longer block the answers of all later writes
