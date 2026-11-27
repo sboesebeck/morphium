@@ -1193,8 +1193,16 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
             for (Object o : lst) {
                 if (o instanceof Map) {
-                    // noinspection unchecked
-                    ret.putAll(((Map) o));
+                    // MOR-037: a key that two branches share ($or twice, two conditions on one field) cannot be merged into one map: putAll replaced the earlier predicate and
+                    // the query matched more than it asked for. Equal predicates are the same condition; different ones keep the $and.
+                    for (Map.Entry<?, ?> e : ((Map<?, ?>) o).entrySet()) {
+                        if (ret.containsKey(e.getKey()) && !Objects.equals(ret.get(e.getKey()), e.getValue())) {
+                            return q;
+                        }
+
+                        // noinspection unchecked
+                        ret.put((String) e.getKey(), (Object) e.getValue());
+                    }
                 } else {
                     // something we cannot handle
                     return q;
